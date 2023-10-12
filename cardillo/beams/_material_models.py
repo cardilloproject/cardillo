@@ -63,6 +63,12 @@ class Simo1986:
         self.C_n_inv = np.linalg.inv(self.C_n)
         self.C_m_inv = np.linalg.inv(self.C_m)
 
+    def C_n_inverse(self):
+        return self.C_n_inv
+    
+    def C_m_inverse(self):
+        return self.C_m_inv
+
     def potential(self, K_Gamma, K_Gamma0, K_Kappa, K_Kappa0):
         dG = K_Gamma - K_Gamma0
         dK = K_Kappa - K_Kappa0

@@ -46,7 +46,7 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
     # Rod = CosseratRodPG_QuatMixed
     # Rod = CosseratRodPG_SE3Mixed
     # nelements_Lagrangian = 5
-    nelements_Lagrangian = 2
+    nelements_Lagrangian = 5
     polynomial_degree = 2
     
     # number of elements
@@ -132,7 +132,7 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
     if load_type == "moment":
         # moment at cantilever tip
         m = material_model.Fi[2] * 2 * np.pi / length
-        M = lambda t: t * e3 * m
+        M = lambda t: 0.1 * t * e3 * m
         moment = K_Moment(M, cantilever, (1,))
         system.add(moment)
     elif load_type == "dead_load":
@@ -164,7 +164,7 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
     # add Newton solver
     solver = Newton(
         system,
-        n_load_steps=10,
+        n_load_steps=2,
         max_iter=30,
         atol=atol,
     )

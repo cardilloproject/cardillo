@@ -894,8 +894,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
     
 
     def f_pot_el_q(self, qe, el):
-        # if not hasattr(self, "_deval"):
-        if True:
+        if not hasattr(self, "_deval"):            
             warnings.warn(
                 "Class derived from TimoshenkoPetrovGalerkinBase does not implement _deval. We use a numerical Jacobian!"
             )
@@ -933,25 +932,68 @@ class CosseratRodPGMixed(RodExportBase, ABC):
                 K_Kappa = K_Kappa_bar / J
                 K_Kappa_qe = K_Kappa_bar_qe / J
 
-                # compute contact forces and couples from partial derivatives of
-                # the strain energy function w.r.t. strain measures
-                K_n = self.material_model.K_n(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
-                K_n_K_Gamma = self.material_model.K_n_K_Gamma(
-                    K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
-                )
-                K_n_K_Kappa = self.material_model.K_n_K_Kappa(
-                    K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
-                )
-                K_n_qe = K_n_K_Gamma @ K_Gamma_qe + K_n_K_Kappa @ K_Kappa_qe
+                if self.mixed:
+                    N_n = self.basis_functions_n(qpi)
+                    N_m = self.basis_functions_m(qpi)
 
-                K_m = self.material_model.K_m(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
-                K_m_K_Gamma = self.material_model.K_m_K_Gamma(
-                    K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
-                )
-                K_m_K_Kappa = self.material_model.K_m_K_Kappa(
-                    K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
-                )
-                K_m_qe = K_m_K_Gamma @ K_Gamma_qe + K_m_K_Kappa @ K_Kappa_qe
+                    # interpolation of the n and m
+                    K_n = np.zeros(3, dtype=qe.dtype)
+                    K_n_qe = np.zeros((3, self.nq_element), dtype=qe.dtype)
+                    K_m = np.zeros(3, dtype=qe.dtype)
+                    K_m_qe = np.zeros((3, self.nq_element), dtype=qe.dtype)
+
+                    for node in range(self.nnodes_element_n):
+                        nodalDOF_n = self.nodalDOF_element_n[node]
+                        n_node = qe[self.nodalDOF_element_n[node]]
+                        K_n += N_n[node] * n_node
+                        K_n_qe[:, nodalDOF_n] += N_n[node] * np.eye(3, dtype=float)
+
+                    for node in range(self.nnodes_element_m):
+                        nodalDOF_m = self.nodalDOF_element_m[node]
+                        m_node = qe[self.nodalDOF_element_m[node]]
+                        K_m += N_m[node] * m_node
+                        K_m_qe[:, nodalDOF_m] += N_m[node] * np.eye(3, dtype=float)
+
+                    C_n_inv = self.material_model.C_n_inverse()
+                    C_m_inv = self.material_model.C_m_inverse()
+
+                    
+                    ############################
+                    # third contribution
+                    ############################
+                    for node in range(self.nnodes_element_n):
+                        f_pot_q_el[self.nodalDOF_element_n_u[node], :] -= (
+                            self.N_n[el, i, node] * (K_Gamma_bar_qe - J * C_n_inv * K_n_qe) * qwi
+                        )
+
+                    for node in range(self.nnodes_element_m):
+                        f_pot_q_el[self.nodalDOF_element_m_u[node], :] -= (
+                            self.N_m[el, i, node] * (K_Kappa_bar_qe - J * C_m_inv * K_m_qe) * qwi
+                        )
+
+                    
+                else:
+                    # compute contact forces and couples from partial derivatives of
+                    # the strain energy function w.r.t. strain measures
+                    K_n = self.material_model.K_n(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
+                    K_n_K_Gamma = self.material_model.K_n_K_Gamma(
+                        K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
+                    )
+                    K_n_K_Kappa = self.material_model.K_n_K_Kappa(
+                        K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
+                    )
+                    K_n_qe = K_n_K_Gamma @ K_Gamma_qe + K_n_K_Kappa @ K_Kappa_qe
+
+                    K_m = self.material_model.K_m(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
+                    K_m_K_Gamma = self.material_model.K_m_K_Gamma(
+                        K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
+                    )
+                    K_m_K_Kappa = self.material_model.K_m_K_Kappa(
+                        K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
+                    )
+                    K_m_qe = K_m_K_Gamma @ K_Gamma_qe + K_m_K_Kappa @ K_Kappa_qe
+
+
 
                 ############################
                 # virtual work contributions
@@ -986,18 +1028,18 @@ class CosseratRodPGMixed(RodExportBase, ABC):
                         )
                     )
 
-            return f_pot_q_el
+            # return f_pot_q_el
 
+            f_pot_q_el_num = approx_fprime(
+                qe, lambda qe: self.f_pot_el(qe, el), eps=1.0e-10, method="cs"
+            )
             # f_pot_q_el_num = approx_fprime(
-            #     qe, lambda qe: self.f_pot_el(qe, el), eps=1.0e-10, method="cs"
+            #     qe, lambda qe: self.f_pot_el(qe, el), eps=5.0e-6, method="2-point"
             # )
-            # # f_pot_q_el_num = approx_fprime(
-            # #     qe, lambda qe: self.f_pot_el(qe, el), eps=5.0e-6, method="2-point"
-            # # )
-            # diff = f_pot_q_el - f_pot_q_el_num
-            # error = np.linalg.norm(diff)
-            # print(f"error f_pot_q_el: {error}")
-            # return f_pot_q_el_num
+            diff = f_pot_q_el - f_pot_q_el_num
+            error = np.linalg.norm(diff)
+            print(f"error f_pot_q_el: {error}")
+            return f_pot_q_el_num
 
     #########################################
     # equations of motion
