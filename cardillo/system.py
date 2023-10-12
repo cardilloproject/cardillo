@@ -229,20 +229,24 @@ class System:
         # call assembler callback: call methods that require first an assembly of the system
         self.assembler_callback()
 
-        # compute consisten initial conditions
+        # compute consistent initial conditions
         self.q0 = np.array(q0)
         self.u0 = np.array(u0)
-        (
-            self.t0,
-            self.q0,
-            self.u0,
-            self.q_dot0,
-            self.u_dot0,
-            self.la_g0,
-            self.la_gamma0,
-            self.la_N0,
-            self.la_F0,
-        ) = consistent_initial_conditions(self)
+        self.la_g0 = np.zeros(self.nla_g)
+        self.la_N0 = []
+        # (
+        #     self.t0,
+        #     self.q0,
+        #     self.u0,
+        #     self.q_dot0,
+        #     self.u_dot0,
+        #     self.la_g0,
+        #     self.la_gamma0,
+        #     self.la_N0,
+        #     self.la_F0,
+        # ) = consistent_initial_conditions(self)
+
+
 
     def assembler_callback(self):
         for contr in self.__assembler_callback_contr:

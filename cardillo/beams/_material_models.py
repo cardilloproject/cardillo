@@ -78,7 +78,7 @@ class Simo1986:
         return 0.5 * K_n_S @ self.C_n_inv @ K_n_S + 0.5 * K_m_S @ self.C_m_inv @ K_m_S
     
     def K_gam_comp(self, K_n_S):
-        return self.C_n_inv @ K_n_S
+        return self.C_n_inv @ K_n_S + np.array([1, 0, 0])
     
     def K_kap_comp(self, K_m_S): 
         return self.C_m_inv @ K_m_S
