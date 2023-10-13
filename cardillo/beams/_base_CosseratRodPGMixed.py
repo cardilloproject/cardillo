@@ -41,8 +41,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         u0=None,
         mixed=False,
     ):
-        """Base class for Petrov-Galerkin Cosserat rod formulations that uses quaternions for the parametrization of the nodal orientations.
-        """
+        """Base class for Petrov-Galerkin Cosserat rod formulations that uses quaternions for the parametrization of the nodal orientations."""
 
         super().__init__(cross_section)
         self.mixed = mixed
@@ -150,9 +149,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
 
         dim_g_S = 1
         self.nla_S = self.nnodes_psi * dim_g_S
-        self.nodalDOF_la_S = np.arange(self.nla_S).reshape(
-            self.nnodes_psi, dim_g_S
-        )
+        self.nodalDOF_la_S = np.arange(self.nla_S).reshape(self.nnodes_psi, dim_g_S)
         self.la_S0 = np.zeros(self.nla_S, dtype=float)
         self.g_S = self.__g_S
         self.g_S_q = self.__g_S_q
@@ -174,15 +171,14 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         self.nu_psi = self.mesh_psi.nu
         self.nu = self.nu_r + self.nu_psi
 
-        if self.mixed: 
+        if self.mixed:
             self.nq_n = self.mesh_n.nq
             self.nq_m = self.mesh_m.nq
             self.nq += self.nq_n + self.nq_m
-            
+
             self.nu_n = self.mesh_n.nu
             self.nu_m = self.mesh_m.nu
             self.nu += self.nu_n + self.nu_m
-
 
         # number of generalized coordinates and velocities per element
         self.nq_element_r = self.mesh_r.nq_per_element
@@ -197,7 +193,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
             self.nq_element_n = self.mesh_n.nq_per_element
             self.nq_element_m = self.mesh_m.nq_per_element
             self.nq_element += self.nq_element_n + self.nq_element_m
-            
+
             self.nu_element_n = self.mesh_n.nu_per_element
             self.nu_element_m = self.mesh_m.nu_per_element
             self.nu_element += self.nu_element_n + self.nu_element_m
@@ -224,14 +220,13 @@ class CosseratRodPGMixed(RodExportBase, ABC):
             self.nodalDOF_n = self.mesh_n.nodalDOF + self.nq_r + self.nq_psi
             self.nodalDOF_m = self.mesh_m.nodalDOF + self.nq_r + self.nq_psi + self.nq_n
             self.nodalDOF_n_u = self.mesh_n.nodalDOF_u + self.nu_r + self.nu_psi
-            self.nodalDOF_m_u = self.mesh_m.nodalDOF_u + self.nu_r + self.nu_psi + self.nu_n
-
+            self.nodalDOF_m_u = (
+                self.mesh_m.nodalDOF_u + self.nu_r + self.nu_psi + self.nu_n
+            )
 
         # nodal connectivity on element level
         self.nodalDOF_element_r = self.mesh_r.nodalDOF_element
-        self.nodalDOF_element_psi = (
-            self.mesh_psi.nodalDOF_element + self.nq_element_r
-        )
+        self.nodalDOF_element_psi = self.mesh_psi.nodalDOF_element + self.nq_element_r
         self.nodalDOF_element_r_u = self.mesh_r.nodalDOF_element_u
         self.nodalDOF_element_psi_u = (
             self.mesh_psi.nodalDOF_element_u + self.nu_element_r
@@ -239,17 +234,23 @@ class CosseratRodPGMixed(RodExportBase, ABC):
 
         if self.mixed:
             self.nodalDOF_element_n = (
-            self.mesh_n.nodalDOF_element + self.nq_element_r + self.nq_element_psi
+                self.mesh_n.nodalDOF_element + self.nq_element_r + self.nq_element_psi
             )
             self.nodalDOF_element_m = (
-            self.mesh_m.nodalDOF_element + self.nq_element_r + self.nq_element_psi + self.nq_element_n
+                self.mesh_m.nodalDOF_element
+                + self.nq_element_r
+                + self.nq_element_psi
+                + self.nq_element_n
             )
-            
+
             self.nodalDOF_element_n_u = (
-            self.mesh_n.nodalDOF_element_u + self.nu_element_r + self.nu_element_psi
+                self.mesh_n.nodalDOF_element_u + self.nu_element_r + self.nu_element_psi
             )
             self.nodalDOF_element_m_u = (
-            self.mesh_m.nodalDOF_element_u + self.nu_element_r + self.nu_element_psi + self.nu_element_n
+                self.mesh_m.nodalDOF_element_u
+                + self.nu_element_r
+                + self.nu_element_psi
+                + self.nu_element_n
             )
 
         # r_OP_i^e = C_r,i^e * C_e,q q = C_r,i^e * q^e
@@ -260,15 +261,34 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         self.elDOF_u = np.zeros((nelement, self.nu_element), dtype=int)
         for el in range(nelement):
             self.elDOF[el, : self.nq_element_r] = self.elDOF_r[el]
-            self.elDOF[el, self.nq_element_r : self.nq_element_r + self.nq_element_psi] = self.elDOF_psi[el]
+            self.elDOF[
+                el, self.nq_element_r : self.nq_element_r + self.nq_element_psi
+            ] = self.elDOF_psi[el]
             self.elDOF_u[el, : self.nu_element_r] = self.elDOF_r_u[el]
-            self.elDOF_u[el, self.nu_element_r : self.nu_element_r + self.nu_element_psi] = self.elDOF_psi_u[el]
+            self.elDOF_u[
+                el, self.nu_element_r : self.nu_element_r + self.nu_element_psi
+            ] = self.elDOF_psi_u[el]
             if self.mixed:
-                self.elDOF[el, self.nq_element_r + self.nq_element_psi : self.nq_element_r + self.nq_element_psi + self.nq_element_n] = self.elDOF_n[el]
-                self.elDOF[el, self.nq_element_r + self.nq_element_psi + self.nq_element_n :] = self.elDOF_m[el]
-                self.elDOF_u[el, self.nu_element_r + self.nu_element_psi : self.nu_element_r + self.nu_element_psi + self.nu_element_n] = self.elDOF_n_u[el]
-                self.elDOF_u[el, self.nu_element_r + self.nu_element_psi + self.nu_element_n :] = self.elDOF_m_u[el]
-
+                self.elDOF[
+                    el,
+                    self.nq_element_r
+                    + self.nq_element_psi : self.nq_element_r
+                    + self.nq_element_psi
+                    + self.nq_element_n,
+                ] = self.elDOF_n[el]
+                self.elDOF[
+                    el, self.nq_element_r + self.nq_element_psi + self.nq_element_n :
+                ] = self.elDOF_m[el]
+                self.elDOF_u[
+                    el,
+                    self.nu_element_r
+                    + self.nu_element_psi : self.nu_element_r
+                    + self.nu_element_psi
+                    + self.nu_element_n,
+                ] = self.elDOF_n_u[el]
+                self.elDOF_u[
+                    el, self.nu_element_r + self.nu_element_psi + self.nu_element_n :
+                ] = self.elDOF_m_u[el]
 
         # shape functions and their first derivatives
         self.N_r = self.mesh_r.N
@@ -288,7 +308,6 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         self.qw = self.mesh_r.wp  # quadrature weights
         self.qp_dyn = self.mesh_r_dyn.qp  # quadrature points for dynamics
         self.qw_dyn = self.mesh_r_dyn.wp  # quadrature weights for dynamics
-
 
         # if RotationBase is QuaternionRotationParameterization:
         #     for i in range(self.nnodes_psi - 1):
@@ -314,7 +333,6 @@ class CosseratRodPGMixed(RodExportBase, ABC):
             self.basis_functions_n = self.mesh_n.eval_basis
             self.basis_functions_m = self.mesh_m.eval_basis
 
-
         # reference generalized coordinates, initial coordinates and initial velocities
         self.Q = Q  # reference configuration
         self.q0 = Q.copy() if q0 is None else q0  # initial configuration
@@ -323,7 +341,6 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         )  # initial velocities
 
         self.set_initial_strains(self.q0)
-
 
     def set_initial_strains(self, Q):
         self.Q = Q.copy()
@@ -368,7 +385,6 @@ class CosseratRodPGMixed(RodExportBase, ABC):
             self.K_n0 = np.zeros((self.nelement, self.nquadrature, 3), dtype=float)
             self.K_m0 = np.zeros((self.nelement, self.nquadrature, 3), dtype=float)
 
-
         for el in range(self.nelement):
             qe = self.Q[self.elDOF[el]]
 
@@ -393,8 +409,6 @@ class CosseratRodPGMixed(RodExportBase, ABC):
                 self.K_Gamma0[el, i] = K_Gamma
                 self.K_Kappa0[el, i] = K_Kappa
 
-
-
             for i in range(self.nquadrature_dyn):
                 # current quadrature point
                 qpi = self.qp_dyn[el, i]
@@ -414,21 +428,20 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         polynomial_degree=1,
         r_OP=np.zeros(3, dtype=float),
         A_IK=np.eye(3, dtype=float),
-        mixed=False
+        mixed=False,
     ):
         nnodes_r = polynomial_degree * nelement + 1
         nnodes_psi = polynomial_degree * nelement + 1
         nnodes_n = polynomial_degree * nelement
         nnodes_m = polynomial_degree * nelement
-        
+
         x0 = np.linspace(0, L, num=nnodes_r)
         y0 = np.zeros(nnodes_r)
         z0 = np.zeros(nnodes_r)
-        
+
         r0 = np.vstack((x0, y0, z0))
         for i in range(nnodes_r):
             r0[:, i] = r_OP + A_IK @ r0[:, i]
-
 
         # reshape generalized coordinates to nodal ordering
         q_r = r0.reshape(-1, order="C")
@@ -437,7 +450,6 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         # and set its value for each node
         psi = QuaternionRotationParameterization().Log_SO3(A_IK)
         q_psi = np.repeat(psi, nnodes_psi)
-
 
         q = np.concatenate([q_r, q_psi])
         if mixed:
@@ -536,9 +548,6 @@ class CosseratRodPGMixed(RodExportBase, ABC):
 
     #     return q0, u0
 
-    
-        
-
     @staticmethod
     def straight_initial_configuration(
         nelement,
@@ -549,7 +558,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         v_P=np.zeros(3, dtype=float),
         K_omega_IK=np.zeros(3, dtype=float),
         rotation_parameterization=QuaternionRotationParameterization(),
-        mixed=False
+        mixed=False,
     ):
         nnodes_r = polynomial_degree * nelement + 1
         nnodes_psi = polynomial_degree * nelement + 1
@@ -559,7 +568,6 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         x0 = np.linspace(0, L, num=nnodes_r)
         y0 = np.zeros(nnodes_r)
         z0 = np.zeros(nnodes_r)
-            
 
         r_OC0 = np.vstack((x0, y0, z0))
         for i in range(nnodes_r):
@@ -577,9 +585,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         # centerline velocities
         v_C0 = np.zeros_like(r_OC0, dtype=float)
         for i in range(nnodes_r):
-            v_C0[:, i] = v_P + cross3(
-                A_IK @ K_omega_IK, (r_OC0[:, i] - r_OC0[:, 0])
-            )
+            v_C0[:, i] = v_P + cross3(A_IK @ K_omega_IK, (r_OC0[:, i] - r_OC0[:, 0]))
 
         # reshape generalized velocities to nodal ordering
         u_r = v_C0.reshape(-1, order="C")
@@ -589,16 +595,12 @@ class CosseratRodPGMixed(RodExportBase, ABC):
 
         q0 = np.concatenate([q_r, q_psi])
         u0 = np.concatenate([u_r, u_psi])
-    
+
         if mixed:
             q0 = np.concatenate([q_r, q_psi, np.zeros(3 * nnodes_n + 3 * nnodes_m)])
             u0 = np.concatenate([u_r, u_psi, np.zeros(3 * nnodes_n + 3 * nnodes_m)])
 
         return q0, u0
-    
-
-
-
 
     def element_number(self, xi):
         """Compute element number from given xi."""
@@ -617,7 +619,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
     @abstractmethod
     def _eval(self, qe, xi, mixed=False):
         """Compute (r_OP, A_IK, K_Gamma_bar, K_Kappa_bar)
-           and K_n_s, K_m_s in the mixed formulation """
+        and K_n_s, K_m_s in the mixed formulation"""
         ...
 
     # @abstractmethod
@@ -687,7 +689,9 @@ class CosseratRodPGMixed(RodExportBase, ABC):
             nodalDOF_psi_u = self.nodalDOF_psi_u[node]
             psi = q[nodalDOF_psi]
             K_omega_IK = u[nodalDOF_psi_u]
-            q_dot[nodalDOF_psi] = QuaternionRotationParameterization.q_dot(psi, K_omega_IK)
+            q_dot[nodalDOF_psi] = QuaternionRotationParameterization.q_dot(
+                psi, K_omega_IK
+            )
 
         return q_dot
 
@@ -703,7 +707,9 @@ class CosseratRodPGMixed(RodExportBase, ABC):
             nodalDOF_psi_u = self.nodalDOF_psi_u[node]
 
             psi = q[nodalDOF_psi]
-            coo[nodalDOF_psi, nodalDOF_psi_u] = QuaternionRotationParameterization.B(psi)
+            coo[nodalDOF_psi, nodalDOF_psi_u] = QuaternionRotationParameterization.B(
+                psi
+            )
 
         return coo
 
@@ -717,7 +723,9 @@ class CosseratRodPGMixed(RodExportBase, ABC):
             psi = q[nodalDOF_psi]
             K_omega_IK = u[nodalDOF_psi_u]
 
-            coo[nodalDOF_psi, nodalDOF_psi] = QuaternionRotationParameterization.q_dot_q(psi, K_omega_IK)
+            coo[
+                nodalDOF_psi, nodalDOF_psi
+            ] = QuaternionRotationParameterization.q_dot_q(psi, K_omega_IK)
 
         return coo
 
@@ -760,7 +768,9 @@ class CosseratRodPGMixed(RodExportBase, ABC):
     def step_callback(self, t, q, u):
         for node in range(self.nnodes_psi):
             psi = q[self.nodalDOF_psi[node]]
-            q[self.nodalDOF_psi[node]] = QuaternionRotationParameterization.step_callback(psi)
+            q[
+                self.nodalDOF_psi[node]
+            ] = QuaternionRotationParameterization.step_callback(psi)
         return q, u
 
     ###############################
@@ -822,7 +832,6 @@ class CosseratRodPGMixed(RodExportBase, ABC):
             # torsional and flexural strains
             K_Kappa = K_Kappa_bar / J
 
-
             if self.mixed:
                 N_n = self.basis_functions_n(qpi)
                 N_m = self.basis_functions_m(qpi)
@@ -838,12 +847,10 @@ class CosseratRodPGMixed(RodExportBase, ABC):
                     m_node = qe[self.nodalDOF_element_m[node]]
                     K_m += N_m[node] * m_node
 
-
                 # compute contact forces and couples from partial derivatives of
                 # the strain energy function w.r.t. strain measures
                 K_gam_comp = self.material_model.K_gam_comp(K_n)
                 K_kap_comp = self.material_model.K_kap_comp(K_m)
-
 
                 ############################
                 # virtual work contributions of the internal stresses
@@ -851,6 +858,10 @@ class CosseratRodPGMixed(RodExportBase, ABC):
                 for node in range(self.nnodes_element_n):
                     f_pot_el[self.nodalDOF_element_n_u[node]] -= (
                         self.N_n[el, i, node] * (K_Gamma_bar - J * K_gam_comp) * qwi
+                        # for shear-rigid and inextensible rod
+                        # self.N_n[el, i, node] * (K_Gamma_bar - J * np.array([1, 0, 0])) * qwi
+                        # for shear-rigid
+                        # self.N_n[el, i, node] * (K_Gamma_bar - J * np.array([K_gam_comp[0], 0, 0])) * qwi
                     )
 
                 for node in range(self.nnodes_element_m):
@@ -858,16 +869,11 @@ class CosseratRodPGMixed(RodExportBase, ABC):
                         self.N_m[el, i, node] * (K_Kappa_bar - J * K_kap_comp) * qwi
                     )
 
-
-
-
             else:
-                 # compute contact forces and couples from partial derivatives of
+                # compute contact forces and couples from partial derivatives of
                 # the strain energy function w.r.t. strain measures
                 K_n = self.material_model.K_n(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
                 K_m = self.material_model.K_m(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
-            
-
 
             ############################
             # virtual work contributions
@@ -887,13 +893,11 @@ class CosseratRodPGMixed(RodExportBase, ABC):
                     * (cross3(K_Gamma_bar, K_n) + cross3(K_Kappa_bar, K_m))
                     * qwi
                 )
-            
 
         return f_pot_el
-    
 
     def f_pot_el_q(self, qe, el):
-        if not hasattr(self, "_deval"):            
+        if not hasattr(self, "_deval"):
             warnings.warn(
                 "Class derived from TimoshenkoPetrovGalerkinBase does not implement _deval. We use a numerical Jacobian!"
             )
@@ -956,21 +960,23 @@ class CosseratRodPGMixed(RodExportBase, ABC):
                     C_n_inv = self.material_model.C_n_inverse()
                     C_m_inv = self.material_model.C_m_inverse()
 
-                    
                     ############################
                     # third contribution
                     ############################
                     for node in range(self.nnodes_element_n):
                         f_pot_q_el[self.nodalDOF_element_n_u[node], :] -= (
-                            self.N_n[el, i, node] * (K_Gamma_bar_qe - J * C_n_inv @ K_n_qe) * qwi
+                            self.N_n[el, i, node]
+                            * (K_Gamma_bar_qe - J * C_n_inv @ K_n_qe)
+                            * qwi
                         )
 
                     for node in range(self.nnodes_element_m):
                         f_pot_q_el[self.nodalDOF_element_m_u[node], :] -= (
-                            self.N_m[el, i, node] * (K_Kappa_bar_qe - J * C_m_inv @ K_m_qe) * qwi
+                            self.N_m[el, i, node]
+                            * (K_Kappa_bar_qe - J * C_m_inv @ K_m_qe)
+                            * qwi
                         )
 
-                    
                 else:
                     # compute contact forces and couples from partial derivatives of
                     # the strain energy function w.r.t. strain measures
@@ -991,8 +997,6 @@ class CosseratRodPGMixed(RodExportBase, ABC):
                         K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
                     )
                     K_m_qe = K_m_K_Gamma @ K_Gamma_qe + K_m_K_Kappa @ K_Kappa_qe
-
-
 
                 ############################
                 # virtual work contributions
@@ -1072,8 +1076,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
                 for node_b in range(self.nnodes_element_psi):
                     nodalDOF_b = self.nodalDOF_element_psi_u[node_b]
                     M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psi_psi * (
-                        self.N_psi_dyn[el, i, node_a]
-                        * self.N_psi_dyn[el, i, node_b]
+                        self.N_psi_dyn[el, i, node_a] * self.N_psi_dyn[el, i, node_b]
                     )
 
         return M_el
@@ -1103,8 +1106,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
                 for node_b in range(self.nnodes_element_psi):
                     nodalDOF_b = self.nodalDOF_element_psi_u[node_b]
                     M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psi_psi * (
-                        self.N_psi_dyn[el, i, node_a]
-                        * self.N_psi_dyn[el, i, node_b]
+                        self.N_psi_dyn[el, i, node_a] * self.N_psi_dyn[el, i, node_b]
                     )
 
             # For non symmetric cross sections there are also other parts
@@ -1180,15 +1182,12 @@ class CosseratRodPGMixed(RodExportBase, ABC):
 
             v_P = np.zeros(3, dtype=float)
             for node in range(self.nnodes_element_r):
-                v_P += (
-                    self.N_r_dyn[el, i, node] * ue[self.nodalDOF_element_r_u[node]]
-                )
+                v_P += self.N_r_dyn[el, i, node] * ue[self.nodalDOF_element_r_u[node]]
 
             K_omega_IK = np.zeros(3, dtype=float)
             for node in range(self.nnodes_element_psi):
                 K_omega_IK += (
-                    self.N_psi_dyn[el, i, node]
-                    * ue[self.nodalDOF_element_psi_u[node]]
+                    self.N_psi_dyn[el, i, node] * ue[self.nodalDOF_element_psi_u[node]]
                 )
 
             # delta_r A_rho0 r_ddot part
@@ -1253,27 +1252,19 @@ class CosseratRodPGMixed(RodExportBase, ABC):
             r_OP = np.zeros(3, dtype=float)
             v_P = np.zeros(3, dtype=float)
             for node in range(self.nnodes_element_r):
-                r_OP += (
-                    self.N_r_dyn[el, i, node] * qe[self.nodalDOF_element_r[node]]
-                )
-                v_P += (
-                    self.N_r_dyn[el, i, node] * ue[self.nodalDOF_element_r_u[node]]
-                )
+                r_OP += self.N_r_dyn[el, i, node] * qe[self.nodalDOF_element_r[node]]
+                v_P += self.N_r_dyn[el, i, node] * ue[self.nodalDOF_element_r_u[node]]
 
             K_omega_IK = np.zeros(3, dtype=float)
             for node in range(self.nnodes_element_psi):
                 K_omega_IK += (
-                    self.N_psi_dyn[el, i, node]
-                    * ue[self.nodalDOF_element_psi_u[node]]
+                    self.N_psi_dyn[el, i, node] * ue[self.nodalDOF_element_psi_u[node]]
                 )
 
             A_IK = self.A_IK(t, qe, (qpi,))
 
             angular_momentum_el += (
-                (
-                    cross3(r_OP, v_P) * self.A_rho0
-                    + A_IK @ (self.K_I_rho0 @ K_omega_IK)
-                )
+                (cross3(r_OP, v_P) * self.A_rho0 + A_IK @ (self.K_I_rho0 @ K_omega_IK))
                 * Ji
                 * qwi
             )
@@ -1293,8 +1284,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
             K_Omega = np.zeros(3, dtype=np.common_type(qe, ue))
             for node in range(self.nnodes_element_psi):
                 K_Omega += (
-                    self.N_psi_dyn[el, i, node]
-                    * ue[self.nodalDOF_element_psi_u[node]]
+                    self.N_psi_dyn[el, i, node] * ue[self.nodalDOF_element_psi_u[node]]
                 )
 
             # vector of gyroscopic forces
@@ -1320,18 +1310,12 @@ class CosseratRodPGMixed(RodExportBase, ABC):
             K_Omega = np.zeros(3, dtype=float)
             for node in range(self.nnodes_element_psi):
                 K_Omega += (
-                    self.N_psi_dyn[el, i, node]
-                    * ue[self.nodalDOF_element_psi_u[node]]
+                    self.N_psi_dyn[el, i, node] * ue[self.nodalDOF_element_psi_u[node]]
                 )
 
             # derivative of vector of gyroscopic forces
             f_gyr_u_el_psi = (
-                (
-                    (
-                        ax2skew(K_Omega) @ self.K_I_rho0
-                        - ax2skew(self.K_I_rho0 @ K_Omega)
-                    )
-                )
+                ((ax2skew(K_Omega) @ self.K_I_rho0 - ax2skew(self.K_I_rho0 @ K_Omega)))
                 * self.J_dyn[el, i]
                 * self.qw_dyn[el, i]
             )
@@ -1341,11 +1325,8 @@ class CosseratRodPGMixed(RodExportBase, ABC):
                 nodalDOF_a = self.nodalDOF_element_psi_u[node_a]
                 for node_b in range(self.nnodes_element_psi):
                     nodalDOF_b = self.nodalDOF_element_psi_u[node_b]
-                    f_gyr_u_el[
-                        nodalDOF_a[:, None], nodalDOF_b
-                    ] += f_gyr_u_el_psi * (
-                        self.N_psi_dyn[el, i, node_a]
-                        * self.N_psi_dyn[el, i, node_b]
+                    f_gyr_u_el[nodalDOF_a[:, None], nodalDOF_b] += f_gyr_u_el_psi * (
+                        self.N_psi_dyn[el, i, node_a] * self.N_psi_dyn[el, i, node_b]
                     )
 
         return f_gyr_u_el
@@ -1718,9 +1699,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
 
             # multiply local force vector with variation of centerline
             for node in range(self.nnodes_element_r):
-                fe[self.nodalDOF_element_r[node]] += (
-                    self.N_r_dyn[el, i, node] * fe_r
-                )
+                fe[self.nodalDOF_element_r[node]] += self.N_r_dyn[el, i, node] * fe_r
 
         return fe
 

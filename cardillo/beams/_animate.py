@@ -3,7 +3,9 @@ from matplotlib.animation import FuncAnimation
 import numpy as np
 
 
-def animate_beam(t, q, beams, scale, scale_di=1, n_r=100, n_frames=10, show=True, repeat=True):
+def animate_beam(
+    t, q, beams, scale, scale_di=1, n_r=100, n_frames=10, show=True, repeat=True
+):
     fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(projection="3d"))
     ax.set_xlabel("x")
     ax.set_ylabel("y")

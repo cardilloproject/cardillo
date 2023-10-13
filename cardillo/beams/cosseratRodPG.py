@@ -17,7 +17,6 @@ from cardillo.math import (
 from cardillo.beams._base_CosseratRodPG import CosseratRodPG
 
 
-
 class CosseratRodPG_SE3(CosseratRodPG):
     def __init__(
         self,
@@ -243,11 +242,11 @@ class CosseratRodPG_SE3(CosseratRodPG):
         return self._eval(q, frame_ID[0])[1]
 
     def A_IK_q(self, t, q, frame_ID):
-        
         # from cardillo.math import approx_fprime
         # return approx_fprime(q, lambda q_argument: self.A_IK(t, q_argument, frame_ID), method="3-point", eps=1e-6)
 
         return self._deval(q, frame_ID[0])[5]
+
 
 class CosseratRodPG_R12(CosseratRodPG):
     def __init__(
@@ -267,7 +266,6 @@ class CosseratRodPG_R12(CosseratRodPG):
         basis_psi="Lagrange",
         reduced_integration=True,
     ):
-
         polynomial_degree = max(polynomial_degree_r, polynomial_degree_psi)
         nquadrature = polynomial_degree
         nquadrature_dyn = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
@@ -314,9 +312,7 @@ class CosseratRodPG_R12(CosseratRodPG):
         A_IK = np.zeros((3, 3), dtype=qe.dtype)
         A_IK_xi = np.zeros((3, 3), dtype=qe.dtype)
         for node in range(self.nnodes_element_psi):
-            A_IK_node = Exp_SO3_quat(
-                qe[self.nodalDOF_element_psi[node]]
-            )
+            A_IK_node = Exp_SO3_quat(qe[self.nodalDOF_element_psi[node]])
             A_IK += N_psi[node] * A_IK_node
             A_IK_xi += N_psi_xi[node] * A_IK_node
 
@@ -393,12 +389,9 @@ class CosseratRodPG_R12(CosseratRodPG):
         )
         K_Kappa_bar_qe = np.array(
             [
-                0.5
-                * (d3 @ d2_xi_qe + d2_xi @ d3_qe - d2 @ d3_xi_qe - d3_xi @ d2_qe),
-                0.5
-                * (d1 @ d3_xi_qe + d3_xi @ d1_qe - d3 @ d1_xi_qe - d1_xi @ d3_qe),
-                0.5
-                * (d2 @ d1_xi_qe + d1_xi @ d2_qe - d1 @ d2_xi_qe - d2_xi @ d1_qe),
+                0.5 * (d3 @ d2_xi_qe + d2_xi @ d3_qe - d2 @ d3_xi_qe - d3_xi @ d2_qe),
+                0.5 * (d1 @ d3_xi_qe + d3_xi @ d1_qe - d3 @ d1_xi_qe - d1_xi @ d3_qe),
+                0.5 * (d2 @ d1_xi_qe + d1_xi @ d2_qe - d1 @ d2_xi_qe - d2_xi @ d1_qe),
             ]
         )
 
@@ -454,9 +447,7 @@ class CosseratRodPG_R12(CosseratRodPG):
         # interpolate orientation
         A_IK = np.zeros((3, 3), dtype=q.dtype)
         for node in range(self.nnodes_element_psi):
-            A_IK += N_psi[node] * Exp_SO3_quat(
-                q[self.nodalDOF_element_psi[node]]
-            )
+            A_IK += N_psi[node] * Exp_SO3_quat(q[self.nodalDOF_element_psi[node]])
 
         return A_IK
 
@@ -468,12 +459,11 @@ class CosseratRodPG_R12(CosseratRodPG):
         A_IK_q = np.zeros((3, 3, self.nq_element), dtype=q.dtype)
         for node in range(self.nnodes_element_psi):
             nodalDOF_psi = self.nodalDOF_element_psi[node]
-            A_IK_q[:, :, nodalDOF_psi] += N_psi[
-                node
-            ] * Exp_SO3_quat_p(q[nodalDOF_psi])
+            A_IK_q[:, :, nodalDOF_psi] += N_psi[node] * Exp_SO3_quat_p(q[nodalDOF_psi])
 
         return A_IK_q
-    
+
+
 class CosseratRodPG_Quat(CosseratRodPG):
     def __init__(
         self,

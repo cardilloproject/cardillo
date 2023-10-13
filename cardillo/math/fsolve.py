@@ -5,67 +5,6 @@ from scipy.sparse.linalg import spsolve
 from scipy.linalg import qr, solve_triangular, svd
 from cardillo.math import approx_fprime
 
-try:
-    import sparseqr
-    from scipy.sparse.linalg import spsolve_triangular
-
-    def sparse_qr_solve(A, b):
-        """
-        Solve the sparse linear system Ax=b, using PySPQR wrapper to SuitSparse's sparse QR-solve
-        function.
-
-        References:
-        -----------
-        PySPQR: https://github.com/yig/PySPQR \\
-        SuiteSparseQR: http://faculty.cse.tamu.edu/davis/suitesparse.html
-        """
-        return sparseqr.solve(A, b, tolerance=0)
-
-    def rank_revealing_qr_spsolve(A, b):
-        """Solve the sparse (overdetermined) linear system Ax=b with rank 
-        deficiency using column pivoted sparse QR decomposition from PySPQR 
-        wrapper to SuitSparse's sparse QR-decomposition.
-
-        References:
-        -----------
-        PySPQR: https://github.com/yig/PySPQR \\
-        SuiteSparseQR: http://faculty.cse.tamu.edu/davis/suitesparse.html
-        """
-        # shape of input matrix
-        m, n = A.shape
-
-        # QR-decomposition with column pivoting
-        Q, R, p, rank = sparseqr.qr(A)
-
-        # detect rank deficiency
-        if n - rank > 0:
-            print(f"rank deficiency!")
-
-        # new rhs
-        c = Q.T @ b
-        c1 = c[:rank]
-
-        # extract upper left block of R
-        R = R.tocsr()
-        R11 = R[:rank, :rank]
-
-        # basic solution
-        z = np.zeros(n - rank)
-        y = spsolve_triangular(R11, c1, lower=False)
-
-        # concatenate both solutions
-        xp = np.concatenate((y, z))
-
-        # apply permutation
-        x = np.zeros_like(b)
-        x[p] = xp
-
-        return x
-
-except:
-    sparse_qr_solve = None
-    rank_revealing_qr_spsolve = None
-
 
 def lu_solve(A, b):
     """

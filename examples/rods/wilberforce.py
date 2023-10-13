@@ -40,9 +40,9 @@ from pathlib import Path
 from cardillo.beams import animate_beam
 
 
-nturns = 10      # number of coils
+nturns = 10  # number of coils
 # nturns = 20      # number of coils Harsch2021
-t1 = 4          # around one time period of beat
+t1 = 4  # around one time period of beat
 
 ###################
 # R12 interpolation
@@ -272,6 +272,7 @@ def A_IK(xi, phi0=0.0):
 
     return np.vstack((e_x, e_y, e_z)).T
 
+
 nxi = int(nelements * xi_per_element)
 xis = np.linspace(0, 1, num=nxi)
 
@@ -462,8 +463,6 @@ def run_FEM_statics(use_force=True):
     e.export_contr(bob)
 
 
-
-
 def run_FEM_dynamics():
     #############################################
     # joint between origin and top side of spring
@@ -482,7 +481,6 @@ def run_FEM_dynamics():
     f_g_bob = lambda t: -bob.mass * g * e3
     force_bob = Force(f_g_bob, bob)
 
-   
     force_spring = DistributedForce1DBeam(-A_rho0 * g * e3, rod)
 
     #####################
@@ -590,7 +588,11 @@ def run_FEM_dynamics():
     ############
     path = Path(__file__)
     e = Export(path.parent, path.stem, True, 30, sol)
-    if Rod in [K_R12_PetrovGalerkin_AxisAngle, K_R12_PetrovGalerkin_Quaternion, K_PetrovGalerkinQuaternionInterpolation]:
+    if Rod in [
+        K_R12_PetrovGalerkin_AxisAngle,
+        K_R12_PetrovGalerkin_Quaternion,
+        K_PetrovGalerkinQuaternionInterpolation,
+    ]:
         e.export_contr(
             rod,
             continuity="C0",
