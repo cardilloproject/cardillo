@@ -16,6 +16,7 @@ from cardillo.math import (
 
 from cardillo.beams._base_CosseratRodPGMixed import CosseratRodPGMixed
 
+
 class CosseratRodPG_SE3Mixed(CosseratRodPGMixed):
     def __init__(
         self,
@@ -32,8 +33,6 @@ class CosseratRodPG_SE3Mixed(CosseratRodPGMixed):
         reduced_integration=True,
         mixed=False,
     ):
-        
-        
         super().__init__(
             cross_section,
             material_model,
@@ -57,7 +56,7 @@ class CosseratRodPG_SE3Mixed(CosseratRodPGMixed):
         polynomial_degree=1,
         r_OP=np.zeros(3, dtype=float),
         A_IK=np.eye(3, dtype=float),
-        mixed=True
+        mixed=True,
     ):
         return CosseratRodPGMixed.straight_configuration(
             nelement, L, 1, r_OP, A_IK, mixed
@@ -132,10 +131,6 @@ class CosseratRodPG_SE3Mixed(CosseratRodPGMixed):
         K_Kappa_bar = h_local_xi[3:]
 
         return r_OP, A_IK, K_Gamma_bar, K_Kappa_bar
-    
-
-
-
 
     def _deval(self, qe, xi):
         # extract nodal screws
@@ -249,11 +244,11 @@ class CosseratRodPG_SE3Mixed(CosseratRodPGMixed):
         return self._eval(q, frame_ID[0])[1]
 
     def A_IK_q(self, t, q, frame_ID):
-        
         # from cardillo.math import approx_fprime
         # return approx_fprime(q, lambda q_argument: self.A_IK(t, q_argument, frame_ID), method="3-point", eps=1e-6)
 
         return self._deval(q, frame_ID[0])[5]
+
 
 class CosseratRodPG_R12Mixed(CosseratRodPGMixed):
     def __init__(
@@ -271,7 +266,6 @@ class CosseratRodPG_R12Mixed(CosseratRodPGMixed):
         reduced_integration=True,
         mixed=False,
     ):
-
         nquadrature = polynomial_degree
         nquadrature_dyn = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
 
@@ -302,7 +296,7 @@ class CosseratRodPG_R12Mixed(CosseratRodPGMixed):
         # evaluate shape functions
         N_r, N_r_xi = self.basis_functions_r(xi)
         N_psi, N_psi_xi = self.basis_functions_psi(xi)
-            
+
         # interpolate position and tangent vector
         r_OP = np.zeros(3, dtype=qe.dtype)
         r_OP_xi = np.zeros(3, dtype=qe.dtype)
@@ -315,9 +309,7 @@ class CosseratRodPG_R12Mixed(CosseratRodPGMixed):
         A_IK = np.zeros((3, 3), dtype=qe.dtype)
         A_IK_xi = np.zeros((3, 3), dtype=qe.dtype)
         for node in range(self.nnodes_element_psi):
-            A_IK_node = Exp_SO3_quat(
-                qe[self.nodalDOF_element_psi[node]]
-            )
+            A_IK_node = Exp_SO3_quat(qe[self.nodalDOF_element_psi[node]])
             A_IK += N_psi[node] * A_IK_node
             A_IK_xi += N_psi_xi[node] * A_IK_node
 
@@ -336,7 +328,6 @@ class CosseratRodPG_R12Mixed(CosseratRodPGMixed):
         )
 
         return r_OP, A_IK, K_Gamma_bar, K_Kappa_bar
-    
 
     def _deval(self, qe, xi):
         # evaluate shape functions
@@ -395,12 +386,9 @@ class CosseratRodPG_R12Mixed(CosseratRodPGMixed):
         )
         K_Kappa_bar_qe = np.array(
             [
-                0.5
-                * (d3 @ d2_xi_qe + d2_xi @ d3_qe - d2 @ d3_xi_qe - d3_xi @ d2_qe),
-                0.5
-                * (d1 @ d3_xi_qe + d3_xi @ d1_qe - d3 @ d1_xi_qe - d1_xi @ d3_qe),
-                0.5
-                * (d2 @ d1_xi_qe + d1_xi @ d2_qe - d1 @ d2_xi_qe - d2_xi @ d1_qe),
+                0.5 * (d3 @ d2_xi_qe + d2_xi @ d3_qe - d2 @ d3_xi_qe - d3_xi @ d2_qe),
+                0.5 * (d1 @ d3_xi_qe + d3_xi @ d1_qe - d3 @ d1_xi_qe - d1_xi @ d3_qe),
+                0.5 * (d2 @ d1_xi_qe + d1_xi @ d2_qe - d1 @ d2_xi_qe - d2_xi @ d1_qe),
             ]
         )
 
@@ -456,9 +444,7 @@ class CosseratRodPG_R12Mixed(CosseratRodPGMixed):
         # interpolate orientation
         A_IK = np.zeros((3, 3), dtype=q.dtype)
         for node in range(self.nnodes_element_psi):
-            A_IK += N_psi[node] * Exp_SO3_quat(
-                q[self.nodalDOF_element_psi[node]]
-            )
+            A_IK += N_psi[node] * Exp_SO3_quat(q[self.nodalDOF_element_psi[node]])
 
         return A_IK
 
@@ -470,12 +456,11 @@ class CosseratRodPG_R12Mixed(CosseratRodPGMixed):
         A_IK_q = np.zeros((3, 3, self.nq_element), dtype=q.dtype)
         for node in range(self.nnodes_element_psi):
             nodalDOF_psi = self.nodalDOF_element_psi[node]
-            A_IK_q[:, :, nodalDOF_psi] += N_psi[
-                node
-            ] * Exp_SO3_quat_p(q[nodalDOF_psi])
+            A_IK_q[:, :, nodalDOF_psi] += N_psi[node] * Exp_SO3_quat_p(q[nodalDOF_psi])
 
         return A_IK_q
-    
+
+
 class CosseratRodPG_QuatMixed(CosseratRodPGMixed):
     def __init__(
         self,
@@ -516,7 +501,6 @@ class CosseratRodPG_QuatMixed(CosseratRodPGMixed):
             u0=u0,
             mixed=mixed,
         )
-
 
     @staticmethod
     def straight_initial_configuration(

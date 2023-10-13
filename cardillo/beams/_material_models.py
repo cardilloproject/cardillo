@@ -65,7 +65,7 @@ class Simo1986:
 
     def C_n_inverse(self):
         return self.C_n_inv
-    
+
     def C_m_inverse(self):
         return self.C_m_inv
 
@@ -73,14 +73,14 @@ class Simo1986:
         dG = K_Gamma - K_Gamma0
         dK = K_Kappa - K_Kappa0
         return 0.5 * dG @ self.C_n @ dG + 0.5 * dK @ self.C_m @ dK
-    
+
     def complementary_potential(self, K_n_S, K_m_S):
         return 0.5 * K_n_S @ self.C_n_inv @ K_n_S + 0.5 * K_m_S @ self.C_m_inv @ K_m_S
-    
+
     def K_gam_comp(self, K_n_S):
         return self.C_n_inv @ K_n_S + np.array([1, 0, 0])
-    
-    def K_kap_comp(self, K_m_S): 
+
+    def K_kap_comp(self, K_m_S):
         return self.C_m_inv @ K_m_S
 
     def K_n(self, K_Gamma, K_Gamma0, K_Kappa, K_Kappa0):

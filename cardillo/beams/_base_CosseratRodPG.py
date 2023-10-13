@@ -43,8 +43,7 @@ class CosseratRodPG(RodExportBase, ABC):
         basis_r="Lagrange",
         basis_psi="Lagrange",
     ):
-        """Base class for Petrov-Galerkin Cosserat rod formulations that uses quaternions for the parametrization of the nodal orientations.
-        """
+        """Base class for Petrov-Galerkin Cosserat rod formulations that uses quaternions for the parametrization of the nodal orientations."""
 
         super().__init__(cross_section)
 
@@ -88,20 +87,14 @@ class CosseratRodPG(RodExportBase, ABC):
             raise RuntimeError(f'wrong basis_r: "{basis_r}" was chosen')
 
         if basis_psi == "Lagrange":
-            self.knot_vector_psi = LagrangeKnotVector(
-                polynomial_degree_psi, nelement
-            )
+            self.knot_vector_psi = LagrangeKnotVector(polynomial_degree_psi, nelement)
         elif basis_psi == "B-spline":
-            self.knot_vector_psi = BSplineKnotVector(
-                polynomial_degree_psi, nelement
-            )
+            self.knot_vector_psi = BSplineKnotVector(polynomial_degree_psi, nelement)
         elif basis_psi == "Hermite":
             assert (
                 polynomial_degree_psi == 3
             ), "only cubic Hermite splines are implemented!"
-            self.knot_vector_psi = HermiteNodeVector(
-                polynomial_degree_psi, nelement
-            )
+            self.knot_vector_psi = HermiteNodeVector(polynomial_degree_psi, nelement)
         else:
             raise RuntimeError(f'wrong basis_psi: "{basis_psi}" was chosen')
 
@@ -150,9 +143,7 @@ class CosseratRodPG(RodExportBase, ABC):
         if hasattr(QuaternionRotationParameterization, "g_S"):
             dim_g_S = QuaternionRotationParameterization.dim_g_S()
             self.nla_S = self.nnodes_psi * dim_g_S
-            self.nodalDOF_la_S = np.arange(self.nla_S).reshape(
-                self.nnodes_psi, dim_g_S
-            )
+            self.nodalDOF_la_S = np.arange(self.nla_S).reshape(self.nnodes_psi, dim_g_S)
             self.la_S0 = np.zeros(self.nla_S, dtype=float)
             self.g_S = self.__g_S
             self.g_S_q = self.__g_S_q
@@ -193,9 +184,7 @@ class CosseratRodPG(RodExportBase, ABC):
 
         # nodal connectivity on element level
         self.nodalDOF_element_r = self.mesh_r.nodalDOF_element
-        self.nodalDOF_element_psi = (
-            self.mesh_psi.nodalDOF_element + self.nq_element_r
-        )
+        self.nodalDOF_element_psi = self.mesh_psi.nodalDOF_element + self.nq_element_r
         self.nodalDOF_element_r_u = self.mesh_r.nodalDOF_element_u
         self.nodalDOF_element_psi_u = (
             self.mesh_psi.nodalDOF_element_u + self.nu_element_r
@@ -471,9 +460,7 @@ class CosseratRodPG(RodExportBase, ABC):
         # centerline velocities
         v_C0 = np.zeros_like(r_OC0, dtype=float)
         for i in range(nnodes_r):
-            v_C0[:, i] = v_P + cross3(
-                A_IK @ K_omega_IK, (r_OC0[:, i] - r_OC0[:, 0])
-            )
+            v_C0[:, i] = v_P + cross3(A_IK @ K_omega_IK, (r_OC0[:, i] - r_OC0[:, 0]))
 
         # reshape generalized velocities to nodal ordering
         u_r = v_C0.reshape(-1, order="C")
@@ -572,7 +559,9 @@ class CosseratRodPG(RodExportBase, ABC):
             nodalDOF_psi_u = self.nodalDOF_psi_u[node]
             psi = q[nodalDOF_psi]
             K_omega_IK = u[nodalDOF_psi_u]
-            q_dot[nodalDOF_psi] = QuaternionRotationParameterization.q_dot(psi, K_omega_IK)
+            q_dot[nodalDOF_psi] = QuaternionRotationParameterization.q_dot(
+                psi, K_omega_IK
+            )
 
         return q_dot
 
@@ -588,7 +577,9 @@ class CosseratRodPG(RodExportBase, ABC):
             nodalDOF_psi_u = self.nodalDOF_psi_u[node]
 
             psi = q[nodalDOF_psi]
-            coo[nodalDOF_psi, nodalDOF_psi_u] = QuaternionRotationParameterization.B(psi)
+            coo[nodalDOF_psi, nodalDOF_psi_u] = QuaternionRotationParameterization.B(
+                psi
+            )
 
         return coo
 
@@ -602,7 +593,9 @@ class CosseratRodPG(RodExportBase, ABC):
             psi = q[nodalDOF_psi]
             K_omega_IK = u[nodalDOF_psi_u]
 
-            coo[nodalDOF_psi, nodalDOF_psi] = QuaternionRotationParameterization.q_dot_q(psi, K_omega_IK)
+            coo[
+                nodalDOF_psi, nodalDOF_psi
+            ] = QuaternionRotationParameterization.q_dot_q(psi, K_omega_IK)
 
         return coo
 
@@ -645,7 +638,9 @@ class CosseratRodPG(RodExportBase, ABC):
     def step_callback(self, t, q, u):
         for node in range(self.nnodes_psi):
             psi = q[self.nodalDOF_psi[node]]
-            q[self.nodalDOF_psi[node]] = QuaternionRotationParameterization.step_callback(psi)
+            q[
+                self.nodalDOF_psi[node]
+            ] = QuaternionRotationParameterization.step_callback(psi)
         return q, u
 
     ###############################
@@ -870,8 +865,7 @@ class CosseratRodPG(RodExportBase, ABC):
                 for node_b in range(self.nnodes_element_psi):
                     nodalDOF_b = self.nodalDOF_element_psi_u[node_b]
                     M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psi_psi * (
-                        self.N_psi_dyn[el, i, node_a]
-                        * self.N_psi_dyn[el, i, node_b]
+                        self.N_psi_dyn[el, i, node_a] * self.N_psi_dyn[el, i, node_b]
                     )
 
         return M_el
@@ -901,8 +895,7 @@ class CosseratRodPG(RodExportBase, ABC):
                 for node_b in range(self.nnodes_element_psi):
                     nodalDOF_b = self.nodalDOF_element_psi_u[node_b]
                     M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psi_psi * (
-                        self.N_psi_dyn[el, i, node_a]
-                        * self.N_psi_dyn[el, i, node_b]
+                        self.N_psi_dyn[el, i, node_a] * self.N_psi_dyn[el, i, node_b]
                     )
 
             # For non symmetric cross sections there are also other parts
@@ -978,15 +971,12 @@ class CosseratRodPG(RodExportBase, ABC):
 
             v_P = np.zeros(3, dtype=float)
             for node in range(self.nnodes_element_r):
-                v_P += (
-                    self.N_r_dyn[el, i, node] * ue[self.nodalDOF_element_r_u[node]]
-                )
+                v_P += self.N_r_dyn[el, i, node] * ue[self.nodalDOF_element_r_u[node]]
 
             K_omega_IK = np.zeros(3, dtype=float)
             for node in range(self.nnodes_element_psi):
                 K_omega_IK += (
-                    self.N_psi_dyn[el, i, node]
-                    * ue[self.nodalDOF_element_psi_u[node]]
+                    self.N_psi_dyn[el, i, node] * ue[self.nodalDOF_element_psi_u[node]]
                 )
 
             # delta_r A_rho0 r_ddot part
@@ -1051,27 +1041,19 @@ class CosseratRodPG(RodExportBase, ABC):
             r_OP = np.zeros(3, dtype=float)
             v_P = np.zeros(3, dtype=float)
             for node in range(self.nnodes_element_r):
-                r_OP += (
-                    self.N_r_dyn[el, i, node] * qe[self.nodalDOF_element_r[node]]
-                )
-                v_P += (
-                    self.N_r_dyn[el, i, node] * ue[self.nodalDOF_element_r_u[node]]
-                )
+                r_OP += self.N_r_dyn[el, i, node] * qe[self.nodalDOF_element_r[node]]
+                v_P += self.N_r_dyn[el, i, node] * ue[self.nodalDOF_element_r_u[node]]
 
             K_omega_IK = np.zeros(3, dtype=float)
             for node in range(self.nnodes_element_psi):
                 K_omega_IK += (
-                    self.N_psi_dyn[el, i, node]
-                    * ue[self.nodalDOF_element_psi_u[node]]
+                    self.N_psi_dyn[el, i, node] * ue[self.nodalDOF_element_psi_u[node]]
                 )
 
             A_IK = self.A_IK(t, qe, (qpi,))
 
             angular_momentum_el += (
-                (
-                    cross3(r_OP, v_P) * self.A_rho0
-                    + A_IK @ (self.K_I_rho0 @ K_omega_IK)
-                )
+                (cross3(r_OP, v_P) * self.A_rho0 + A_IK @ (self.K_I_rho0 @ K_omega_IK))
                 * Ji
                 * qwi
             )
@@ -1091,8 +1073,7 @@ class CosseratRodPG(RodExportBase, ABC):
             K_Omega = np.zeros(3, dtype=np.common_type(qe, ue))
             for node in range(self.nnodes_element_psi):
                 K_Omega += (
-                    self.N_psi_dyn[el, i, node]
-                    * ue[self.nodalDOF_element_psi_u[node]]
+                    self.N_psi_dyn[el, i, node] * ue[self.nodalDOF_element_psi_u[node]]
                 )
 
             # vector of gyroscopic forces
@@ -1118,18 +1099,12 @@ class CosseratRodPG(RodExportBase, ABC):
             K_Omega = np.zeros(3, dtype=float)
             for node in range(self.nnodes_element_psi):
                 K_Omega += (
-                    self.N_psi_dyn[el, i, node]
-                    * ue[self.nodalDOF_element_psi_u[node]]
+                    self.N_psi_dyn[el, i, node] * ue[self.nodalDOF_element_psi_u[node]]
                 )
 
             # derivative of vector of gyroscopic forces
             f_gyr_u_el_psi = (
-                (
-                    (
-                        ax2skew(K_Omega) @ self.K_I_rho0
-                        - ax2skew(self.K_I_rho0 @ K_Omega)
-                    )
-                )
+                ((ax2skew(K_Omega) @ self.K_I_rho0 - ax2skew(self.K_I_rho0 @ K_Omega)))
                 * self.J_dyn[el, i]
                 * self.qw_dyn[el, i]
             )
@@ -1139,11 +1114,8 @@ class CosseratRodPG(RodExportBase, ABC):
                 nodalDOF_a = self.nodalDOF_element_psi_u[node_a]
                 for node_b in range(self.nnodes_element_psi):
                     nodalDOF_b = self.nodalDOF_element_psi_u[node_b]
-                    f_gyr_u_el[
-                        nodalDOF_a[:, None], nodalDOF_b
-                    ] += f_gyr_u_el_psi * (
-                        self.N_psi_dyn[el, i, node_a]
-                        * self.N_psi_dyn[el, i, node_b]
+                    f_gyr_u_el[nodalDOF_a[:, None], nodalDOF_b] += f_gyr_u_el_psi * (
+                        self.N_psi_dyn[el, i, node_a] * self.N_psi_dyn[el, i, node_b]
                     )
 
         return f_gyr_u_el
@@ -1516,9 +1488,7 @@ class CosseratRodPG(RodExportBase, ABC):
 
             # multiply local force vector with variation of centerline
             for node in range(self.nnodes_element_r):
-                fe[self.nodalDOF_element_r[node]] += (
-                    self.N_r_dyn[el, i, node] * fe_r
-                )
+                fe[self.nodalDOF_element_r[node]] += self.N_r_dyn[el, i, node] * fe_r
 
         return fe
 
