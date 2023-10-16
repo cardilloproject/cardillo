@@ -77,11 +77,12 @@ class Simo1986:
     def complementary_potential(self, K_n_S, K_m_S):
         return 0.5 * K_n_S @ self.C_n_inv @ K_n_S + 0.5 * K_m_S @ self.C_m_inv @ K_m_S
 
-    def K_gam_comp(self, K_n_S):
-        return self.C_n_inv @ K_n_S + np.array([1, 0, 0])
+    def K_gam_comp(self, K_n_S, K_Gamma0):
+        # return self.C_n_inv @ K_n_S + np.array([1, 0, 0])
+        return self.C_n_inv @ K_n_S + K_Gamma0
 
-    def K_kap_comp(self, K_m_S):
-        return self.C_m_inv @ K_m_S
+    def K_kap_comp(self, K_m_S, K_Kappa0):
+        return self.C_m_inv @ K_m_S + K_Kappa0
 
     def K_n(self, K_Gamma, K_Gamma0, K_Kappa, K_Kappa0):
         dG = K_Gamma - K_Gamma0

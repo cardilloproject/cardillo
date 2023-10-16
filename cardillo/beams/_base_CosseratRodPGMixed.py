@@ -333,17 +333,13 @@ class CosseratRodPGMixed(RodExportBase, ABC):
             self.basis_functions_n = self.mesh_n.eval_basis
             self.basis_functions_m = self.mesh_m.eval_basis
 
-        # reference generalized coordinates, initial coordinates and initial velocities
-        self.Q = Q  # reference configuration
-        self.q0 = Q.copy() if q0 is None else q0  # initial configuration
-        self.u0 = (
-            np.zeros(self.nu, dtype=float) if u0 is None else u0
-        )  # initial velocities
 
-        self.set_initial_strains(self.q0)
+        # self.set_initial_strains(self.q0)
+        self.set_initial_strains(self.Q)
 
+    # TODO: rename function to set_reference_strains
     def set_initial_strains(self, Q):
-        self.Q = Q.copy()
+        # self.Q = Q.copy()
 
         # # # ensure quaternions on same hemisphere, see Gosh2008 above (35)
         # # # TODO: Why is this not sufficient?
@@ -849,8 +845,8 @@ class CosseratRodPGMixed(RodExportBase, ABC):
 
                 # compute contact forces and couples from partial derivatives of
                 # the strain energy function w.r.t. strain measures
-                K_gam_comp = self.material_model.K_gam_comp(K_n)
-                K_kap_comp = self.material_model.K_kap_comp(K_m)
+                K_gam_comp = self.material_model.K_gam_comp(K_n, K_Gamma0)
+                K_kap_comp = self.material_model.K_kap_comp(K_m, K_Kappa0)
 
                 ############################
                 # virtual work contributions of the internal stresses
