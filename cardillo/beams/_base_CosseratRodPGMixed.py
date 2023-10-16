@@ -381,6 +381,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         # curvature of the reference configuration
         self.K_Kappa0 = np.zeros((self.nelement, self.nquadrature, 3), dtype=float)
 
+        # possibly never used
         if self.mixed:
             self.K_n0 = np.zeros((self.nelement, self.nquadrature, 3), dtype=float)
             self.K_m0 = np.zeros((self.nelement, self.nquadrature, 3), dtype=float)
@@ -457,97 +458,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
 
         return q
 
-    # TODO: revise straight initial configuration
-    # @staticmethod
-    # def straight_initial_configuration(
-    #     polynomial_degree_r,
-    #     polynomial_degree_psi,
-    #     basis_r,
-    #     basis_psi,
-    #     nelement,
-    #     L,
-    #     r_OP=np.zeros(3, dtype=float),
-    #     A_IK=np.eye(3, dtype=float),
-    #     v_P=np.zeros(3, dtype=float),
-    #     K_omega_IK=np.zeros(3, dtype=float),
-    #     rotation_parameterization=QuaternionRotationParameterization(),
-    # ):
-    #     if basis_r == "Lagrange":
-    #         nnodes_r = polynomial_degree_r * nelement + 1
-    #     elif basis_r == "B-spline":
-    #         nnodes_r = polynomial_degree_r + nelement
-    #     elif basis_r == "Hermite":
-    #         nnodes_r = nelement + 1
-    #     else:
-    #         raise RuntimeError(f'wrong basis_r: "{basis_r}" was chosen')
-
-    #     if basis_psi == "Lagrange":
-    #         nnodes_psi = polynomial_degree_psi * nelement + 1
-    #     elif basis_psi == "B-spline":
-    #         nnodes_psi = polynomial_degree_psi + nelement
-    #     elif basis_psi == "Hermite":
-    #         nnodes_psi = nelement + 1
-    #     else:
-    #         raise RuntimeError(f'wrong basis_psi: "{basis_psi}" was chosen')
-
-    #     #################################
-    #     # compute generalized coordinates
-    #     #################################
-    #     if basis_r == "B-spline" or basis_r == "Lagrange":
-    #         x0 = np.linspace(0, L, num=nnodes_r)
-    #         y0 = np.zeros(nnodes_r)
-    #         z0 = np.zeros(nnodes_r)
-    #         if basis_r == "B-spline":
-    #             # build Greville abscissae for B-spline basis
-    #             kv = BSplineKnotVector.uniform(polynomial_degree_r, nelement)
-    #             for i in range(nnodes_r):
-    #                 x0[i] = np.sum(kv[i + 1 : i + polynomial_degree_r + 1])
-    #             x0 = x0 * L / polynomial_degree_r
-
-    #         r_OC0 = np.vstack((x0, y0, z0))
-    #         for i in range(nnodes_r):
-    #             r_OC0[:, i] = r_OP + A_IK @ r_OC0[:, i]
-
-    #     elif basis_r == "Hermite":
-    #         xis = np.linspace(0, 1, num=nnodes_r)
-    #         r_OC0 = np.zeros((6, nnodes_r))
-    #         t0 = A_IK @ (L * e1)
-    #         for i, xi in enumerate(xis):
-    #             ri = r_OP + xi * t0
-    #             r_OC0[:3, i] = ri
-    #             r_OC0[3:, i] = t0
-
-    #     # reshape generalized coordinates to nodal ordering
-    #     q_r = r_OC0.reshape(-1, order="C")
-
-    #     # we have to extract the rotation vector from the given rotation matrix
-    #     # and set its value for each node
-    #     if basis_psi == "Hermite":
-    #         raise NotImplementedError
-    #     psi = rotation_parameterization.Log_SO3(A_IK)
-    #     q_psi = np.repeat(psi, nnodes_psi)
-
-    #     ################################
-    #     # compute generalized velocities
-    #     ################################
-    #     # centerline velocities
-    #     v_C0 = np.zeros_like(r_OC0, dtype=float)
-    #     for i in range(nnodes_r):
-    #         v_C0[:, i] = v_P + cross3(
-    #             A_IK @ K_omega_IK, (r_OC0[:, i] - r_OC0[:, 0])
-    #         )
-
-    #     # reshape generalized velocities to nodal ordering
-    #     u_r = v_C0.reshape(-1, order="C")
-
-    #     # all nodes share the same angular velocity
-    #     u_psi = np.repeat(K_omega_IK, nnodes_psi)
-
-    #     q0 = np.concatenate([q_r, q_psi])
-    #     u0 = np.concatenate([u_r, u_psi])
-
-    #     return q0, u0
-
+    # TODO: Test straight initial configuration
     @staticmethod
     def straight_initial_configuration(
         nelement,
@@ -729,41 +640,42 @@ class CosseratRodPGMixed(RodExportBase, ABC):
 
         return coo
 
-    def q_ddot(self, t, q, u, u_dot):
-        warnings.warn("'TimoshenkoPetrovGalerkinBase.q_ddot' is not tested yet!")
+    # TODO: check which integrator requires this function. Function must be revised completely.
+    # def q_ddot(self, t, q, u, u_dot):
+    #     warnings.warn("'TimoshenkoPetrovGalerkinBase.q_ddot' is not tested yet!")
 
-        # centerline part
-        q_ddot = u_dot
+    #     # centerline part
+    #     q_ddot = u_dot
 
-        # correct axis angle vector part
-        for node in range(self.nnodes_psi):
-            nodalDOF_psi = self.nodalDOF_psi[node]
-            nodalDOF_psi_u = self.nodalDOF_psi_u[node]
+    #     # correct axis angle vector part
+    #     for node in range(self.nnodes_psi):
+    #         nodalDOF_psi = self.nodalDOF_psi[node]
+    #         nodalDOF_psi_u = self.nodalDOF_psi_u[node]
 
-            psi = q[nodalDOF_psi]
-            K_omega_IK = u[nodalDOF_psi_u]
-            K_omega_IK_dot = u_dot[nodalDOF_psi_u]
+    #         psi = q[nodalDOF_psi]
+    #         K_omega_IK = u[nodalDOF_psi_u]
+    #         K_omega_IK_dot = u_dot[nodalDOF_psi_u]
 
-            # T_inv = T_SO3_inv(psi)
-            # psi_dot = T_inv @ K_omega_IK
+    #         # T_inv = T_SO3_inv(psi)
+    #         # psi_dot = T_inv @ K_omega_IK
 
-            # T_dot = T_SO3_dot(psi, psi_dot)
-            # Tinv_dot = -T_inv @ T_dot @ T_inv
-            # psi_ddot = T_inv @ K_omega_IK_dot + Tinv_dot @ K_omega_IK
+    #         # T_dot = T_SO3_dot(psi, psi_dot)
+    #         # Tinv_dot = -T_inv @ T_dot @ T_inv
+    #         # psi_ddot = T_inv @ K_omega_IK_dot + Tinv_dot @ K_omega_IK
 
-            # # psi_ddot = (
-            # #     T_inv @ K_omega_IK_dot
-            # #     + np.einsum("ijk,j,k",
-            # #         approx_fprime(psi, T_SO3_inv, eps=1.0e-10, method="cs"),
-            # #         K_omega_IK,
-            # #         psi_dot
-            # #     )
-            # # )
+    #         # # psi_ddot = (
+    #         # #     T_inv @ K_omega_IK_dot
+    #         # #     + np.einsum("ijk,j,k",
+    #         # #         approx_fprime(psi, T_SO3_inv, eps=1.0e-10, method="cs"),
+    #         # #         K_omega_IK,
+    #         # #         psi_dot
+    #         # #     )
+    #         # # )
 
-            # q_ddot[nodalDOF_psi] = psi_ddot
-            q_ddot[nodalDOF_psi] = self.q_ddot(psi, K_omega_IK, K_omega_IK_dot)
+    #         # q_ddot[nodalDOF_psi] = psi_ddot
+    #         q_ddot[nodalDOF_psi] = self.q_ddot(psi, K_omega_IK, K_omega_IK_dot)
 
-        return q_ddot
+    #     return q_ddot
 
     def step_callback(self, t, q, u):
         for node in range(self.nnodes_psi):
@@ -833,19 +745,16 @@ class CosseratRodPGMixed(RodExportBase, ABC):
             K_Kappa = K_Kappa_bar / J
 
             if self.mixed:
-                N_n = self.basis_functions_n(qpi)
-                N_m = self.basis_functions_m(qpi)
-
                 # interpolation of the n and m
                 K_n = np.zeros(3, dtype=qe.dtype)
                 K_m = np.zeros(3, dtype=qe.dtype)
                 for node in range(self.nnodes_element_n):
                     n_node = qe[self.nodalDOF_element_n[node]]
-                    K_n += N_n[node] * n_node
+                    K_n += self.N_n[el, i, node] * n_node
 
                 for node in range(self.nnodes_element_m):
                     m_node = qe[self.nodalDOF_element_m[node]]
-                    K_m += N_m[node] * m_node
+                    K_m += self.N_m[el, i, node] * m_node
 
                 # compute contact forces and couples from partial derivatives of
                 # the strain energy function w.r.t. strain measures
@@ -867,6 +776,8 @@ class CosseratRodPGMixed(RodExportBase, ABC):
                 for node in range(self.nnodes_element_m):
                     f_pot_el[self.nodalDOF_element_m_u[node]] -= (
                         self.N_m[el, i, node] * (K_Kappa_bar - J * K_kap_comp) * qwi
+                        # For Ribbons
+                        # self.N_m[el, i, node] * (K_Kappa_bar - J * np.array([K_kap_comp[0], K_kap_comp[1], 0])) * qwi
                     )
 
             else:
@@ -936,8 +847,6 @@ class CosseratRodPGMixed(RodExportBase, ABC):
                 K_Kappa_qe = K_Kappa_bar_qe / J
 
                 if self.mixed:
-                    N_n = self.basis_functions_n(qpi)
-                    N_m = self.basis_functions_m(qpi)
 
                     # interpolation of the n and m
                     K_n = np.zeros(3, dtype=qe.dtype)
@@ -948,14 +857,14 @@ class CosseratRodPGMixed(RodExportBase, ABC):
                     for node in range(self.nnodes_element_n):
                         nodalDOF_n = self.nodalDOF_element_n[node]
                         n_node = qe[self.nodalDOF_element_n[node]]
-                        K_n += N_n[node] * n_node
-                        K_n_qe[:, nodalDOF_n] += N_n[node] * np.eye(3, dtype=float)
+                        K_n += self.N_n[el, i, node] * n_node
+                        K_n_qe[:, nodalDOF_n] += self.N_n[el, i, node] * np.eye(3, dtype=float)
 
                     for node in range(self.nnodes_element_m):
                         nodalDOF_m = self.nodalDOF_element_m[node]
                         m_node = qe[self.nodalDOF_element_m[node]]
-                        K_m += N_m[node] * m_node
-                        K_m_qe[:, nodalDOF_m] += N_m[node] * np.eye(3, dtype=float)
+                        K_m += self.N_m[el, i, node] * m_node
+                        K_m_qe[:, nodalDOF_m] += self.N_m[el, i, node] * np.eye(3, dtype=float)
 
                     C_n_inv = self.material_model.C_n_inverse()
                     C_m_inv = self.material_model.C_m_inverse()
@@ -1397,6 +1306,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         r_OP, A_IK, _, _ = self._eval(q, frame_ID[0])
         return r_OP + A_IK @ K_r_SP
 
+    # TODO: Think of a faster version than using _deval
     def r_OP_q(self, t, q, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
         if not hasattr(self, "_deval"):
             warnings.warn(

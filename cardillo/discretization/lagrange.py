@@ -26,7 +26,7 @@ class LagrangeKnotVector:
 
     @staticmethod
     def uniform(degree, nel, interval=[0, 1]):
-        return np.linspace(interval[0], interval[1], degree * nel + 1)
+        return np.linspace(interval[0], interval[1], nel + 1)
 
     def element_number(self, nodes):
         if not hasattr(nodes, "__len__"):
@@ -39,7 +39,7 @@ class LagrangeKnotVector:
         for j in range(lenxi):
             element[j] = (
                 np.asarray(self.element_data <= nodes[j]).nonzero()[0][-1]
-            ) // (self.degree)
+            ) 
             if nodes[j] == self.data[-1]:
                 element[j] -= 1
         # if lenxi == 1:
@@ -48,15 +48,14 @@ class LagrangeKnotVector:
 
     def element_interval(self, el):
         return np.array(
-            [
-                self.element_data[el * self.degree],
-                self.element_data[(el + 1) * self.degree],
-            ]
-        )
+                [
+                    self.element_data[el],
+                    self.element_data[el + 1],
+                ]
+            )
 
     def verify_data(self):
-        assert len(self.element_data) == self.nel * self.degree + 1
-
+        assert len(self.element_data) == self.nel + 1
 
 class LagrangeBasis:
     """Lagrange basis function on [interval[0], interval[1]], see Wiki.
