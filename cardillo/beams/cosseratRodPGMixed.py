@@ -46,7 +46,7 @@ class CosseratRodPG_SE3Mixed(CosseratRodPGMixed):
             Q,
             q0=q0,
             u0=u0,
-            mixed=False,
+            mixed=mixed,
         )
 
     @staticmethod

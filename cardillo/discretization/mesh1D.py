@@ -132,6 +132,7 @@ class Mesh1D:
                 self.elDOF[el] = elDOF_el + el * (self.degree + 1)
                 self.elDOF_u[el] = elDOF_el_u + el * (self.degree + 1)
 
+            # TODO: check if VTK export works
             self.vtk_cell_type = "VTK_LAGRANGE_CURVE"
         elif basis == "Hermite":
             # raise NotImplementedError("Adapt according to new ordering of q!")
@@ -202,8 +203,6 @@ class Mesh1D:
         # evaluate element shape functions at quadrature points
         self.shape_functions()  # non cambia con Lagrange_Disc
 
-        # end_points degrees of freedom
-        # self.end_points()
 
     def basis1D(self, xis):
         if self.basis == "B-spline":
@@ -246,7 +245,7 @@ class Mesh1D:
             )
         elif self.basis == "Lagrange_Disc":
             return lagrange_basis1D(
-                self.degree, xi, self.derivative_order, self.knot_vector, squeeze=True
+                self.degree, xi, self.derivative_order, self.knot_vector, squeeze=False
             )
         elif self.basis == "Hermite":
             return cubic_Hermite_basis_1D(xi, self.knot_vector, self.derivative_order)
@@ -282,103 +281,7 @@ class Mesh1D:
                 if self.derivative_order > 1:
                     self.N_xixi[el] = NN[2]
 
-    def end_points(self):
-        if self.basis == "Lagrange_Disc":
-            """restituisce i DOF nei nodi, avrà dimensioni nnodes x 2*dim_q"""
-
-            def select_end_points(**kwargs):
-                nn_0 = kwargs.get("nn_0", range(self.nnodes))
-
-                end_points = []
-                for i in nn_0:
-                    end_points.append(i)
-
-                DOF_x_1 = np.array(
-                    [end_points[0], end_points[self.nnodes - 1]], dtype=int
-                )  # DOF_x_1 calculate the index of the end nodes
-                DOF_x_int = np.array(
-                    end_points[1:-1], dtype=int
-                )  # DOF_x_int calculate the index of the internal nodes
-
-                if self.degree == 1:
-                    DOF_x_2_int = DOF_x_int  # DOF_x_2_int calculate the index of the element external nodes
-                elif self.degree > 1:
-                    DOF_x_2_int = [
-                        DOF_x_int[i]
-                        for i in range(self.degree - 1, self.nnodes - 2, self.degree)
-                    ]
-                    DOF_x_int_int = [
-                        DOF_x_int[i] for i in range(0, self.nnodes - 2, self.degree)
-                    ]
-                    dim_int_int = np.shape(DOF_x_int_int)[0]
-                    DOF_int_int = np.zeros(
-                        (self.dim_q, dim_int_int), dtype=int
-                    )  # DOF_x_int_int calculate the index of the element internal nodes
-
-                dim_2_int = np.shape(DOF_x_2_int)[0]
-
-                DOF_12 = np.zeros((self.dim_q, 2), dtype=int)
-                DOF_2_i = np.zeros((2 * self.dim_q, dim_2_int), dtype=int)
-                DOF = np.zeros((2 * self.dim_q, self.nnodes), dtype=int)
-
-                for j in range(2):
-                    for i in range(self.dim_q):
-                        DOF_12[i, j] = (
-                            DOF_x_1[j]
-                            + i * (self.nnodes + self.nnodes_1)
-                            + j * (self.nelement - 1)
-                        )
-                        DOF[i, DOF_x_1[j]] = DOF_12[i, j]
-
-                for j in range(dim_2_int):
-                    for i in range(self.dim_q):
-                        DOF_2_i[i, j] = (
-                            DOF_x_2_int[j]
-                            + i * (self.nnodes + self.nnodes_1)
-                            + j * (self.nelement - (self.nelement - 1))
-                        )
-                        DOF_2_i[i + self.dim_q, j] = DOF_2_i[i, j] + 1
-                        DOF[i, DOF_x_2_int[j]] = DOF_2_i[i, j]
-                        DOF[i + self.dim_q, DOF_x_2_int[j]] = DOF_2_i[i + self.dim_q, j]
-
-                if self.degree > 1:
-                    for j in range(dim_int_int):
-                        for i in range(self.dim_q):
-                            DOF_int_int[i, j] = (
-                                DOF_x_int_int[j]
-                                + i * (self.nnodes + self.nnodes_1)
-                                + j * (self.nelement - (self.nelement - 1))
-                            )
-                            DOF[i, DOF_x_int_int[j]] = DOF_int_int[i, j]
-
-                return DOF  # DOF is an np.array where each column represents the degrees of freedom associated to a single node
-                # for example if we have 5 nnodes and 4 elements in
-
-        else:
-
-            def select_end_points(**kwargs):
-                nn_0 = kwargs.get("nn_0", range(self.nnodes))
-
-                end_points = []
-                for i in nn_0:
-                    end_points.append(i)
-
-                DOF_x = np.array(end_points)
-                nn_edge = len(end_points)
-                DOF = np.zeros((self.dim_q, nn_edge), dtype=int)
-                for i in range(self.dim_q):
-                    DOF[i] = DOF_x + i * self.nnodes
-
-                return DOF
-
-        self.point_qDOF = (
-            select_end_points(nn_0=[0]),
-            select_end_points(nn_0=[self.nnodes - 1]),
-        )
-
-        # evaluate shape functions at the boundaries
-        self.NN_bdry0 = self.eval_basis(0)
-        self.NN_bdry1 = self.eval_basis(1)
+    
 
     def reference_mappings(self, Q):
         """Compute inverse gradient from the reference configuration to the parameter space and scale quadrature points by its determinant. See Bonet 1997 (7.6a,b)"""
