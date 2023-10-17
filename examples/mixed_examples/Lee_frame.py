@@ -15,7 +15,7 @@ from cardillo.beams.cosseratRodPGMixed import (
 )
 
 from cardillo.discrete import Frame
-from cardillo.constraints import RigidConnection
+from cardillo.constraints import RigidConnection, Cylindrical, Revolute
 from cardillo.solver import Newton
 from cardillo.forces import Force, K_Force, K_Moment
 
@@ -30,15 +30,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-""" L beam example from Jelenic', G. and Crisfield, M. A., "Geometrically exact 3D beam theory: implementation of a strain-invariant finite element for statics and dynamics", 1999. 
+''' L beam example from Jelenic', G. and Crisfield, M. A., "Geometrically exact 3D beam theory: implementation of a strain-invariant finite element for statics and dynamics", 1999. 
 https://sci-hub.hkvisa.net/10.1016/s0045-7825(98)00249-7
-
-Example 4: Elbow cantilever subject to prescribed rotation and point load
-Case I: tip load + rotation of pi/4 around (for increment) z-axis        
-Case II: tip load + rotation of pi/30 (for increment) around x-axis 
-Case III: tip moment + rotation of pi/25 (for increment) around x-axis
-do 100 revolutions
-"""
+'''
 
 def cantilever(load_type="force", rod_hypothesis_penalty="shear_deformable", VTK_export=False):
     # interpolation of Ansatz/trial functions
@@ -57,7 +51,7 @@ def cantilever(load_type="force", rod_hypothesis_penalty="shear_deformable", VTK
         nelements = nelements_Lagrangian
 
     # geometry of the rod
-    length = 10
+    length = 120
     # slenderness = 1.0e2
     width = 1
 
@@ -73,45 +67,37 @@ def cantilever(load_type="force", rod_hypothesis_penalty="shear_deformable", VTK
 
     atol = 1e-8
 
+    Gg = 720 / (2 * (1 + 0.3))
+
     # material model
     if rod_hypothesis_penalty == "shear_deformable":
-        Ei = np.array([1e6, 1e6, 1e6])
+        Ei = np.array([720 * 6, Gg * 6, Gg * 6])
     elif rod_hypothesis_penalty == "shear_rigid":
-        Ei = np.array([1e6,1e10*1e6, 1e10*1e6])
+        Ei = np.array([720 * 6, Gg * 1e6, Gg * 1e6])
     elif rod_hypothesis_penalty == "inextensilbe_shear_rigid":
         Ei = np.array([1e6, 1e6, 1e6]) * 1e10
             
-    Fi = np.array([1e3, 1e3, 1e3])
-
-    """ if load_type == "follower_force":
-        E = 1e6
-        A = 1
-        I = 1
-        nu = 0.
-        G = E/(2 + 2 * nu)
-        # G*=1e1
-        length = 10
-        Ei = np.array([E*A, G*A, G*A])
-        Fi = np.array([G*I, E*I, E*I]) """ # per commentare più righe contemporaneamente 
-                                           # puoi usare la shortcut "Alt+Shift+A"
+    Fi = np.array([720 * 2, 720 * 2, 720 * 2])
     
     material_model = Simo1986(Ei, Fi)
 
     # position and orientation of left point
     r_OP01 = np.zeros(3, dtype=float)
     A_IK01 = np.eye(3, dtype=float)
+    # angolo_rad_0 = np.radians(90)
+    # A_IK01 = A_IK_basic(angolo_rad_0).x() 
 
     r_OP02 = np.zeros(3, dtype=float)
     r_OP02[0]= length
+    # angolo_rad = np.radians(-90)
+    # A_IK02 = A_IK_basic(angolo_rad).x() 
     angolo_rad = np.radians(90)
-    A_IK02 = A_IK_basic(angolo_rad).z() # rotazione base nello spazio Euclideo (file _rotations.py)
-                                         # A_IK_basic è una classe
-                                         # z è un metodo della classe, indica una rotazione attorno all'asse z
+    A_IK02 = A_IK_basic(angolo_rad).y() 
+
 
     # construct system
-    system = System() # è una classe,
+    system = System()
 
-    # construct cantilever1 in a straight initial configuration
     q01 = Rod.straight_configuration(
         nelements,
         length,
@@ -156,22 +142,35 @@ def cantilever(load_type="force", rod_hypothesis_penalty="shear_deformable", VTK
         mixed=True
     )
 
-    n_load_steps = 8
-    A_IK_clamping = lambda t: A_IK_basic(t * n_load_steps * pi / 4).z()
-    
-    clamping_point_c1 = Frame(A_IK=A_IK_clamping)
-    clamping_left_c1 = RigidConnection(clamping_point_c1, cantilever1, frame_ID2=(0,))
-    clamping_left_c2 = RigidConnection(cantilever1, cantilever2, frame_ID1=(1,), frame_ID2=(0,))
+    # rigid connection between beams
+    clamping_c1_c2 = RigidConnection(cantilever1, cantilever2, frame_ID1=(1,), frame_ID2=(0,))
 
-    F = lambda t: 5 * t * e3
-    force = Force(F, cantilever2, frame_ID=(1,))
+    # hinge on the left of beam 1
+    # x-axis rotation
+    frame_left_c1= Frame(r_OP01, A_IK01)
+    hinge_left_c1= Revolute(frame_left_c1, cantilever1, 1, frame_ID2=(0,))
+
+    # hinge on the right of beam 2
+    r_OP02_right = np.zeros(3, dtype=float)
+    r_OP02_right[0] = length
+    r_OP02_right[2] = -length
+    frame_right_c2= Frame(r_OP02_right, A_IK02)
+    hinge_right_c2= Revolute(frame_right_c2, cantilever2, 1, frame_ID2=(1,))
+    # hinge_right_c2= Revolute(cantilever2, system.origin, 0, frame_ID1=(1,))
+    
+    
+    # concentrated force
+    F = lambda t: -1 * t * e1
+    force = Force(F, cantilever2, frame_ID=(0.2,))
     
     # assemble the system
     system.add(cantilever1)
     system.add(cantilever2)
-    system.add(clamping_point_c1)
-    system.add(clamping_left_c1)
-    system.add(clamping_left_c2)
+    system.add(clamping_c1_c2)
+    system.add(frame_left_c1)
+    system.add(frame_right_c2)
+    system.add(hinge_left_c1)
+    system.add(hinge_right_c2)
     system.add(force)
 
     system.assemble()
@@ -179,7 +178,7 @@ def cantilever(load_type="force", rod_hypothesis_penalty="shear_deformable", VTK
     # add Newton solver
     solver = Newton(
         system,
-        n_load_steps=n_load_steps+1,
+        n_load_steps=10,
         max_iter=30,
         atol=atol,
     )
@@ -202,26 +201,39 @@ def cantilever(load_type="force", rod_hypothesis_penalty="shear_deformable", VTK
         scale_di=0.05,
         show=False,
         n_frames=cantilever1.nelement + 1,
-        repeat=True,
+        repeat=False,
     )
 
-    E_pot_total = np.zeros(len(t))
-    vertical_tip_displacement = np.zeros(len(t))
+    # E_pot_total_ph1 = np.zeros(len(t_ph1))
+    # E_pot_total_ph2 = np.zeros(len(t_ph2))
+    # vertical_tip_displacement_ph1 = np.zeros(len(t_ph1))
+    # vertical_tip_displacement_ph2 = np.zeros(len(t_ph2))
 
-    for i in range(len(t)):
-        E_pot_total[i] = cantilever1.E_pot(t[i], q[i])
-        E_pot_total[i] += cantilever2.E_pot(t[i], q[i])
-        vertical_tip_displacement[i] = q[i,cantilever2.qDOF[cantilever2.elDOF_r[nelements-1,-1]]]
+    # for i in range(len(t_ph1)):
+    #     E_pot_total_ph1[i] = cantilever1.E_pot(t_ph1[i], q_ph1[i])
+    #     E_pot_total_ph1[i] += cantilever2.E_pot(t_ph1[i], q_ph1[i])
+    #     vertical_tip_displacement_ph1[i] = q_ph1[i,cantilever2.qDOF[cantilever2.elDOF_r[nelements-1,-1]]]
+
+    # for i in range(len(t_ph2)):
+    #     E_pot_total_ph2[i] = cantilever1.E_pot(t_ph2[i], q_ph2[i])
+    #     E_pot_total_ph2[i] += cantilever2.E_pot(t_ph2[i], q_ph2[i])
+    #     vertical_tip_displacement_ph2[i] = q_ph2[i,cantilever2.qDOF[cantilever2.elDOF_r[nelements-1,-1]]]
+
+    # E_pot_total = np.concatenate((E_pot_total_ph1, E_pot_total_ph2))
+    # vertical_tip_displacement = np.concatenate((vertical_tip_displacement_ph1, vertical_tip_displacement_ph2))
+    # t = np.linspace(0, 1, len(E_pot_total))
     
-    fig2, ax2 = plt.subplots()
-    ax2.plot(t, E_pot_total, '-', color='black', label='Cosserat (numeric)')
+    # fig3, ax3 = plt.subplots()
+    # ax3.plot(t, E_pot_total, '-', color='black', label='Cosserat (numeric)')
 
-    fig3, ax3 = plt.subplots()
-    ax3.plot(t, vertical_tip_displacement, '-', color='black', label='Cosserat (numeric)')
+    # fig4, ax4 = plt.subplots()
+    # ax4.plot(t, vertical_tip_displacement, '-', color='black', label='Cosserat (numeric)')
 
     plt.show()
 
-    # # VTK export
+
+
+    # VTK export
     if VTK_export:
         path = Path(__file__)
         e = Export(path.parent, path.stem, True, 30, sol)
@@ -255,8 +267,5 @@ def cantilever(load_type="force", rod_hypothesis_penalty="shear_deformable", VTK
         )
 
 
-    
-    
-    
 if __name__ == "__main__":
-    cantilever(load_type="force", VTK_export=True)
+    cantilever(load_type="force", VTK_export=False)

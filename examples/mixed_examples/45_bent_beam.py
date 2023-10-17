@@ -38,7 +38,7 @@ def _bent_45_beam(load_type="moment", rod_hypothesis_penalty="shear_deformable",
     # Rod = CosseratRodPG_QuatMixed
     # Rod = CosseratRodPG_SE3Mixed
 
-    nelements_Lagrangian = 30
+    nelements_Lagrangian = 8
     polynomial_degree = 2
 
      # number of elements
@@ -49,7 +49,7 @@ def _bent_45_beam(load_type="moment", rod_hypothesis_penalty="shear_deformable",
 
 
     # geometry of the rod
-    length = 100
+    length = 2 * pi * 100 / 8
     width = 1
 
     # cross section
@@ -63,15 +63,15 @@ def _bent_45_beam(load_type="moment", rod_hypothesis_penalty="shear_deformable",
 
     atol = 1e-10
    
-    # material model
-    if rod_hypothesis_penalty == "shear_deformable":
-        Ei = np.array([1e7, 1e7/2, 1e7/2])
-    elif rod_hypothesis_penalty == "shear_rigid":
-        Ei = np.array([1e7, 1e10*1e12, 1e10*1e12])
-    elif rod_hypothesis_penalty == "inextensilbe_shear_rigid":
-        Ei = np.array([1e6, 1e6, 1e6]) * 1e10
+    # # material model
+    # if rod_hypothesis_penalty == "shear_deformable":
+    #     Ei = np.array([1e7, 1e7/2, 1e7/2])
+    # elif rod_hypothesis_penalty == "shear_rigid":
+    #     Ei = np.array([1e7, 1e10*1e12, 1e10*1e12])
+    # elif rod_hypothesis_penalty == "inextensilbe_shear_rigid":
+    #     Ei = np.array([1e6, 1e6, 1e6]) * 1e10
 
-    Ei = np.array([1e7, 1e7/2, 1e7/2])
+    Ei = np.array([1e7, 1e7/2 * 5/6, 1e7/2 * 5/6])
     Fi = np.array([705000., 833333., 833333.])
     material_model = Simo1986(Ei, Fi)
 
@@ -80,7 +80,7 @@ def _bent_45_beam(load_type="moment", rod_hypothesis_penalty="shear_deformable",
     r_OP0 = np.zeros(3, dtype=float)
     A_IK0 = np.eye(3, dtype=float)
 
-    q0 = Rod.straight_configuration(
+    q0_ph1 = Rod.straight_configuration(
         nelements,
         length,
         polynomial_degree=polynomial_degree,
@@ -89,45 +89,40 @@ def _bent_45_beam(load_type="moment", rod_hypothesis_penalty="shear_deformable",
         mixed=True,
     )
 
-    cantilever = Rod(
+    cantilever_ph1 = Rod(
         cross_section,
         material_model,
         A_rho0,
         K_S_rho0,
         K_I_rho0,
         nelements,
-        Q=q0,
-        q0=q0,
+        Q=q0_ph1,
+        q0=q0_ph1,
         polynomial_degree=polynomial_degree,
         reduced_integration=False,
         mixed=True
     )
 
     # generate the constraint on the beam
-    A_IK_clamping= lambda t: A_IK_basic(0.).z()
-    clamping_point = Frame(A_IK=A_IK_clamping)
-    clamping_left = RigidConnection(clamping_point, cantilever, frame_ID2=(0,))
-
-    # frame_left = Frame(r_OP=r_OP0, A_IK=A_IK0)
-    # clamping_left = RigidConnection(frame_left, cantilever, r_OP0, frame_ID2=(0,))
-
-    # starting moment to obtain the deformed configuration
+    A_IK_clamping_ph1= lambda t: A_IK_basic(0.).z()
+    clamping_point_ph1 = Frame(A_IK=A_IK_clamping_ph1)
+    clamping_left_ph1 = RigidConnection(clamping_point_ph1, cantilever_ph1, frame_ID2=(0,))
     
     m = Fi[2] * np.pi / length * 0.25 
     M = lambda t: t * e3 * m
-    moment = K_Moment(M, cantilever, (1,))
+    moment = K_Moment(M, cantilever_ph1, (1,))
         
     # assemble the system
-    system = System()
-    system.add(cantilever)
-    system.add(clamping_point)
-    system.add(clamping_left)
-    system.add(moment)
-    system.assemble()
+    system_ph1 = System()
+    system_ph1.add(cantilever_ph1)
+    system_ph1.add(clamping_point_ph1)
+    system_ph1.add(clamping_left_ph1)
+    system_ph1.add(moment)
+    system_ph1.assemble()
 
 
     solver = Newton(
-        system,
+        system_ph1,
         n_load_steps=2,
         max_iter=30,
         atol=atol,
@@ -143,27 +138,62 @@ def _bent_45_beam(load_type="moment", rod_hypothesis_penalty="shear_deformable",
     fig1, ax1, anim1 = animate_beam(
     t_ph1,
     q_ph1, 
-    [cantilever],
+    [cantilever_ph1],
     scale=length,
     scale_di=0.05,
     show=False,
-    n_frames=cantilever.nelement + 1,
+    n_frames=cantilever_ph1.nelement + 1,
     repeat=False,
     )
 
-    system_p = system.deepcopy(sol_ph1)
+    plt.show()
 
-    system.remove(moment)
+
+    '''
+    second phase
+    '''
+
+    system_ph2 = System()
+
+
+    q0_ph2 = q_ph1[-1].copy()
+    q0_ph2[cantilever_ph1.elDOF_m] = 0.
+    q0_ph2[cantilever_ph1.elDOF_n] = 0.
+    
+
+    cantilever_ph2 = Rod(
+        cross_section,
+        material_model,
+        A_rho0,
+        K_S_rho0,
+        K_I_rho0,
+        nelements,
+        Q=q0_ph2,
+        q0=q0_ph2,
+        polynomial_degree=polynomial_degree,
+        reduced_integration=False,
+        mixed=True
+    )
+
+    system_ph2.q0 = q0_ph2
+
+    # generate the constraint on the beam
+    A_IK_clamping_ph2= lambda t: A_IK_basic(0.).z()
+    clamping_point_ph2 = Frame(A_IK=A_IK_clamping_ph2)
+    clamping_left_ph2 = RigidConnection(clamping_point_ph2, cantilever_ph2, frame_ID2=(0,))
 
     F = lambda t: 600 * t * e3
-    force = Force(F, cantilever, frame_ID=(1,))
-    system.add(force)
+    force = Force(F, cantilever_ph2, frame_ID=(1,))
+    system_ph2.add(force)
 
-    system.assemble()
+    system_ph2.add(cantilever_ph2)
+    system_ph2.add(clamping_point_ph2)
+    system_ph2.add(clamping_left_ph2)
+    system_ph2.assemble()
 
 
     solver = Newton(
-        system,
+        system_ph2,
         n_load_steps=6,
         max_iter=30,
         atol=atol,
@@ -182,11 +212,11 @@ def _bent_45_beam(load_type="moment", rod_hypothesis_penalty="shear_deformable",
     fig2, ax2, anim2 = animate_beam(
         t_ph2,
         q_ph2, # nuova configurazione derivata dal linearSolve
-        [cantilever],
+        [cantilever_ph2],
         scale=length,
         scale_di=0.05,
         show=False,
-        n_frames=cantilever.nelement + 1,
+        n_frames=cantilever_ph2.nelement + 1,
         repeat=True,
     )
 
