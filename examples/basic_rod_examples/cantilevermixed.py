@@ -2,6 +2,7 @@ from cardillo.beams import (
     RectangularCrossSection,
     CircularCrossSection,
     Simo1986,
+    Harsch2021,
     animate_beam,
 )
 
@@ -87,7 +88,8 @@ def cantilever(
         Ei = np.array([E * A, G * A, G * A])
         Fi = np.array([2 * G * I, E * I, E * I])
 
-    material_model = Simo1986(Ei, Fi)
+    # material_model = Simo1986(Ei, Fi)
+    material_model = Harsch2021(Ei, Fi)
 
     # position and orientation of left point
     r_OP0 = np.zeros(3, dtype=float)
@@ -475,9 +477,7 @@ def cantilever(
     plt.show()
 
 
-if __name__ == "__main__":
-    # TODO: implement mixed for p=1, missing constant Lagrangian shape functions
-    
+if __name__ == "__main__":    
     ##################################
     # load: moment at cantilever tip #
     ##################################
@@ -491,8 +491,8 @@ if __name__ == "__main__":
     # cantilever(load_type="moment", Rod=CosseratRodPG_QuatMixed, nelements=5, polynomial_degree=2, n_load_steps = 7, mixed=False)
 
     # SE3 interpolation:
-    # TODO: implement SE3Mixed, missing constant Lagrangian shape functions
-    # cantilever(load_type="moment", Rod=CosseratRodPG_SE3Mixed, nelements=10, polynomial_degree=1, n_load_steps = 7, mixed=False)
+    # cantilever(load_type="moment", Rod=CosseratRodPG_SE3Mixed, nelements=3, polynomial_degree=1, n_load_steps = 10, mixed=False)
+    # cantilever(load_type="moment", Rod=CosseratRodPG_SE3Mixed, nelements=3, polynomial_degree=1, n_load_steps = 2, mixed=True)
 
     
     #####################################
@@ -515,7 +515,6 @@ if __name__ == "__main__":
     # cantilever(load_type="dead_load", Rod=CosseratRodPG_QuatMixed, nelements=5, polynomial_degree=2, n_load_steps = 20, red_int=False, mixed=True, rod_hypothesis_penalty="inextensilbe_shear_rigid")
     
     # SE3 interpolation:
-    # TODO: implement SE3Mixed, missing constant Lagrangian shape functions
     # cantilever(load_type="dead_load", Rod=CosseratRodPG_SE3Mixed, nelements=10, polynomial_degree=1, n_load_steps = 20, mixed=False)
     # cantilever(load_type="dead_load", Rod=CosseratRodPG_SE3Mixed, nelements=10, polynomial_degree=1, n_load_steps = 40, mixed=False, rod_hypothesis_penalty="shear_rigid")
     # cantilever(load_type="dead_load", Rod=CosseratRodPG_SE3Mixed, nelements=10, polynomial_degree=1, n_load_steps = 40, mixed=False, rod_hypothesis_penalty="inextensilbe_shear_rigid")
@@ -541,9 +540,8 @@ if __name__ == "__main__":
     ################################################
 
     # R12 interpolation: 
-    # for shear-deformable rod: results could not be reproduced
-    # cantilever(load_type="dead_load_and_moment", Rod=CosseratRodPG_R12Mixed, nelements=10, polynomial_degree=2, n_load_steps = 7, mixed=False)
+    cantilever(load_type="dead_load_and_moment", Rod=CosseratRodPG_R12Mixed, nelements=10, polynomial_degree=2, n_load_steps = 7, mixed=False)
     # cantilever(load_type="dead_load_and_moment", Rod=CosseratRodPG_R12Mixed, nelements=10, polynomial_degree=2, n_load_steps = 5, mixed=True, red_int=False)
 
     # cantilever(load_type="dead_load_and_moment", Rod=CosseratRodPG_R12Mixed, nelements=5, polynomial_degree=2, n_load_steps = 5, mixed=True, rod_hypothesis_penalty="shear_rigid", red_int=False)
-    cantilever(load_type="dead_load_and_moment", Rod=CosseratRodPG_R12Mixed, nelements=5, polynomial_degree=2, n_load_steps = 5, mixed=True, rod_hypothesis_penalty="inextensilbe_shear_rigid", red_int=False)
+    # cantilever(load_type="dead_load_and_moment", Rod=CosseratRodPG_R12Mixed, nelements=5, polynomial_degree=1, n_load_steps = 5, mixed=True, rod_hypothesis_penalty="inextensilbe_shear_rigid", red_int=False)
