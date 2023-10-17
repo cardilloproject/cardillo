@@ -30,14 +30,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-""" L beam example from Jelenic', G. and Crisfield, M. A., "Geometrically exact 3D beam theory: implementation of a strain-invariant finite element for statics and dynamics", 1999. 
-https://sci-hub.hkvisa.net/10.1016/s0045-7825(98)00249-7
-
-Example 4: Elbow cantilever subject to prescribed rotation and point load
-Case I: tip load + rotation of pi/4 around (for increment) z-axis        
-Case II: tip load + rotation of pi/30 (for increment) around x-axis 
-Case III: tip moment + rotation of pi/25 (for increment) around x-axis
-do 100 revolutions
+""" Beam with slope continuity example from Romero, I., 
+"A comparison of finite elements for nonlinear beams: the absolute nodal coordinate and geometrically
+exact formulations", 2008. 
 """
 
 def cantilever(load_type="force", rod_hypothesis_penalty="shear_deformable", VTK_export=False):
@@ -47,7 +42,7 @@ def cantilever(load_type="force", rod_hypothesis_penalty="shear_deformable", VTK
     # Rod = CosseratRodPG_SE3Mixed
 
     # Ghosh and Roy use a mesh with 5 element for beam
-    nelements_Lagrangian = 5
+    nelements_Lagrangian = 20
     polynomial_degree = 2
     
     # number of elements
@@ -57,9 +52,9 @@ def cantilever(load_type="force", rod_hypothesis_penalty="shear_deformable", VTK
         nelements = nelements_Lagrangian
 
     # geometry of the rod
-    length = 10
+    length = 1
     # slenderness = 1.0e2
-    width = 1
+    width = 0.1
 
     # cross section
     line_density = 1
@@ -69,32 +64,20 @@ def cantilever(load_type="force", rod_hypothesis_penalty="shear_deformable", VTK
     A = cross_section.area
     A_rho0 = line_density * cross_section.area
     K_S_rho0 = line_density * cross_section.first_moment
-    K_I_rho0 = line_density * cross_section.second_moment
+    K_I_rho0 = line_density * cross_section.second_moment # it is a diagonal matrix of the inertia moment
 
     atol = 1e-8
 
     # material model
     if rod_hypothesis_penalty == "shear_deformable":
-        Ei = np.array([1e6, 1e6, 1e6])
+        Ei = np.array([1e6 * A, 5 * 1e5 * A,  5 * 1e5 * A])
     elif rod_hypothesis_penalty == "shear_rigid":
-        Ei = np.array([1e6,1e10*1e6, 1e10*1e6])
+        Ei = np.array([1e6, 1e10*1e6, 1e10*1e6])
     elif rod_hypothesis_penalty == "inextensilbe_shear_rigid":
-        Ei = np.array([1e6, 1e6, 1e6]) * 1e10
+        Ei = np.array([1e6, 1e8, 1e8]) * 1e10
             
-    Fi = np.array([1e3, 1e3, 1e3])
+    Fi = np.array([5 * 1e5 * K_I_rho0[0,0], 1e6 * K_I_rho0[1,1], 1e6 * K_I_rho0[2,2]])
 
-    """ if load_type == "follower_force":
-        E = 1e6
-        A = 1
-        I = 1
-        nu = 0.
-        G = E/(2 + 2 * nu)
-        # G*=1e1
-        length = 10
-        Ei = np.array([E*A, G*A, G*A])
-        Fi = np.array([G*I, E*I, E*I]) """ # per commentare più righe contemporaneamente 
-                                           # puoi usare la shortcut "Alt+Shift+A"
-    
     material_model = Simo1986(Ei, Fi)
 
     # position and orientation of left point
@@ -104,9 +87,13 @@ def cantilever(load_type="force", rod_hypothesis_penalty="shear_deformable", VTK
     r_OP02 = np.zeros(3, dtype=float)
     r_OP02[0]= length
     angolo_rad = np.radians(90)
-    A_IK02 = A_IK_basic(angolo_rad).z() # rotazione base nello spazio Euclideo (file _rotations.py)
-                                         # A_IK_basic è una classe
-                                         # z è un metodo della classe, indica una rotazione attorno all'asse z
+    A_IK02 = A_IK_basic(angolo_rad).z() 
+
+    r_OP03 = np.zeros(3, dtype=float)
+    r_OP03[0]= length
+    r_OP03[1]= length
+    angolo_rad = np.radians(-90)
+    A_IK03 = A_IK_basic(angolo_rad).y() 
 
     # construct system
     system = System() # è una classe,
@@ -156,30 +143,54 @@ def cantilever(load_type="force", rod_hypothesis_penalty="shear_deformable", VTK
         mixed=True
     )
 
-    n_load_steps = 8
-    A_IK_clamping = lambda t: A_IK_basic(t * n_load_steps * pi / 4).z()
-    
-    clamping_point_c1 = Frame(A_IK=A_IK_clamping)
-    clamping_left_c1 = RigidConnection(clamping_point_c1, cantilever1, frame_ID2=(0,))
-    clamping_left_c2 = RigidConnection(cantilever1, cantilever2, frame_ID1=(1,), frame_ID2=(0,))
+    q03 = Rod.straight_configuration(
+        nelements,
+        length,
+        polynomial_degree=polynomial_degree,
+        r_OP=r_OP03,
+        A_IK=A_IK03,
+        mixed=True,
+    )
+    cantilever3 = Rod(
+        cross_section,
+        material_model,
+        A_rho0,
+        K_S_rho0,
+        K_I_rho0,
+        nelements,
+        Q=q03,
+        q0=q03,
+        polynomial_degree=polynomial_degree,
+        reduced_integration=False,
+        mixed=True
+    )
 
-    F = lambda t: 5 * t * e3
-    force = Force(F, cantilever2, frame_ID=(1,))
+    clamping_left_c1 = RigidConnection(system.origin, cantilever1, frame_ID2=(0,))
+    clamping_left_c2 = RigidConnection(cantilever1, cantilever2, frame_ID1=(1,), frame_ID2=(0,))
+    clamping_left_c3 = RigidConnection(cantilever2, cantilever3, frame_ID1=(1,), frame_ID2=(0,))
+
+    F1 = lambda t: - 10 * t * e1
+    force_1 = Force(F1, cantilever3, frame_ID=(1,))
+
+    F2 = lambda t: - 10 * t * e3
+    force_2 = Force(F2, cantilever3, frame_ID=(1,))
     
     # assemble the system
     system.add(cantilever1)
     system.add(cantilever2)
-    system.add(clamping_point_c1)
+    system.add(cantilever3)
     system.add(clamping_left_c1)
     system.add(clamping_left_c2)
-    system.add(force)
+    system.add(clamping_left_c3)
+    system.add(force_1)
+    system.add(force_2)
 
     system.assemble()
 
     # add Newton solver
     solver = Newton(
         system,
-        n_load_steps=n_load_steps+1,
+        n_load_steps=10,
         max_iter=30,
         atol=atol,
     )
@@ -197,7 +208,7 @@ def cantilever(load_type="force", rod_hypothesis_penalty="shear_deformable", VTK
     fig1, ax1, anim1 = animate_beam(
         t,
         q, # nuova configurazione derivata dal linearSolve
-        [cantilever1, cantilever2],
+        [cantilever1, cantilever2, cantilever3],
         scale=length,
         scale_di=0.05,
         show=False,
@@ -205,19 +216,40 @@ def cantilever(load_type="force", rod_hypothesis_penalty="shear_deformable", VTK
         repeat=True,
     )
 
-    E_pot_total = np.zeros(len(t))
-    vertical_tip_displacement = np.zeros(len(t))
+    x_tip_displacement = np.zeros(len(t))
+    y_tip_displacement = np.zeros(len(t))
+    z_tip_displacement = np.zeros(len(t))
 
     for i in range(len(t)):
-        E_pot_total[i] = cantilever1.E_pot(t[i], q[i])
-        E_pot_total[i] += cantilever2.E_pot(t[i], q[i])
-        vertical_tip_displacement[i] = q[i,cantilever2.qDOF[cantilever2.elDOF_r[nelements-1,-1]]]
-    
+        x_tip_displacement[i] = q[i,cantilever3.qDOF[cantilever3.elDOF_r[nelements-1][polynomial_degree]]] - q03[cantilever3.elDOF_r[nelements-1][polynomial_degree]]
+        y_tip_displacement[i] = q[i,cantilever3.qDOF[cantilever3.elDOF_r[nelements-1][polynomial_degree * 2 + 1]]] - q03[cantilever3.elDOF_r[nelements-1][polynomial_degree * 2 + 1]]
+        z_tip_displacement[i] = q[i,cantilever3.qDOF[cantilever3.elDOF_r[nelements-1][polynomial_degree * 3 + 2]]] - q03[cantilever3.elDOF_r[nelements-1][polynomial_degree * 3 + 1]]
+
+
     fig2, ax2 = plt.subplots()
-    ax2.plot(t, E_pot_total, '-', color='black', label='Cosserat (numeric)')
+    ax2.plot(10 * t, x_tip_displacement, '-', color='black', label='Cosserat (numeric)')
 
     fig3, ax3 = plt.subplots()
-    ax3.plot(t, vertical_tip_displacement, '-', color='black', label='Cosserat (numeric)')
+    ax3.plot(10 * t, y_tip_displacement, '-', color='black', label='Cosserat (numeric)')
+
+    fig4, ax4 = plt.subplots()
+    ax4.plot(10 * t, z_tip_displacement, '-', color='black', label='Cosserat (numeric)')
+
+    
+    fig5, ax = plt.subplots()
+
+    ax.plot(10 * t, x_tip_displacement, '-', color='blue', label='X Tip Displacement')
+    ax.plot(10 * t, y_tip_displacement, '-', color='red', label='Y Tip Displacement')
+    ax.plot(10 * t, z_tip_displacement, '-', color='green', label='Z Tip Displacement')
+
+    # Aggiungi una legenda
+    ax.legend()
+
+    # Personalizza il titolo e le label degli assi se necessario
+    ax.set_title('Tip Displacements Over Time')
+    ax.set_xlabel('Time')
+    ax.set_ylabel('Displacement')
+
 
     plt.show()
 
