@@ -1,18 +1,20 @@
 from cardillo.beams import (
-    CosseratRodPG_SE3,
-    CosseratRodPG_R12,
-    CosseratRodPG_Quat,
-    K_R12_PetrovGalerkin_Quaternion,
-    K_SE3_PetrovGalerkin_Quaternion,
-    K_PetrovGalerkinQuaternionInterpolation,
     RectangularCrossSection,
     CircularCrossSection,
     Simo1986,
+    Harsch2021,
     animate_beam,
 )
+
+from cardillo.beams.cosseratRodPGMixed import (
+    CosseratRodPG_R12Mixed,
+    CosseratRodPG_QuatMixed,
+    CosseratRodPG_SE3Mixed,
+)
+
 from cardillo.constraints import RigidConnection
 from cardillo.solver import Newton
-from cardillo.forces import Force, K_Force, K_Moment, distributed_force_1D_beam
+from cardillo.forces import Force, K_Force, K_Moment
 
 from cardillo.math import e1, e2, e3, A_IK_basic
 
@@ -27,47 +29,43 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-""" Cantilever beam examples from Harsch, J. and Eugster, S. R., "Finite element analysis of planar nonlinear classical beam theories", 2020. 
+""" Cantilever beam examples from 
+Harsch, J. and Eugster, S. R., "Finite element analysis of planar nonlinear classical beam theories", 2020. 
 https://simonreugster.com/literature/book_contributions/Harsch2020a.pdf
 load_type = "moment":         6.1 Pure bending of a cantilever beam
 load_type = "dead_load":      6.2 Cantilever beam subjected to constant end load
-load_type = "follower_force": 6.3 Cantilever beam subject to follower end load
+load_type = "follower_force": 6.3 Cantilever beam subject to follower end load simulation only up to lambda=3/7 results beyond are unreliable
+
+Harsch, J., Capobianco, G. and Eugster, S. R., "Finite element formulations for constrained spatial nonlinear beam theories", 2021.
+load_type = "dead_load_and_moment": 4.1 Elliptic integral solutions of Euler's elastica
 """
 
 
 def cantilever(
-    load_type="moment", rod_hypothesis_penalty="shear_deformable", VTK_export=False
+    load_type="moment",
+    Rod=CosseratRodPG_R12Mixed,
+    nelements=10,
+    polynomial_degree=2,
+    red_int=True,
+    mixed=True,
+    n_load_steps=10,
+    rod_hypothesis_penalty="shear_deformable",
+    VTK_export=False,
 ):
-    # interpolation of Ansatz/trial functions
-    Rod = CosseratRodPG_SE3
-    # Rod = CosseratRodPG_R12
-    # Rod = CosseratRodPG_Quat
-
-    # nelements_Lagrangian = 5
-    nelements_Lagrangian = 10
-    polynomial_degree = 2
-
-    # number of elements
-    if Rod in [K_SE3_PetrovGalerkin_Quaternion, CosseratRodPG_SE3]:
-        nelements = nelements_Lagrangian * polynomial_degree
-    else:
-        nelements = nelements_Lagrangian
 
     # geometry of the rod
     length = 2 * np.pi
+    # just for visualization purposes
     slenderness = 1.0e2
     width = length / slenderness
 
     # cross section
     line_density = 1
     cross_section = RectangularCrossSection(line_density, width, width)
-
     A = cross_section.area
     A_rho0 = line_density * cross_section.area
     K_S_rho0 = line_density * cross_section.first_moment
     K_I_rho0 = line_density * cross_section.second_moment
-
-    atol = 1e-8
 
     # material model
     if rod_hypothesis_penalty == "shear_deformable":
@@ -85,10 +83,10 @@ def cantilever(
         I = 1.667e-8
         nu = 0.3
         G = E / (2 + 2 * nu)
-        # G*=1e1
         length = 1
         Ei = np.array([E * A, G * A, G * A])
         Fi = np.array([2 * G * I, E * I, E * I])
+
     material_model = Simo1986(Ei, Fi)
 
     # position and orientation of left point
@@ -99,70 +97,27 @@ def cantilever(
     system = System()
 
     # construct cantilever in a straight initial configuration
-    if Rod in [K_SE3_PetrovGalerkin_Quaternion, CosseratRodPG_SE3]:
-        q0 = Rod.straight_configuration(
-            nelements,
-            length,
-            r_OP=r_OP0,
-            A_IK=A_IK0,
-        )
-        cantilever = Rod(
-            cross_section,
-            material_model,
-            A_rho0,
-            K_S_rho0,
-            K_I_rho0,
-            nelements,
-            q0,
-        )
-    elif Rod in [K_R12_PetrovGalerkin_Quaternion, CosseratRodPG_R12]:
-        q0 = Rod.straight_configuration(
-            polynomial_degree,
-            polynomial_degree,
-            "Lagrange",
-            "Lagrange",
-            nelements,
-            length,
-            r_OP=r_OP0,
-            A_IK=A_IK0,
-        )
-        cantilever = Rod(
-            cross_section,
-            material_model,
-            A_rho0,
-            K_S_rho0,
-            K_I_rho0,
-            polynomial_degree,
-            polynomial_degree,
-            nelements,
-            Q=q0,
-            q0=q0,
-            basis_r="Lagrange",
-            basis_psi="Lagrange",
-        )
-    elif Rod in [K_PetrovGalerkinQuaternionInterpolation, CosseratRodPG_Quat]:
-        q0 = Rod.straight_configuration(
-            polynomial_degree,
-            "Lagrange",
-            nelements,
-            length,
-            r_OP=r_OP0,
-            A_IK=A_IK0,
-        )
-        cantilever = Rod(
-            cross_section,
-            material_model,
-            A_rho0,
-            K_S_rho0,
-            K_I_rho0,
-            polynomial_degree,
-            nelements,
-            Q=q0,
-            q0=q0,
-            basis="Lagrange",
-        )
-    else:
-        raise NotImplementedError
+    q0 = Rod.straight_configuration(
+        nelements,
+        length,
+        polynomial_degree=polynomial_degree,
+        r_OP=r_OP0,
+        A_IK=A_IK0,
+        mixed=mixed,
+    )
+    cantilever = Rod(
+        cross_section,
+        material_model,
+        A_rho0,
+        K_S_rho0,
+        K_I_rho0,
+        nelements,
+        Q=q0,
+        q0=q0,
+        polynomial_degree=polynomial_degree,
+        reduced_integration=red_int,
+        mixed=mixed,
+    )
 
     clamping_left = RigidConnection(system.origin, cantilever, frame_ID2=(0,))
 
@@ -183,20 +138,10 @@ def cantilever(
         force = Force(F, cantilever, (1,))
         system.add(force)
     elif load_type == "follower_force":
-        # spatially fixed load at cantilever tip
+        # cross-section fixed force at cantilever tip
         F = lambda t: -3e-3 * t * e2 * 3 / 7
         force = K_Force(F, cantilever, (1,))
         system.add(force)
-    elif load_type == "dead_load_and_moment":
-        # spatially fixed load at cantilever tip
-        P = lambda t: material_model.Fi[2] * (10 * t) / length**2
-        F = lambda t: -P(t) * e2
-        force = Force(F, cantilever, (1,))
-        system.add(force)
-        # moment at cantilever tip
-        M = lambda t: 2.5 * P(t) * e3
-        moment = K_Moment(M, cantilever, (1,))
-        system.add(moment)
     else:
         raise NotImplementedError
 
@@ -205,9 +150,9 @@ def cantilever(
     # add Newton solver
     solver = Newton(
         system,
-        n_load_steps=50,
+        n_load_steps=n_load_steps,
         max_iter=30,
-        atol=atol,
+        atol=1e-8,
     )
 
     # solve nonlinear static equilibrium equations
@@ -247,7 +192,7 @@ def cantilever(
         scale_di=0.05,
         show=False,
         n_frames=cantilever.nelement + 1,
-        repeat=False,
+        repeat=True,
     )
 
     # add plane with z-direction as normal
@@ -274,7 +219,6 @@ def cantilever(
         # camera settings for 3D plot
         ax1.azim = -90
         ax1.elev = 47
-        ax1.dist = 8
 
     elif load_type == "dead_load":
         # add reference solution to the animation
@@ -377,7 +321,6 @@ def cantilever(
         # plot animation
         ax1.azim = -90
         ax1.elev = 72
-        ax1.dist = 8
 
     elif load_type == "follower_force":
         # add reference solution to the animation
@@ -404,7 +347,6 @@ def cantilever(
         # camera settings for 3D plot
         ax1.azim = -90
         ax1.elev = 72
-        ax1.dist = 8
 
         # add normalized force-displacement diagram
         fig2, ax2 = plt.subplots()
@@ -422,20 +364,20 @@ def cantilever(
             label="Timoshenko (numeric)",
         )
         ax2.plot(Deltas_T[:43, 2], Deltas_T[:43, 0], "o", color="blue")
-        # Euler-Bernoulli beam
-        Deltas_EB = np.loadtxt(
-            Path(path.parent, "cantilever_data", "follower_force_Deltas_EB.txt"),
-            delimiter=",",
-            skiprows=1,
-        )
-        ax2.plot(
-            Deltas_EB[:43, 1],
-            Deltas_EB[:43, 0],
-            "o",
-            color="green",
-            label="Euler-Bernoulli (numeric)",
-        )
-        ax2.plot(Deltas_EB[:43, 2], Deltas_EB[:43, 0], "o", color="green")
+        # # Euler-Bernoulli beam
+        # Deltas_EB = np.loadtxt(
+        #     Path(path.parent, "cantilever_data", "follower_force_Deltas_EB.txt"),
+        #     delimiter=",",
+        #     skiprows=1,
+        # )
+        # ax2.plot(
+        #     Deltas_EB[:43, 1],
+        #     Deltas_EB[:43, 0],
+        #     "o",
+        #     color="green",
+        #     label="Euler-Bernoulli (numeric)",
+        # )
+        # ax2.plot(Deltas_EB[:43, 2], Deltas_EB[:43, 0], "o", color="green")
 
         # solution Argyris
         Delta_x_Argyris = np.loadtxt(
@@ -471,7 +413,7 @@ def cantilever(
             Delta_num[i] = -(r_OP_L[0] - length) / length
             delta_num[i] = -r_OP_L[1] / length
 
-        # Kirchhoff rod
+        # Cosserat rod
         ax2.plot(delta_num, t * 3 / 7, "-", color="black", label="Cosserat (numeric)")
         ax2.plot(Delta_num, t * 3 / 7, "-", color="black")
 
@@ -480,16 +422,63 @@ def cantilever(
         ax2.legend()
         ax2.grid()
 
+
     plt.show()
 
 
-if __name__ == "__main__":
-    # # load: moment at cantilever tip
-    # cantilever(load_type="moment", VTK_export=False)
+if __name__ == "__main__":    
+    ##################################
+    # load: moment at cantilever tip #
+    ##################################
 
-    # load: dead load at cantilever tip
-    # cantilever(load_type="dead_load", rod_hypothesis_penalty="shear_deformable", VTK_export=False)
-    # cantilever(load_type="dead_load", rod_hypothesis_penalty="shear_rigid", VTK_export=False)
-    # cantilever(load_type="dead_load", rod_hypothesis_penalty="inextensilbe_shear_rigid", VTK_export=False)
+    # R12 interpolation:    
+    # cantilever(load_type="moment", Rod=CosseratRodPG_R12Mixed, nelements=5, polynomial_degree=2, n_load_steps = 2, red_int=False, mixed=True)
+    # cantilever(load_type="moment", Rod=CosseratRodPG_R12Mixed, nelements=5, polynomial_degree=2, n_load_steps = 7, mixed=False)
 
-    cantilever(load_type="follower_force", VTK_export=False)
+    # Quaternion interpolation:
+    # cantilever(load_type="moment", Rod=CosseratRodPG_QuatMixed, nelements=10, polynomial_degree=2, n_load_steps = 2, red_int=False, mixed=True)
+    # cantilever(load_type="moment", Rod=CosseratRodPG_QuatMixed, nelements=5, polynomial_degree=2, n_load_steps = 7, mixed=False)
+
+    # SE3 interpolation:
+    # cantilever(load_type="moment", Rod=CosseratRodPG_SE3Mixed, nelements=3, polynomial_degree=1, n_load_steps = 10, mixed=False)
+    # cantilever(load_type="moment", Rod=CosseratRodPG_SE3Mixed, nelements=3, polynomial_degree=1, n_load_steps = 2, mixed=True)
+
+    
+    #####################################
+    # load: dead load at cantilever tip #
+    #####################################
+
+    # TODO: implement shear-rigidity and inextensibility exact in mixed formulations
+    # R12 interpolation:
+    # cantilever(load_type="dead_load", Rod=CosseratRodPG_R12Mixed, nelements=5, polynomial_degree=2, n_load_steps = 20)
+
+    # cantilever(load_type="dead_load", Rod=CosseratRodPG_R12Mixed, nelements=5, polynomial_degree=2, n_load_steps = 20, red_int=False, mixed=True)
+    # cantilever(load_type="dead_load", Rod=CosseratRodPG_R12Mixed, nelements=5, polynomial_degree=2, n_load_steps = 20, red_int=False, mixed=True, rod_hypothesis_penalty="shear_rigid")
+    # cantilever(load_type="dead_load", Rod=CosseratRodPG_R12Mixed, nelements=5, polynomial_degree=2, n_load_steps = 20, red_int=False, mixed=True, rod_hypothesis_penalty="inextensilbe_shear_rigid")
+    
+    # Quaternion interpolation:
+    # cantilever(load_type="dead_load", Rod=CosseratRodPG_QuatMixed, nelements=5, polynomial_degree=2, n_load_steps = 20)
+
+    # cantilever(load_type="dead_load", Rod=CosseratRodPG_QuatMixed, nelements=5, polynomial_degree=2, n_load_steps = 20, red_int=False, mixed=True)
+    # cantilever(load_type="dead_load", Rod=CosseratRodPG_QuatMixed, nelements=5, polynomial_degree=2, n_load_steps = 20, red_int=False, mixed=True, rod_hypothesis_penalty="shear_rigid")
+    # cantilever(load_type="dead_load", Rod=CosseratRodPG_QuatMixed, nelements=5, polynomial_degree=2, n_load_steps = 20, red_int=False, mixed=True, rod_hypothesis_penalty="inextensilbe_shear_rigid")
+    
+    # SE3 interpolation:
+    # cantilever(load_type="dead_load", Rod=CosseratRodPG_SE3Mixed, nelements=10, polynomial_degree=1, n_load_steps = 20, mixed=False)
+    # cantilever(load_type="dead_load", Rod=CosseratRodPG_SE3Mixed, nelements=10, polynomial_degree=1, n_load_steps = 40, mixed=False, rod_hypothesis_penalty="shear_rigid")
+    # cantilever(load_type="dead_load", Rod=CosseratRodPG_SE3Mixed, nelements=10, polynomial_degree=1, n_load_steps = 40, mixed=False, rod_hypothesis_penalty="inextensilbe_shear_rigid")
+
+    ##########################################
+    # load: Follower force at cantilever tip #
+    ##########################################
+
+    # R12 interpolation:
+    # cantilever(load_type="follower_force", Rod=CosseratRodPG_R12Mixed, nelements=5, polynomial_degree=2, n_load_steps = 50, red_int=False, mixed=True)
+    # cantilever(load_type="follower_force", Rod=CosseratRodPG_R12Mixed, nelements=5, polynomial_degree=2, n_load_steps = 50, mixed=False)
+
+    # Quaternion interpolation:
+    # cantilever(load_type="follower_force", Rod=CosseratRodPG_QuatMixed, nelements=5, polynomial_degree=2, n_load_steps = 50, red_int=False, mixed=True)
+    # cantilever(load_type="follower_force", Rod=CosseratRodPG_QuatMixed, nelements=5, polynomial_degree=2, n_load_steps = 50, mixed=False)
+
+    # SE3 interpolation:
+    # cantilever(load_type="follower_force", Rod=CosseratRodPG_SE3Mixed, nelements=10, polynomial_degree=2, n_load_steps = 50, mixed=False)
