@@ -34,12 +34,12 @@ from pathlib import Path
 
 def _bent_45_beam(load_type="moment", rod_hypothesis_penalty="shear_deformable", VTK_export=False):
     
-    Rod = CosseratRodPG_R12Mixed
-    # Rod = CosseratRodPG_QuatMixed
+    # Rod = CosseratRodPG_R12Mixed
+    Rod = CosseratRodPG_QuatMixed
     # Rod = CosseratRodPG_SE3Mixed
 
     nelements_Lagrangian = 8
-    polynomial_degree = 2
+    polynomial_degree = 1
 
      # number of elements
     if Rod is CosseratRodPG_SE3Mixed:
@@ -71,8 +71,8 @@ def _bent_45_beam(load_type="moment", rod_hypothesis_penalty="shear_deformable",
     # elif rod_hypothesis_penalty == "inextensilbe_shear_rigid":
     #     Ei = np.array([1e6, 1e6, 1e6]) * 1e10
 
-    Ei = np.array([1e7, 1e7/2 * 5/6, 1e7/2 * 5/6])
-    Fi = np.array([705000., 833333., 833333.])
+    Ei = np.array([1.e7, 5.e6, 5.e6])
+    Fi = np.array([1., 1., 1.])*1.e7/12
     material_model = Simo1986(Ei, Fi)
 
 
@@ -221,6 +221,8 @@ def _bent_45_beam(load_type="moment", rod_hypothesis_penalty="shear_deformable",
     )
 
     plt.show()
+
+    print(q_ph2[-1, cantilever_ph2.qDOF[cantilever_ph2.elDOF_r]][-1, -1])
 
 if __name__ == "__main__":
     _bent_45_beam(load_type="moment", VTK_export=False)

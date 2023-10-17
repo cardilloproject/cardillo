@@ -33,7 +33,8 @@ def fit_configuration(
         xis = np.linspace(0, 1, n_samples)
 
     # initial vector of generalized coordinates
-    Z0 = np.zeros(rod.nq, dtype=float)
+    # Z0 = np.zeros(rod.nq, dtype=float)
+    Z0 = np.zeros(rod.nq_r + rod.nq_psi, dtype=float)
 
     ###########
     # warmstart
@@ -55,7 +56,8 @@ def fit_configuration(
     for node, xi_idx in enumerate(xi_idx_r):
         Z0[rod.nodalDOF_r[node]] = r_OPs[xi_idx]
     for node, xi_idx in enumerate(xi_idx_psi):
-        Z0[rod.nodalDOF_psi[node]] = rod.RotationBase.Log_SO3(A_IKs[xi_idx])
+        # Z0[rod.nodalDOF_psi[node]] = rod.RotationBase.Log_SO3(A_IKs[xi_idx])
+        Z0[rod.nodalDOF_psi[node]] = QuaternionRotationParameterization.Log_SO3(A_IKs[xi_idx])
 
     # # TODO: Ensure that all quaternions are on the same hemisphere
     # # quats = np.array([
@@ -72,20 +74,21 @@ def fit_configuration(
     # #     else:
     # #         print(f"correct hemisphere")
 
-    if rod.RotationBase is QuaternionRotationParameterization:
-        for i in range(rod.nnodes_psi - 1):
-            Pi = Z0[rod.nodalDOF_psi[i]]
-            Pi1 = Z0[rod.nodalDOF_psi[i + 1]]
-            inner = Pi @ Pi1
-            print(f"i: {i}")
-            if inner < 0:
-                print("wrong hemisphere!")
-                Z0[rod.nodalDOF_psi[i + 1]] *= -1
-            else:
-                print(f"correct hemisphere")
+    # if rod.RotationBase is QuaternionRotationParameterization:
+    for i in range(rod.nnodes_psi - 1):
+        Pi = Z0[rod.nodalDOF_psi[i]]
+        Pi1 = Z0[rod.nodalDOF_psi[i + 1]]
+        inner = Pi @ Pi1
+        print(f"i: {i}")
+        if inner < 0:
+            print("wrong hemisphere!")
+            Z0[rod.nodalDOF_psi[i + 1]] *= -1
+        else:
+            print(f"correct hemisphere")
 
     # constrained nodes
-    zDOF = np.arange(rod.nq)
+    # zDOF = np.arange(rod.nq)
+    zDOF = np.arange(rod.nq_r + rod.nq_psi)
     cDOF_r = rod.nodalDOF_r[nodal_cDOF]
     cDOF_psi = rod.nodalDOF_psi[nodal_cDOF]
     cDOF = np.concatenate((cDOF_r.flatten(), cDOF_psi.flatten()))
@@ -96,7 +99,8 @@ def fit_configuration(
     Z0_boundary_psi = Z0[cDOF_psi]
 
     def make_redundant_coordinates(q):
-        z = np.zeros(rod.nq, dtype=q.dtype)
+        # z = np.zeros(rod.nq, dtype=q.dtype)
+        z = np.zeros(rod.nq_r + rod.nq_psi, dtype=q.dtype)
         z[fDOF] = q
         z[cDOF_r] = Z0_boundary_r
         z[cDOF_psi] = Z0_boundary_psi
@@ -109,7 +113,8 @@ def fit_configuration(
         for i, xi in enumerate(xis):
             # find element number and extract elemt degrees of freedom
             el = rod.element_number(xi)
-            elDOF = rod.elDOF[el]
+            # elDOF = rod.elDOF[el]
+            elDOF = np.concatenate([rod.elDOF_r[el], rod.elDOF_psi[el]])
             ze = z[elDOF]
 
             # interpolate position and orientation
@@ -130,7 +135,9 @@ def fit_configuration(
         for i, xi in enumerate(xis):
             # find element number and extract elemt degrees of freedom
             el = rod.element_number(xi)
-            elDOF = rod.elDOF[el]
+            # elDOF = rod.elDOF[el]
+            elDOF = np.concatenate([rod.elDOF_r[el], rod.elDOF_psi[el]])
+
             ze = z[elDOF]
 
             # interpolate position and orientation
@@ -148,8 +155,9 @@ def fit_configuration(
             # compute homogeneous transformation and derivative
             H = SE3(A_IK, r_OP)
             H_qe = np.zeros((4, 4, len(ze)))
-            H_qe[:3, :3, :] = A_IK_ze
-            H_qe[:3, 3, :] = r_OP_ze
+            nodalDOF_element = np.concatenate([rod.nodalDOF_element_r.T.flatten(), rod.nodalDOF_element_psi.T.flatten()])
+            H_qe[:3, :3, :] = A_IK_ze[:, :, nodalDOF_element]
+            H_qe[:3, 3, :] = r_OP_ze[:, nodalDOF_element]
 
             # insert to jacobian
             J[6 * i : 6 * (i + 1), elDOF] = np.einsum(
@@ -182,7 +190,8 @@ def fit_configuration(
         verbose=verbose,
     )
     Q0 = res.x
-    Z0 = make_redundant_coordinates(Q0)
+    Z0 = np.zeros(rod.nq)
+    Z0[:rod.nq_r + rod.nq_psi] = make_redundant_coordinates(Q0)
 
     rod.set_initial_strains(Z0)
     return Z0

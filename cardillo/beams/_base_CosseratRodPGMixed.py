@@ -339,7 +339,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
 
     # TODO: rename function to set_reference_strains
     def set_initial_strains(self, Q):
-        # self.Q = Q.copy()
+        self.Q = Q.copy()
 
         # # # ensure quaternions on same hemisphere, see Gosh2008 above (35)
         # # # TODO: Why is this not sufficient?
