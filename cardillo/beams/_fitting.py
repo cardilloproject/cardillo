@@ -42,21 +42,20 @@ def fit_configuration(
     # initialized nodal unknowns with closest data w.r.t. xi values
     xi_idx_r = np.array(
         [
-            np.where(xis >= rod.mesh_r.knot_vector.data[i])[0][0]
-            for i in range(rod.mesh_r.nnodes)
+            np.where(xis >= xi)[0][0]
+            for xi in np.linspace(0, 1, rod.mesh_r.nnodes)
         ]
     )
     xi_idx_psi = np.array(
         [
-            np.where(xis >= rod.mesh_psi.knot_vector.data[i])[0][0]
-            for i in range(rod.mesh_psi.nnodes)
+            np.where(xis >= xi)[0][0]
+            for xi in np.linspace(0, 1, rod.mesh_psi.nnodes)
         ]
     )
 
     for node, xi_idx in enumerate(xi_idx_r):
         Z0[rod.nodalDOF_r[node]] = r_OPs[xi_idx]
     for node, xi_idx in enumerate(xi_idx_psi):
-        # Z0[rod.nodalDOF_psi[node]] = rod.RotationBase.Log_SO3(A_IKs[xi_idx])
         Z0[rod.nodalDOF_psi[node]] = QuaternionRotationParameterization.Log_SO3(A_IKs[xi_idx])
 
     # # TODO: Ensure that all quaternions are on the same hemisphere
@@ -87,7 +86,6 @@ def fit_configuration(
             print(f"correct hemisphere")
 
     # constrained nodes
-    # zDOF = np.arange(rod.nq)
     zDOF = np.arange(rod.nq_r + rod.nq_psi)
     cDOF_r = rod.nodalDOF_r[nodal_cDOF]
     cDOF_psi = rod.nodalDOF_psi[nodal_cDOF]
@@ -99,7 +97,6 @@ def fit_configuration(
     Z0_boundary_psi = Z0[cDOF_psi]
 
     def make_redundant_coordinates(q):
-        # z = np.zeros(rod.nq, dtype=q.dtype)
         z = np.zeros(rod.nq_r + rod.nq_psi, dtype=q.dtype)
         z[fDOF] = q
         z[cDOF_r] = Z0_boundary_r
@@ -113,7 +110,6 @@ def fit_configuration(
         for i, xi in enumerate(xis):
             # find element number and extract elemt degrees of freedom
             el = rod.element_number(xi)
-            # elDOF = rod.elDOF[el]
             elDOF = np.concatenate([rod.elDOF_r[el], rod.elDOF_psi[el]])
             ze = z[elDOF]
 

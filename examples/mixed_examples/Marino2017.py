@@ -3,7 +3,7 @@ from cardillo.beams import (
     CircularCrossSection,
     Simo1986,
 )
-from cardillo.beams.cosseratRodPGMixed import CosseratRodPG_SE3Mixed
+from cardillo.beams.cosseratRodPGMixed import CosseratRodPG_SE3Mixed, CosseratRodPG_R12Mixed
 from cardillo.beams import K_R12_PetrovGalerkin_Quaternion
 from cardillo.beams import K_SE3_PetrovGalerkin_Quaternion
 from cardillo.beams._fitting import fit_configuration
@@ -31,7 +31,8 @@ from cardillo.beams import animate_beam
 # SE(3)-interpolation
 #####################
 # Rod = K_SE3_PetrovGalerkin_Quaternion
-Rod = CosseratRodPG_SE3Mixed
+# Rod = CosseratRodPG_SE3Mixed
+Rod = CosseratRodPG_R12Mixed
 
 nturns = 10
 
@@ -47,6 +48,7 @@ nturns = 10
 
 p = 2
 elements_per_turn = 7.5
+# elements_per_turn = 10
 
 nelements = int(elements_per_turn * nturns)
 
@@ -147,7 +149,7 @@ print(f"Fi: {Fi}")
 # else:
 #     raise NotImplementedError
 
-Q0 = Rod.straight_configuration(nelements, L=1, mixed=True,)
+Q0 = Rod.straight_configuration(nelements, L=1, mixed=True,polynomial_degree=p)
 rod = Rod(
     cross_section,
     material_model,
@@ -156,7 +158,8 @@ rod = Rod(
     K_I_rho0,
     nelements,
     Q0,
-    reduced_integration=False,
+    polynomial_degree=p,
+    reduced_integration=True,
     mixed=True,
 )
 
@@ -235,8 +238,8 @@ def run(case="force"):
     # n_load_steps = 10
     # n_load_steps = 20
     # n_load_steps = 50
-    # n_load_steps = 120
     n_load_steps = 150
+    # n_load_steps = 150
     # n_load_steps = 300
     # n_load_steps = 400
     # n_load_steps = 500  # works with volume correction
