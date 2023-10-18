@@ -33,71 +33,6 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 
-def deformed_configuration_45(
-    nelement,
-    R,
-    angle,
-    polynomial_degree=1,
-    r_OP=np.zeros(3, dtype=float),
-    A_IK=np.eye(3, dtype=float),
-    mixed=False,
-):
-    nnodes_r = polynomial_degree * nelement + 1
-    nnodes_n = polynomial_degree * nelement
-    nnodes_m = polynomial_degree * nelement
-
-
-
-    def curve(xi):
-        return np.array([R - R * np.cos(xi), R * np.sin(xi), 0])
-    
-    def dcurve(xi):
-        return np.array([R * np.sin(xi), R * np.cos(xi), 0])
-    
-    def ddcurve(xi):
-        return np.array([R * np.cos(xi), -R* np.sin(xi), 0])
-
-    LL = np.linspace(0, angle, nnodes_r)
-
-    # nodal positions
-    r0 = np.zeros((3, nnodes_r))
-    P0 = np.zeros((4, nnodes_r))
-    
-    for i in range(nnodes_r):
-        r0[:, i] = r_OP + A_IK @ curve(LL[i])
-        A_KC = np.zeros((3, 3))
-        A_KC[:, 0] = dcurve(LL[i]) / norm(dcurve(LL[i]))
-        A_KC[:, 1] = ddcurve(LL[i]) / norm(ddcurve(LL[i]))
-        A_KC[:, 2] = cross3(A_KC[:, 0], A_KC[:, 1])
-        A_IC = A_IK @ A_KC
-        P0[:, i] = Log_SO3_quat(A_IC)
-
-        # TODO: check for half space
-
-    for i in range(nnodes_r-1):
-        inner = P0[:,i] @ P0[:,i+1]
-        print(f"i: {i}")
-        if inner < 0:
-            print("wrong hemisphere!")
-            P0[i + 1] *= -1
-        else:
-            print(f"correct hemisphere")
-
-
-    # reshape nodal positions for generalized coordinates tuple
-    q_r = r0.reshape(-1, order="C")
-    q_P = P0.reshape(-1, order="C")
-    
-    if mixed:
-        q = np.concatenate([q_r, q_P, np.zeros(3 * nnodes_n + 3 * nnodes_m)])
-    else:
-        q = np.concatenate([q_r, q_P])
-
-    return q
-
-
-
-
 def _bent_45_beam(load_type="moment", rod_hypothesis_penalty="shear_deformable", VTK_export=False):
     
     # Rod = CosseratRodPG_R12Mixed
@@ -144,13 +79,19 @@ def _bent_45_beam(load_type="moment", rod_hypothesis_penalty="shear_deformable",
     R = 100
     angle = pi/4
 
+    curve = lambda xi: np.array([R - R * np.cos(xi), R * np.sin(xi), 0])
+    dcurve = lambda xi: np.array([R * np.sin(xi), R * np.cos(xi), 0])
+    ddcurve = lambda xi: np.array([R * np.cos(xi), -R * np.sin(xi), 0])
+
     # starting point and orientation of initial point, initial length
     r_OP0 = np.zeros(3, dtype=float)
     A_IK0 = np.eye(3, dtype=float)
 
-    q0 = deformed_configuration_45(
+    q0 = Rod.deformed_configuration(
         nelements,
-        R,
+        curve,
+        dcurve,
+        ddcurve,
         angle,
         polynomial_degree=polynomial_degree,
         r_OP=r_OP0,
