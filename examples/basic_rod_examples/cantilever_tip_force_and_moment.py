@@ -29,6 +29,7 @@ from pathlib import Path
 """ Cantilever beam example from
 
 Harsch, J., Capobianco, G. and Eugster, S. R., "Finite element formulations for constrained spatial nonlinear beam theories", 2021.
+https://doi.org/10.1177/10812865211000790
 
 4.1 Elliptic integral solutions of Euler's elastica
 """
