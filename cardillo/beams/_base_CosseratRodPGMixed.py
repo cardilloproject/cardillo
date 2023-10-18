@@ -453,6 +453,115 @@ class CosseratRodPGMixed(RodExportBase, ABC):
             q = np.concatenate([q_r, q_psi, np.zeros(3 * nnodes_n + 3 * nnodes_m)])
 
         return q
+    
+
+
+
+    @staticmethod
+    def deformed_configuration_45(
+        nelement,
+        R,
+        ANGOLO,
+        polynomial_degree=1,
+        r_OP=np.zeros(3, dtype=float),
+        A_IK=np.eye(3, dtype=float),
+        mixed=False,
+    ):
+        nnodes_r = polynomial_degree * nelement + 1
+        nnodes_psi = polynomial_degree * nelement + 1
+        nnodes_n = polynomial_degree * nelement
+        nnodes_m = polynomial_degree * nelement
+
+
+        def X(s):
+            return R - R * np.cos(s)
+        def Y(s):
+            return R * np.sin(s)
+        def Z(s):
+            return 0.0
+
+        def curva(s):
+            return [X(s), Y(s), Z(s)]
+
+        LL = np.linspace(0, ANGOLO, nnodes_r)
+    
+        pp = np.zeros((nnodes_r,3))
+
+        for i in range(nnodes_r):
+            pp[i] = curva(LL[i])
+
+        x0 = np.zeros(nnodes_r)
+        y0 = np.zeros(nnodes_r)
+        z0 = np.zeros(nnodes_r)
+
+        for i in range(nnodes_r):
+            x0[i] = pp[i,0]
+            y0[i] = pp[i,1]
+            z0[i] = pp[i,2]
+
+        r0 = np.vstack((x0, y0, z0))
+
+        def derivata_curva(s):
+            ds = 1e-10  # Passo molto piccolo per l'approssimazione della derivata
+            x_prime = (curva(s + ds)[0] - curva(s)[0]) / ds
+            y_prime = (curva(s + ds)[1] - curva(s)[1]) / ds
+            z_prime = (curva(s + ds)[2] - curva(s)[2]) / ds
+            return [x_prime, y_prime, z_prime]
+
+        t_x0 = np.zeros(nnodes_r)
+        t_y0 = np.zeros(nnodes_r)
+        t_z0 = np.zeros(nnodes_r)
+        n_x0 = np.zeros(nnodes_r)
+        n_y0 = np.zeros(nnodes_r)
+        n_z0 = np.zeros(nnodes_r)
+        
+        tangente_uni = np.zeros((nnodes_r,3))
+        for i in range(nnodes_r):
+            tangente_uni[i] = derivata_curva(LL[i])/np.linalg.norm(derivata_curva(LL[i]))
+            t_x0[i] = tangente_uni[i,0]
+            t_y0[i] = tangente_uni[i,1]
+            t_z0[i] = tangente_uni[i,2]
+            n_z0[i] = 1.
+        
+        t_uni_0 = np.vstack((t_x0, t_y0, t_z0))
+        n_uni_0 = np.vstack((n_x0, n_y0, n_z0))
+        v_uni_0 = np.zeros((3,nnodes_r))
+
+        for i in range(nnodes_r):
+            v_uni_0[:,i] = np.cross(t_uni_0[:,i],n_uni_0[:,i])
+
+        A_IK = np.zeros(nnodes_r, dtype=object)
+        for i in range(nnodes_r):
+            A_IK[i] = np.hstack((t_uni_0[:, i], n_uni_0[:, i], v_uni_0[:, i]))
+            A_IK[i] = A_IK[i].reshape((3, 3))
+
+        for i in range(nnodes_r):
+            r0[:, i] = r_OP + A_IK[i] @ r0[:, i]
+
+        # reshape generalized coordinates to nodal ordering
+        q_r = r0.reshape(-1, order="C")
+
+        # we have to extract the rotation vector from the given rotation matrix
+        # and set its value for each node
+        psi = np.zeros(nnodes_r, dtype=object)
+        for i in range(nnodes_r):
+            psi[i] = QuaternionRotationParameterization().Log_SO3(A_IK[i])
+
+        q_psi_aus = np.vstack((psi))
+        q_psi = q_psi_aus.T.reshape(-1, order="C")
+
+        q = np.concatenate([q_r, q_psi])
+        if mixed:
+            q = np.concatenate([q_r, q_psi, np.zeros(3 * nnodes_n + 3 * nnodes_m)])
+
+        return q
+    
+
+
+
+
+
+
 
     # TODO: Test straight initial configuration
     @staticmethod
