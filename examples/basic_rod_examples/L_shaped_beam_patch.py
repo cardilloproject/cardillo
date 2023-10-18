@@ -152,24 +152,26 @@ def L_shaped_beam_patch(
     nt = len(q)
     t = sol.t[:nt]
 
-    # # VTK export
-    # if VTK_export:
-    #     path = Path(__file__)
-    #     e = Export(path.parent, path.stem, True, 30, sol)
-    #     e.export_contr(
-    #         cantilever,
-    #         level="centerline + directors",
-    #         num=3 * nelements,
-    #         file_name="cantilever_curve",
-    #     )
-    #     e.export_contr(
-    #         cantilever,
-    #         continuity="C0",
-    #         level="volume",
-    #         n_segments=nelements,
-    #         num=3 * nelements,
-    #         file_name="cantilever_volume",
-    #     )
+    # VTK export
+    if VTK_export:
+        path = Path(__file__)
+        e = Export(path.parent, path.stem, True, 30, sol)
+        rod_list = [cantilever1, cantilever2]
+        for (i, rod) in enumerate(rod_list):
+            e.export_contr(
+                rod,
+                level="centerline + directors",
+                num=3 * nelements,
+                file_name="rod_curve",
+            )
+            e.export_contr(
+                rod,
+                continuity="C0",
+                level="volume",
+                n_segments=nelements,
+                num=3 * nelements,
+                file_name="rod_volume",
+            )
 
     # matplotlib visualization
     # construct animation of beam
@@ -217,6 +219,6 @@ if __name__ == "__main__":
     # L_shaped_beam_patch(Rod=CosseratRodPG_QuatMixed, nelements=5, polynomial_degree=2, n_load_steps = 5, mixed=True, reduced_integration=False)
 
     # SE3 interpolation:
-    L_shaped_beam_patch(Rod=CosseratRodPG_SE3Mixed, nelements=5, polynomial_degree=2, n_load_steps = 20, mixed=False, reduced_integration=False)
+    L_shaped_beam_patch(Rod=CosseratRodPG_SE3Mixed, nelements=10, polynomial_degree=2, n_load_steps = 20, mixed=False, reduced_integration=False, VTK_export=True)
     # L_shaped_beam_patch(Rod=CosseratRodPG_SE3Mixed, nelements=5, polynomial_degree=2, n_load_steps = 5, mixed=True, reduced_integration=False)
     
