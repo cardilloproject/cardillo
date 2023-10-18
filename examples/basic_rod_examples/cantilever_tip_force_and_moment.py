@@ -26,9 +26,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-""" Cantilever beam examples from 
+""" Cantilever beam example from
+
 Harsch, J., Capobianco, G. and Eugster, S. R., "Finite element formulations for constrained spatial nonlinear beam theories", 2021.
-load_type = "dead_load_and_moment": 4.1 Elliptic integral solutions of Euler's elastica
+https://doi.org/10.1177/10812865211000790
+
+4.1 Elliptic integral solutions of Euler's elastica
 """
 
 def cantilever(
@@ -45,11 +48,10 @@ def cantilever(
 
     # geometry of the rod
     length = 2 * np.pi
-    # just for visualization purposes
+
+    # cross section properties for visualization purposes
     slenderness = 1.0e2
     width = length / slenderness
-
-    # cross section
     line_density = 1
     cross_section = RectangularCrossSection(line_density, width, width)
     A = cross_section.area
@@ -69,10 +71,6 @@ def cantilever(
 
     material_model = constitutive_law(Ei, Fi)
 
-    # position and orientation of left point
-    r_OP0 = np.zeros(3, dtype=float)
-    A_IK0 = np.eye(3, dtype=float)
-
     # construct system
     system = System()
 
@@ -81,8 +79,6 @@ def cantilever(
         nelements,
         length,
         polynomial_degree=polynomial_degree,
-        r_OP=r_OP0,
-        A_IK=A_IK0,
         mixed=mixed,
     )
     # construct cantilever
@@ -177,7 +173,7 @@ def cantilever(
 
     # add reference solution to the animation
     centerline_T = np.loadtxt(
-        Path(path.parent, "cantilever_data", "dead_load_and_moment_centerline_T_numeric.csv"),
+        Path(path.parent, "cantilever_tip_force_and_moment_data", "centerline_T_numeric.csv"),
         delimiter=",",
         skiprows=1,
     )
@@ -188,7 +184,7 @@ def cantilever(
         "-b",
     )
     centerline_EB = np.loadtxt(
-        Path(path.parent, "cantilever_data", "dead_load_and_moment_centerline_EB_numeric.csv"),
+        Path(path.parent, "cantilever_tip_force_and_moment_data", "centerline_EB_numeric.csv"),
         delimiter=",",
         skiprows=1,
     )
@@ -199,7 +195,7 @@ def cantilever(
         "-g",
     )
     centerline_IEB = np.loadtxt(
-        Path(path.parent, "cantilever_data", "dead_load_and_moment_centerline_IEB_analytic.csv"),
+        Path(path.parent, "cantilever_tip_force_and_moment_data", "centerline_IEB_analytic.csv"),
         delimiter=",",
         skiprows=1,
     )
