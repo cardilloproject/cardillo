@@ -1389,7 +1389,6 @@ class NPIRK:
                 jac_args=(False,),
                 max_iter=self.max_iter,
                 # linear_solver=lu_solve,
-                # linear_solver=rank_revealing_qr_spsolve,
                 linear_solver=rank_revealing_qr_solve,
                 # linear_solver=ridge_solve,
                 # linear_solver=svd_solve,
