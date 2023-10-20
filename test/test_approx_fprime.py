@@ -97,8 +97,8 @@ def test_matrix_valued(method, eps, tol, show=False):
         assert n == m
 
         return np.einsum(
-            "ij,kl->ijkl", 
-            X, 
+            "ij,kl->ijkl",
+            X,
             np.eye(n),
         ) + np.einsum(
             "mm,ik,jl->ijkl",
