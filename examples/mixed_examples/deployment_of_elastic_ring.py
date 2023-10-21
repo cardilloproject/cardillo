@@ -16,7 +16,7 @@ from cardillo.beams.cosseratRodPGMixed import (
 )
 
 from cardillo.discrete import Frame
-from cardillo.constraints import RigidConnection, Cylindrical
+from cardillo.constraints import RigidConnection, Cylindrical, Prismatic
 from cardillo.solver import Newton
 from cardillo.forces import Force, Moment, K_Force, K_Moment
 
@@ -130,10 +130,12 @@ def deployment_of_elastic_ring(load_type="moment", rod_hypothesis_penalty="shear
     # generate the constraint on the beam
     r_OP_2_end = np.zeros(3, dtype=float)
     r_OP_2_end[0] = 2 * R
-    clamping_point = Frame(A_IK=A_IK0)
+    A_IK_displ = lambda t: A_IK_basic(t * pi).y()
 
-    A_IK_displ = lambda t: A_IK_basic(t * 2 * pi).x()
-    displ_imposed = Frame(r_OP_2_end, A_IK_displ)
+    clamping_point = Frame(A_IK=A_IK_displ)
+
+    
+    displ_imposed = Frame(r_OP_2_end)
     clamping_left = RigidConnection(clamping_point, cantilever, frame_ID2=(0,))
     clamping_right = Cylindrical(displ_imposed, cantilever, 0, frame_ID2=(1,))
     
@@ -149,7 +151,7 @@ def deployment_of_elastic_ring(load_type="moment", rod_hypothesis_penalty="shear
 
     solver = Newton(
         system,
-        n_load_steps=60,
+        n_load_steps=50,
         max_iter=30,
         atol=atol,
     )
@@ -158,6 +160,25 @@ def deployment_of_elastic_ring(load_type="moment", rod_hypothesis_penalty="shear
     q = sol.q
     nt = len(q)
     t = sol.t[:nt]
+
+    # VTK export
+    if VTK_export:
+        path = Path(__file__)
+        e = Export(path.parent, path.stem, True, 30, sol)
+        e.export_contr(
+            cantilever,
+            level="centerline + directors",
+            num=3 * nelements,
+            file_name="cantilever_curve",
+        )
+        e.export_contr(
+            cantilever,
+            continuity="C0",
+            level="volume",
+            n_segments=nelements,
+            num=3 * nelements,
+            file_name="cantilever_volume",
+        )
 
     # matplotlib visualization
     # construct animation of beam
@@ -177,5 +198,5 @@ def deployment_of_elastic_ring(load_type="moment", rod_hypothesis_penalty="shear
 
 
 if __name__ == "__main__":
-    deployment_of_elastic_ring(load_type="moment", VTK_export=False)
+    deployment_of_elastic_ring(load_type="moment", VTK_export=True)
  
