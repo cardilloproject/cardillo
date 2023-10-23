@@ -118,7 +118,9 @@ def _bent_45_beam(load_type="moment", rod_hypothesis_penalty="shear_deformable",
     clamping_point = Frame(A_IK=A_IK_clamping)
     clamping_left = RigidConnection(clamping_point, cantilever, frame_ID2=(0,))
     
-    F = lambda t: 600 * t * e3
+    n_load_step = 6
+    f_max = 600
+    F = lambda t: f_max * t * e3
     force = Force(F, cantilever, frame_ID=(1,))
     
     # assemble the system
@@ -132,7 +134,7 @@ def _bent_45_beam(load_type="moment", rod_hypothesis_penalty="shear_deformable",
 
     solver = Newton(
         system,
-        n_load_steps=6,
+        n_load_steps=n_load_step+1,
         max_iter=30,
         atol=atol,
     )
@@ -155,10 +157,50 @@ def _bent_45_beam(load_type="moment", rod_hypothesis_penalty="shear_deformable",
     repeat=True,
     )
 
+    x_tip_displacement = np.zeros(len(t))
+    y_tip_displacement = np.zeros(len(t))
+    z_tip_displacement = np.zeros(len(t))
+
+    for i in range(len(t)):
+        x_tip_displacement[i] = abs(q[i, cantilever.elDOF_r[nelements-1][polynomial_degree]]-q0[cantilever.elDOF_r[nelements-1][polynomial_degree]])
+        y_tip_displacement[i] = q[i, cantilever.elDOF_r[nelements-1][polynomial_degree * 2 + 1]]-q0[cantilever.elDOF_r[nelements-1][polynomial_degree * 2 + 1]]
+        z_tip_displacement[i] = abs(q[i, cantilever.elDOF_r[nelements-1][polynomial_degree * 3 + 1]]-q0[cantilever.elDOF_r[nelements-1][polynomial_degree * 3 + 1]])
+
+    # fig2, ax2 = plt.subplots()
+    # ax2.plot(t, x_tip_displacement, '-', color='black', label='Cosserat (numeric)')
+    
+    # fig3, ax3 = plt.subplots()
+    # ax3.plot(t, y_tip_displacement, '-', color='black', label='Cosserat (numeric)')
+
+    # fig4, ax4 = plt.subplots()
+    # ax4.plot(t, z_tip_displacement, '-', color='black', label='Cosserat (numeric)')
+
+    fig5, ax = plt.subplots()
+
+    ax.plot(f_max * t, x_tip_displacement, '-', color='blue', label='X Tip Displacement', marker='o')
+    ax.plot(f_max * t, y_tip_displacement, '-', color='red', label='Y Tip Displacement', marker='s')
+    ax.plot(f_max * t, z_tip_displacement, '-', color='green', label='Z Tip Displacement', marker='^')
+
+    # Aggiungi una legenda
+    ax.legend(loc='upper left')
+
+    # Personalizza il titolo e le label degli assi se necessario
+    ax.set_title('Tip Displacements Over Time')
+    ax.set_xlabel('Load')
+    ax.set_ylabel('Tip Displacements')
+
+    x_values = np.linspace(0, f_max, n_load_step)
+    for x_value in x_values:  # Assumendo che tu voglia una linea per ogni punto di dati
+        ax.axvline(x=x_value, color='gray', linestyle='--')
+
+    y_values = np.linspace(-30, 60, 11)
+    for y_value in y_values:
+        ax.axhline(y=y_value, color='gray', linestyle='--')
+
+    plt.savefig('45_bent_beam_tip_displacement_graphic.eps', format='eps')
+
     plt.show()
 
-   
-    print(q[-1, cantilever.elDOF_r][-1, -1])
 
 if __name__ == "__main__":
     _bent_45_beam(load_type="moment", VTK_export=False)

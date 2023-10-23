@@ -492,7 +492,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
             print(f"i: {i}")
             if inner < 0:
                 print("wrong hemisphere!")
-                P0[i + 1] *= -1
+                P0[:, i + 1] *= -1
             else:
                 print(f"correct hemisphere")
 
