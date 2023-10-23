@@ -173,7 +173,7 @@ def cantilever(
 
     # add reference solution to the animation
     centerline_T = np.loadtxt(
-        Path(path.parent, "cantilever_tip_force_and_moment_data", "centerline_T_numeric.csv"),
+        Path(path.parent, "_data_cantilever_tip_force_and_moment", "centerline_T_numeric.csv"),
         delimiter=",",
         skiprows=1,
     )
@@ -184,7 +184,7 @@ def cantilever(
         "-b",
     )
     centerline_EB = np.loadtxt(
-        Path(path.parent, "cantilever_tip_force_and_moment_data", "centerline_EB_numeric.csv"),
+        Path(path.parent, "_data_cantilever_tip_force_and_moment", "centerline_EB_numeric.csv"),
         delimiter=",",
         skiprows=1,
     )
@@ -195,7 +195,7 @@ def cantilever(
         "-g",
     )
     centerline_IEB = np.loadtxt(
-        Path(path.parent, "cantilever_tip_force_and_moment_data", "centerline_IEB_analytic.csv"),
+        Path(path.parent, "_data_cantilever_tip_force_and_moment", "centerline_IEB_analytic.csv"),
         delimiter=",",
         skiprows=1,
     )

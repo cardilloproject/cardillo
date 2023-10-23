@@ -214,7 +214,7 @@ def cantilever(
     elif load_type == "constant_end_load":
         # add reference solution to the animation
         centerline_T = np.loadtxt(
-            Path(path.parent, "cantilever_data", "constant_end_load_centerline_T.txt"),
+            Path(path.parent, "_data_cantilever", "constant_end_load_centerline_T.txt"),
             delimiter=",",
             skiprows=1,
         )
@@ -225,7 +225,7 @@ def cantilever(
             "-b",
         )
         centerline_EB = np.loadtxt(
-            Path(path.parent, "cantilever_data", "constant_end_load_centerline_EB.txt"),
+            Path(path.parent, "_data_cantilever", "constant_end_load_centerline_EB.txt"),
             delimiter=",",
             skiprows=1,
         )
@@ -236,7 +236,7 @@ def cantilever(
             "-g",
         )
         centerline_IEB = np.loadtxt(
-            Path(path.parent, "cantilever_data", "constant_end_load_centerline_IEB.txt"),
+            Path(path.parent, "_data_cantilever", "constant_end_load_centerline_IEB.txt"),
             delimiter=",",
             skiprows=1,
         )
@@ -250,7 +250,7 @@ def cantilever(
         # add normalized force-displacement diagram
         fig2, ax2 = plt.subplots()
         Deltas_T = np.loadtxt(
-            Path(path.parent, "cantilever_data", "constant_end_load_Deltas_T.txt"),
+            Path(path.parent, "_data_cantilever", "constant_end_load_Deltas_T.txt"),
             delimiter=",",
             skiprows=1,
         )
@@ -264,7 +264,7 @@ def cantilever(
         ax2.plot(Deltas_T[:, 0], Deltas_T[:, 2], "s", color="blue")
 
         Deltas_EB = np.loadtxt(
-            Path(path.parent, "cantilever_data", "constant_end_load_Deltas_EB.txt"),
+            Path(path.parent, "_data_cantilever", "constant_end_load_Deltas_EB.txt"),
             delimiter=",",
             skiprows=1,
         )
@@ -279,7 +279,7 @@ def cantilever(
 
         # elastica: analytical solution of Bisshopp, K.E. and Drucker, D.C. "Large deflection of cantilever beams", 1945
         Deltas_IEB_A = np.loadtxt(
-            Path(path.parent, "cantilever_data", "constant_end_load_Deltas_IEB_A.txt"),
+            Path(path.parent, "_data_cantilever", "constant_end_load_Deltas_IEB_A.txt"),
             delimiter=",",
             skiprows=1,
         )
@@ -319,7 +319,7 @@ def cantilever(
         centerline_T = np.loadtxt(
             Path(
                 path.parent,
-                "cantilever_data",
+                "_data_cantilever",
                 "follower_end_load_centerline_T_lambda_3_7.txt",
             ),
             delimiter=",",
@@ -332,7 +332,7 @@ def cantilever(
             "-b",
         )
         # # Euler-Bernoulli beam
-        # centerline_T = np.loadtxt(Path(path.parent, "cantilever_data","follower_end_load_centerline_EB_lambda_3_7.txt"), delimiter=",", skiprows=1)
+        # centerline_T = np.loadtxt(Path(path.parent, "_data_cantilever","follower_end_load_centerline_EB_lambda_3_7.txt"), delimiter=",", skiprows=1)
         # ax1.plot(centerline_T[:, 0], centerline_T[:, 1], np.zeros_like(centerline_T[:, 0]), "-r")
 
         # camera settings for 3D plot
@@ -343,7 +343,7 @@ def cantilever(
         fig2, ax2 = plt.subplots()
         # Timoshenko beam
         Deltas_T = np.loadtxt(
-            Path(path.parent, "cantilever_data", "follower_end_load_Deltas_T.txt"),
+            Path(path.parent, "_data_cantilever", "follower_end_load_Deltas_T.txt"),
             delimiter=",",
             skiprows=1,
         )
@@ -357,7 +357,7 @@ def cantilever(
         ax2.plot(Deltas_T[:43, 2], Deltas_T[:43, 0], "o", color="blue")
         # # Euler-Bernoulli beam
         # Deltas_EB = np.loadtxt(
-        #     Path(path.parent, "cantilever_data", "follower_end_load_Deltas_EB.txt"),
+        #     Path(path.parent, "_data_cantilever", "follower_end_load_Deltas_EB.txt"),
         #     delimiter=",",
         #     skiprows=1,
         # )
@@ -372,7 +372,7 @@ def cantilever(
 
         # solution Argyris
         Delta_x_Argyris = np.loadtxt(
-            Path(path.parent, "cantilever_data", "follower_end_load_Delta_x_Argyris.csv"),
+            Path(path.parent, "_data_cantilever", "follower_end_load_Delta_x_Argyris.csv"),
             delimiter=";",
             skiprows=0,
         )
@@ -384,7 +384,7 @@ def cantilever(
             label="- u_x / L (Argyris)",
         )
         Delta_y_Argyris = np.loadtxt(
-            Path(path.parent, "cantilever_data", "follower_end_load_Delta_y_Argyris.csv"),
+            Path(path.parent, "_data_cantilever", "follower_end_load_Delta_y_Argyris.csv"),
             delimiter=";",
             skiprows=0,
         )
@@ -455,9 +455,9 @@ if __name__ == "__main__":
     # cantilever(load_type="constant_end_load", Rod=CosseratRodPG_QuatMixed, nelements=5, polynomial_degree=2, n_load_steps = 20, red_int=False, mixed=True, rod_hypothesis_penalty="inextensilbe_shear_rigid", VTK_export=True)
     
     # SE3 interpolation:
-    # cantilever(load_type="constant_end_load", Rod=CosseratRodPG_SE3Mixed, nelements=10, polynomial_degree=1, n_load_steps = 20, mixed=False)
-    # cantilever(load_type="constant_end_load", Rod=CosseratRodPG_SE3Mixed, nelements=10, polynomial_degree=1, n_load_steps = 40, mixed=False, rod_hypothesis_penalty="shear_rigid")
-    # cantilever(load_type="constant_end_load", Rod=CosseratRodPG_SE3Mixed, nelements=10, polynomial_degree=1, n_load_steps = 40, mixed=False, rod_hypothesis_penalty="inextensilbe_shear_rigid")
+    cantilever(load_type="constant_end_load", Rod=CosseratRodPG_SE3Mixed, nelements=10, polynomial_degree=1, n_load_steps = 20, mixed=False)
+    cantilever(load_type="constant_end_load", Rod=CosseratRodPG_SE3Mixed, nelements=10, polynomial_degree=1, n_load_steps = 40, mixed=False, rod_hypothesis_penalty="shear_rigid")
+    cantilever(load_type="constant_end_load", Rod=CosseratRodPG_SE3Mixed, nelements=10, polynomial_degree=1, n_load_steps = 40, mixed=False, rod_hypothesis_penalty="inextensilbe_shear_rigid")
 
     ######################################################
     # load: Cantilever beam subject to follower end load #
