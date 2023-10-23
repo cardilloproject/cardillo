@@ -287,7 +287,7 @@ if __name__ == "__main__":
         n_load_steps=40,
         mixed=True,
         reduced_integration=False,
-        VTK_export=True
+        VTK_export=True,
     )
 
     # # Quaternion interpolation:

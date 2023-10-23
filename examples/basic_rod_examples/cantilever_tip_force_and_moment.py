@@ -34,6 +34,7 @@ https://doi.org/10.1177/10812865211000790
 4.1 Elliptic integral solutions of Euler's elastica
 """
 
+
 def cantilever(
     Rod=CosseratRodPG_R12Mixed,
     nelements=10,
@@ -45,7 +46,6 @@ def cantilever(
     reduced_integration=True,
     constitutive_law=Harsch2021,
 ):
-
     # geometry of the rod
     length = 2 * np.pi
 
@@ -173,7 +173,11 @@ def cantilever(
 
     # add reference solution to the animation
     centerline_T = np.loadtxt(
-        Path(path.parent, "_data_cantilever_tip_force_and_moment", "centerline_T_numeric.csv"),
+        Path(
+            path.parent,
+            "_data_cantilever_tip_force_and_moment",
+            "centerline_T_numeric.csv",
+        ),
         delimiter=",",
         skiprows=1,
     )
@@ -184,7 +188,11 @@ def cantilever(
         "-b",
     )
     centerline_EB = np.loadtxt(
-        Path(path.parent, "_data_cantilever_tip_force_and_moment", "centerline_EB_numeric.csv"),
+        Path(
+            path.parent,
+            "_data_cantilever_tip_force_and_moment",
+            "centerline_EB_numeric.csv",
+        ),
         delimiter=",",
         skiprows=1,
     )
@@ -195,7 +203,11 @@ def cantilever(
         "-g",
     )
     centerline_IEB = np.loadtxt(
-        Path(path.parent, "_data_cantilever_tip_force_and_moment", "centerline_IEB_analytic.csv"),
+        Path(
+            path.parent,
+            "_data_cantilever_tip_force_and_moment",
+            "centerline_IEB_analytic.csv",
+        ),
         delimiter=",",
         skiprows=1,
     )
@@ -213,13 +225,12 @@ def cantilever(
     plt.show()
 
 
-if __name__ == "__main__":    
-
+if __name__ == "__main__":
     ################################################
     # load: dead load and moment at cantilever tip #
     ################################################
 
-    # R12 interpolation: 
+    # R12 interpolation:
     # cantilever(Rod=CosseratRodPG_R12Mixed, nelements=10, polynomial_degree=2, n_load_steps = 3, constitutive_law=Harsch2021)
     # cantilever(Rod=CosseratRodPG_R12Mixed, nelements=10, polynomial_degree=2, n_load_steps = 14, rod_hypothesis_penalty="shear_rigid", constitutive_law=Harsch2021)
     # cantilever(Rod=CosseratRodPG_R12Mixed, nelements=10, polynomial_degree=2, n_load_steps = 3, rod_hypothesis_penalty="inextensible_shear_rigid", constitutive_law=Harsch2021)
@@ -228,9 +239,9 @@ if __name__ == "__main__":
     # cantilever(Rod=CosseratRodPG_R12Mixed, nelements=10, polynomial_degree=2, n_load_steps = 3, rod_hypothesis_penalty="shear_rigid", mixed=True, reduced_integration=False,
     #            constitutive_law=Simo1986)
     # cantilever(Rod=CosseratRodPG_R12Mixed, nelements=10, polynomial_degree=2, n_load_steps = 3, rod_hypothesis_penalty="inextensible_shear_rigid", mixed=True, reduced_integration=False,
-            #    constitutive_law=Simo1986)
+    #    constitutive_law=Simo1986)
 
-    # Quaternion interpolation: 
+    # Quaternion interpolation:
     # cantilever(Rod=CosseratRodPG_QuatMixed, nelements=10, polynomial_degree=2, n_load_steps = 3, constitutive_law=Harsch2021)
     # cantilever(Rod=CosseratRodPG_QuatMixed, nelements=10, polynomial_degree=2, n_load_steps = 14, rod_hypothesis_penalty="shear_rigid", constitutive_law=Harsch2021)
     # cantilever(Rod=CosseratRodPG_QuatMixed, nelements=10, polynomial_degree=2, n_load_steps = 3, rod_hypothesis_penalty="inextensible_shear_rigid", constitutive_law=Harsch2021)
@@ -240,14 +251,36 @@ if __name__ == "__main__":
     #            constitutive_law=Simo1986)
     # cantilever(Rod=CosseratRodPG_QuatMixed, nelements=10, polynomial_degree=2, n_load_steps = 3, rod_hypothesis_penalty="inextensible_shear_rigid", mixed=True, reduced_integration=False,
     #            constitutive_law=Simo1986)
-    
-    # SE3 interpolation: 
-    cantilever(Rod=CosseratRodPG_SE3Mixed, nelements=10, polynomial_degree=1, n_load_steps = 3, constitutive_law=Harsch2021)
+
+    # SE3 interpolation:
+    cantilever(
+        Rod=CosseratRodPG_SE3Mixed,
+        nelements=10,
+        polynomial_degree=1,
+        n_load_steps=3,
+        constitutive_law=Harsch2021,
+    )
     # cantilever(Rod=CosseratRodPG_SE3Mixed, nelements=10, polynomial_degree=1, n_load_steps = 14, rod_hypothesis_penalty="shear_rigid", constitutive_law=Harsch2021)
     # cantilever(Rod=CosseratRodPG_SE3Mixed, nelements=10, polynomial_degree=1, n_load_steps = 3, rod_hypothesis_penalty="inextensible_shear_rigid", constitutive_law=Harsch2021)
 
     # For shear-rigid rods Harsch2021 and Simo1986 coincide. For Simo1986 also more robust mixed formulations are available
-    cantilever(Rod=CosseratRodPG_SE3Mixed, nelements=10, polynomial_degree=1, n_load_steps = 3, rod_hypothesis_penalty="shear_rigid", mixed=True, reduced_integration=False,
-               constitutive_law=Simo1986)
-    cantilever(Rod=CosseratRodPG_SE3Mixed, nelements=10, polynomial_degree=1, n_load_steps = 3, rod_hypothesis_penalty="inextensible_shear_rigid", mixed=True, reduced_integration=False,
-               constitutive_law=Simo1986)
+    cantilever(
+        Rod=CosseratRodPG_SE3Mixed,
+        nelements=10,
+        polynomial_degree=1,
+        n_load_steps=3,
+        rod_hypothesis_penalty="shear_rigid",
+        mixed=True,
+        reduced_integration=False,
+        constitutive_law=Simo1986,
+    )
+    cantilever(
+        Rod=CosseratRodPG_SE3Mixed,
+        nelements=10,
+        polynomial_degree=1,
+        n_load_steps=3,
+        rod_hypothesis_penalty="inextensible_shear_rigid",
+        mixed=True,
+        reduced_integration=False,
+        constitutive_law=Simo1986,
+    )

@@ -38,6 +38,7 @@ load_type = "constant_end_load":    6.2 Cantilever beam subjected to constant en
 load_type = "follower_end_load":    6.3 Cantilever beam subject to follower end load
 """
 
+
 def cantilever(
     load_type="moment",
     Rod=CosseratRodPG_R12Mixed,
@@ -49,7 +50,6 @@ def cantilever(
     rod_hypothesis_penalty="shear_deformable",
     VTK_export=False,
 ):
-
     # geometry of the rod
     length = 2 * np.pi
 
@@ -161,7 +161,7 @@ def cantilever(
         e.export_contr(
             cantilever,
             level="centerline + directors",
-            num= 3 * nelements,
+            num=3 * nelements,
             file_name="cantilever_curve",
         )
         e.export_contr(
@@ -169,7 +169,7 @@ def cantilever(
             continuity="C0",
             level="volume",
             n_segments=nelements,
-            num = 3 * nelements,
+            num=3 * nelements,
             file_name="cantilever_volume",
         )
 
@@ -225,7 +225,9 @@ def cantilever(
             "-b",
         )
         centerline_EB = np.loadtxt(
-            Path(path.parent, "_data_cantilever", "constant_end_load_centerline_EB.txt"),
+            Path(
+                path.parent, "_data_cantilever", "constant_end_load_centerline_EB.txt"
+            ),
             delimiter=",",
             skiprows=1,
         )
@@ -236,7 +238,9 @@ def cantilever(
             "-g",
         )
         centerline_IEB = np.loadtxt(
-            Path(path.parent, "_data_cantilever", "constant_end_load_centerline_IEB.txt"),
+            Path(
+                path.parent, "_data_cantilever", "constant_end_load_centerline_IEB.txt"
+            ),
             delimiter=",",
             skiprows=1,
         )
@@ -372,7 +376,9 @@ def cantilever(
 
         # solution Argyris
         Delta_x_Argyris = np.loadtxt(
-            Path(path.parent, "_data_cantilever", "follower_end_load_Delta_x_Argyris.csv"),
+            Path(
+                path.parent, "_data_cantilever", "follower_end_load_Delta_x_Argyris.csv"
+            ),
             delimiter=";",
             skiprows=0,
         )
@@ -384,7 +390,9 @@ def cantilever(
             label="- u_x / L (Argyris)",
         )
         Delta_y_Argyris = np.loadtxt(
-            Path(path.parent, "_data_cantilever", "follower_end_load_Delta_y_Argyris.csv"),
+            Path(
+                path.parent, "_data_cantilever", "follower_end_load_Delta_y_Argyris.csv"
+            ),
             delimiter=";",
             skiprows=0,
         )
@@ -413,17 +421,25 @@ def cantilever(
         ax2.legend()
         ax2.grid()
 
-
     plt.show()
 
 
-if __name__ == "__main__":    
+if __name__ == "__main__":
     ###########################################
     # load: Pure bending of a cantilever beam #
     ###########################################
 
-    # R12 interpolation:    
-    cantilever(load_type="moment", Rod=CosseratRodPG_R12Mixed, nelements=10, polynomial_degree=2, n_load_steps = 2, red_int=False, mixed=True, VTK_export=True)
+    # R12 interpolation:
+    cantilever(
+        load_type="moment",
+        Rod=CosseratRodPG_R12Mixed,
+        nelements=10,
+        polynomial_degree=2,
+        n_load_steps=2,
+        red_int=False,
+        mixed=True,
+        VTK_export=True,
+    )
     # cantilever(load_type="moment", Rod=CosseratRodPG_R12Mixed, nelements=5, polynomial_degree=2, n_load_steps = 7, mixed=False)
 
     # Quaternion interpolation:
@@ -434,7 +450,6 @@ if __name__ == "__main__":
     # cantilever(load_type="moment", Rod=CosseratRodPG_SE3Mixed, nelements=3, polynomial_degree=1, n_load_steps = 10, mixed=False)
     # cantilever(load_type="moment", Rod=CosseratRodPG_SE3Mixed, nelements=3, polynomial_degree=1, n_load_steps = 2, mixed=True)
 
-    
     ########################################################
     # load: Cantilever beam subjected to constant end load #
     ########################################################
@@ -446,18 +461,41 @@ if __name__ == "__main__":
     # cantilever(load_type="constant_end_load", Rod=CosseratRodPG_R12Mixed, nelements=5, polynomial_degree=2, n_load_steps = 20, red_int=False, mixed=True)
     # cantilever(load_type="constant_end_load", Rod=CosseratRodPG_R12Mixed, nelements=5, polynomial_degree=2, n_load_steps = 20, red_int=False, mixed=True, rod_hypothesis_penalty="shear_rigid")
     # cantilever(load_type="constant_end_load", Rod=CosseratRodPG_R12Mixed, nelements=5, polynomial_degree=2, n_load_steps = 20, red_int=False, mixed=True, rod_hypothesis_penalty="inextensilbe_shear_rigid")
-    
+
     # Quaternion interpolation:
     # cantilever(load_type="constant_end_load", Rod=CosseratRodPG_QuatMixed, nelements=5, polynomial_degree=2, n_load_steps = 20)
 
     # cantilever(load_type="constant_end_load", Rod=CosseratRodPG_QuatMixed, nelements=5, polynomial_degree=2, n_load_steps = 20, red_int=False, mixed=True)
     # cantilever(load_type="constant_end_load", Rod=CosseratRodPG_QuatMixed, nelements=5, polynomial_degree=2, n_load_steps = 20, red_int=False, mixed=True, rod_hypothesis_penalty="shear_rigid")
     # cantilever(load_type="constant_end_load", Rod=CosseratRodPG_QuatMixed, nelements=5, polynomial_degree=2, n_load_steps = 20, red_int=False, mixed=True, rod_hypothesis_penalty="inextensilbe_shear_rigid", VTK_export=True)
-    
+
     # SE3 interpolation:
-    cantilever(load_type="constant_end_load", Rod=CosseratRodPG_SE3Mixed, nelements=10, polynomial_degree=1, n_load_steps = 20, mixed=False)
-    cantilever(load_type="constant_end_load", Rod=CosseratRodPG_SE3Mixed, nelements=10, polynomial_degree=1, n_load_steps = 40, mixed=False, rod_hypothesis_penalty="shear_rigid")
-    cantilever(load_type="constant_end_load", Rod=CosseratRodPG_SE3Mixed, nelements=10, polynomial_degree=1, n_load_steps = 40, mixed=False, rod_hypothesis_penalty="inextensilbe_shear_rigid")
+    cantilever(
+        load_type="constant_end_load",
+        Rod=CosseratRodPG_SE3Mixed,
+        nelements=10,
+        polynomial_degree=1,
+        n_load_steps=20,
+        mixed=False,
+    )
+    cantilever(
+        load_type="constant_end_load",
+        Rod=CosseratRodPG_SE3Mixed,
+        nelements=10,
+        polynomial_degree=1,
+        n_load_steps=40,
+        mixed=False,
+        rod_hypothesis_penalty="shear_rigid",
+    )
+    cantilever(
+        load_type="constant_end_load",
+        Rod=CosseratRodPG_SE3Mixed,
+        nelements=10,
+        polynomial_degree=1,
+        n_load_steps=40,
+        mixed=False,
+        rod_hypothesis_penalty="inextensilbe_shear_rigid",
+    )
 
     ######################################################
     # load: Cantilever beam subject to follower end load #
