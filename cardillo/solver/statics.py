@@ -494,7 +494,8 @@ class Riks:
         nla = self.nla_g
 
         # initialize current generalized coordinates, Lagrange multipliers and force scaling
-        la_arc = [self.la_arc0]
+        # la_arc = [self.la_arc0]
+        la_arc = [0]
         q = [self.q0]
         la_g = [self.la_g0]
         xk1 = np.concatenate((self.q0, self.la_g0, np.array([self.la_arc0])))
