@@ -16,7 +16,7 @@ from cardillo.beams.cosseratRodPGMixed import (
 
 from cardillo.discrete import Frame
 from cardillo.constraints import RigidConnection, Cylindrical, Revolute
-from cardillo.solver import Newton
+from cardillo.solver import Newton, Riks
 from cardillo.forces import Force, K_Force, K_Moment
 
 from cardillo.math import e1, e2, e3, A_IK_basic
@@ -30,8 +30,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-''' L beam example from Jelenic', G. and Crisfield, M. A., "Geometrically exact 3D beam theory: implementation of a strain-invariant finite element for statics and dynamics", 1999. 
-https://sci-hub.hkvisa.net/10.1016/s0045-7825(98)00249-7
+''' 
+Lee's frame example proposed by Kadapa, C. in 
+"A simple extrapolated predictor for overcoming the starting and tracking
+issues in the arc-length method for nonlinear structural mechanics",
+Engineering structures, 2021
+https://doi.org/10.1016/j.engstruct.2020.111755
 '''
 
 def cantilever(load_type="force", rod_hypothesis_penalty="shear_deformable", VTK_export=False):
@@ -65,32 +69,31 @@ def cantilever(load_type="force", rod_hypothesis_penalty="shear_deformable", VTK
     K_S_rho0 = line_density * cross_section.first_moment
     K_I_rho0 = line_density * cross_section.second_moment
 
-    atol = 1e-8
+    atol = 1e-7
 
-    Gg = 720 / (2 * (1 + 0.3))
+    Ee = 720.
+    Poisson = 0.3
+    Gg = Ee / (2 * (1 + Poisson))
+    Area = 6
+    II = 2
 
     # material model
     if rod_hypothesis_penalty == "shear_deformable":
-        Ei = np.array([720 * 6, Gg * 6, Gg * 6])
+        Ei = np.array([Ee * Area, Gg * Area, Gg * Area])
     elif rod_hypothesis_penalty == "shear_rigid":
-        Ei = np.array([720 * 6, Gg * 1e6, Gg * 1e6])
+        Ei = np.array([Ee * Area, Gg * 1e6, Gg * 1e6])
     elif rod_hypothesis_penalty == "inextensilbe_shear_rigid":
         Ei = np.array([1e6, 1e6, 1e6]) * 1e10
             
-    Fi = np.array([720 * 2, 720 * 2, 720 * 2])
+    Fi = np.array([Ee * II, Ee * II, Ee * II])
     
     material_model = Simo1986(Ei, Fi)
 
     # position and orientation of left point
     r_OP01 = np.zeros(3, dtype=float)
     A_IK01 = np.eye(3, dtype=float)
-    # angolo_rad_0 = np.radians(90)
-    # A_IK01 = A_IK_basic(angolo_rad_0).x() 
-
     r_OP02 = np.zeros(3, dtype=float)
     r_OP02[0]= length
-    # angolo_rad = np.radians(-90)
-    # A_IK02 = A_IK_basic(angolo_rad).x() 
     angolo_rad = np.radians(90)
     A_IK02 = A_IK_basic(angolo_rad).y() 
 
@@ -158,9 +161,9 @@ def cantilever(load_type="force", rod_hypothesis_penalty="shear_deformable", VTK
     hinge_right_c2= Revolute(frame_right_c2, cantilever2, 1, frame_ID2=(1,))
     # hinge_right_c2= Revolute(cantilever2, system.origin, 0, frame_ID1=(1,))
     
-    
+    f_max = 100
     # concentrated force
-    F = lambda t: -1 * t * e1
+    F = lambda t: - f_max * t * e1
     force = Force(F, cantilever2, frame_ID=(0.2,))
     
     # assemble the system
@@ -176,11 +179,16 @@ def cantilever(load_type="force", rod_hypothesis_penalty="shear_deformable", VTK
     system.assemble()
 
     # add Newton solver
-    solver = Newton(
+    # solver = Newton(
+    #     system,
+    #     n_load_steps=10,
+    #     max_iter=30,
+    #     atol=atol,
+    # )
+
+    solver = Riks(
         system,
-        n_load_steps=10,
-        max_iter=30,
-        atol=atol,
+        atol=atol
     )
 
     # solve nonlinear static equilibrium equations
@@ -204,30 +212,30 @@ def cantilever(load_type="force", rod_hypothesis_penalty="shear_deformable", VTK
         repeat=False,
     )
 
-    # E_pot_total_ph1 = np.zeros(len(t_ph1))
-    # E_pot_total_ph2 = np.zeros(len(t_ph2))
-    # vertical_tip_displacement_ph1 = np.zeros(len(t_ph1))
-    # vertical_tip_displacement_ph2 = np.zeros(len(t_ph2))
+    x_tip_displacement = np.zeros(len(t))
+    y_tip_displacement = np.zeros(len(t))
 
-    # for i in range(len(t_ph1)):
-    #     E_pot_total_ph1[i] = cantilever1.E_pot(t_ph1[i], q_ph1[i])
-    #     E_pot_total_ph1[i] += cantilever2.E_pot(t_ph1[i], q_ph1[i])
-    #     vertical_tip_displacement_ph1[i] = q_ph1[i,cantilever2.qDOF[cantilever2.elDOF_r[nelements-1,-1]]]
+    element = 1 * nelements // 5
 
-    # for i in range(len(t_ph2)):
-    #     E_pot_total_ph2[i] = cantilever1.E_pot(t_ph2[i], q_ph2[i])
-    #     E_pot_total_ph2[i] += cantilever2.E_pot(t_ph2[i], q_ph2[i])
-    #     vertical_tip_displacement_ph2[i] = q_ph2[i,cantilever2.qDOF[cantilever2.elDOF_r[nelements-1,-1]]]
-
-    # E_pot_total = np.concatenate((E_pot_total_ph1, E_pot_total_ph2))
-    # vertical_tip_displacement = np.concatenate((vertical_tip_displacement_ph1, vertical_tip_displacement_ph2))
-    # t = np.linspace(0, 1, len(E_pot_total))
+    # the plotted displacements depend on how the structure is modelled in the 3D space. In this case we have that the x 
+    for i in range(len(t)):
+        y_tip_displacement[i] = - q[i, cantilever2.qDOF[cantilever2.elDOF_r[element-1][polynomial_degree]]]
+        x_tip_displacement[i] = - q[i, cantilever2.qDOF[cantilever2.elDOF_r[element-1][polynomial_degree * 3 + 1]]] 
     
-    # fig3, ax3 = plt.subplots()
-    # ax3.plot(t, E_pot_total, '-', color='black', label='Cosserat (numeric)')
+    fig2, ax = plt.subplots()
 
-    # fig4, ax4 = plt.subplots()
-    # ax4.plot(t, vertical_tip_displacement, '-', color='black', label='Cosserat (numeric)')
+    # ax.plot(t, x_tip_displacement, '-', color='blue', label='X Tip Displacement', marker='o')
+    # ax.plot(t, y_tip_displacement, '-', color='red', label='Y Tip Displacement', marker='s')
+    ax.plot(x_tip_displacement, f_max * t, '-', color='blue', label='X Tip Displacement', marker='o')
+    ax.plot(y_tip_displacement, f_max * t, '-', color='red', label='Y Tip Displacement', marker='s')
+
+    # Aggiungi una legenda
+    ax.legend(loc='upper left')
+
+    # Personalizza il titolo e le label degli assi se necessario
+    ax.set_title('Displacements of the point B')
+    ax.set_xlabel('u, v')
+    ax.set_ylabel('Load Factor')
 
     plt.show()
 
