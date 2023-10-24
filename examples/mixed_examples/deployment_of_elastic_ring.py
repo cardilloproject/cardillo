@@ -17,7 +17,7 @@ from cardillo.beams.cosseratRodPGMixed import (
 
 from cardillo.discrete import Frame
 from cardillo.constraints import RigidConnection, Cylindrical, Prismatic
-from cardillo.solver import Newton
+from cardillo.solver import Newton, Riks
 from cardillo.forces import Force, Moment, K_Force, K_Moment
 
 from cardillo.math import e1, e2, e3, A_IK_basic, norm, cross3, Log_SO3_quat
@@ -42,11 +42,11 @@ https://sci-hub.hkvisa.net/10.1016/0020-7683(92)90024-n, 1988
 
 def deployment_of_elastic_ring(load_type="moment", rod_hypothesis_penalty="shear_deformable", VTK_export=False):
     
-    # Rod = CosseratRodPG_R12Mixed
-    Rod = CosseratRodPG_QuatMixed
+    Rod = CosseratRodPG_R12Mixed
+    # Rod = CosseratRodPG_QuatMixed
     # Rod = CosseratRodPG_SE3Mixed
 
-    nelements_Lagrangian = 20
+    nelements_Lagrangian = 30
     polynomial_degree = 1
 
      # number of elements
@@ -56,7 +56,6 @@ def deployment_of_elastic_ring(load_type="moment", rod_hypothesis_penalty="shear
         nelements = nelements_Lagrangian
 
     # geometry of the rod
-    length = 2 * pi * 100 
     width = 1/3.
     height = 1
 
@@ -87,7 +86,7 @@ def deployment_of_elastic_ring(load_type="moment", rod_hypothesis_penalty="shear
     material_model = Simo1986(Ei, Fi)
 
     R = 20
-    angle = pi
+    angle = 2 * pi
 
     # definition of the parametric curve
     curve = lambda xi: np.array([R - R * np.cos(xi), R * np.sin(xi), 0])
@@ -128,31 +127,51 @@ def deployment_of_elastic_ring(load_type="moment", rod_hypothesis_penalty="shear
     system = System()
 
     # generate the constraint on the beam
-    r_OP_2_end = np.zeros(3, dtype=float)
-    r_OP_2_end[0] = 2 * R
-    A_IK_displ = lambda t: A_IK_basic(t * pi).y()
+    # r_OP_2_end = np.zeros(3, dtype=float)
+    # r_OP_2_end[0] = 2 * R
+    # A_IK_disp = lambda t:  A_IK_basic(pi).z() @ A_IK_basic(t * pi).y()
+    # A_IK_c = A_IK_basic(pi).z()
+    # A_IK_disp = A_IK_c @ A_IK_disp
 
-    clamping_point = Frame(A_IK=A_IK_displ)
+    # clamping_point = Frame(A_IK=A_IK0)
+    # clamping_point_2 = Frame(A_IK=A_IK0)
+    # clamping = Frame(A_IK=A_IK_displ)
 
-    
-    displ_imposed = Frame(r_OP_2_end)
-    clamping_left = RigidConnection(clamping_point, cantilever, frame_ID2=(0,))
-    clamping_right = Cylindrical(displ_imposed, cantilever, 0, frame_ID2=(1,))
+    A_IK_disp = lambda t:  A_IK_basic(2* pi * t).x()
+    displ = lambda t: np.array([-4 * R / 3 * t, 0, 0])
+
+    displ_imposed = Frame(r_OP=displ, A_IK=A_IK_disp)
+    clamping_left = RigidConnection(system.origin, cantilever, frame_ID2=(0,))
+    # clamping_right = RigidConnection(displ_imposed, cantilever, 0, frame_ID2=(0.5,))
+    clamping_right = Cylindrical(system.origin, cantilever, 0, frame_ID2=(0.5,))
+    clamping_left_2 = RigidConnection(system.origin, cantilever, frame_ID2=(1,))
     
     
     # assemble the system
     system.add(cantilever)
-    system.add(displ_imposed)
-    system.add(clamping_point)
+    # system.add(displ_imposed)
+    # system.add(clamping_point)
     system.add(clamping_left)
     system.add(clamping_right)
+    system.add(clamping_left_2)
+    # system.add(clamping_point_2)
+
+    M = lambda t: EE * K_I_rho0[1,1] / R * t * np.array([1, 0, 0])
+
+    moment = Moment(M, cantilever, (0.5, ))
+    system.add(moment)
+
     system.assemble()
 
 
-    solver = Newton(
+    # solver = Newton(
+    #     system,
+    #     n_load_steps=50,
+    #     max_iter=30,
+    #     atol=atol,
+    # )
+    solver = Riks(
         system,
-        n_load_steps=50,
-        max_iter=30,
         atol=atol,
     )
 
@@ -198,5 +217,5 @@ def deployment_of_elastic_ring(load_type="moment", rod_hypothesis_penalty="shear
 
 
 if __name__ == "__main__":
-    deployment_of_elastic_ring(load_type="moment", VTK_export=True)
+    deployment_of_elastic_ring(load_type="moment", VTK_export=False)
  
