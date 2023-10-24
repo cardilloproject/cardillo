@@ -172,7 +172,9 @@ def deployment_of_elastic_ring(load_type="moment", rod_hypothesis_penalty="shear
     # )
     solver = Riks(
         system,
-        atol=atol,
+        atol=1e-8,
+        la_arc0=2e-1,
+        la_arc_span=np.array([-0.5, 1]),
     )
 
     sol = solver.solve()
