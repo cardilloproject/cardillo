@@ -46,7 +46,7 @@ def deployment_of_elastic_ring(load_type="moment", rod_hypothesis_penalty="shear
     # Rod = CosseratRodPG_QuatMixed
     # Rod = CosseratRodPG_SE3Mixed
 
-    nelements_Lagrangian = 30
+    nelements_Lagrangian = 20
     polynomial_degree = 1
 
      # number of elements
@@ -86,7 +86,7 @@ def deployment_of_elastic_ring(load_type="moment", rod_hypothesis_penalty="shear
     material_model = Simo1986(Ei, Fi)
 
     R = 20
-    angle = 2 * pi
+    angle = 2 * pi / 2
 
     # definition of the parametric curve
     curve = lambda xi: np.array([R - R * np.cos(xi), R * np.sin(xi), 0])
@@ -143,8 +143,9 @@ def deployment_of_elastic_ring(load_type="moment", rod_hypothesis_penalty="shear
     displ_imposed = Frame(r_OP=displ, A_IK=A_IK_disp)
     clamping_left = RigidConnection(system.origin, cantilever, frame_ID2=(0,))
     # clamping_right = RigidConnection(displ_imposed, cantilever, 0, frame_ID2=(0.5,))
-    clamping_right = Cylindrical(system.origin, cantilever, 0, frame_ID2=(0.5,))
-    clamping_left_2 = RigidConnection(system.origin, cantilever, frame_ID2=(1,))
+    clamping_right = Cylindrical(system.origin, cantilever, 0, frame_ID2=(1,))
+    # clamping_right = Cylindrical(system.origin, cantilever, 0, frame_ID2=(0.5,))
+    # clamping_left_2 = RigidConnection(system.origin, cantilever, frame_ID2=(1,))
     
     
     # assemble the system
@@ -153,12 +154,13 @@ def deployment_of_elastic_ring(load_type="moment", rod_hypothesis_penalty="shear
     # system.add(clamping_point)
     system.add(clamping_left)
     system.add(clamping_right)
-    system.add(clamping_left_2)
+    # system.add(clamping_left_2)
     # system.add(clamping_point_2)
 
     M = lambda t: EE * K_I_rho0[1,1] / R * t * np.array([1, 0, 0])
 
-    moment = Moment(M, cantilever, (0.5, ))
+    moment = Moment(M, cantilever, (1, ))
+    # moment = Moment(M, cantilever, (0.5, ))
     system.add(moment)
 
     system.assemble()
@@ -173,8 +175,8 @@ def deployment_of_elastic_ring(load_type="moment", rod_hypothesis_penalty="shear
     solver = Riks(
         system,
         atol=1e-8,
-        la_arc0=2e-1,
-        la_arc_span=np.array([-0.5, 1]),
+        la_arc0=2e-2,
+        la_arc_span=np.array([-0.1, 1]),
     )
 
     sol = solver.solve()
@@ -213,6 +215,40 @@ def deployment_of_elastic_ring(load_type="moment", rod_hypothesis_penalty="shear
     n_frames=cantilever.nelement + 1,
     repeat=True,
     )
+
+    x_tip_displacement = np.zeros(len(t))
+    y_tip_displacement = np.zeros(len(t))
+    z_tip_displacement = np.zeros(len(t))
+    reference_point = pi / 2 / angle
+    frame_ID = (reference_point,)
+
+    qDOF_element_of_interest = cantilever.local_qDOF_P(frame_ID)
+    r0 = cantilever.r_OP(0, q[0, qDOF_element_of_interest], frame_ID=frame_ID)
+
+    # the plotted displacements depend on how the structure is modelled in the 3D space. In this case we have that the x 
+    for (i, ti) in enumerate(t):
+        ri = cantilever.r_OP(ti, q[i, qDOF_element_of_interest], frame_ID=frame_ID)
+        x_tip_displacement[i] = ri[0] - r0[0]
+        y_tip_displacement[i] = ri[1] - r0[1]
+        z_tip_displacement[i] = ri[2] - r0[2] 
+        
+    
+    fig2, ax = plt.subplots()
+
+    # ax.plot(t, x_tip_displacement, '-', color='blue', label='X Tip Displacement', marker='o')
+    # ax.plot(t, y_tip_displacement, '-', color='red', label='Y Tip Displacement', marker='s')
+    ax.plot(x_tip_displacement, t, '-', color='blue', label='X Tip Displacement', marker='o')
+    ax.plot(y_tip_displacement, t, '-', color='red', label='Y Tip Displacement', marker='s')
+    ax.plot(z_tip_displacement, t, '-', color='green', label='Y Tip Displacement', marker='^')
+
+    # Aggiungi una legenda
+    ax.legend(loc='upper left')
+
+    # Personalizza il titolo e le label degli assi se necessario
+    ax.set_title('Displacements of the point B')
+    ax.set_xlabel('u, v')
+    ax.set_ylabel('Load Factor')
+    # ax.set_ylim(-1.5, 3.0)
 
     plt.show()
 
