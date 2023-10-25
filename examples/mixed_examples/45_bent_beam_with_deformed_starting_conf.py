@@ -35,8 +35,8 @@ from pathlib import Path
 
 def _bent_45_beam(load_type="moment", rod_hypothesis_penalty="shear_deformable", VTK_export=False):
     
-    # Rod = CosseratRodPG_R12Mixed
-    Rod = CosseratRodPG_QuatMixed
+    Rod = CosseratRodPG_R12Mixed
+    # Rod = CosseratRodPG_QuatMixed
     # Rod = CosseratRodPG_SE3Mixed
 
     nelements_Lagrangian = 8
@@ -118,7 +118,7 @@ def _bent_45_beam(load_type="moment", rod_hypothesis_penalty="shear_deformable",
     clamping_point = Frame(A_IK=A_IK_clamping)
     clamping_left = RigidConnection(clamping_point, cantilever, frame_ID2=(0,))
     
-    n_load_step = 6
+    n_load_step = 2
     f_max = 600
     F = lambda t: f_max * t * e3
     force = Force(F, cantilever, frame_ID=(1,))
@@ -140,9 +140,12 @@ def _bent_45_beam(load_type="moment", rod_hypothesis_penalty="shear_deformable",
     )
 
     sol = solver.solve()
+    # n_iter_tot = sol.n_iter_tot
     q = sol.q
     nt = len(q)
     t = sol.t[:nt]
+    n_iter = sol.n_iter_tot
+    print(n_iter)
 
     # matplotlib visualization
     # construct animation of beam

@@ -221,6 +221,8 @@ class Newton:
         pbar = range(0, self.nt)
         if self.verbose:
             pbar = tqdm(pbar, leave=True)
+
+        n_iter_tot = 0
         for i in pbar:
             # compute initial residual
             generator = self.__eval__(self.load_steps[i], self.x[i])
@@ -273,7 +275,7 @@ class Newton:
                     la_g=self.x[: i + 1, self.nq :],
                     la_N=self.x[: i + 1, self.nq + self.nla_g :],
                 )
-
+            
             # solver step callback
             self.x[i, : self.nq], _ = self.system.step_callback(
                 self.load_steps[i], self.x[i, : self.nq], self.u0
@@ -282,11 +284,14 @@ class Newton:
             # warm start for next step; store solution as new initial guess
             if i < self.nt - 1:
                 self.x[i + 1] = self.x[i]
+        
+            n_iter_tot += k
 
         # return solution object
         if self.verbose:
             pbar.close()
         return Solution(
+            n_iter_tot=n_iter_tot,
             t=self.load_steps,
             q=self.x[: i + 1, : self.nq],
             u=np.zeros((len(self.load_steps), self.nu)),

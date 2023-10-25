@@ -118,7 +118,7 @@ def make_R12_rod_mixed(polynomial_degree):
             q0=q0,
             polynomial_degree=polynomial_degree,
             reduced_integration=False,
-            mixed=True
+            mixed=True,
         )
 
         return q0, rod
@@ -208,11 +208,12 @@ def make_R12_rod(polynomial_degree, reduced_integration):
             q0=q0,
             polynomial_degree=polynomial_degree,
             reduced_integration=reduced_integration,
-            mixed=False
+            mixed=False,
         )
 
         return q0, rod
     
+    return make
 
 # Young's and shear modulus
 E = 1e7  # Meier2015
@@ -243,20 +244,21 @@ ddcurve = lambda xi: np.array([R * np.cos(xi), -R * np.sin(xi), 0])
 reference_rod = "SE3_Mixed"
 # reference_rod = "R12p2_Mixed"
 
-# test_rods = ["R12p1_Mixed", "R12p2_Mixed", "SE3_Mixed"]
-# test_rods = ["R12p1_Mixed", "SE3"]
-test_rods = ["SE3_Mixed", "SE3"]
+# test_rods = ["R12p1", "R12p2", "SE3"]
+# test_rods = ["R12p1", "R12p1_Mixed"]
+# test_rods = ["SE3_Mixed", "SE3"]
+test_rods = ["R12p1", "R12p1_Mixed", "R12p2", "R12p2_Mixed"]
 
 # nnodes_list = np.array([5, 9, 17, 33, 65, 129], dtype=int) 
 # nnodes_ref = 513  
-nnodes_list = np.array([5, 9], dtype=int) 
-nnodes_ref = 33                                    
+nnodes_list = np.array([5, 9, 17, 33], dtype=int) 
+nnodes_ref = 513                                   
 
 volume_correction = False
 # volume_correction = True
 
 # reduced_integration = False
-reduced_integration = True
+reduced_integration = False
 
 
 def convergence(): 
@@ -268,6 +270,7 @@ def convergence():
     position_errors = np.zeros((n_slenderness, n_rods, nnodes), dtype=float)
     rotation_errors = np.zeros((n_slenderness, n_rods, nnodes), dtype=float)
     twist_errors = np.zeros((n_slenderness, n_rods, nnodes), dtype=float)
+    Newton_iterations = np.zeros((n_slenderness, n_rods, nnodes), dtype=int)
 
     for i in range(n_slenderness):
         slenderness = slendernesses[i]
@@ -367,11 +370,12 @@ def convergence():
             )
 
             sol = solver.solve()
+            n_iter_tot = sol.n_iter_tot
 
-            return rod, sol
+            return rod, sol, n_iter_tot
 
         # solve system with reference rod
-        rod_ref, sol_ref = solve(
+        rod_ref, sol_ref, _ = solve(
             nnodes_ref, reference_rod, volume_correction=False, reduced_integration=False)
         ''' Be careful to set the reduced_integration to False when we use mixed elements'''
 
@@ -384,12 +388,15 @@ def convergence():
         for j, rod_name in enumerate(test_rods):
             print(f"rod: {rod_name}")
             for k, nnodes in enumerate(nnodes_list):
-                rod, sol = solve(
+                rod, sol, n_iter_tot = solve(
                     nnodes,
                     rod_name,
                     volume_correction=volume_correction,
                     reduced_integration=reduced_integration,
                 )
+
+                # Newton iteration number
+                Newton_iterations[i, j, k] = n_iter_tot 
 
                 # centerline errors
                 r_OPj = rod.centerline(sol.q[-1], num=num)
@@ -422,6 +429,7 @@ def convergence():
     print(f"position_errors: {position_errors}")
     print(f"rotation_errors: {rotation_errors}")
     print(f"twist_errors: {twist_errors}")
+    print(f"total_number_Newton_iteration: {Newton_iterations}")
 
     ###############
     # export errors
@@ -434,13 +442,14 @@ def convergence():
 
     for i in range(n_slenderness):
         for j, rod_name in enumerate(test_rods):
-            header = "nnodes, position_error, rotation_errors, twist_errors"
+            header = "nnodes, position_error, rotation_errors, twist_errors, total_number_Newton_iteration"
             export_data = np.vstack(
                 [
                     nnodes_list,
                     position_errors[i, j],
                     rotation_errors[i, j],
                     twist_errors[i, j],
+                    Newton_iterations[i, j],
                 ]
             ).T
             np.savetxt(
@@ -452,35 +461,70 @@ def convergence():
                 comments="",
             )
 
+            # Each vectors is organized in this way: each row is related to a defined mesh for the type of element considered.
+            # The row contains the position, angle and twist errors plus the total number of Newton's iterations
+
+
     ##########################
     # plot rate of convergence
     ##########################
-    for i in range(n_slenderness):
-        fig, ax = plt.subplots(1, n_rods, sharey=True)
-        fig.suptitle(f"slenderness: {slendernesses[i]}")
-        for j, rod_name in enumerate(test_rods):
-            ax[j].set_title(f"{rod_name}")
-            ax[j].loglog(nnodes_list, position_errors[i, j], "-ok", label="e_r^100")
-            ax[j].loglog(nnodes_list, rotation_errors[i, j], "-sk", label="e_psi^100")
-            ax[j].loglog(nnodes_list, twist_errors[i, j], "-vk", label="e_theta^100")
-            ax[j].loglog(nnodes_list, 90 / nnodes_list, "--k", label="~1 / n_el")
-            ax[j].loglog(
-                nnodes_list, 90 / nnodes_list**2, "-.k", label="~1 / nnodes^2"
-            )
-            ax[j].loglog(
-                nnodes_list, 90 / nnodes_list**3, "-.k", label="~1 / nnodes^3"
-            )
-            ax[j].loglog(
-                nnodes_list, 90 / nnodes_list**4, "-.k", label="~1 / nnodes^4"
-            )
-            ax[j].grid()
-            # ax[j].legend()
-            # ax[j].legend(loc='upper right')  # Imposta la posizione della legenda
+    # for i in range(n_slenderness):
+    #     fig, ax = plt.subplots(1, n_rods, sharey=True)
+    #     fig.suptitle(f"slenderness: {slendernesses[i]}")
+    #     for j, rod_name in enumerate(test_rods):
+    #         ax[j].set_title(f"{rod_name}")
+    #         # ax[j].loglog(nnodes_list, position_errors[i, j], "-ok", label="e_r^100")
+    #         # ax[j].loglog(nnodes_list, rotation_errors[i, j], "-sk", label="e_psi^100")
+    #         ax[j].loglog(nnodes_list, twist_errors[i, j], "-vk", label="e_theta^100")
+    #         ax[j].loglog(nnodes_list, 90 / nnodes_list, "--k", label="~1 / n_el")
+    #         ax[j].loglog(
+    #             nnodes_list, 90 / nnodes_list**2, "-.k", label="~1 / nnodes^2"
+    #         )
+    #         ax[j].loglog(
+    #             nnodes_list, 90 / nnodes_list**3, "-.k", label="~1 / nnodes^3"
+    #         )
+    #         ax[j].loglog(
+    #             nnodes_list, 90 / nnodes_list**4, "-.k", label="~1 / nnodes^4"
+    #         )
+    #         ax[j].grid()
+    #         # ax[j].legend()
+    #         # ax[j].legend(loc='upper right')  # Imposta la posizione della legenda
+
+
     
-    ax[0].legend(loc='lower left')
+
+    # Define a list of markers
+    # markers = ['o', 's', '^', 'v', '<', '>', 'p', 'h']
+    markers = ['o', 's', '^']
+    # Define a list of line styles
+    line_styles = ['-', '-', '-.']
 
     for i in range(n_slenderness):
-        fig.savefig(f"C:/Users/Domenico/Desktop/cardillo/examples/mixed_examples/45_bent_beam_convergence/slenderness_{slendernesses[i]}.eps", format='eps', bbox_inches='tight')
+        # Create a new figure for each slenderness value
+        fig, ax = plt.subplots()
+
+        for j, rod_name in enumerate(test_rods):
+            marker = markers[(i * n_rods + j) % len(markers)]
+            line_style = line_styles[i % len(line_styles)]
+            # Plot the twist_errors for each combination of slenderness and rod_name with a line and marker style
+            ax.loglog(nnodes_list, twist_errors[i, j], line_style + marker, label=f"{slendernesses[i]}, {rod_name}", markerfacecolor='none')
+
+        # Plot the reference lines once
+        ax.loglog(nnodes_list, 90 / nnodes_list, "--k", label="~1 / n_el")
+        ax.loglog(nnodes_list, 90 / nnodes_list**2, "-.k", label="~1 / nnodes^2")
+        ax.loglog(nnodes_list, 90 / nnodes_list**3, ":k", label="~1 / nnodes^3")
+
+        ax.set_title(f"Twist Errors for Slenderness: {slendernesses[i]}")
+        ax.set_xlabel("nnodes_list")
+        ax.set_ylabel("Twist Errors")
+        ax.grid()
+        ax.legend(loc='lower left')
+
+
+    # ax[0].legend(loc='lower left')
+
+    # for i in range(n_slenderness):
+    #     fig.savefig(f"C:/Users/Domenico/Desktop/cardillo/examples/mixed_examples/45_bent_beam_convergence/slenderness_{slendernesses[i]}.eps", format='eps', bbox_inches='tight')
 
 
     plt.show()
