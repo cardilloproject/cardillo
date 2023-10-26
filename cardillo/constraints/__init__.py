@@ -5,5 +5,4 @@ from .prismatic import Prismatic
 from .cylindrical import Cylindrical
 from .planarizer import Planarizer
 from .rolling_conditions import *
-from .rod import Rod
-from .displacement_gradient_constraint import DisplacementConstraint, GradientConstraint
+from .fixed_distance import FixedDistance

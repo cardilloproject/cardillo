@@ -4,11 +4,11 @@ from cardillo.constraints._base import (
     concatenate_uDOF,
     auxiliary_functions,
 )
-from cardillo.math import approx_fprime
+from cardillo.math import approx_fprime, norm, cross3
 import warnings
 
 
-class Rod:
+class FixedDistance:
     def __init__(
         self,
         subsystem1,
@@ -40,7 +40,7 @@ class Rod:
         self.dist = np.linalg.norm(r_OB20 - r_OB10)
 
         if self.dist < 1e-6:
-            raise ValueError("Rod.distance is close to zero.")
+            raise ValueError("FixedDistance.distance is close to zero.")
 
     def g(self, t, q):
         r_B1B2 = self.r_OB2(t, q) - self.r_OB1(t, q)
@@ -114,7 +114,7 @@ class Rod:
         return g_ddot_u
 
     def g_q_T_mu_q(self, t, q, mu):
-        warnings.warn("Rod.g_q_T_mu_q uses approx_fprime.")
+        warnings.warn("FixedDistance.g_q_T_mu_q uses approx_fprime.")
         return approx_fprime(q, lambda q: self.g_q(t, q).T @ mu)
 
     def W_g(self, t, q):
@@ -151,11 +151,78 @@ class Rod:
 
         return Wla_g_q
 
-    def export(self, sol_i, **kwargs):
+    def export(self, sol_i, base_export=True, **kwargs):
         points = [
-            self.r_OP1(sol_i.t, sol_i.q[self.qDOF]),
-            self.r_OP2(sol_i.t, sol_i.q[self.qDOF]),
+            self.r_OB1(sol_i.t, sol_i.q[self.qDOF]),
+            self.r_OB2(sol_i.t, sol_i.q[self.qDOF]),
         ]
-        cells = [("line", [[0, 1]])]
+        if base_export:
+            cells = [("line", [[0, 1]])]
+            point_data = None
+            cell_data = None
+        else:
+            r = kwargs.pop("radius")
+            a = np.cos(np.pi / 6)
+            P_i = np.array(
+                [
+                    [0, a, 1 / 2],
+                    [0, 0, 2],
+                    [0, -a, 1 / 2],
+                    [0, -2 * a, -1],
+                    [0, 0, -1],
+                    [0, 2 * a, -1],
+                ]
+            )  # control points
+            w_i = [
+                1,
+                1 / 2,
+                1,
+                1 / 2,
+                1,
+                1 / 2,
+                1,
+                1 / 2,
+                1,
+                1 / 2,
+                1,
+                1 / 2,
+            ]  # weights
+            con = np.array(
+                [
+                    0,
+                    2,
+                    4,
+                    6,
+                    8,
+                    10,
+                    1,
+                    3,
+                    5,
+                    7,
+                    9,
+                    11,
+                ]
+            )
+            r_B1B2 = points[1] - points[0]
+            n = r_B1B2 / norm(r_B1B2)
+            tmp = cross3(n, np.array((1, 0, 0)))
+            tmp = (
+                tmp / norm(tmp)
+                if norm(tmp) > 1e-6
+                else cross3(n, np.array((0, 1, 0)))
+                / norm(cross3(n, np.array((0, 1, 0))))
+            )
+            T2 = cross3(n, tmp)
+            t2 = T2 / norm(T2)
+            T1 = cross3(t2, n)
+            t1 = T1 / norm(T1)
+            A_IW = np.vstack((n, t1, t2)).T
+            wedge_points = [p + r * (A_IW @ P_i.T).T for p in points]
+            hod = [[2, 2, 1]]
+            wedge_points = np.array(wedge_points).reshape((-1, 3))
 
-        return points, cells, None, None
+            cells = [("VTK_BEZIER_WEDGE", np.array(con).reshape(-1, 12))]
+            point_data = {"RationalWeights": w_i}
+            cell_data = {"HigherOrderDegrees": [hod]}
+            points = wedge_points
+        return points, cells, point_data, cell_data

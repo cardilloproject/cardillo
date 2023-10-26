@@ -5,7 +5,7 @@ from scipy.integrate import solve_ivp
 
 from cardillo import System
 from cardillo.discrete import Frame, PointMass
-from cardillo.constraints import Rod
+from cardillo.constraints import FixedDistance, Spherical
 from cardillo.forces import Force
 from cardillo.solver import ScipyIVP, EulerBackward
 from cardillo.math import A_IK_basic, inv2D
@@ -122,8 +122,8 @@ def comparison_mathematical_pendulum3D(
     PM = PointMass(m, q0=r_OS0, u0=v_S0)
 
     origin = Frame(r_OP, r_OP_t=v_P, r_OP_tt=a_P)
-    # joint = Rod(origin, PM)
-    joint = Rod(PM, origin)
+    # joint = FixedDistance(origin, PM)
+    joint = FixedDistance(PM, origin)
 
     system = System()
     system.add(origin)

@@ -262,6 +262,12 @@ class PositionOrientationBase:
                 self.subsystem2.t0, self.subsystem2.q0[local_qDOF2], self.frame_ID2
             )
 
+            if self.r_OB0 is None:
+                self.r_OB0 = r_OP20
+
+            if self.A_IB0 is None:
+                self.A_IB0 = A_IK20
+
             K2_r_P2B0 = A_IK20.T @ (self.r_OB0 - r_OP20)
             A_K2B0 = A_IK20.T @ self.A_IB0
         else:
