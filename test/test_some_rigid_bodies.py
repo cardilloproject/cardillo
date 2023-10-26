@@ -1,6 +1,6 @@
 import numpy as np
 from pathlib import Path
-from cardillo.discrete import RigidBodyQuaternion
+from cardillo.discrete import RigidBody
 from cardillo.discrete.shapes import Cuboid, Ball, Cylinder, FromSTL
 from cardillo import System
 from cardillo.solver import MoreauClassical
@@ -15,7 +15,7 @@ def test_some_rigid_bodies():
     # box primitive
     ###############
     dimensions = np.array([3, 2, 1])
-    box = Cuboid(RigidBodyQuaternion)(dimensions=dimensions, density=0.0078, u0=u0)
+    box = Cuboid(RigidBody)(dimensions=dimensions, density=0.0078, u0=u0)
 
     #############################
     # identical stl box primitive
@@ -27,7 +27,7 @@ def test_some_rigid_bodies():
         [   0.0, 0.039,    0.0],
         [   0.0,   0.0, 0.0507],
     ])
-    stl_box = FromSTL(RigidBodyQuaternion)(
+    stl_box = FromSTL(RigidBody)(
         path=path.parent / ".." / "geometry" / "box" / "box.stl",
         mass=0.0468,
         K_r_SP=K_r_SP,
@@ -42,7 +42,7 @@ def test_some_rigid_bodies():
     # cylinder primitive
     ####################
     q0 = np.array([0, 0, -dimensions[-1], 1, 0, 0, 0], dtype=float)
-    cylinder = Cylinder(RigidBodyQuaternion)(
+    cylinder = Cylinder(RigidBody)(
         length=3, radius=1, density=1, axis=2, q0=q0, u0=u0
     )
 
@@ -50,7 +50,7 @@ def test_some_rigid_bodies():
     # ball primitive
     ################
     q0 = np.array([*(0.5 * dimensions), 1, 0, 0, 0], dtype=float)
-    ball = Ball(RigidBodyQuaternion)(mass=1, radius=0.2, q0=q0, u0=u0)
+    ball = Ball(RigidBody)(mass=1, radius=0.2, q0=q0, u0=u0)
 
     ######################################
     # solve system and generate vtk export

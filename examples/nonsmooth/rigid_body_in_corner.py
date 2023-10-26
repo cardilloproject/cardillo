@@ -34,7 +34,7 @@ Shape = {
 }
 
 Parametrization = {
-    "quaternion": RigidBodyQuaternion,
+    "quaternion": RigidBody,
     "axis_angle": RigidBodyAxisAngle,
     "euler": RigidBodyEuler,
 }

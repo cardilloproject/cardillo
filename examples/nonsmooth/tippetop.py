@@ -4,7 +4,7 @@ from scipy.spatial.transform import Rotation
 from pathlib import Path
 
 from cardillo import System
-from cardillo.discrete import RigidBodyQuaternion, RigidBodyEuler
+from cardillo.discrete import RigidBody, RigidBodyEuler
 from cardillo.math import axis_angle2quat, cross3, ax2skew, approx_fprime
 from cardillo.forces import Force
 from cardillo.solver import (
@@ -21,7 +21,7 @@ from cardillo.contacts import Sphere2Plane, Sphere2PlaneCoulombContensouMoeller
 
 
 def make_system(RigidBodyBase):
-    assert RigidBodyBase in [RigidBodyQuaternion, RigidBodyEuler]
+    assert RigidBodyBase in [RigidBody, RigidBodyEuler]
 
     system = System()
 
@@ -54,7 +54,7 @@ def make_system(RigidBodyBase):
 
     # initial coordinates
     # z0 = R1 - a1
-    if RigidBodyBase is RigidBodyQuaternion:
+    if RigidBodyBase is RigidBody:
         q0 = np.zeros(7, dtype=float)
         q0[2] = z0
         q0[3:] = axis_angle2quat(np.array([1, 0, 0]), theta0)
@@ -93,8 +93,8 @@ def make_system(RigidBodyBase):
     u0[3:] = K_omega_IK
     # u0[5] = psi_dot0
 
-    if RigidBodyBase is RigidBodyQuaternion:
-        top = RigidBodyQuaternion(m, K_theta_S, q0=q0, u0=u0)
+    if RigidBodyBase is RigidBody:
+        top = RigidBody(m, K_theta_S, q0=q0, u0=u0)
     elif RigidBodyBase is RigidBodyEuler:
         top = RigidBodyEuler(m, K_theta_S, axis=axis, q0=q0, u0=u0)
 
@@ -150,7 +150,7 @@ def run(export=True):
     Leine2003: https://doi.org/10.1016/S0997-7538(03)00025-1
     """
 
-    system, top, contact1, contact2 = make_system(RigidBodyQuaternion)
+    system, top, contact1, contact2 = make_system(RigidBody)
     # system, top, contact1, contact2 = make_system(RigidBodyEuler)
 
     t_final = 8
@@ -350,7 +350,7 @@ def run(export=True):
 
 
 def convergence(export=True):
-    system, top, contact1, contact2 = make_system(RigidBodyQuaternion)
+    system, top, contact1, contact2 = make_system(RigidBody)
     # system, top, contact1, contact2 = make_system(RigidBodyEuler)
 
     # get_solver = lambda t_final, dt, atol: MoreauShifted(system, t_final, dt, fix_point_tol=atol)

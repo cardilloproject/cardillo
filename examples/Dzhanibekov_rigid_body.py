@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-from cardillo.discrete import Cuboid, RigidBodyQuaternion
+from cardillo.discrete import Cuboid, RigidBody
 from cardillo.math import axis_angle2quat, Log_SO3
 from cardillo.system import System
 from cardillo.constraints import Planarizer
@@ -25,7 +25,7 @@ if __name__ == "__main__":
     q0 = np.concatenate((r_OP0, axis_angle2quat(np.array((0, 0, 1)), phi0)))
     u0 = np.concatenate((v_P0, K_Omega + K_Omega_disturbance))
     m = 5
-    box = Cuboid(RigidBodyQuaternion)(l, w, h, q0, u0, mass=m)
+    box = Cuboid(RigidBody)(l, w, h, q0, u0, mass=m)
 
     system = System()
     system.add(box)

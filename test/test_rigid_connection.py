@@ -7,7 +7,7 @@ from cardillo.math import A_IK_basic, axis_angle2quat, cross3
 from cardillo import System
 from cardillo.discrete import (
     Frame,
-    RigidBodyQuaternion,
+    RigidBody,
     RigidBodyRelKinematics,
 )
 from cardillo.constraints import Revolute, RigidConnection
@@ -81,14 +81,14 @@ def run(revolute_joint_used=False, use_relative_kinematics=False):
     q20 = np.concatenate((r_OS20, p0))
     u10 = np.concatenate((v_S10, K_omega0))
     u20 = np.concatenate((v_S20, K_omega0))
-    RB1 = RigidBodyQuaternion(m / 2, K_theta_S1, q0=q10, u0=u10)
+    RB1 = RigidBody(m / 2, K_theta_S1, q0=q10, u0=u10)
     if use_relative_kinematics:
         rigid_joint = RigidJoint()
         RB2 = RigidBodyRelKinematics(
             m / 2, K_theta_S2, rigid_joint, RB1, r_OS0=r_OS20, A_IK0=A_IK0
         )
     else:
-        RB2 = RigidBodyQuaternion(m / 2, K_theta_S2, q0=q20, u0=u20)
+        RB2 = RigidBody(m / 2, K_theta_S2, q0=q20, u0=u20)
 
     if revolute_joint_used:
         joint = Revolute(frame, RB1, 2, r_OP(0), np.eye(3))

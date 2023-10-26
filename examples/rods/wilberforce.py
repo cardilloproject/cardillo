@@ -16,7 +16,7 @@ from cardillo.beams._fitting import fit_configuration
 from cardillo.constraints import RigidConnection, Spherical
 
 from cardillo.discrete.shapes import Cylinder
-from cardillo.discrete import RigidBodyQuaternion
+from cardillo.discrete import RigidBody
 
 from cardillo.forces import Force, Moment
 from cardillo.forces import DistributedForce1DBeam
@@ -122,7 +122,7 @@ density = 7850  # [kg / m^3]; steel
 r_OS0 = np.array([0, 0, -h / 2 - wire_radius])
 p0 = np.array([1, 0, 0, 0], dtype=float)
 q0 = np.concatenate((r_OS0, p0))
-bob = Cylinder(RigidBodyQuaternion)(length=h, radius=R, axis=2, density=density, q0=q0)
+bob = Cylinder(RigidBody)(length=h, radius=R, axis=2, density=density, q0=q0)
 omega_z = np.sqrt(k / bob.mass)
 omega_theta = np.sqrt(delta / bob.K_Theta_S[-1, -1])
 print(

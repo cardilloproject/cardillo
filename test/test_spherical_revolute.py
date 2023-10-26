@@ -11,7 +11,7 @@ from cardillo.constraints import (
     Spherical,
     Revolute,
 )
-from cardillo.discrete import RigidBodyQuaternion
+from cardillo.discrete import RigidBody
 from cardillo.forces import (
     Force,
     PDRotational,
@@ -57,7 +57,7 @@ def run(joint, Solver, k=None, d=None, **solver_args):
     u01 = np.concatenate([A_IprimeI @ vS1, K1_omega01])
     origin = Frame(r_OP=A_IprimeI @ r_OB1, A_IK=A_IprimeI @ A_IB1)
     # origin = Frame(r_OP=r_OB1, A_IK=A_IB1)
-    RB1 = RigidBodyQuaternion(m, K_theta_S, q01, u01)
+    RB1 = RigidBody(m, K_theta_S, q01, u01)
 
     if joint == "Spherical":
         use_spherical_joint = True
@@ -107,7 +107,7 @@ def run(joint, Solver, k=None, d=None, **solver_args):
     p02 = Spurrier(A_IprimeI @ A_IK20)
     q02 = np.concatenate([A_IprimeI @ r_OS20, p02])
     u02 = np.concatenate([A_IprimeI @ vS2, K2_omega02])
-    RB2 = RigidBodyQuaternion(m, K_theta_S, q02, u02)
+    RB2 = RigidBody(m, K_theta_S, q02, u02)
 
     if use_spherical_joint:
         joint2 = Spherical(RB1, RB2, r_OB0=A_IprimeI @ r_OB2)

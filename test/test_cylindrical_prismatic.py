@@ -7,7 +7,7 @@ import pytest
 from cardillo import System
 from cardillo.solver import ScipyIVP, EulerBackward, MoreauClassical
 from cardillo.constraints import RigidConnection, Cylindrical, Prismatic
-from cardillo.discrete import Frame, RigidBodyQuaternion, RigidBodyAxisAngle, Cylinder
+from cardillo.discrete import Frame, RigidBody, RigidBodyAxisAngle, Cylinder
 from cardillo.forces import Force, ScalarForceTranslational, LinearSpring, LinearDamper
 from cardillo.math import (
     e1,
@@ -129,7 +129,7 @@ def run(
 
     if RigidBody == RigidBodyAxisAngle:
         q0 = np.array([*r_OB0, *Log_SO3(A_IB0)])
-    elif RigidBody == RigidBodyQuaternion:
+    elif RigidBody == RigidBody:
         q0 = np.array([*r_OB0, *Spurrier(A_IB0)])
     else:
         raise NotImplementedError
@@ -146,7 +146,7 @@ def run(
     u0 = np.array([*v_S0, *K0_omega_IK0])
     if RigidBody == RigidBodyAxisAngle:
         q0 = np.array([*r_OS0, *Log_SO3(A_IK0)])
-    elif RigidBody == RigidBodyQuaternion:
+    elif RigidBody == RigidBody:
         q0 = np.array([*r_OS0, *Spurrier(A_IK0)])
     else:
         raise NotImplementedError
@@ -382,7 +382,7 @@ solver_and_kwargs = [
 ]
 
 rigid_bodies = [
-    RigidBodyQuaternion,
+    RigidBody,
 ]
 
 test_parameters = []

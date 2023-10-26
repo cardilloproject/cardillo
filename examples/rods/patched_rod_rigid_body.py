@@ -11,7 +11,7 @@ from cardillo.beams import K_R12_PetrovGalerkin_AxisAngle as Rod
 # from cardillo.beams import K_R12_PetrovGalerkin_R9 as Rod
 from cardillo.beams import animate_beam
 
-from cardillo.discrete import RigidBodyQuaternion as RigidBody
+from cardillo.discrete import RigidBody as RigidBody
 
 # from cardillo.discrete import RigidBodyAxisAngle as RigidBody
 from cardillo.forces import K_Moment, Force

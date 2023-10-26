@@ -5,7 +5,7 @@ import matplotlib.animation as animation
 from cardillo.math.rotations import Spurrier
 
 from cardillo.discrete import (
-    RigidBodyQuaternion,
+    RigidBody,
 )
 from cardillo.constraints import Spherical
 from cardillo.math.algebra import cross3
@@ -23,14 +23,14 @@ from cardillo.solver import (
 from cardillo.solver._butcher_tableaus import RadauIIATableau
 
 
-class HeavyTopQuaternion(RigidBodyQuaternion):
+class HeavyTopQuaternion(RigidBody):
     def __init__(self, A, B, grav, q0=None, u0=None):
         self.grav = grav
         self.r_OQ = r_OQ
 
         # initialize rigid body
         self.K_Theta_S = np.diag([A, A, B])
-        RigidBodyQuaternion.__init__(self, m, self.K_Theta_S, q0=q0, u0=u0)
+        RigidBody.__init__(self, m, self.K_Theta_S, q0=q0, u0=u0)
 
         # gravity
         self.f_g = np.array([0, 0, -self.m * self.grav])

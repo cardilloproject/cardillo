@@ -4,7 +4,7 @@ from scipy.spatial.transform import Rotation
 from pathlib import Path
 
 from cardillo import System
-from cardillo.discrete import RigidBodyQuaternion, RigidBodyEuler
+from cardillo.discrete import RigidBody, RigidBodyEuler
 from cardillo.math import axis_angle2quat, Exp_SO3_quat, cross3
 from cardillo.forces import Force
 from cardillo.contacts import Sphere2PlaneCoulombContensouMoeller
@@ -18,7 +18,7 @@ from cardillo.solver import (
 
 
 def make_system(RigidBodyBase):
-    assert RigidBodyBase in [RigidBodyQuaternion, RigidBodyEuler]
+    assert RigidBodyBase in [RigidBody, RigidBodyEuler]
 
     system = System()
 
@@ -56,7 +56,7 @@ def make_system(RigidBodyBase):
     A_IK = Exp_SO3_quat(p0)
     K_r_PS = np.array([0, 0, -a1])
     r_OS = np.array([0, 0, R1]) + A_IK @ K_r_PS
-    if RigidBodyBase is RigidBodyQuaternion:
+    if RigidBodyBase is RigidBody:
         q0 = np.zeros(7, dtype=float)
         q0[:3] = r_OS
         q0[3:] = p0
@@ -78,8 +78,8 @@ def make_system(RigidBodyBase):
     u0[:3] = v_S
     u0[3:] = K_omega_IK
 
-    if RigidBodyBase is RigidBodyQuaternion:
-        top = RigidBodyQuaternion(m, K_theta_S, q0=q0, u0=u0)
+    if RigidBodyBase is RigidBody:
+        top = RigidBody(m, K_theta_S, q0=q0, u0=u0)
     elif RigidBodyBase is RigidBodyEuler:
         top = RigidBodyEuler(m, K_theta_S, axis=axis, q0=q0, u0=u0)
 
@@ -122,7 +122,7 @@ def run(export=True):
     Leine2003: https://doi.org/10.1016/S0997-7538(03)00025-1
     """
 
-    system, top, contact1, contact2 = make_system(RigidBodyQuaternion)
+    system, top, contact1, contact2 = make_system(RigidBody)
 
     # t1 = 8
     t_final = 2
@@ -300,7 +300,7 @@ def run(export=True):
 
 
 def convergence(export=True):
-    system, top, contact1, contact2 = make_system(RigidBodyQuaternion)
+    system, top, contact1, contact2 = make_system(RigidBody)
     # system, top, contact1, contact2 = make_system(RigidBodyEuler)
 
     # tol_ref = 1.0e-8

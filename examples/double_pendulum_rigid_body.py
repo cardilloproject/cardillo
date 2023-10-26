@@ -13,7 +13,7 @@ from cardillo.constraints import (
     Revolute,
 )
 from cardillo.discrete import (
-    RigidBodyQuaternion,
+    RigidBody,
     RigidBodyEuler,
     RigidBodyAxisAngle,
     RigidBodyDirectorAngularVelocities,  # TODO: test rigid body with director DOF's
@@ -60,7 +60,7 @@ if __name__ == "__main__":
     if use_quaternion:
         p01 = axis_angle2quat(np.array([0, 0, 1]), alpha0)
         q01 = np.concatenate([r_OS10, p01])
-        RB1 = RigidBodyQuaternion(m, K_theta_S, q01, u01)
+        RB1 = RigidBody(m, K_theta_S, q01, u01)
     elif use_euler:
         q01 = np.concatenate([r_OS10, np.array([0, 0, alpha0])])
         RB1 = RigidBodyEuler(m, K_theta_S, "xyz", q0=q01, u0=u01)
@@ -93,7 +93,7 @@ if __name__ == "__main__":
     if use_quaternion:
         p02 = axis_angle2quat(np.array([0, 0, 1]), alpha0 + beta0)
         q02 = np.concatenate([r_OS20, p02])
-        RB2 = RigidBodyQuaternion(m, K_theta_S, q02, u02)
+        RB2 = RigidBody(m, K_theta_S, q02, u02)
     elif use_euler:
         q02 = np.concatenate([r_OS20, np.array([0, 0, alpha0 + beta0])])
         RB2 = RigidBodyEuler(m, K_theta_S, "xyz", q0=q02, u0=u02)

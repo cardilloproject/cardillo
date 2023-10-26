@@ -6,7 +6,7 @@ import pytest
 from cardillo import System
 from cardillo.solver import ScipyIVP, EulerBackward, MoreauClassical
 from cardillo.constraints import Revolute
-from cardillo.discrete import RigidBodyAxisAngle, RigidBodyQuaternion
+from cardillo.discrete import RigidBodyAxisAngle, RigidBody
 from cardillo.forces import (
     LinearSpring,
     LinearDamper,
@@ -66,7 +66,7 @@ def run(
 
     if RigidBody == RigidBodyAxisAngle:
         q0 = np.hstack((r_OP0, psi))
-    elif RigidBody == RigidBodyQuaternion:
+    elif RigidBody == RigidBody:
         n_psi = norm(psi)
         p = axis_angle2quat(psi / n_psi, n_psi)
         q0 = np.hstack((r_OP0, p))
@@ -140,7 +140,7 @@ test_parameters = [
 
 @pytest.mark.parametrize("Solver, kwargs", test_parameters)
 def test_torsional_oscillator(Solver, kwargs):
-    run(RigidBodyQuaternion, Solver, **kwargs)
+    run(RigidBody, Solver, **kwargs)
 
 
 if __name__ == "__main__":

@@ -6,7 +6,7 @@ from cardillo.discrete import (
     PointMass,
     Ball,
     Cuboid,
-    RigidBodyQuaternion,
+    RigidBody,
     Rectangle,
 )
 from cardillo.forces import (
@@ -23,7 +23,7 @@ from cardillo.solver import ScipyIVP
 from cardillo.visualization import Export
 
 
-class Ball(RigidBodyQuaternion):
+class Ball(RigidBody):
     def __init__(self, m, r, q0, u0=None):
         K_theta_S = 2 / 5 * m * r**2 * np.eye(3)
         super().__init__(m, K_theta_S, q0, u0)
@@ -57,8 +57,8 @@ if __name__ == "__main__":
 
     # cube = ConvexRigidBody(points_cube, mass=m, u0=u0, q0=q0)
     # cube = newConvexRigidBody(RigidBodyQuaternion, points_cube, mass=m, u0=u0, q0=q0)
-    cube = Cuboid(RigidBodyQuaternion)(dimensions=[1, 2, 3], mass=m, q0=q0, u0=u0)
-    cube2 = Cuboid(RigidBodyQuaternion)(dimensions=[1, 2, 3], mass=m, q0=q0, u0=u0)
+    cube = Cuboid(RigidBody)(dimensions=[1, 2, 3], mass=m, q0=q0, u0=u0)
+    cube2 = Cuboid(RigidBody)(dimensions=[1, 2, 3], mass=m, q0=q0, u0=u0)
     r = 0.5
     # ball = Ball(RigidBodyQuaternion)(m, r, q0, u0)
 

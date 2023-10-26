@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
 from cardillo import System
-from cardillo.discrete import RigidBodyQuaternion, RigidBodyAxisAngle, RigidBodyEuler
+from cardillo.discrete import RigidBody, RigidBodyAxisAngle, RigidBodyEuler
 from cardillo.math import axis_angle2quat
 from cardillo.constraints import (
     RollingCondition_g_I_Frame_gamma,
@@ -77,13 +77,13 @@ K_Omega0 = np.array(
 # TODO: Derive these equations!
 v_S0 = np.array([-R * alpha_dot0 + r * alpha_dot0 * np.sin(beta0), 0, 0])
 
-RigidBody = RigidBodyQuaternion
+RigidBody = RigidBody
 # RigidBody = RigidBodyAxisAngle
 # RigidBody = RigidBodyEuler
 
 # initial conditions
 u0 = np.concatenate((v_S0, K_Omega0))
-if RigidBody is RigidBodyQuaternion:
+if RigidBody is RigidBody:
     p0 = axis_angle2quat(np.array([1, 0, 0]), beta0)
 elif RigidBody is RigidBodyAxisAngle:
     p0 = np.array([1, 0, 0]) * beta0
