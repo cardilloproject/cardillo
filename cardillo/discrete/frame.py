@@ -22,30 +22,26 @@ class Frame:
 
         self.nq = 0
         self.nu = 0
-
         self.q0 = np.array([])
         self.u0 = np.array([])
 
-        self.is_assembled = False
-
-    def assembler_callback(self):
-        self.is_assembled = True
-
-    #########################################
-    # helper functions
-    #########################################
-
-    def local_qDOF_P(self, frame_ID=None):
-        return np.array([], dtype=int)
-
-    def local_uDOF_P(self, frame_ID=None):
-        return np.array([], dtype=int)
-
+    #####################
+    # kinematic equations
+    #####################
     def q_dot(self, t, q, u):
         return np.array([])
 
     def q_ddot(self, t, q, u, u_dot):
         return np.array([])
+
+    #####################
+    # auxiliary functions
+    #####################
+    def local_qDOF_P(self, frame_ID=None):
+        return np.array([], dtype=int)
+
+    def local_uDOF_P(self, frame_ID=None):
+        return np.array([], dtype=int)
 
     def A_IK(self, t, q=None, frame_ID=None):
         return self.A_IK__(t)
@@ -126,6 +122,9 @@ class Frame:
     def K_kappa_R_u(self, t, q=None, u=None, frame_ID=None):
         return np.array([]).reshape((3, 0))
 
+    ########
+    # export
+    ########
     def export(self, sol_i, **kwargs):
         points = [self.r_OP(sol_i.t)]
         cells = [("vertex", [[0]])]
@@ -137,7 +136,4 @@ class Frame:
             ey=[A_IK[1]],
             ez=[A_IK[2]],
         )
-        if sol_i.u_dot is not None:
-            cell_data["a"] = [[self.a_P(sol_i.t)]]
-            cell_data["Psi"] = [[self.A_IK(sol_i.t) @ self.K_Psi(sol_i.t)]]
         return points, cells, None, cell_data
