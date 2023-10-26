@@ -218,9 +218,6 @@ class nElScalarForceTranslational:
         f_spring_q = -self._W_q(t, q) * self.force_law_spring.la(
             t, g
         ) - self.force_law_spring.la_g(t, g) * np.outer(self._W(t, q), self._g_q(t, q))
-        # f_q_num = approx_fprime(q, lambda q: self._f_spring(t, q), method = "cs")
-        # diff = np.linalg.norm(f_q_num - f_spring_q)
-        # print(f"diff: {diff}")
         return f_spring_q
 
     def _f_damper(self, t, q, u):
@@ -245,7 +242,7 @@ class nElScalarForceTranslational:
     def h_q(self, t, q, u):
         return self._h_q(t, q, u)
 
-    # E_pot and h_u defined in init if necessary
+    # E_pot and h_u defined in self.__init__ if necessary
 
     def export(self, sol_i, **kwargs):
         points = []

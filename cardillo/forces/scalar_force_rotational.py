@@ -73,6 +73,6 @@ def PDRotational(Joint, Spring=None, Damper=None):
         def h_q(self, t, q, u):
             return self._h_q(t, q, u)
 
-        # E_pot and h_u defined in init if necessary
+        # E_pot and h_u defined in self.__init__ function if necessary
 
     return _PDRotational
