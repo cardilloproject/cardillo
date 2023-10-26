@@ -264,6 +264,8 @@ class System:
             self.la_F0,
         ) = consistent_initial_conditions(self, **kwargs)
 
+        print("after consistent_initial_conditions")
+
     def assembler_callback(self):
         for contr in self.__assembler_callback_contr:
             contr.assembler_callback()

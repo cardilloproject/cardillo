@@ -7,7 +7,7 @@ import pytest
 from cardillo import System
 from cardillo.solver import ScipyIVP, EulerBackward, MoreauClassical
 from cardillo.constraints import RigidConnection, Cylindrical, Prismatic
-from cardillo.discrete import Frame, RigidBody, RigidBodyAxisAngle, Cylinder
+from cardillo.discrete import Frame, RigidBody
 from cardillo.forces import Force, ScalarForceTranslational, LinearSpring, LinearDamper
 from cardillo.math import (
     e1,
@@ -125,14 +125,8 @@ def run(
         r_OB_t(0) + A_IB0 @ np.array([0, 0, z_dot0]) + A_IB_t(0) @ np.array([0, 0, z0])
     )
 
+    q0 = np.array([*r_OB0, *Spurrier(A_IB0)])
     u0 = np.array([*v_P0, *B0_omega_IB0])
-
-    if RigidBody == RigidBodyAxisAngle:
-        q0 = np.array([*r_OB0, *Log_SO3(A_IB0)])
-    elif RigidBody == RigidBody:
-        q0 = np.array([*r_OB0, *Spurrier(A_IB0)])
-    else:
-        raise NotImplementedError
     RB1 = RigidBody(m, K_theta_S, q0, u0)
 
     rigid_connection = RigidConnection(frame, RB1)
@@ -143,13 +137,8 @@ def run(
     K0_omega_IK0 = A_IK0.T @ omega_IB(0) + np.array([0, 0, alpha_dot0])
     v_S0 = v_P0 + A_IK0 @ cross3(K0_omega_IK0, np.array([0.5 * l, 0, 0]))
 
+    q0 = np.array([*r_OS0, *Spurrier(A_IK0)])
     u0 = np.array([*v_S0, *K0_omega_IK0])
-    if RigidBody == RigidBodyAxisAngle:
-        q0 = np.array([*r_OS0, *Log_SO3(A_IK0)])
-    elif RigidBody == RigidBody:
-        q0 = np.array([*r_OS0, *Spurrier(A_IK0)])
-    else:
-        raise NotImplementedError
     RB2 = RigidBody(m, K_theta_S, q0, u0)
 
     f_g = Force(np.array([0, 0, -m * g]), RB2)
@@ -405,12 +394,10 @@ def test_prismatic(RigidBody, Solver, kwargs):
 if __name__ == "__main__":
     show = True
 
-    # simulations with RigidBodyAxisAngle only within tests
-
     #############
     # Cylindrical
     #############
-    # run("Cylindrical", RigidBodyQuaternion, ScipyIVP)
+    # run("Cylindrical", RigidBody, ScipyIVP)
     # run("Cylindrical", rigid_bodies[0], solver_and_kwargs[6][0], **solver_and_kwargs[6][1])
     run(
         "Cylindrical",
@@ -419,21 +406,21 @@ if __name__ == "__main__":
         **solver_and_kwargs[0][1],
     )
 
-    # run("Cylindrical", RigidBodyQuaternion, MoreauClassical)
+    # run("Cylindrical", RigidBody, MoreauClassical)
 
-    # run("Cylindrical", RigidBodyQuaternion, EulerBackward, method="index 1")
-    # run("Cylindrical", RigidBodyQuaternion, EulerBackward, method="index 2")
-    # run("Cylindrical", RigidBodyQuaternion, EulerBackward, method="index 3")
-    # run("Cylindrical", RigidBodyQuaternion, EulerBackward, method="index 2 GGL")
+    # run("Cylindrical", RigidBody, EulerBackward, method="index 1")
+    # run("Cylindrical", RigidBody, EulerBackward, method="index 2")
+    # run("Cylindrical", RigidBody, EulerBackward, method="index 3")
+    # run("Cylindrical", RigidBody, EulerBackward, method="index 2 GGL")
 
     ###########
     # Prismatic
     ###########
-    # run("Prismatic", RigidBodyQuaternion, ScipyIVP)
+    # run("Prismatic", RigidBody, ScipyIVP)
 
-    # run("Prismatic", RigidBodyQuaternion, MoreauClassical)
+    # run("Prismatic", RigidBody, MoreauClassical)
 
-    # run("Prismatic", RigidBodyQuaternion, EulerBackward, method="index 1")
-    # run("Prismatic", RigidBodyQuaternion, EulerBackward, method="index 2")
-    # run("Prismatic", RigidBodyQuaternion, EulerBackward, method="index 3")
-    # run("Prismatic", RigidBodyQuaternion, EulerBackward, method="index 2 GGL")
+    # run("Prismatic", RigidBody, EulerBackward, method="index 1")
+    # run("Prismatic", RigidBody, EulerBackward, method="index 2")
+    # run("Prismatic", RigidBody, EulerBackward, method="index 3")
+    # run("Prismatic", RigidBody, EulerBackward, method="index 2 GGL")

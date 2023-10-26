@@ -72,7 +72,6 @@ def comparison_mathematical_pendulum3D(
     m = 0.1
     L = 0.2
     g = 9.81
-    dim = 3
 
     omega = 10
     A = L / 10
@@ -101,10 +100,6 @@ def comparison_mathematical_pendulum3D(
     beta0 = 0
     beta_dot0 = 0
 
-    if dim == 2:
-        alpha0 = 0
-        alpha_dot0 = 0
-
     x0 = np.array([alpha0, beta0, alpha_dot0, beta_dot0])
     ref = solve_ivp(
         pendulum.eqm,
@@ -124,7 +119,7 @@ def comparison_mathematical_pendulum3D(
         t0, np.array([alpha0, beta0]), np.array([alpha_dot0, beta_dot0])
     )
 
-    PM = PointMass(m, q0=r_OS0[:dim], u0=v_S0[:dim], dim=dim)
+    PM = PointMass(m, q0=r_OS0, u0=v_S0)
 
     origin = Frame(r_OP, r_OP_t=v_P, r_OP_tt=a_P)
     # joint = Rod(origin, PM)

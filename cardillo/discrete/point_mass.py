@@ -7,18 +7,17 @@ class PointMass:
         mass,
         q0=None,
         u0=None,
-        dim=3,
-    ) -> None:
-        self.mass = mass
-        self.nq = dim
-        self.nu = dim
-
-        self.__M = mass * np.eye(dim)
+    ):
+        self.nq = 3
+        self.nu = 3
 
         self.q0 = np.zeros(self.nq) if q0 is None else np.asarray(q0)
         self.u0 = np.zeros(self.nu) if u0 is None else np.asarray(u0)
         assert self.q0.size == self.nq
         assert self.u0.size == self.nu
+
+        self.mass = mass
+        self.__M = mass * np.eye(3)
 
     #####################
     # kinematic equations

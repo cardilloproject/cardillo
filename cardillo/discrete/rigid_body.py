@@ -55,14 +55,14 @@ class RigidBody:
         assert self.q0.size == self.nq
         assert self.u0.size == self.nu
 
+        self.la_S0 = np.zeros(self.nla_S, dtype=float)
+        assert self.la_S0.size == self.nla_S
+
         self.mass = mass
         self.K_Theta_S = K_Theta_S
-
         self.__M = np.zeros((self.nu, self.nu), dtype=float)
         self.__M[:3, :3] = self.mass * np.eye(3, dtype=float)
         self.__M[3:, 3:] = self.K_Theta_S
-
-        self.la_S0 = np.zeros(self.nla_S, dtype=float)
 
     #####################
     # kinematic equations

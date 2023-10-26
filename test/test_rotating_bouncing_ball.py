@@ -24,6 +24,7 @@ from cardillo.solver import (
 from cardillo.solver._butcher_tableaus import RadauIIATableau, AlexanderTableau
 
 
+# TODO: Implement 2D rigid body with contact here.
 class Ball(RigidBodyEuler):
     def __init__(self, m, R, q0=None, u0=None):
         theta = 2 / 5 * m * R**2

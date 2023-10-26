@@ -5,18 +5,13 @@ import matplotlib.animation as animation
 
 from cardillo.math import A_IK_basic, axis_angle2quat, cross3
 from cardillo import System
-from cardillo.discrete import (
-    Frame,
-    RigidBody,
-    RigidBodyRelKinematics,
-)
+from cardillo.discrete import Frame, RigidBody
 from cardillo.constraints import Revolute, RigidConnection
-from cardillo.joints import RigidConnection as RigidJoint
 from cardillo.forces import Force, PDRotational, LinearSpring, LinearDamper
 from cardillo.solver import EulerBackward, ScipyIVP
 
 
-def run(revolute_joint_used=False, use_relative_kinematics=False):
+def run(revolute_joint_used=False):
     # parameters
     m = 1
     L = 2
@@ -82,13 +77,7 @@ def run(revolute_joint_used=False, use_relative_kinematics=False):
     u10 = np.concatenate((v_S10, K_omega0))
     u20 = np.concatenate((v_S20, K_omega0))
     RB1 = RigidBody(m / 2, K_theta_S1, q0=q10, u0=u10)
-    if use_relative_kinematics:
-        rigid_joint = RigidJoint()
-        RB2 = RigidBodyRelKinematics(
-            m / 2, K_theta_S2, rigid_joint, RB1, r_OS0=r_OS20, A_IK0=A_IK0
-        )
-    else:
-        RB2 = RigidBody(m / 2, K_theta_S2, q0=q20, u0=u20)
+    RB2 = RigidBody(m / 2, K_theta_S2, q0=q20, u0=u20)
 
     if revolute_joint_used:
         joint = Revolute(frame, RB1, 2, r_OP(0), np.eye(3))
@@ -105,17 +94,13 @@ def run(revolute_joint_used=False, use_relative_kinematics=False):
         )
 
     system.add(RB1)
-    if use_relative_kinematics:
-        system.add(rigid_joint, RB2)
-    else:
-        system.add(RB2)
+    system.add(RB2)
     gravity1 = Force(np.array([0, -m / 2 * g, 0]), RB1)
     system.add(gravity1)
     gravity2 = Force(np.array([0, -m / 2 * g, 0]), RB2)
     system.add(gravity2)
     system.add(joint)
-    if not use_relative_kinematics:
-        system.add(RigidConnection(RB1, RB2))
+    system.add(RigidConnection(RB1, RB2))
     system.assemble()
 
     ############################################################################
@@ -127,14 +112,13 @@ def run(revolute_joint_used=False, use_relative_kinematics=False):
 
     # solver = EulerBackward(system, t1, dt, method="index 1")
     # solver = EulerBackward(system, t1, dt, method="index 2")
-    solver = EulerBackward(system, t1, dt, method="index 3")
+    # solver = EulerBackward(system, t1, dt, method="index 3")
     # solver = EulerBackward(system, t1, dt, method="index 2 GGL")
-    # solver = ScipyIVP(system, t1, dt)
+    solver = ScipyIVP(system, t1, dt)
 
     sol = solver.solve()
     t = sol.t
     q = sol.q
-    u = sol.u
     ############################################################################
     #                   animation
     ############################################################################
@@ -326,7 +310,5 @@ def run(revolute_joint_used=False, use_relative_kinematics=False):
 
 
 if __name__ == "__main__":
-    run(False, False)
-    run(True, False)
-    run(False, True)
-    run(True, True)
+    run(True)
+    run(False)

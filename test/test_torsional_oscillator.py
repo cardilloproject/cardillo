@@ -6,7 +6,7 @@ import pytest
 from cardillo import System
 from cardillo.solver import ScipyIVP, EulerBackward, MoreauClassical
 from cardillo.constraints import Revolute
-from cardillo.discrete import RigidBodyAxisAngle, RigidBody
+from cardillo.discrete import RigidBody
 from cardillo.forces import (
     LinearSpring,
     LinearDamper,
@@ -42,11 +42,7 @@ K_theta_S = np.diag(np.array([A, A, C]))
 show = False
 
 
-def run(
-    RigidBody,
-    Solver,
-    **solver_kwargs,
-):
+def run(Solver, **solver_kwargs):
     ############################################################################
     #                   system setup
     ############################################################################
@@ -64,14 +60,9 @@ def run(
     ######################
     system = System()
 
-    if RigidBody == RigidBodyAxisAngle:
-        q0 = np.hstack((r_OP0, psi))
-    elif RigidBody == RigidBody:
-        n_psi = norm(psi)
-        p = axis_angle2quat(psi / n_psi, n_psi)
-        q0 = np.hstack((r_OP0, p))
-    else:
-        raise (TypeError)
+    n_psi = norm(psi)
+    p = axis_angle2quat(psi / n_psi, n_psi)
+    q0 = np.hstack((r_OP0, p))
     rigid_body = RigidBody(m, K_theta_S, q0, u0)
 
     joint = PDRotational(Revolute, Spring=LinearSpring, Damper=LinearDamper)(
@@ -140,17 +131,17 @@ test_parameters = [
 
 @pytest.mark.parametrize("Solver, kwargs", test_parameters)
 def test_torsional_oscillator(Solver, kwargs):
-    run(RigidBody, Solver, **kwargs)
+    run(Solver, **kwargs)
 
 
 if __name__ == "__main__":
     show = True
 
-    # run(RigidBodyQuaternion, ScipyIVP)
+    run(ScipyIVP)
 
-    # run(RigidBodyQuaternion, MoreauClassical)
+    # run(MoreauClassical)
 
-    # run(RigidBodyQuaternion, EulerBackward, method="index 1")
-    # run(RigidBodyQuaternion, EulerBackward, method="index 2")
-    # run(RigidBodyQuaternion, EulerBackward, method="index 3")
-    # run(RigidBodyQuaternion, EulerBackward, method="index 2 GGL")
+    # run(EulerBackward, method="index 1")
+    # run(EulerBackward, method="index 2")
+    # run(EulerBackward, method="index 3")
+    # run(EulerBackward, method="index 2 GGL")
