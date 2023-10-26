@@ -1,16 +1,15 @@
 import numpy as np
-
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
 from cardillo import System
-from cardillo.discrete import RigidBodyEuler
+from cardillo.discrete import RigidBody
 from cardillo.discrete import Frame
 from cardillo.forces import Force
-from cardillo.contacts import SphereInSphere
 from cardillo.solver import MoreauShifted, Rattle
 
 
+# TODO: 2D Rigid body with sphere in sphere contact.
 class Ball(RigidBodyEuler):
     def __init__(self, m, r, q0=None, u0=None):
         theta = 2 / 5 * m * r**2
