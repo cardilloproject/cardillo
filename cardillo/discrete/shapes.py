@@ -7,8 +7,12 @@ def Rectangle(Base):
     class _Rectangle(Base):
         def __init__(self, **kwargs):
             """Create a rectangle, defined by its normal vector and dimensions.
-            The normal vector is aligned with one of the rectangles three body-fixed axes. Orientation of the body-fixed frameis dependent of chosen Base.
+            The normal vector is aligned with one of the rectangles three
+            body-fixed axes. Orientation of the body-fixed frame is dependent
+            of chosen Base.
+
             Args:
+            -----
                 axis:       one of (0, 1, 2)
                 dimensions: 2d tuple defining length and width
                 **kwargs:   dependent on Base
@@ -81,19 +85,7 @@ def Ball(Base):
                             K_r_SP=point,
                         )
                     )
-                    if sol_i.u_dot is not None:
-                        acc.append(
-                            self.a_P(
-                                sol_i.t,
-                                sol_i.q[self.qDOF],
-                                sol_i.u[self.uDOF],
-                                sol_i.u_dot[self.uDOF],
-                                K_r_SP=point,
-                            )
-                        )
                 point_data.update({"v": vel})
-                if sol_i.u_dot is not None:
-                    point_data.update({"a": acc})
 
                 return points, cells, point_data, None
 
@@ -101,7 +93,7 @@ def Ball(Base):
 
 
 def Cuboid(Base):
-    class _Box(Base):
+    class _Cuboid(Base):
         def __init__(self, **kwargs):
             """Generate a box shaped object with Base chosen on generation. Inertia K_Theta_S if needed by Base is computed.
 
@@ -164,25 +156,11 @@ def Cuboid(Base):
                         )
                     )
 
-                    if sol_i.u_dot is not None:
-                        acc.append(
-                            self.a_P(
-                                sol_i.t,
-                                sol_i.q[self.qDOF],
-                                sol_i.u[self.uDOF],
-                                sol_i.u_dot[self.uDOF],
-                                K_r_SP=point,
-                            )
-                        )
                 cells = [("hexahedron", [[0, 1, 2, 3, 4, 5, 6, 7]])]
-
-                if sol_i.u_dot is not None:
-                    point_data = dict(v=vel, a=acc)
-                else:
-                    point_data = dict(v=vel)
+                point_data = dict(v=vel)
             return points, cells, point_data, None
 
-    return _Box
+    return _Cuboid
 
 
 def Cylinder(Base):
@@ -357,7 +335,7 @@ def FromSTL(Base):
             if base_export:
                 return super().export(sol_i, **kwargs)
             else:
-                points, vel, acc = [], [], []
+                points, vel = [], []
                 for K_r_PQ in self.meshio_mesh.points:
                     # center of mass (S) over stl origin (P) to arbitrary stl point (Q)
                     K_r_SQ = self.K_r_SP + K_r_PQ
@@ -372,22 +350,7 @@ def FromSTL(Base):
                         )
                     )
 
-                    if sol_i.u_dot is not None:
-                        acc.append(
-                            self.a_P(
-                                sol_i.t,
-                                sol_i.q[self.qDOF],
-                                sol_i.u[self.uDOF],
-                                sol_i.u_dot[self.uDOF],
-                                K_r_SP=K_r_SQ,
-                            )
-                        )
-
-                if sol_i.u_dot is not None:
-                    point_data = dict(v=vel, a=acc)
-                else:
-                    point_data = dict(v=vel)
-
+                point_data = dict(v=vel)
                 cells = self.meshio_mesh.cells
 
             return points, cells, point_data, None
