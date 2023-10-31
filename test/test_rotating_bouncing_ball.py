@@ -5,10 +5,6 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
 from cardillo import System
-from cardillo.discrete import RigidBodyEuler
-from cardillo.discrete import Frame
-from cardillo.forces import Force
-from cardillo.contacts import Sphere2Plane
 from cardillo.solver import (
     MoreauShifted,
     NonsmoothGeneralizedAlpha,
@@ -16,24 +12,101 @@ from cardillo.solver import (
     MoreauShiftedNew,
     MoreauClassical,
     NonsmoothBackwardEuler,
-    NPIRK,
     SimplifiedNonsmoothGeneralizedAlpha,
     SimplifiedNonsmoothGeneralizedAlphaFirstOrder,
-    LobattoIIIAB,
 )
-from cardillo.solver._butcher_tableaus import RadauIIATableau, AlexanderTableau
 
 
-# TODO: Implement 2D rigid body with contact here.
-class Ball(RigidBodyEuler):
-    def __init__(self, m, R, q0=None, u0=None):
-        theta = 2 / 5 * m * R**2
-        self.R = R
-        super().__init__(m, theta * np.eye(3), q0=q0, u0=u0)
+class RotatingBouncingBall:
+    def __init__(self, mass, radius, gravity, e_N, e_F, mu, q0, u0):
+        self.mass = mass
+        self.radius = radius
+        theta = 2 / 5 * mass * radius**2
 
+        self.nq = 3
+        self.nu = 3
+        self.q0 = q0
+        self.u0 = u0
+        assert self.nq == len(q0)
+        assert self.nu == len(u0)
+
+        self.nla_N = 1
+        self.nla_F = 1
+        self.NF_connectivity = [[0]]
+        self.mu = np.atleast_1d(mu)
+        self.e_N = np.atleast_1d(e_N)
+        self.e_F = np.atleast_1d(e_F)
+
+        self._M = np.diag([mass, mass, theta])
+        self._h = np.array([0, -gravity * mass, 0])
+
+    #####################
+    # kinematic equations
+    #####################
+    def q_dot(self, t, q, u):
+        return u
+
+    def q_ddot(self, t, q, u, u_dot):
+        return u_dot
+
+    def B(self, t, q):
+        return np.ones(self.nq)
+
+    #####################
+    # equations of motion
+    #####################
+    def M(self, t, q):
+        return self._M
+
+    def h(self, t, q, u):
+        return self._h
+
+    #################
+    # normal contacts
+    #################
+    def g_N(self, t, q):
+        return np.array([q[1] - self.radius])
+
+    def g_N_dot(self, t, q, u):
+        return np.array([u[1]])
+
+    def g_N_ddot(self, t, q, u, u_dot):
+        return np.array([u_dot[1]])
+
+    def g_N_q(self, t, q):
+        g_N_q = np.zeros((self.nla_N, self.nq), dtype=q.dtype)
+        g_N_q[0, 1] = 1
+        return g_N_q
+
+    def W_N(self, t, q):
+        return self.g_N_q(t, q)
+
+    def Wla_N_q(self, t, q, la_N):
+        return np.zeros((self.nu, self.nq))
+
+    ##########
+    # friction
+    ##########
+    def gamma_F(self, t, q, u):
+        return np.array([u[0] + self.radius * u[2]])
+
+    def gamma_F_dot(self, t, q, u, u_dot):
+        return np.array([u_dot[0] + self.radius * u_dot[2]])
+
+    def W_F(self, t, q):
+        W_F = np.zeros((self.nla_F, self.nu), dtype=q.dtype)
+        W_F[0, 0] = 1
+        W_F[0, 2] = self.radius
+        return W_F
+
+    def Wla_F_q(self, t, q, la_F):
+        return np.zeros((self.nu, self.nq))
+
+    # visualization
     def boundary(self, t, q, n=100):
+        raise NotImplementedError
         phi = np.linspace(0, 2 * np.pi, n, endpoint=True)
-        K_r_SP = self.R * np.vstack([np.sin(phi), np.cos(phi), np.zeros(n)])
+        K_r_SP = self.radius * np.vstack([np.sin(phi), np.cos(phi), np.zeros(n)])
         return np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ K_r_SP
 
 
@@ -88,22 +161,17 @@ def run(case, export=True):
     else:
         raise AssertionError("Case not found!")
 
-    q0 = np.array([x0, y0, 0, 0, 0, 0], dtype=float)
-    u0 = np.array([x_dot0, y_dot0, 0, 0, 0, omega], dtype=float)
+    q0 = np.array([x0, y0, 0], dtype=float)
+    u0 = np.array([x_dot0, y_dot0, omega], dtype=float)
 
-    m = 1.0
-    R = 0.1
-    g = 9.81
-    RB = Ball(m, R, q0, u0)
+    mass = 1.0
+    radius = 0.1
+    gravity = 9.81
 
-    e1, e2, e3 = np.eye(3, dtype=float)
-    frame = Frame(A_IK=np.vstack((e3, e1, e2)).T, r_OP=np.zeros(3, dtype=float))
-    plane = Sphere2Plane(frame, RB, R, mu, e_N=e_N, e_F=e_F)
+    RB = RotatingBouncingBall(mass, radius, gravity, e_N, e_F, mu, q0, u0)
 
     system = System()
     system.add(RB)
-    system.add(Force(np.array([0, -g * m, 0]), RB))
-    system.add(plane)
 
     system.assemble()
 
@@ -123,8 +191,8 @@ def run(case, export=True):
     # solver1, label1 = Rattle(system, t_final, dt), "Rattle"
     # solver1, label1 = MoreauShifted(system, t_final, dt), "MoreauShifted"
     # solver1, label1 = MoreauShiftedNew(system, t_final, dt), "MoreauShiftedNew"
-    # solver1, label1 = MoreauClassical(system, t_final, dt), "MoreauClassical"
-    solver1, label1 = NonsmoothBackwardEuler(system, t_final, dt), "Euler backward"
+    solver1, label1 = MoreauClassical(system, t_final, dt), "MoreauClassical"
+    # solver1, label1 = NonsmoothBackwardEuler(system, t_final, dt), "Euler backward"
 
     sol1 = solver1.solve()
     t1 = sol1.t
@@ -256,7 +324,7 @@ def run(case, export=True):
     ax[1, 0].legend()
 
     ax[0, 1].set_title("y(t)")
-    ax[0, 1].plot([t2[0], t2[-1]], [R, R], "-b", label="ground")
+    ax[0, 1].plot([t2[0], t2[-1]], [radius, radius], "-b", label="ground")
     ax[0, 1].plot(t2, q2[:, 1], "-k", label=label2)
     ax[0, 1].plot(t1, q1[:, 1], "--r", label=label1)
     ax[0, 1].legend()
@@ -267,8 +335,8 @@ def run(case, export=True):
     ax[1, 1].legend()
 
     ax[0, 2].set_title("phi(t)")
-    ax[0, 2].plot(t2, q2[:, 3], "-k", label=label2)
-    ax[0, 2].plot(t1, q1[:, 3], "--r", label=label1)
+    ax[0, 2].plot(t2, q2[:, -1], "-k", label=label2)
+    ax[0, 2].plot(t1, q1[:, -1], "--r", label=label1)
     ax[0, 2].legend()
 
     ax[1, 2].set_title("u_phi(t)")
@@ -278,7 +346,7 @@ def run(case, export=True):
 
     plt.tight_layout()
 
-    fig, ax = plt.subplots(1, 3)
+    fig, ax = plt.subplots(1, 2)
 
     ax[0].set_title("P_N(t)")
     ax[0].plot(t2, P_N2[:, 0], "-k", label=label2)
@@ -286,17 +354,15 @@ def run(case, export=True):
     ax[0].legend()
 
     if mu > 0:
-        ax[1].set_title("P_Fx(t)")
+        ax[1].set_title("P_F(t)")
         ax[1].plot(t2, P_F2[:, 0], "-k", label=label2)
         ax[1].plot(t1, P_F1[:, 0], "--r", label=label1)
         ax[1].legend()
 
-        ax[2].set_title("P_Fy(t)")
-        ax[2].plot(t2, P_F2[:, 1], "-k", label=label2)
-        ax[2].plot(t1, P_F1[:, 1], "--r", label=label1)
-        ax[2].legend()
-
     plt.tight_layout()
+
+    plt.show()
+    exit()
 
     t = t1
     q = q1
@@ -329,8 +395,8 @@ def run(case, export=True):
         x_S, y_S, _ = RB.r_OP(t, q)
 
         A_IK = RB.A_IK(t, q)
-        d1 = A_IK[:, 0] * R
-        d2 = A_IK[:, 1] * R
+        d1 = A_IK[:, 0] * radius
+        d2 = A_IK[:, 1] * radius
         # d3 = A_IK[:, 2] * r
 
         (COM,) = ax.plot([x_S], [y_S], "ok")
@@ -347,8 +413,8 @@ def run(case, export=True):
         x_bdry, y_bdry, _ = RB.boundary(t, q)
 
         A_IK = RB.A_IK(t, q)
-        d1 = A_IK[:, 0] * R
-        d2 = A_IK[:, 1] * R
+        d1 = A_IK[:, 0] * radius
+        d2 = A_IK[:, 1] * radius
         # d3 = A_IK[:, 2] * r
 
         COM.set_data([x_S], [y_S])

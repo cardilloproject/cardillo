@@ -7,269 +7,8 @@ from cardillo.solver import Solution, compute_I_F
 from cardillo.math import prox_R0_np, prox_sphere
 
 
-class MoreauShifted:
-    def __init__(
-        self,
-        system,
-        t1,
-        dt,
-        fix_point_tol=1e-8,
-        fix_point_max_iter=100,
-        error_function=lambda x: np.max(np.abs(x)),
-        alpha=None,
-    ):
-        self.system = system
-
-        # integration time
-        t0 = system.t0
-        self.t1 = (
-            t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
-        )
-        self.dt = dt
-        self.t = np.arange(t0, self.t1 + self.dt, self.dt)
-
-        self.fix_point_error_function = error_function
-        self.fix_point_tol = fix_point_tol
-        self.fix_point_max_iter = fix_point_max_iter
-        if alpha is not None:
-            self.system.alpha = alpha
-
-        self.nq = self.system.nq
-        self.nu = self.system.nu
-        self.nla_g = self.system.nla_g
-        self.nla_gamma = self.system.nla_gamma
-        self.nla_N = self.system.nla_N
-        self.nla_F = self.system.nla_F
-        self.nR_smooth = self.nu + self.nla_g + self.nla_gamma
-        self.nR = self.nR_smooth + self.nla_N + self.nla_F
-
-        # initial conditions
-        self.tk = system.t0
-        self.qk = system.q0
-        self.uk = system.u0
-        self.q_dotk = system.q_dot0
-        self.u_dotk = system.u_dot0
-        la_g0 = system.la_g0
-        la_gamma0 = system.la_gamma0
-        la_N0 = system.la_N0
-        la_F0 = system.la_F0
-
-        # consistent initial percussion
-        self.P_gk = la_g0 * dt
-        self.P_gammak = la_gamma0 * dt
-        self.P_Nk = la_N0 * dt
-        self.P_Fk = la_F0 * dt
-
-        self.split_x = np.array([self.nu, self.nu + self.nla_g])
-
-        # connectivity matrix of normal force directions and friction force directions
-        self.NF_connectivity = self.system.NF_connectivity
-
-    def step(self):
-        # general quantities
-        dt = self.dt
-        uk = self.uk
-        tk1 = self.tk + dt
-
-        # explicit position update with projection
-        qk1 = self.qk + dt * self.system.q_dot(self.tk, self.qk, uk)
-        qk1, uk = self.system.step_callback(tk1, qk1, uk)
-        qk1, uk = self.system.pre_iteration_update(tk1, qk1, uk)
-
-        # get quantities from model
-        M = self.system.M(tk1, qk1)
-        h = self.system.h(tk1, qk1, uk)
-        W_g = self.system.W_g(tk1, qk1)
-        W_gamma = self.system.W_gamma(tk1, qk1)
-        chi_g = self.system.g_dot(tk1, qk1, np.zeros_like(uk))
-        chi_gamma = self.system.gamma(tk1, qk1, np.zeros_like(uk))
-
-        # identify active contacts
-        I_N = self.system.g_N(tk1, qk1) <= 0
-
-        # solve for new velocities and bilateral constraint percussions
-        # M (uk1 - uk) - dt h - W_g P_g - W_gamma P_gamma - W_gN P_N - W_gT P_T = 0
-        # -(W_g.T @ uk1 + chi_g) = 0
-        # -(W_gamma.T @ uk1 + chi_gamma) = 0
-        # fmt: off
-        A = bmat([[         M, -W_g, -W_gamma], \
-                  [    -W_g.T, None,     None], \
-                  [-W_gamma.T, None,     None]], format="csc")
-        # fmt: on
-
-        # perform LU decomposition only once since matrix A is constant in
-        # each time step saves alot work in the fixed point iteration
-        lu = splu(A)
-
-        # initial right hand side
-        rhs = M @ uk + dt * h
-        b = np.concatenate(
-            (
-                rhs,
-                chi_g,
-                chi_gamma,
-            )
-        )
-        # if there is no contact, this is wrong! TODO
-        # b = np.concatenate(
-        #     (
-        #         rhs + W_N[:, I_N] @ self.P_Nk[I_N] + W_F[:, I_F] @ self.P_Fk[I_F],
-        #         chi_g,
-        #         chi_gamma,
-        #     )
-        # )
-
-        # solve for initial velocities and percussions of the bilateral
-        # constraints for the fixed point iteration
-        x = lu.solve(b)
-        uk1, P_gk1, P_gammak1 = np.array_split(x, self.split_x)
-
-        P_Nk1 = np.zeros(self.nla_N, dtype=float)
-        P_Fk1 = np.zeros(self.nla_F, dtype=float)
-
-        converged = True
-        error = 0
-        j = 0
-        uk_fixed_point = uk.copy()
-        # only enter fixed-point loop if any contact is active
-        if np.any(I_N):
-            # note: we use csc_matrix for efficient column slicing later,
-            # see https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csc_array.html#scipy.sparse.csc_array
-            W_N = self.system.W_N(tk1, qk1, scipy_matrix=csc_matrix)
-            W_F = self.system.W_F(tk1, qk1, scipy_matrix=csc_matrix)
-            # identify active tangent contacts based on active normal contacts and
-            # NF-connectivity lists
-            # I_F = self.NF_connectivity[I_N]
-            if np.any(I_N):
-                I_F = np.array(
-                    [
-                        c
-                        for i, I_N_i in enumerate(I_N)
-                        for c in self.system.NF_connectivity[i]
-                        if I_N_i
-                    ],
-                    dtype=int,
-                )
-            else:
-                I_F = np.array([], dtype=int)
-
-            # compute new estimates for prox parameters and get friction coefficient
-            prox_r_N = self.system.prox_r_N(tk1, qk1)
-            prox_r_F = self.system.prox_r_F(tk1, qk1)
-            mu = self.system.mu
-            converged = False
-            P_Nk1_i1 = self.P_Nk.copy()
-            P_Fk1_i1 = self.P_Fk.copy()
-            for j in range(self.fix_point_max_iter):
-                # fixed-point update normal direction
-                P_Nk1_i1[I_N] = prox_R0_np(
-                    P_Nk1_i1[I_N]
-                    - prox_r_N[I_N] * self.system.xi_N(tk1, qk1, uk, uk1)[I_N]
-                )
-
-                # fixed-point update friction
-                xi_F = self.system.xi_F(tk1, qk1, uk, uk1)
-                for i_N, i_F in enumerate(self.NF_connectivity):
-                    if I_N[i_N] and len(i_F):
-                        P_Fk1_i1[i_F] = prox_sphere(
-                            P_Fk1_i1[i_F] - prox_r_F[i_N] * xi_F[i_F],
-                            mu[i_N] * P_Nk1_i1[i_N],
-                        )
-
-                # update rhs
-                b = np.concatenate(
-                    (
-                        rhs + W_N[:, I_N] @ P_Nk1_i1[I_N] + W_F[:, I_F] @ P_Fk1_i1[I_F],
-                        chi_g,
-                        chi_gamma,
-                    )
-                )
-
-                # solve for new velocities and Lagrange multipliers of bilateral constraints
-                x = lu.solve(b)
-                uk1, P_gk1, P_gammak1 = np.array_split(x, self.split_x)
-
-                # check for convergence
-                error = self.fix_point_error_function(uk1 - uk_fixed_point)
-                uk_fixed_point = uk1
-                converged = error < self.fix_point_tol
-                if converged:
-                    P_Nk1[I_N] = P_Nk1_i1[I_N]
-                    P_Fk1[I_F] = P_Fk1_i1[I_F]
-                    break
-
-        return (converged, j, error), tk1, qk1, uk1, P_gk1, P_gammak1, P_Nk1, P_Fk1
-
-    def solve(self):
-        # lists storing output variables
-        q = [self.qk]
-        u = [self.uk]
-        P_g = [self.P_gk]
-        P_gamma = [self.P_gammak]
-        P_N = [self.P_Nk]
-        P_F = [self.P_Fk]
-
-        nfrac = 100
-        pbar = tqdm(self.t[1:], leave=True, mininterval=0.5, miniters=nfrac)
-        for _ in pbar:
-            (
-                (converged, j, error),
-                tk1,
-                qk1,
-                uk1,
-                P_gk1,
-                P_gammak1,
-                P_Nk1,
-                P_Fk1,
-            ) = self.step()
-            pbar.set_description(
-                f"t: {tk1:0.2e}; fixed-point iterations: {j+1}; error: {error:.3e}"
-            )
-            if not converged:
-                # raise RuntimeError(
-                #     f"fixed-point iteration not converged after {j+1} iterations with error: {error:.5e}"
-                # )
-                print(
-                    f"fixed-point iteration not converged after {j+1} iterations with error: {error:.5e}"
-                )
-
-            qk1, uk1 = self.system.step_callback(tk1, qk1, uk1)
-
-            q.append(qk1)
-            u.append(uk1)
-            P_g.append(P_gk1)
-            P_gamma.append(P_gammak1)
-            P_N.append(P_Nk1)
-            P_F.append(P_Fk1)
-
-            # update local variables for accepted time step
-            (
-                self.tk,
-                self.qk,
-                self.uk,
-                self.P_gk,
-                self.P_gammak,
-                self.P_Nk,
-                self.P_Fk,
-            ) = (tk1, qk1, uk1, P_gk1, P_gammak1, P_Nk1, P_Fk1)
-
-        return Solution(
-            t=np.array(self.t),
-            q=np.array(q),
-            u=np.array(u),
-            la_g=np.array(P_g) / self.dt,
-            la_gamma=np.array(P_gamma) / self.dt,
-            la_N=np.array(P_N) / self.dt,
-            la_F=np.array(P_F) / self.dt,
-            P_g=np.array(P_g),
-            P_gamma=np.array(P_gamma),
-            P_N=np.array(P_N),
-            P_F=np.array(P_F),
-        )
-
-
 # TODO: Use this implementation or remove it.
-class MoreauShiftedNew:
+class MoreauShifted:
     def __init__(
         self,
         system,
@@ -558,10 +297,9 @@ class MoreauClassical:
         t1,
         dt,
         atol=1e-8,
-        max_iter=100,
+        max_iter=1000,
         error_function=lambda x: np.max(np.abs(x)),
         continue_with_unconverged=True,
-        alpha=None,
     ):
         self.system = system
 
@@ -577,8 +315,6 @@ class MoreauClassical:
         self.atol = atol
         self.max_iter = max_iter
         self.continue_with_unconverged = continue_with_unconverged
-        if alpha is not None:
-            self.system.alpha = alpha
 
         self.nq = self.system.nq
         self.nu = self.system.nu
@@ -664,6 +400,7 @@ class MoreauClassical:
 
         # explicit position update (midpoint) with projection
         qn12 = self.qn + 0.5 * dt * self.system.q_dot(self.tn, self.qn, un)
+        # TODO: Why do we use tn1 instead of tn12?
         qn12, un = self.system.step_callback(tn1, qn12, un)
         qn12, un = self.system.pre_iteration_update(tn1, qn12, un)
 
@@ -718,12 +455,15 @@ class MoreauClassical:
             # see https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csc_array.html#scipy.sparse.csc_array
             W_N = self.system.W_N(tn12, qn12, scipy_matrix=csc_matrix)
             W_F = self.system.W_F(tn12, qn12, scipy_matrix=csc_matrix)
+
             # identify active tangent contacts based on active normal contacts and
             # NF-connectivity lists
             I_F = compute_I_F(I_N, self.system.NF_connectivity)
+
             # compute new estimates for prox parameters and get friction coefficient
             prox_r_N = self.system.prox_r_N(tn12, qn12)
             prox_r_F = self.system.prox_r_F(tn12, qn12)
+
             mu = self.system.mu
             z0 = z = np.concatenate([self.P_Nn, self.P_Fn])
             for j in range(self.max_iter):
