@@ -54,6 +54,8 @@ class RigidBody:
         self.u0 = np.zeros(self.nu, dtype=float) if u0 is None else np.asarray(u0)
         assert self.q0.size == self.nq
         assert self.u0.size == self.nu
+        self.q = np.empty(self.nq)
+        self.t = None
 
         self.la_S0 = np.zeros(self.nla_S, dtype=float)
         assert self.la_S0.size == self.nla_S
@@ -63,6 +65,9 @@ class RigidBody:
         self.__M = np.zeros((self.nu, self.nu), dtype=float)
         self.__M[:3, :3] = self.mass * np.eye(3, dtype=float)
         self.__M[3:, 3:] = self.K_Theta_S
+
+    # def assembler_callback(self):
+    #     self.x = np.hstack((self.t0, self.q0))
 
     #####################
     # kinematic equations
@@ -106,6 +111,7 @@ class RigidBody:
     def step_callback(self, t, q, u):
         q[3:] = q[3:] / norm(q[3:])
         return q, u
+
 
     #####################
     # equations of motion
@@ -153,7 +159,11 @@ class RigidBody:
         return np.arange(self.nu)
 
     def A_IK(self, t, q, frame_ID=None):
-        return Exp_SO3_quat(q[3:])
+        if not (t == self.t and np.allclose(q, self.q)):
+            self._A_IK = Exp_SO3_quat(q[3:])
+            self.t = t
+            self.q = q
+        return self._A_IK
 
     def A_IK_q(self, t, q, frame_ID=None):
         A_IK_q = np.zeros((3, 3, self.nq), dtype=q.dtype)
