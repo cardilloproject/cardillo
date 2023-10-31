@@ -76,10 +76,6 @@ class MaxwellElementCompliance:
         assert self.nq == len(q0)
         assert self.nu == len(u0)
 
-        # 0 = la + k * (x - x_D)
-        # 0 = (1 / k) * la + (x - x_D)
-        # m * x_dot = la
-
     #####################
     # kinematic equations
     #####################
@@ -126,7 +122,9 @@ class MaxwellElementCompliance:
 
     def c(self, t, q, u):
         x, x_D = q
-        return np.array([x - x_D])
+        g_F = x - x_D
+        return np.array([g_F])
+        # return np.array([g_F**3])
 
     def c_q(self, t, q, u):
         c_q = np.zeros((self.nc, self.nq))
@@ -134,10 +132,18 @@ class MaxwellElementCompliance:
         c_q[0, 1] = -1
         return c_q
 
+        # x, x_D = q
+        # g_F = x - x_D
+        # factor = 3 * g_F**2
+        # c_q = np.zeros((self.nc, self.nq))
+        # c_q[0, 0] = factor
+        # c_q[0, 1] = -factor
+        # return c_q
+
 
 if __name__ == "__main__":
     mass = 1e-3
-    stiffness = 10
+    stiffness = 1e1
     damping = 1
     x0 = 1
     x_D0 = 0
@@ -152,8 +158,8 @@ if __name__ == "__main__":
     system.add(maxwell_element)
     system.assemble()
 
-    t1 = 1e0
-    dt = 1e-3
+    t1 = 10
+    dt = 5e-3
     sol = EulerBackward(system, t1, dt).solve()
 
     t, q, u = sol.t, sol.q, sol.u
