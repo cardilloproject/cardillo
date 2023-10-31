@@ -16,16 +16,17 @@ properties.extend(["M", "Mu_q"])
 
 properties.extend(["h", "h_q", "h_u"])
 
-properties.extend(["q_dot", "q_dot_q", "B"])
+properties.extend(["q_dot", "q_dot_q", "q_dot_u"])
 
-properties.extend(["g", "g_q"])
-properties.extend(["gamma", "gamma_q", "gamma_u"])
+properties.extend(["g"])
+properties.extend(["gamma"])
 properties.extend(["g_S"])
+properties.extend(["c", "c_q", "c_u"])
 
 properties.extend(["g_N"])
 properties.extend(["gamma_F"])
 
-properties.extend(["assembler_callback", "pre_iteration_update", "step_callback"])
+properties.extend(["assembler_callback", "step_callback"])
 
 
 class System:
@@ -285,10 +286,10 @@ class System:
             coo[contr.qDOF, contr.qDOF] = contr.q_dot_q(t, q[contr.qDOF], u[contr.uDOF])
         return coo.tosparse(scipy_matrix)
 
-    def B(self, t, q, scipy_matrix=coo_matrix):
+    def q_dot_u(self, t, q, u, scipy_matrix=coo_matrix):
         coo = CooMatrix((self.nq, self.nu))
-        for contr in self.__B_contr:
-            coo[contr.qDOF, contr.uDOF] = contr.B(t, q[contr.qDOF])
+        for contr in self.__q_dot_u_contr:
+            coo[contr.qDOF, contr.uDOF] = contr.q_dot_u(t, q[contr.qDOF], u[contr.uDOF])
         return coo.tosparse(scipy_matrix)
 
     def q_ddot(self, t, q, u, u_dot):
@@ -298,11 +299,6 @@ class System:
                 t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF]
             )
         return q_ddot
-
-    def pre_iteration_update(self, t, q, u):
-        for contr in self.__pre_iteration_update_contr:
-            contr.pre_iteration_update(t, q[contr.qDOF], u[contr.uDOF])
-        return q, u
 
     def step_callback(self, t, q, u):
         for contr in self.__step_callback_contr:

@@ -50,7 +50,6 @@ class ScipyIVP:
         self.i = i1
 
         q, u = np.array_split(x, [self.nq])
-        q, u = self.system.pre_iteration_update(t, q, u)
 
         M = self.system.M(t, q)
         h = self.system.h(t, q, u)

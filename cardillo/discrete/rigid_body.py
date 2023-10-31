@@ -54,8 +54,9 @@ class RigidBody:
         self.u0 = np.zeros(self.nu, dtype=float) if u0 is None else np.asarray(u0)
         assert self.q0.size == self.nq
         assert self.u0.size == self.nu
-        self.q = np.empty(self.nq)
         self.t = None
+        self.q = np.empty(self.nq)
+        # self.u = np.empty(self.nu)
 
         self.la_S0 = np.zeros(self.nla_S, dtype=float)
         assert self.la_S0.size == self.nla_S
@@ -65,9 +66,6 @@ class RigidBody:
         self.__M = np.zeros((self.nu, self.nu), dtype=float)
         self.__M[:3, :3] = self.mass * np.eye(3, dtype=float)
         self.__M[3:, 3:] = self.K_Theta_S
-
-    # def assembler_callback(self):
-    #     self.x = np.hstack((self.t0, self.q0))
 
     #####################
     # kinematic equations
@@ -111,7 +109,6 @@ class RigidBody:
     def step_callback(self, t, q, u):
         q[3:] = q[3:] / norm(q[3:])
         return q, u
-
 
     #####################
     # equations of motion

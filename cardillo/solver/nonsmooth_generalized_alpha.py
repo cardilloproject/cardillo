@@ -2442,8 +2442,6 @@ class SimplifiedNonsmoothGeneralizedAlpha:
             self.R_F_barn = R_F_barn1.copy()
             # self.P_Fn = P_Fn1.copy()
 
-        qn1, un1 = self.system.pre_iteration_update(tn1, qn1, un1)
-
         return (
             tn1,
             qn1,
@@ -2853,8 +2851,6 @@ class SimplifiedNonsmoothGeneralizedAlphaFirstOrder:
         # P_Fn12 = self.P_Fn + h * ((1 - gamma) * self.R_F_barn + gamma * R_F_barn1)
         P_Fn12 = h * ((1 - gamma) * self.R_F_barn + gamma * R_F_barn1)
         P_Fn1 = P_Fn12 + Delta_R_Fn2
-
-        qn1, un1 = self.system.pre_iteration_update(tn1, qn1, un1)
 
         if store:
             # update local variables for accepted time step
@@ -3287,7 +3283,6 @@ class NonsmoothGeneralizedAlphaOriginal:
             + dt2 * self.system.q_ddot(self.tk, self.qk, self.uk, a_beta)
             + self.system.B(self.tk, self.qk) @ Qk1
         )
-        qk1, uk1 = self.system.pre_iteration_update(tk1, qk1, uk1)
 
         la_Nbark1 = (
             self.alpha_f * self.la_Nk

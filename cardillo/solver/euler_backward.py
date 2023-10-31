@@ -91,7 +91,6 @@ class EulerBackward:
         t = self.t
         q_dot, u_dot, la_g, la_gamma, mu_S, mu_g = a = np.array_split(y, self.split_y)
         q, u = self._update(y)
-        q, u = self.system.pre_iteration_update(t, q, u)
 
         self.M = self.system.M(t, q, scipy_matrix=csr_matrix)
         self.W_g = self.system.W_g(t, q, scipy_matrix=csr_matrix)
@@ -390,7 +389,6 @@ class NonsmoothBackwardEuler:
         tn1 = tn + dt
         qn1 = qn + dt * q_dotn1
         un1 = un + dt * u_dotn1
-        qn1, un1 = self.system.pre_iteration_update(tn1, qn1, un1)
 
         ###################
         # evaluate residual

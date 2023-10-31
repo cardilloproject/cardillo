@@ -177,7 +177,6 @@ class Export:
             file_i = self.path / f"{file_name}_{i}.vtu"
             self.__write_time_step_and_name(sol_i.t, file_i)
 
-            self.system.pre_iteration_update(sol_i.t, sol_i.q, sol_i.u)
             points, cells, point_data, cell_data = export(sol_i, **kwargs)
 
             meshio.write_points_cells(

@@ -82,8 +82,6 @@ class Newton:
         la_g = x[nq : nq + nla_g]
         la_N = x[nq + nla_g :]
 
-        self.system.pre_iteration_update(t, q, self.u0)
-
         # evaluate quantites that are required for computing the residual and
         # the jacobian
         W_g = self.system.W_g(t, q, scipy_matrix=csr_matrix)
@@ -106,8 +104,6 @@ class Newton:
         q = x[:nq]
         la_g = x[nq : nq + nla_g]
         la_N = x[nq + nla_g :]
-
-        self.system.pre_iteration_update(t, q, self.u0)
 
         # evaluate quantites that are required for computing the residual and
         # the jacobian

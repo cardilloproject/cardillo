@@ -120,7 +120,6 @@ class MoreauShifted:
         # explicit position update with projection
         qn1 = self.qn + dt * self.system.q_dot(self.tn, self.qn, un)
         qn1, un = self.system.step_callback(tn1, qn1, un)
-        qn1, un = self.system.pre_iteration_update(tn1, qn1, un)
 
         # get quantities from model
         M = self.system.M(tn1, qn1)
@@ -400,9 +399,6 @@ class MoreauClassical:
 
         # explicit position update (midpoint) with projection
         qn12 = self.qn + 0.5 * dt * self.system.q_dot(self.tn, self.qn, un)
-        # TODO: Why do we use tn1 instead of tn12?
-        qn12, un = self.system.step_callback(tn1, qn12, un)
-        qn12, un = self.system.pre_iteration_update(tn1, qn12, un)
 
         # get quantities from model
         M = self.system.M(tn12, qn12)
