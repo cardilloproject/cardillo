@@ -20,8 +20,8 @@ properties.extend(["q_dot", "q_dot_q", "q_dot_u"])
 
 properties.extend(["g"])
 properties.extend(["gamma"])
-properties.extend(["g_S"])
 properties.extend(["c", "c_q", "c_u"])
+properties.extend(["g_S"])
 
 properties.extend(["g_N"])
 properties.extend(["gamma_F"])
@@ -160,6 +160,7 @@ class System:
         self.nu = 0
         self.nla_g = 0
         self.nla_gamma = 0
+        self.nla_c = 0
         self.nla_S = 0
         self.nla_N = 0
         self.nla_F = 0
@@ -208,6 +209,11 @@ class System:
             if hasattr(contr, "nla_gamma"):
                 contr.la_gammaDOF = np.arange(0, contr.nla_gamma) + self.nla_gamma
                 self.nla_gamma += contr.nla_gamma
+
+            # if contribution has compliance contribution
+            if hasattr(contr, "nla_c"):
+                contr.la_cDOF = np.arange(0, contr.nla_c) + self.nla_c
+                self.nla_c += contr.nla_c
 
             # if contribution has stabilization conditions for the kinematic equation
             if hasattr(contr, "nla_S"):
@@ -261,6 +267,7 @@ class System:
             self.u_dot0,
             self.la_g0,
             self.la_gamma0,
+            self.la_c0,
             self.la_N0,
             self.la_F0,
         ) = consistent_initial_conditions(self, **kwargs)
@@ -511,6 +518,40 @@ class System:
             coo[contr.uDOF, contr.qDOF] = contr.Wla_gamma_q(
                 t, q[contr.qDOF], la_gamma[contr.la_gammaDOF]
             )
+        return coo.tosparse(scipy_matrix)
+
+    ############
+    # compliance
+    ############
+    # TODO: This is constant!
+    def K_c(self, scipy_matrix=coo_matrix):
+        coo = CooMatrix((self.nla_c, self.nla_c))
+        for contr in self.__c_contr:
+            coo[contr.la_cDOF, contr.la_cDOF] = contr.K_c()
+        return coo.tosparse(scipy_matrix)
+
+    def W_c(self, t, q, scipy_matrix=coo_matrix):
+        coo = CooMatrix((self.nu, self.nla_c))
+        for contr in self.__c_contr:
+            coo[contr.uDOF, contr.la_cDOF] = contr.W_c(t, q[contr.qDOF])
+        return coo.tosparse(scipy_matrix)
+
+    def c(self, t, q, u):
+        c = np.zeros(self.nla_c, dtype=np.common_type(q, u))
+        for contr in self.__c_contr:
+            c[contr.la_cDOF] = contr.c(t, q[contr.qDOF], u[contr.uDOF])
+        return c
+
+    def c_q(self, t, q, u, scipy_matrix=coo_matrix):
+        coo = CooMatrix((self.nla_c, self.nq))
+        for contr in self.__c_q_contr:
+            coo[contr.la_cDOF, contr.qDOF] = contr.c_q(t, q[contr.qDOF], u[contr.uDOF])
+        return coo.tosparse(scipy_matrix)
+
+    def c_u(self, t, q, u, scipy_matrix=coo_matrix):
+        coo = CooMatrix((self.nla_c, self.nu))
+        for contr in self.__c_u_contr:
+            coo[contr.la_cDOF, contr.uDOF] = contr.c_u(t, q[contr.qDOF], u[contr.uDOF])
         return coo.tosparse(scipy_matrix)
 
     #####################################################

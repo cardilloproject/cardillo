@@ -51,7 +51,10 @@ class EulerBackward:
         self.nla_g = self.system.nla_g
         self.nla_gamma = self.system.nla_gamma
         self.nla_S = self.system.nla_S
-        self.ny = self.nq + self.nu + self.nla_g + self.nla_gamma + self.nla_S
+        self.nla_c = self.system.nla_c
+        self.ny = (
+            self.nq + self.nu + self.nla_g + self.nla_gamma + self.nla_c + self.nla_S
+        )
         if method == "index 2 GGL":
             self.ny += self.nla_g
 
@@ -63,7 +66,8 @@ class EulerBackward:
 
         self.split_y = np.cumsum(
             np.array(
-                [self.nq, self.nu, self.nla_g, self.nla_gamma, self.nla_S], dtype=int
+                [self.nq, self.nu, self.nla_g, self.nla_gamma, self.nla_c, self.nla_S],
+                dtype=int,
             )
         )
 
@@ -72,6 +76,7 @@ class EulerBackward:
         self.y[self.split_y[0] : self.split_y[1]] = system.u_dot0
         self.y[self.split_y[1] : self.split_y[2]] = system.la_g0
         self.y[self.split_y[2] : self.split_y[3]] = system.la_gamma0
+        self.y[self.split_y[3] : self.split_y[4]] = system.la_c0
 
     def _update(self, y):
         q_dot = y[: self.nq]
@@ -85,16 +90,18 @@ class EulerBackward:
         nu = self.nu
         nla_g = self.nla_g
         nla_gamma = self.nla_gamma
+        nla_c = self.nla_c
         nla_S = self.nla_S
         nqu = nq + nu
 
         t = self.t
-        q_dot, u_dot, la_g, la_gamma, mu_S, mu_g = a = np.array_split(y, self.split_y)
+        q_dot, u_dot, la_g, la_gamma, la_c, mu_S, mu_g = np.array_split(y, self.split_y)
         q, u = self._update(y)
 
         self.M = self.system.M(t, q, scipy_matrix=csr_matrix)
         self.W_g = self.system.W_g(t, q, scipy_matrix=csr_matrix)
         self.W_gamma = self.system.W_gamma(t, q, scipy_matrix=csr_matrix)
+        self.W_c = self.system.W_c(t, q, scipy_matrix=csr_matrix)
         R = np.zeros(self.ny, dtype=y.dtype)
 
         self.g_S_q = self.system.g_S_q(t, q, scipy_matrix=csc_matrix)
@@ -104,7 +111,10 @@ class EulerBackward:
             R[:nq] -= self.g_q.T @ mu_g
 
         R[nq:nqu] = self.M @ u_dot - (
-            self.system.h(t, q, u) + self.W_g @ la_g + self.W_gamma @ la_gamma
+            self.system.h(t, q, u)
+            + self.W_g @ la_g
+            + self.W_gamma @ la_gamma
+            + self.W_c @ la_c
         )
 
         if self.method == "index 1":
@@ -116,7 +126,7 @@ class EulerBackward:
 
         if self.method == "index 2 GGL":
             R[nqu : nqu + nla_g] = self.system.g_dot(t, q, u)
-            R[nqu + nla_g + nla_gamma + nla_S :] = self.system.g(t, q)
+            R[nqu + nla_g + nla_gamma + nla_c + nla_S :] = self.system.g(t, q)
         elif self.method == "index 3":
             R[nqu : nqu + nla_g] = self.system.g(t, q)
         elif self.method == "index 2":
@@ -124,13 +134,18 @@ class EulerBackward:
         elif self.method == "index 1":
             R[nqu : nqu + nla_g] = self.system.g_ddot(t, q, u, u_dot)
 
-        R[nqu + nla_g + nla_gamma : nqu + nla_g + nla_gamma + nla_S] = self.system.g_S(
-            t, q
-        )
+        R[
+            nqu + nla_g + nla_gamma : nqu + nla_g + nla_gamma + nla_c
+        ] = self.system.K_c() @ la_c + self.system.c(t, q, u)
+
+        R[
+            nqu + nla_g + nla_gamma + nla_c : nqu + nla_g + nla_gamma + nla_c + nla_S
+        ] = self.system.g_S(t, q)
 
         return R
 
     def _J(self, y):
+        return csc_matrix(approx_fprime(y, self._R))
         t = self.t
         dt = self.dt
         q_dot, u_dot, la_g, la_gamma, mu_S, mu_g = np.array_split(y, self.split_y)
@@ -217,7 +232,9 @@ class EulerBackward:
             return J
 
     def solve(self):
-        q_dot, u_dot, la_g, la_gamma, mu_S, mu_g = np.array_split(self.y, self.split_y)
+        q_dot, u_dot, la_g, la_gamma, la_c, mu_S, mu_g = np.array_split(
+            self.y, self.split_y
+        )
 
         # lists storing output variables
         q_list = [self.qn]
@@ -226,6 +243,7 @@ class EulerBackward:
         u_dot_list = [u_dot]
         la_g_list = [la_g]
         la_gamma_list = [la_gamma]
+        la_c_list = [la_c]
         mu_S_list = [mu_S]
         mu_g_list = [mu_g]
 
@@ -253,7 +271,7 @@ class EulerBackward:
 
             q, u = self._update(self.y)
             self.qn, self.un = self.system.step_callback(t, q, u)
-            q_dot, u_dot, la_g, la_gamma, mu_S, mu_g = np.array_split(
+            q_dot, u_dot, la_g, la_gamma, la_c, mu_S, mu_g = np.array_split(
                 self.y, self.split_y
             )
 
@@ -263,17 +281,9 @@ class EulerBackward:
             u_dot_list.append(u_dot)
             la_g_list.append(la_g)
             la_gamma_list.append(la_gamma)
+            la_c_list.append(la_c)
             mu_S_list.append(mu_S)
             mu_g_list.append(mu_g)
-
-            # # update step size
-            # min_factor = 0.2
-            # max_factor = 5
-            # target_iter = 1
-            # factor = target_iter / n_iter
-            # factor = max(min_factor, min(max_factor, factor))
-            # print(f"factor: {factor}")
-            # self.dt *= factor
 
         # write solution
         return Solution(
@@ -284,6 +294,7 @@ class EulerBackward:
             u_dot=np.array(u_dot_list),
             la_g=np.array(la_g_list),
             la_gamma=np.array(la_gamma_list),
+            la_c=np.array(la_c_list),
             mu_s=np.array(mu_S_list),
             mu_g=np.array(mu_g_list),
         )

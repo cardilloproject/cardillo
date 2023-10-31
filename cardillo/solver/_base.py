@@ -39,6 +39,8 @@ def consistent_initial_conditions(
     W_gamma = system.W_gamma(t0, q0, scipy_matrix=csr_matrix)
     W_N = system.W_N(t0, q0, scipy_matrix=csr_matrix)
     W_F = system.W_F(t0, q0, scipy_matrix=csr_matrix)
+    K_c = system.K_c(scipy_matrix=csr_matrix)
+    c = system.c(t0, q0, u0)
     gamma_F = system.gamma_F(t0, q0, u0)
 
     prox_r_N = system.prox_r_N(t0, q0)
@@ -50,6 +52,7 @@ def consistent_initial_conditions(
             system.nu,
             system.nla_g,
             system.nla_gamma,
+            system.nla_c,
             system.nla_N,
         ]
     )
@@ -94,7 +97,7 @@ def consistent_initial_conditions(
         return R_la_F
 
     def R(x, update_index=False):
-        u_dot, la_g, la_gamma, la_N, la_F = np.array_split(x, split)
+        u_dot, la_g, la_gamma, la_c, la_N, la_F = np.array_split(x, split)
 
         R = np.zeros_like(x)
 
@@ -111,24 +114,31 @@ def consistent_initial_conditions(
         R[split[0] : split[1]] = system.g_ddot(t0, q0, u0, u_dot)
         R[split[1] : split[2]] = system.gamma_dot(t0, q0, u0, u_dot)
 
-        #################################
-        # Signorini on acceleration level
-        #################################
-        g_N_ddot = system.g_N_ddot(t0, q0, u0, u_dot)
-        prox_arg = prox_r_N * g_N_ddot - la_N
-        global C_N
-        if update_index:
-            C_N = B_N * (prox_arg <= 0)
-        R[split[2] : split[3]] = np.where(C_N, g_N_ddot, la_N)
+        ############
+        # compliance
+        ############
+        # TODO: For singular K_c we have to solve c_dot or c_ddot here!
+        R[split[2] : split[3]] = K_c @ la_c + c
 
-        ################################
-        # friction on acceleration level
-        ################################
-        R[split[3] :] = _R_F(x)
+        # #################################
+        # # Signorini on acceleration level
+        # #################################
+        # g_N_ddot = system.g_N_ddot(t0, q0, u0, u_dot)
+        # prox_arg = prox_r_N * g_N_ddot - la_N
+        # global C_N
+        # if update_index:
+        #     C_N = B_N * (prox_arg <= 0)
+        # R[split[3] : split[4]] = np.where(C_N, g_N_ddot, la_N)
+
+        # ################################
+        # # friction on acceleration level
+        # ################################
+        # R[split[4] :] = _R_F(x)
 
         return R
 
     def J(x, *args, **kwargs):
+        return csc_matrix(approx_fprime(x, R, method="3-point", eps=1.0e-6))
         global C_N
         # TODO: Sparse matrix matrix or sparse matrix slicing?
         Rla_N_u_dot = diags(C_N.astype(float)) @ W_N.T
@@ -137,7 +147,10 @@ def consistent_initial_conditions(
         Rla_N_la_N = diags((~C_N).astype(float))
 
         Rla_F_u_dot, _, _, Rla_F_la_N, Rla_F_la_F = np.array_split(
-            approx_fprime(x, lambda x: _R_F(x)), split, axis=1
+            # approx_fprime(x, lambda x: _R_F(x)), split, axis=1
+            approx_fprime(x, lambda x: _R_F(x)),
+            split,
+            axis=0,
         )
 
         # fmt: off
@@ -162,7 +175,12 @@ def consistent_initial_conditions(
         return J_num
 
     x0 = np.zeros(
-        system.nu + system.nla_g + system.nla_gamma + system.nla_N + system.nla_F
+        system.nu
+        + system.nla_g
+        + system.nla_gamma
+        + system.nla_c
+        + system.nla_N
+        + system.nla_F
     )
     if jac is None:
         jac = J
@@ -181,7 +199,7 @@ def consistent_initial_conditions(
     assert (
         converged
     ), "Solving for consistent initial conditions does not converge after {i} iterations with error {error}."
-    u_dot0, la_g0, la_gamma0, la_N0, la_F0 = np.array_split(x0, split)
+    u_dot0, la_g0, la_gamma0, la_c0, la_N0, la_F0 = np.array_split(x0, split)
 
     # check if initial conditions satisfy constraints on position, velocity
     # and acceleration level
@@ -216,7 +234,7 @@ def consistent_initial_conditions(
         g_S0, np.zeros(system.nla_S), rtol, atol
     ), "Initial conditions do not fulfill g_S0!"
 
-    return t0, q0, u0, q_dot0, u_dot0, la_g0, la_gamma0, la_N0, la_F0
+    return t0, q0, u0, q_dot0, u_dot0, la_g0, la_gamma0, la_c0, la_N0, la_F0
 
 
 def compute_I_F(I_N, NF_connectivity):
