@@ -66,6 +66,7 @@ class System:
         self.contributions = []
 
         self.origin = Frame()
+        self.origin.name = 'origin'
         self.add(self.origin)
 
     def add(self, *contrs):
@@ -191,6 +192,7 @@ class System:
             # if contribution has position degrees of freedom address position coordinates
             if hasattr(contr, "nq"):
                 contr.qDOF = np.arange(0, contr.nq) + self.nq
+                contr.q_dotDOF = contr.qDOF.copy()
                 self.nq += contr.nq
                 q0.extend(contr.q0.tolist())
 
@@ -251,7 +253,7 @@ class System:
         self.e_N = np.array(e_N)
         self.e_F = np.array(e_F)
         self.mu = np.array(mu)
-        self._alpha = 1
+        self._alpha = 1 #TODO: GC: What is alpha?
 
         # call assembler callback: call methods that require first an assembly of the system
         self.assembler_callback()
@@ -284,31 +286,31 @@ class System:
     def q_dot(self, t, q, u):
         q_dot = np.zeros(self.nq, dtype=np.common_type(q, u))
         for contr in self.__q_dot_contr:
-            q_dot[contr.qDOF] = contr.q_dot(t, q[contr.qDOF], u[contr.uDOF])
+            q_dot[contr.q_dotDOF] = contr.q_dot(t, q[contr.qDOF], u[contr.uDOF])
         return q_dot
 
     def q_dot_q(self, t, q, u, scipy_matrix=coo_matrix):
         coo = CooMatrix((self.nq, self.nq))
         for contr in self.__q_dot_q_contr:
-            coo[contr.qDOF, contr.qDOF] = contr.q_dot_q(t, q[contr.qDOF], u[contr.uDOF])
+            coo[contr.q_dotDOF, contr.qDOF] = contr.q_dot_q(t, q[contr.qDOF], u[contr.uDOF])
         return coo.tosparse(scipy_matrix)
 
     def q_dot_u(self, t, q, u, scipy_matrix=coo_matrix):
         coo = CooMatrix((self.nq, self.nu))
         for contr in self.__q_dot_u_contr:
-            coo[contr.qDOF, contr.uDOF] = contr.q_dot_u(t, q[contr.qDOF], u[contr.uDOF])
+            coo[contr.q_dotDOF, contr.uDOF] = contr.q_dot_u(t, q[contr.qDOF], u[contr.uDOF])
         return coo.tosparse(scipy_matrix)
 
     def q_ddot(self, t, q, u, u_dot):
         q_ddot = np.zeros(self.nq, dtype=np.common_type(q, u, u_dot))
         for contr in self.__q_dot_contr:
-            q_ddot[contr.qDOF] = contr.q_ddot(
+            q_ddot[contr.q_dotDOF] = contr.q_ddot(
                 t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF]
             )
         return q_ddot
 
     def step_callback(self, t, q, u):
-        for contr in self.__step_callback_contr:
+        for contr in self.__step_callback_contr: # TODO: GC: q_dotDOF or qDOF? (I would leave it like this.)
             q[contr.qDOF], u[contr.uDOF] = contr.step_callback(
                 t, q[contr.qDOF], u[contr.uDOF]
             )

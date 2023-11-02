@@ -2,6 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from cardillo import System
+from cardillo.discrete import PointMass
+from cardillo.forces import MaxwellElement as MaxwellElementFL
 from cardillo.solver import EulerBackward
 
 
@@ -140,19 +142,36 @@ class MaxwellElementCompliance:
         # c_q[0, 1] = -factor
         # return c_q
 
+class MaxwellElementForceElement:
+    def __init__(self, mass, stiffness, damping, x0, g_d0, x_dot0):
+        
+        self.system = System()
+        pm = PointMass(mass, q0=np.array([x0, 0, 0]), u0=np.array([x_dot0, 0, 0]))
+        pm.name = 'point mass'
+        self.system.add(pm)
+        max = MaxwellElementFL(self.system.origin, pm, stiffness, damping,g_ref=0, q0=np.array([g_d0]))
+        max.name = 'Maxwell-element'
+        self.system.add(max)
+        self.system.assemble()
+
+    def get_system(self):
+        return self.system
+
+
 
 if __name__ == "__main__":
     mass = 1e-3
     stiffness = 1e1
     damping = 1
-    x0 = 1
-    x_D0 = 0
-    x_dot0 = 0
+    x0 = 1.
+    x_D0 = 0.
+    x_dot0 = 0.
     q0 = np.array([x0, x_D0], dtype=float)
     u0 = np.array([x_dot0], dtype=float)
 
     # maxwell_element = MaxwellElement(mass, stiffness, damping, q0, u0)
-    maxwell_element = MaxwellElementCompliance(mass, stiffness, damping, q0, u0)
+    # maxwell_element = MaxwellElementCompliance(mass, stiffness, damping, q0, u0)
+    maxwell_element = MaxwellElementForceElement(mass, stiffness, damping, x0, x_D0, x_dot0).get_system()
 
     system = System()
     system.add(maxwell_element)
@@ -165,7 +184,7 @@ if __name__ == "__main__":
     t, q, u = sol.t, sol.q, sol.u
     fig, ax = plt.subplots(1, 2)
     ax[0].plot(t, q[:, 0], "-b", label="x")
-    ax[0].plot(t, q[:, 1], "--r", label="x_D")
+    ax[0].plot(t, q[:, -1], "--r", label="x_D")
     ax[0].grid()
     ax[0].legend()
     ax[1].plot(t, u[:, 0], label="x_dot")
