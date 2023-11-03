@@ -1,5 +1,6 @@
 import numpy as np
 from numpy.linalg import norm
+from cardillo.math import approx_fprime
 
 
 class MaxwellElement:
@@ -29,7 +30,7 @@ class MaxwellElement:
         self.frame_ID2 = frame_ID2
         self.K_r_SP2 = K_r_SP2
 
-        self.nq = 1 #g_damper
+        self.nq = 1  # g_damper
 
     def assembler_callback(self):
         qDOF1 = self.subsystem1.qDOF
@@ -100,13 +101,21 @@ class MaxwellElement:
             t, q[self._nq1 : self._nq2], self.frame_ID2, self.K_r_SP2
         )
         self.J_P2_q = lambda t, q: self.subsystem2.J_P_q(
-            t, q[self._nq1 :self._nq2], self.frame_ID2, self.K_r_SP2
+            t, q[self._nq1 : self._nq2], self.frame_ID2, self.K_r_SP2
         )
         self.v_P2 = lambda t, q, u: self.subsystem2.v_P(
-            t, q[self._nq1 :self._nq2], u[self._nu1 :self._nq2], self.frame_ID2, self.K_r_SP2
+            t,
+            q[self._nq1 : self._nq2],
+            u[self._nu1 : self._nq2],
+            self.frame_ID2,
+            self.K_r_SP2,
         )
         self.v_P2_q = lambda t, q, u: self.subsystem2.v_P_q(
-            t, q[self._nq1 :self._nq2], u[self._nu1 :self._nq2], self.frame_ID2, self.K_r_SP2
+            t,
+            q[self._nq1 : self._nq2],
+            u[self._nu1 : self._nq2],
+            self.frame_ID2,
+            self.K_r_SP2,
         )
 
     # auxiliary functions
@@ -133,9 +142,10 @@ class MaxwellElement:
         v_P1P2 = v_P2 - v_P1
 
         nq1 = self._nq1
+        nq2 = self._nq2
         gamma_q = np.zeros(self._nq)
         gamma_q[:nq1] = -n @ self.v_P1_q(t, q, u) + v_P1P2 @ n_q1
-        gamma_q[nq1:n_q1+n_q2] = n @ self.v_P2_q(t, q, u) + v_P1P2 @ n_q2
+        gamma_q[nq1 : nq1 + nq2] = n @ self.v_P2_q(t, q, u) + v_P1P2 @ n_q2
         return gamma_q
 
     def _n(self, t, q):
@@ -176,57 +186,34 @@ class MaxwellElement:
         # dense blocks
         W_q = np.zeros((self._nu, self._nq))
         W_q[:nu1, :nq1] = -J_P1.T @ n_q1 + np.einsum("i,ijk->jk", -n, J_P1_q)
-        W_q[:nu1, nq1:n_q1+n_q2] = -J_P1.T @ n_q2
-        W_q[nu1:n_q1+n_q2, :nq1] = J_P2.T @ n_q1
-        W_q[nu1:n_q1+n_q2, nq1:n_q1+n_q2] = J_P2.T @ n_q2 + np.einsum("i,ijk->jk", n, J_P2_q)
+        W_q[:nu1, nq1 : nq1 + nq2] = -J_P1.T @ n_q2
+        W_q[nu1 : nq1 + nq2, :nq1] = J_P2.T @ n_q1
+        W_q[nu1 : nq1 + nq2, nq1 : nq1 + nq2] = J_P2.T @ n_q2 + np.einsum(
+            "i,ijk->jk", n, J_P2_q
+        )
+        # W_q = approx_fprime(q, lambda q: self.W(t, q))
 
         return W_q
 
-    # private functions
-    # def __f_spring(self, t, q):
-    #     g = self._g(t, q)
-    #     return -self._W(t, q) * self.force_law_spring.la(t, g)
-
-    # def __f_spring_q(self, t, q):
-    #     g = self._g(t, q)
-    #     return -self.force_law_spring.la(t, g) * self._W_q(
-    #         t, q
-    #     ) - self.force_law_spring.la_g(t, g) * np.outer(self._W(t, q), self._g_q(t, q))
-
-    # def __f_damper(self, t, q, u):
-    #     g_dot = self._g_dot(t, q, u)
-    #     return -self._W(t, q) * self.force_law_damper.la(t, g_dot)
-
-    # def __f_damper_q(self, t, q, u):
-    #     g_dot = self._g_dot(t, q, u)
-    #     return -self.force_law_damper.la(t, g_dot) * self._W_q(t, q) - np.outer(
-    #         self._W(t, q),
-    #         self.force_law_damper.la_gamma(t, g_dot) * self._g_dot_q(t, q, u),
-    #     )
-
-    # def __f_damper_u(self, t, q, u):
-    #     gamma = self._g_dot(t, q, u)
-    #     return -self.force_law_damper.la_gamma(t, gamma) * np.outer(
-    #         self._W(t, q), self._W(t, q)
-    #     )
-
     # public functions
     # kinematics
+
     def q_dot(self, t, q, u):
         g_d = q[-1]
-        return  (self.stiffness/self.viscosity) * (self._g(t, q) - g_d - self.g_s0)
-    
+        return (self.stiffness / self.viscosity) * (self._g(t, q) - g_d - self.g_s0)
+
     def q_dot_q(self, t, q, u):
-        q_dot_q = (self.stiffness/self.viscosity) * self._g_dot_q(t, q, u)
-        q_dot_q[-1] -= (self.stiffness/self.viscosity)
+        q_dot_q = (self.stiffness / self.viscosity) * self._g_dot_q(t, q, u)
+        q_dot_q[-1] -= self.stiffness / self.viscosity
+        q_dot_q = approx_fprime(q, lambda q: self.q_dot(t, q, u))
         return q_dot_q
-    
+
     def q_dot_u(self, t, q, u):
         return np.zeros(self._nu)
-    
+
     def q_ddot(self, t, q, u, u_dot):
         g_d_dot = self.q_dot(t, q, u)
-        return (self.stiffness/self.viscosity) * (self._g_dot(t, q, u) - g_d_dot)
+        return (self.stiffness / self.viscosity) * (self._g_dot(t, q, u) - g_d_dot)
 
     def h(self, t, q, u):
         g_d = q[-1]
@@ -234,9 +221,13 @@ class MaxwellElement:
 
     def h_q(self, t, q, u):
         g_d = q[-1]
-        h_q = self._W_q(t, q) * self.stiffness * (self._g(t, q) - g_d - self.g_s0) + self._W(t, q) * self.stiffness * self._g_q(t, q) 
+        h_q = (
+            self._W_q(t, q) * self.stiffness * (self._g(t, q) - g_d - self.g_s0)
+            + np.outer(self._W(t, q), self._g_q(t, q)) * self.stiffness
+        )
         h_q[:, -1] -= self._W(t, q) * self.stiffness
-        return self._h_q(t, q, u)
+        # h_q = approx_fprime(q, lambda q: self.h(t, q, u))
+        return h_q
 
     # E_pot and h_u defined in init if necessary
 

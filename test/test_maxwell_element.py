@@ -163,7 +163,7 @@ class MaxwellElementForceElement:
 
 if __name__ == "__main__":
     mass = 1e-3
-    stiffness = 1e-1
+    stiffness = 1e1
     damping = 1
     x0 = 1.0
     x_D0 = 0.0
@@ -172,18 +172,20 @@ if __name__ == "__main__":
     u0 = np.array([x_dot0], dtype=float)
 
     # maxwell_element = MaxwellElement(mass, stiffness, damping, q0, u0)
-    maxwell_element = MaxwellElementCompliance(mass, stiffness, damping, q0, u0)
-    # maxwell_element = MaxwellElementForceElement(mass, stiffness, damping, x0, x_D0, x_dot0).get_system()
+    # maxwell_element = MaxwellElementCompliance(mass, stiffness, damping, q0, u0)
+    maxwell_element = MaxwellElementForceElement(
+        mass, stiffness, damping, x0, x_D0, x_dot0
+    ).get_system()
 
     system = System()
     system.add(maxwell_element)
     system.assemble()
 
     t0 = 0
-    t1 = 5
+    t1 = 0.2
     dt = 5e-3
-    # sol = EulerBackward(system, t1, dt).solve()
-    sol = ScipyIVP(system=system, t1=t1, dt=dt).solve()
+    sol = EulerBackward(system, t1, dt, debug=True).solve()
+    # sol = ScipyIVP(system=system, t1=t1, dt=dt).solve()
 
     def eqm_maxwell_element(t, x):
         dx = np.zeros(3)
@@ -214,9 +216,10 @@ if __name__ == "__main__":
 
     x = ref.y
     t = ref.t
-    ax[0].plot(t, x[0], "--b", label="x_ref")
+    ax[0].plot(t, x[0], "-.b", label="x_ref")
     ax[0].plot(t, x[1], "--r", label="x_D_ref")
     ax[1].plot(t, x[2], "--b", label="x_dot_ref")
 
+    ax[0].legend()
     ax[1].legend()
     plt.show()

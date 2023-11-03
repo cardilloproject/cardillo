@@ -145,10 +145,9 @@ class EulerBackward:
         return R
 
     def _J(self, y):
-        return csc_matrix(approx_fprime(y, self._R))
         t = self.t
         dt = self.dt
-        q_dot, u_dot, la_g, la_gamma, mu_S, mu_g = np.array_split(y, self.split_y)
+        q_dot, u_dot, la_g, la_gamma, la_c, mu_S, mu_g = np.array_split(y, self.split_y)
         q, u = self._update(y)
 
         A = (
@@ -156,7 +155,7 @@ class EulerBackward:
             - dt * self.system.q_dot_q(t, q, u)
             - dt * self.system.g_S_q_T_mu_q(t, q, mu_S)
         )
-        B = self.system.B(t, q)
+        B = self.system.q_dot_u(t, q, u)
         C = (
             self.system.Mu_q(t, q, u_dot)
             - self.system.h_q(t, q, u)
@@ -415,7 +414,7 @@ class NonsmoothBackwardEuler:
         )
 
         ####################
-        # euations of motion
+        # equations of motion
         ####################
         R[self.split[0] : self.split[1]] = (
             self.system.M(tn1, qn1, scipy_matrix=csr_matrix) @ u_dotn1
