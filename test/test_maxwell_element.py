@@ -180,10 +180,10 @@ if __name__ == "__main__":
     system.assemble()
 
     t0 = 0
-    t1 = 5
-    dt = 5e-3
-    # sol = EulerBackward(system, t1, dt).solve()
-    sol = ScipyIVP(system=system, t1=t1, dt=dt).solve()
+    t1 = 1
+    dt = 1e-3
+    sol = EulerBackward(system, t1, dt).solve()
+    # sol = ScipyIVP(system=system, t1=t1, dt=dt).solve()
 
     def eqm_maxwell_element(t, x):
         dx = np.zeros(3)
@@ -204,18 +204,19 @@ if __name__ == "__main__":
     )
 
     t, q, u = sol.t, sol.q, sol.u
+    x = ref.y
+    t = ref.t
+
     fig, ax = plt.subplots(1, 2)
     ax[0].plot(t, q[:, 0], "-b", label="x")
     ax[0].plot(t, q[:, -1], "-r", label="x_D")
-    ax[0].grid()
-    ax[0].legend()
-    ax[1].plot(t, u[:, 0], label="x_dot")
-    ax[1].grid()
-
-    x = ref.y
-    t = ref.t
     ax[0].plot(t, x[0], "--b", label="x_ref")
     ax[0].plot(t, x[1], "--r", label="x_D_ref")
+    ax[0].grid()
+    ax[0].legend()
+
+    ax[1].plot(t, u[:, 0], "-b", label="x_dot")
+    ax[1].grid()
     ax[1].plot(t, x[2], "--b", label="x_dot_ref")
 
     ax[1].legend()

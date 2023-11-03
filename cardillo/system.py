@@ -66,7 +66,7 @@ class System:
         self.contributions = []
 
         self.origin = Frame()
-        self.origin.name = 'origin'
+        self.origin.name = "origin"
         self.add(self.origin)
 
     def add(self, *contrs):
@@ -253,7 +253,7 @@ class System:
         self.e_N = np.array(e_N)
         self.e_F = np.array(e_F)
         self.mu = np.array(mu)
-        self._alpha = 1 #TODO: GC: What is alpha?
+        self._alpha = 1  # TODO: GC: What is alpha?
 
         # call assembler callback: call methods that require first an assembly of the system
         self.assembler_callback()
@@ -292,13 +292,17 @@ class System:
     def q_dot_q(self, t, q, u, scipy_matrix=coo_matrix):
         coo = CooMatrix((self.nq, self.nq))
         for contr in self.__q_dot_q_contr:
-            coo[contr.q_dotDOF, contr.qDOF] = contr.q_dot_q(t, q[contr.qDOF], u[contr.uDOF])
+            coo[contr.q_dotDOF, contr.qDOF] = contr.q_dot_q(
+                t, q[contr.qDOF], u[contr.uDOF]
+            )
         return coo.tosparse(scipy_matrix)
 
     def q_dot_u(self, t, q, u, scipy_matrix=coo_matrix):
         coo = CooMatrix((self.nq, self.nu))
         for contr in self.__q_dot_u_contr:
-            coo[contr.q_dotDOF, contr.uDOF] = contr.q_dot_u(t, q[contr.qDOF], u[contr.uDOF])
+            coo[contr.q_dotDOF, contr.uDOF] = contr.q_dot_u(
+                t, q[contr.qDOF], u[contr.uDOF]
+            )
         return coo.tosparse(scipy_matrix)
 
     def q_ddot(self, t, q, u, u_dot):
@@ -310,7 +314,8 @@ class System:
         return q_ddot
 
     def step_callback(self, t, q, u):
-        for contr in self.__step_callback_contr: # TODO: GC: q_dotDOF or qDOF? (I would leave it like this.)
+        # TODO: GC: q_dotDOF or qDOF? (I would leave it like this.)
+        for contr in self.__step_callback_contr:
             q[contr.qDOF], u[contr.uDOF] = contr.step_callback(
                 t, q[contr.qDOF], u[contr.uDOF]
             )
