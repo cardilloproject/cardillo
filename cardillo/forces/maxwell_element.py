@@ -10,7 +10,7 @@ class MaxwellElement:
         subsystem2,
         stiffness,
         viscosity,
-        g_ref=None,
+        g_sref=None, # undeformed lenght of spring
         q0=np.zeros(1),
         frame_ID1=np.zeros(3, dtype=float),
         frame_ID2=np.zeros(3, dtype=float),
@@ -20,8 +20,7 @@ class MaxwellElement:
         self.q0 = q0
         self.stiffness = stiffness
         self.viscosity = viscosity
-        self.g_ref = g_ref
-        self.g_d0 = q0
+        self.g_sref = g_sref
         self.subsystem1 = subsystem1
         self.frame_ID1 = frame_ID1
         self.K_r_SP1 = K_r_SP1
@@ -52,7 +51,7 @@ class MaxwellElement:
         self._nu2 = len(local_uDOF2)
         self._nu = self._nu1 + self._nu2
 
-        if self.g_ref is None:
+        if self.g_sref is None:
             r_OP10 = self.subsystem1.r_OP(
                 self.subsystem1.t0,
                 self.subsystem1.q0[local_qDOF1],
@@ -65,12 +64,11 @@ class MaxwellElement:
                 self.frame_ID2,
                 self.K_r_SP2,
             )
-            self.g_ref = norm(r_OP20 - r_OP10)
+            self.g_sref = norm(r_OP20 - r_OP10)
             if self.g_ref < 1e-6:
                 raise ValueError(
                     "Computed g_ref from given subsystems is close to zero. Generalized force direction cannot be computed."
                 )
-        self.g_s0 = self.g_ref - self.g_d0
 
         self.r_OP1 = lambda t, q: self.subsystem1.r_OP(
             t, q[: self._nq1], self.frame_ID1, self.K_r_SP1
@@ -92,30 +90,22 @@ class MaxwellElement:
         )
 
         self.r_OP2 = lambda t, q: self.subsystem2.r_OP(
-            t, q[self._nq1 : self._nq2], self.frame_ID2, self.K_r_SP2
+            t, q[self._nq1 : self._nq1 + self._nq2], self.frame_ID2, self.K_r_SP2
         )
         self.r_OP2_q = lambda t, q: self.subsystem2.r_OP_q(
-            t, q[self._nq1 : self._nq2], self.frame_ID2, self.K_r_SP2
+            t, q[self._nq1 : self._nq1 + self._nq2], self.frame_ID2, self.K_r_SP2
         )
         self.J_P2 = lambda t, q: self.subsystem2.J_P(
-            t, q[self._nq1 : self._nq2], self.frame_ID2, self.K_r_SP2
+            t, q[self._nq1 : self._nq], self.frame_ID2, self.K_r_SP2
         )
         self.J_P2_q = lambda t, q: self.subsystem2.J_P_q(
-            t, q[self._nq1 : self._nq2], self.frame_ID2, self.K_r_SP2
+            t, q[self._nq1 :self._nq1 + self._nq2], self.frame_ID2, self.K_r_SP2
         )
         self.v_P2 = lambda t, q, u: self.subsystem2.v_P(
-            t,
-            q[self._nq1 : self._nq2],
-            u[self._nu1 : self._nq2],
-            self.frame_ID2,
-            self.K_r_SP2,
+            t, q[self._nq1 :self._nq1 + self._nq2], u[self._nu1 :], self.frame_ID2, self.K_r_SP2
         )
         self.v_P2_q = lambda t, q, u: self.subsystem2.v_P_q(
-            t,
-            q[self._nq1 : self._nq2],
-            u[self._nu1 : self._nq2],
-            self.frame_ID2,
-            self.K_r_SP2,
+            t, q[self._nq1 :self._nq1 + self._nq2], u[self._nu1 :], self.frame_ID2, self.K_r_SP2
         )
 
     # auxiliary functions
@@ -200,8 +190,8 @@ class MaxwellElement:
 
     def q_dot(self, t, q, u):
         g_d = q[-1]
-        return (self.stiffness / self.viscosity) * (self._g(t, q) - g_d - self.g_s0)
-
+        return  (self.stiffness/self.viscosity) * (self._g(t, q) - g_d - self.g_sref)
+    
     def q_dot_q(self, t, q, u):
         q_dot_q = (self.stiffness / self.viscosity) * self._g_dot_q(t, q, u)
         q_dot_q[-1] -= self.stiffness / self.viscosity
@@ -216,7 +206,7 @@ class MaxwellElement:
 
     def h(self, t, q, u):
         g_d = q[-1]
-        return self._W(t, q) * self.stiffness * (self._g(t, q) - g_d - self.g_s0)
+        return - self._W(t, q) * self.stiffness * (self._g(t, q) - g_d - self.g_sref)
 
     def h_q(self, t, q, u):
         g_d = q[-1]
