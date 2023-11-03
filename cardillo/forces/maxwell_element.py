@@ -205,7 +205,6 @@ class MaxwellElement:
     def q_dot_q(self, t, q, u):
         q_dot_q = (self.stiffness / self.viscosity) * self._g_dot_q(t, q, u)
         q_dot_q[-1] -= self.stiffness / self.viscosity
-        q_dot_q = approx_fprime(q, lambda q: self.q_dot(t, q, u))
         return q_dot_q
 
     def q_dot_u(self, t, q, u):
