@@ -186,7 +186,7 @@ if __name__ == "__main__":
     t0 = 0
     t1 = 0.2
     dt = 5e-3
-    sol = ScipyIVP(system, t1, dt).solve()
+    sol = EulerBackward(system, t1, dt).solve()
 
     # - ref. solution
     def eqm(t, z):
@@ -201,8 +201,7 @@ if __name__ == "__main__":
     z_ref = sol_ref.y
 
     t, q, u = sol.t, sol.q, sol.u
-    x = ref.y
-    t = ref.t
+
 
     fig, ax = plt.subplots(1, 2)
     ax[0].plot(t, q[:, 0], "-b", label="x")
@@ -214,7 +213,6 @@ if __name__ == "__main__":
     ax[1].plot(t, u[:, 0], label="x_dot")
     ax[1].plot(t_ref, z_ref[2], "-b", label='x_dot_ref')
     ax[1].grid()
-    ax[1].plot(t, x[2], "--b", label="x_dot_ref")
 
     ax[0].legend()
     ax[1].legend()
