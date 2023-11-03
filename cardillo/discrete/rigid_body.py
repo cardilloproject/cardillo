@@ -56,6 +56,7 @@ class RigidBody:
         assert self.u0.size == self.nu
         self.t = None
         self.q = np.empty(self.nq)
+        self.update = np.array(2*(True))
         # self.u = np.empty(self.nu)
 
         self.la_S0 = np.zeros(self.nla_S, dtype=float)
@@ -83,7 +84,7 @@ class RigidBody:
         )
         return q_dot_q
 
-    def B(self, t, q):
+    def q_dot_u(self, t, q):
         B = np.zeros((self.nq, self.nu), dtype=q.dtype)
         B[:3, :3] = np.eye(3, dtype=q.dtype)
         B[3:, 3:] = T_SO3_inv_quat(q[3:], normalize=False)
@@ -160,17 +161,20 @@ class RigidBody:
         if ret:
             self.t = t
             self.q = q
+            self.update[:] = True
         return ret
 
     def A_IK(self, t, q, frame_ID=None):
-        if self.updated(t, q):
+        if self.updated(t, q) or self.update[0]:
             self._A_IK = Exp_SO3_quat(q[3:])
+            self.update[0] = False
         return self._A_IK
 
     def A_IK_q(self, t, q, frame_ID=None):
-        if self.updated(t, q):
+        if self.updated(t, q) or self.update[1]:
             A_IK_q = np.zeros((3, 3, self.nq), dtype=q.dtype)
             A_IK_q[:, :, 3:] = Exp_SO3_quat_p(q[3:])
+            self.update[1] = False
         return A_IK_q
 
     def r_OP(self, t, q, frame_ID=None, K_r_SP=np.zeros(3, dtype=float)):
