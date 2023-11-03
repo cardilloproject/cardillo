@@ -28,7 +28,7 @@ class PointMass:
     def q_ddot(self, t, q, u, u_dot):
         return u_dot
 
-    def B(self, t, q):
+    def q_dot_u(self, t, q, u):
         return np.ones(self.nq)
 
     #####################

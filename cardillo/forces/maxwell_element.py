@@ -10,7 +10,7 @@ class MaxwellElement:
         subsystem2,
         stiffness,
         viscosity,
-        g_sref=None, # undeformed lenght of spring
+        g_sref=None,  # undeformed lenght of spring
         q0=np.zeros(1),
         frame_ID1=np.zeros(3, dtype=float),
         frame_ID2=np.zeros(3, dtype=float),
@@ -34,7 +34,7 @@ class MaxwellElement:
     def assembler_callback(self):
         qDOF1 = self.subsystem1.qDOF
         qDOF2 = self.subsystem2.qDOF
-        qDOF3 = self.qDOF
+        qDOF3 = self.qDOF.copy()
         local_qDOF1 = self.subsystem1.local_qDOF_P(self.frame_ID1)
         local_qDOF2 = self.subsystem2.local_qDOF_P(self.frame_ID2)
         self.qDOF = np.concatenate((qDOF1[local_qDOF1], qDOF2[local_qDOF2], qDOF3))
@@ -99,13 +99,21 @@ class MaxwellElement:
             t, q[self._nq1 : self._nq], self.frame_ID2, self.K_r_SP2
         )
         self.J_P2_q = lambda t, q: self.subsystem2.J_P_q(
-            t, q[self._nq1 :self._nq1 + self._nq2], self.frame_ID2, self.K_r_SP2
+            t, q[self._nq1 : self._nq1 + self._nq2], self.frame_ID2, self.K_r_SP2
         )
         self.v_P2 = lambda t, q, u: self.subsystem2.v_P(
-            t, q[self._nq1 :self._nq1 + self._nq2], u[self._nu1 :], self.frame_ID2, self.K_r_SP2
+            t,
+            q[self._nq1 : self._nq1 + self._nq2],
+            u[self._nu1 :],
+            self.frame_ID2,
+            self.K_r_SP2,
         )
         self.v_P2_q = lambda t, q, u: self.subsystem2.v_P_q(
-            t, q[self._nq1 :self._nq1 + self._nq2], u[self._nu1 :], self.frame_ID2, self.K_r_SP2
+            t,
+            q[self._nq1 : self._nq1 + self._nq2],
+            u[self._nu1 :],
+            self.frame_ID2,
+            self.K_r_SP2,
         )
 
     # auxiliary functions
@@ -190,10 +198,10 @@ class MaxwellElement:
 
     def q_dot(self, t, q, u):
         g_d = q[-1]
-        return  (self.stiffness/self.viscosity) * (self._g(t, q) - g_d - self.g_sref)
-    
+        return (self.stiffness / self.viscosity) * (self._g(t, q) - g_d - self.g_sref)
+
     def q_dot_q(self, t, q, u):
-        q_dot_q = (self.stiffness / self.viscosity) * self._g_dot_q(t, q, u)
+        q_dot_q = (self.stiffness / self.viscosity) * self._g_q(t, q)
         q_dot_q[-1] -= self.stiffness / self.viscosity
         return q_dot_q
 
@@ -206,16 +214,15 @@ class MaxwellElement:
 
     def h(self, t, q, u):
         g_d = q[-1]
-        return - self._W(t, q) * self.stiffness * (self._g(t, q) - g_d - self.g_sref)
+        return -self._W(t, q) * self.stiffness * (self._g(t, q) - g_d - self.g_sref)
 
     def h_q(self, t, q, u):
         g_d = q[-1]
-        h_q = (
-            self._W_q(t, q) * self.stiffness * (self._g(t, q) - g_d - self.g_s0)
+        h_q = -(
+            self._W_q(t, q) * self.stiffness * (self._g(t, q) - g_d - self.g_sref)
             + np.outer(self._W(t, q), self._g_q(t, q)) * self.stiffness
         )
         h_q[:, -1] -= self._W(t, q) * self.stiffness
-        # h_q = approx_fprime(q, lambda q: self.h(t, q, u))
         return h_q
 
     # E_pot and h_u defined in init if necessary
