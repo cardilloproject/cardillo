@@ -22,6 +22,7 @@ class ScipyIVP:
         self.nx = self.nq + self.nu
         self.nla_g = self.system.nla_g
         self.nla_gamma = self.system.nla_gamma
+        self.nla_c = self.system.nla_c
         self.x0 = np.concatenate([system.q0, system.u0])
 
         # integration time
@@ -55,26 +56,34 @@ class ScipyIVP:
         h = self.system.h(t, q, u)
         W_g = self.system.W_g(t, q)
         W_gamma = self.system.W_gamma(t, q)
+        W_c = self.system.W_c(t, q)
         zeta_g = self.system.zeta_g(t, q, u)
         zeta_gamma = self.system.zeta_gamma(t, q, u)
 
         # TODO: Can be use a sparse ldl decomposition here as done in C++?
         # fmt: off
-        A = bmat([[        M, -W_g, -W_gamma], \
-                  [    W_g.T, None,     None], \
-                  [W_gamma.T, None,     None]], format="csc")
+        A = bmat([[        M, -W_g, -W_gamma, -W_c], \
+                  [    W_g.T, None,     None, None], \
+                  [W_gamma.T, None,     None, None], \
+                  [None, None, None, self.system.K_c(scipy_matrix=csc_matrix)]], format="csc")
         # fmt: on
 
-        ula = spsolve(A, np.concatenate([h, -zeta_g, -zeta_gamma]))
+        ula = spsolve(
+            A, np.concatenate([h, -zeta_g, -zeta_gamma, -self.system.c(t, q, u)])
+        )
 
         dx = np.zeros(self.nx)
         dx[: self.nq] = self.system.q_dot(t, q, u)
         dx[self.nq :] = ula[: self.nu]
         return dx
 
-    def la_g_la_gamma(self, t, q, u):
+    def la_g_la_gamma_la_c(self, t, q, u):
         W_g = self.system.W_g(t, q, scipy_matrix=csc_matrix)
         W_gamma = self.system.W_gamma(t, q, scipy_matrix=csc_matrix)
+        W_c = self.system.W_c(t, q, scipy_matrix=csc_matrix)
+        la_c = -spsolve(
+            self.system.K_c(scipy_matrix=csc_matrix), self.system.c(t, q, u)
+        )
         zeta_g = self.system.zeta_g(t, q, u)
         zeta_gamma = self.system.zeta_gamma(t, q, u)
         M = self.system.M(t, q, scipy_matrix=csc_matrix)
@@ -88,7 +97,7 @@ class ScipyIVP:
             MW_gamma = (spsolve(M, W_gamma)).reshape((self.nu, self.nla_gamma))
         else:
             MW_gamma = csc_matrix((self.nu, self.nla_gamma))
-        Mh = spsolve(M, h)
+        Mh = spsolve(M, h + W_c @ la_c)
 
         # fmt: off
         G = bmat([[    W_g.T @ MW_g,     W_g.T @ MW_gamma], \
@@ -104,7 +113,7 @@ class ScipyIVP:
         la = spsolve(G, -mu)
         la_g, la_gamma = np.array_split(la, [self.nla_g])
         u_dot = spsolve(M, h + W_g @ la_g + W_gamma @ la_gamma)
-        return u_dot, la_g, la_gamma
+        return u_dot, la_g, la_gamma, la_c
 
     def solve(self):
         sol = solve_ivp(
@@ -128,8 +137,13 @@ class ScipyIVP:
         u_dot = np.zeros((nt, self.nu))
         la_g = np.zeros((nt, self.nla_g))
         la_gamma = np.zeros((nt, self.nla_gamma))
+        la_c = np.zeros((nt, self.nla_c))
         for i, (ti, qi, ui) in enumerate(zip(t, q, u)):
-            u_dot[i], la_g[i], la_gamma[i] = self.la_g_la_gamma(ti, qi, ui)
+            u_dot[i], la_g[i], la_gamma[i], la_c[i] = self.la_g_la_gamma_la_c(
+                ti, qi, ui
+            )
 
-        return Solution(t=t, q=q, u=u, u_dot=u_dot, la_g=la_g, la_gamma=la_gamma)
+        return Solution(
+            t=t, q=q, u=u, u_dot=u_dot, la_g=la_g, la_gamma=la_gamma, la_c=la_c
+        )
         # return Solution(t=t, q=q, u=u)

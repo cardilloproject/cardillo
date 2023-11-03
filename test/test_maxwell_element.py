@@ -1,10 +1,11 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.integrate import solve_ivp
 
 from cardillo import System
 from cardillo.discrete import PointMass
 from cardillo.forces import MaxwellElement as MaxwellElementFL
-from cardillo.solver import EulerBackward
+from cardillo.solver import EulerBackward, ScipyIVP
 
 
 class MaxwellElement:
@@ -142,15 +143,17 @@ class MaxwellElementCompliance:
         # c_q[0, 1] = -factor
         # return c_q
 
+
 class MaxwellElementForceElement:
     def __init__(self, mass, stiffness, damping, x0, g_d0, x_dot0):
-        
         self.system = System()
         pm = PointMass(mass, q0=np.array([x0, 0, 0]), u0=np.array([x_dot0, 0, 0]))
-        pm.name = 'point mass'
+        pm.name = "point mass"
         self.system.add(pm)
-        max = MaxwellElementFL(self.system.origin, pm, stiffness, damping,g_ref=0, q0=np.array([g_d0]))
-        max.name = 'Maxwell-element'
+        max = MaxwellElementFL(
+            self.system.origin, pm, stiffness, damping, g_ref=0, q0=np.array([g_d0])
+        )
+        max.name = "Maxwell-element"
         self.system.add(max)
         self.system.assemble()
 
@@ -158,36 +161,62 @@ class MaxwellElementForceElement:
         return self.system
 
 
-
 if __name__ == "__main__":
     mass = 1e-3
-    stiffness = 1e1
+    stiffness = 1e-1
     damping = 1
-    x0 = 1.
-    x_D0 = 0.
-    x_dot0 = 0.
+    x0 = 1.0
+    x_D0 = 0.0
+    x_dot0 = 0.0
     q0 = np.array([x0, x_D0], dtype=float)
     u0 = np.array([x_dot0], dtype=float)
 
     # maxwell_element = MaxwellElement(mass, stiffness, damping, q0, u0)
-    # maxwell_element = MaxwellElementCompliance(mass, stiffness, damping, q0, u0)
-    maxwell_element = MaxwellElementForceElement(mass, stiffness, damping, x0, x_D0, x_dot0).get_system()
+    maxwell_element = MaxwellElementCompliance(mass, stiffness, damping, q0, u0)
+    # maxwell_element = MaxwellElementForceElement(mass, stiffness, damping, x0, x_D0, x_dot0).get_system()
 
     system = System()
     system.add(maxwell_element)
     system.assemble()
 
-    t1 = 10
+    t0 = 0
+    t1 = 5
     dt = 5e-3
-    sol = EulerBackward(system, t1, dt).solve()
+    # sol = EulerBackward(system, t1, dt).solve()
+    sol = ScipyIVP(system=system, t1=t1, dt=dt).solve()
+
+    def eqm_maxwell_element(t, x):
+        dx = np.zeros(3)
+        dx[0] = x[2]
+        dx[1] = stiffness / damping * (x[0] - x[1])
+        dx[2] = -stiffness / mass * (x[0] - x[1])
+        return dx
+
+    x0 = np.array((x0, x_D0, x_dot0))
+    ref = solve_ivp(
+        eqm_maxwell_element,
+        [t0, t1],
+        x0,
+        method="RK45",
+        t_eval=np.arange(t0, t1 + dt, dt),
+        rtol=1e-8,
+        atol=1e-12,
+    )
 
     t, q, u = sol.t, sol.q, sol.u
     fig, ax = plt.subplots(1, 2)
     ax[0].plot(t, q[:, 0], "-b", label="x")
-    ax[0].plot(t, q[:, -1], "--r", label="x_D")
+    ax[0].plot(t, q[:, -1], "-r", label="x_D")
     ax[0].grid()
     ax[0].legend()
     ax[1].plot(t, u[:, 0], label="x_dot")
     ax[1].grid()
+
+    x = ref.y
+    t = ref.t
+    ax[0].plot(t, x[0], "--b", label="x_ref")
+    ax[0].plot(t, x[1], "--r", label="x_D_ref")
+    ax[1].plot(t, x[2], "--b", label="x_dot_ref")
+
     ax[1].legend()
     plt.show()
