@@ -17,11 +17,11 @@ class Export:
         solution: Solution,
         system,
     ) -> None:
-        super().__init__()
         self.path = path
         self.folder = self.__create_vtk_folder(folder_name, overwrite)
         self.fps = fps
         self.system = system
+        system.reset()
         self.__prepare_data(solution)
 
     # helper functions
@@ -108,7 +108,7 @@ class Export:
         )
 
     def __create_vtk_folder(self, folder_name: str, overwrite: bool):
-        path = self.path / folder_name
+        path = Path(self.path, folder_name)
         i = 0
         if not overwrite:
             while path.exists():
@@ -121,10 +121,25 @@ class Export:
         self.path = path
         return path.stem
 
+    def __add_key(self, data_read, data_write):
+        for key in data_read.keys():
+            if not key in data_write.keys():
+                data_write[key] = data_read[key]
+            else:
+                if isinstance(data_read[key], list):
+                    data_write[key].extend(data_read[key])
+                else:
+                    data_write[key] = np.hstack((data_write[key], data_read[key]))
+
     def __export_list(self, sol_i, **kwargs):
+        contr_list = kwargs.pop("contr_list")
         points, cells, point_data, cell_data = [], [], {}, {}
         l = 0
-        for contr in self.contr_list:
+        for contr in contr_list:
+            if hasattr(contr, "pre_iteration_update"):
+                contr.pre_iteration_update(
+                    sol_i.t, sol_i.q[contr.qDOF], sol_i.u[contr.uDOF]
+                )
             p, c, p_data, c_data = contr.export(sol_i, **kwargs)
             l = len(points)
             points.extend(p)
@@ -132,19 +147,18 @@ class Export:
                 [(tup[0], [[i + l for i in idx] for idx in tup[1]]) for tup in c]
             )
             if c_data is not None:
-                for key in c_data.keys():
-                    if not key in cell_data.keys():
-                        cell_data[key] = c_data[key]
-                    else:
-                        cell_data[key].extend(c_data[key])
+                self.__add_key(c_data, cell_data)
             if p_data is not None:
-                for key in p_data.keys():
-                    if not key in point_data.keys():
-                        point_data[key] = p_data[key]
-                    else:
-                        point_data[key].extend(p_data[key])
+                self.__add_key(p_data, point_data)
 
         return points, cells, point_data, cell_data
+
+    def __set_contr_name(self, contr, kwargs):
+        if "file_name" in kwargs and kwargs["file_name"] is not None:
+            contr_name = kwargs["file_name"]
+        else:
+            contr_name = contr.__class__.__name__
+        return contr_name
 
     def export_contr(self, contr, **kwargs):
         """_summary_
@@ -158,20 +172,13 @@ class Export:
 
         # export one contr
         if not isinstance(contr, (list, tuple, np.ndarray)):
-            if "file_name" in kwargs:
-                contr_name = kwargs["file_name"]
-            else:
-                contr_name = contr.__class__.__name__
+            contr_name = self.__set_contr_name(contr, kwargs)
             export = contr.export
         # export list of contributions of same type (mixing types is not useful)
         else:
-            if "file_name" in kwargs:
-                contr_name = kwargs["file_name"]
-            else:
-                contr_name = contr[0].__class__.__name__
-            self.contr_list = contr
+            contr_name = self.__set_contr_name(contr[0], kwargs)
             export = self.__export_list
-
+            kwargs["contr_list"] = contr
         file_name = self.__unique_file_name(contr_name)
         for i, sol_i in enumerate(self.solution):
             file_i = self.path / f"{file_name}_{i}.vtu"

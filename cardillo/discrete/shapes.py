@@ -53,6 +53,15 @@ def Rectangle(Base):
 def Ball(Base):
     class _Ball(Base):
         def __init__(self, **kwargs):
+            """Create a ball shaped rigid body, defined by a radius and either mass or density.
+            Inertia matrix in body fixed K-frame is computed based on chosen radius.
+
+            Args:
+                radius:     radius of ball
+                mass:       mass of ball. Either mass or density need to be set
+                density:    density of ball. Either mass or density need to be set
+                **kwargs:   dependent on Base. Note: K_Theta_S is provided by Ball
+            """
             self.radius = kwargs.pop("radius")
             mass = kwargs.pop("mass", None)
             density = kwargs.pop("density", None)

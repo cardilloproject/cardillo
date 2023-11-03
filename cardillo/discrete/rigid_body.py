@@ -154,17 +154,23 @@ class RigidBody:
 
     def local_uDOF_P(self, frame_ID=None):
         return np.arange(self.nu)
-
-    def A_IK(self, t, q, frame_ID=None):
-        if not (t == self.t and np.allclose(q, self.q)):
-            self._A_IK = Exp_SO3_quat(q[3:])
+    
+    def updated(self, t, q):
+        ret = not (t == self.t and np.allclose(q, self.q))
+        if ret:
             self.t = t
             self.q = q
+        return ret
+
+    def A_IK(self, t, q, frame_ID=None):
+        if self.updated(t, q):
+            self._A_IK = Exp_SO3_quat(q[3:])
         return self._A_IK
 
     def A_IK_q(self, t, q, frame_ID=None):
-        A_IK_q = np.zeros((3, 3, self.nq), dtype=q.dtype)
-        A_IK_q[:, :, 3:] = Exp_SO3_quat_p(q[3:])
+        if self.updated(t, q):
+            A_IK_q = np.zeros((3, 3, self.nq), dtype=q.dtype)
+            A_IK_q[:, :, 3:] = Exp_SO3_quat_p(q[3:])
         return A_IK_q
 
     def r_OP(self, t, q, frame_ID=None, K_r_SP=np.zeros(3, dtype=float)):

@@ -1,4 +1,7 @@
 import numpy as np
+from scipy.sparse import csr_matrix
+from scipy.sparse.linalg import spsolve
+import warnings
 
 
 def prox_R0_nm(x):
@@ -15,3 +18,37 @@ def prox_sphere(x, radius):
         return x if nx <= radius else radius * x / nx
     else:
         return x if nx <= radius else radius * x
+
+
+"""
+Estimation of relaxation parameter $\vr_N$ of prox function for normal contacts.
+The parameter is calculated as follows, whereby $\alpha\in(0,2)$ is some scaling factor used for both normal and frictional contact.
+$$
+    \vr = (\alpha\vG)^{-1},
+$$
+where $\vG = \vW^T\vM^{-1}\vW$.
+
+
+References
+----------
+Studer2008: https://doi.org/10.3929/ethz-a-005556821
+Schweizer2015: https://doi.org/10.3929/ethz-a-010464319
+"""
+
+
+def prox_r(alpha, W, M):
+    try:
+        return alpha / csr_matrix(W.T @ spsolve(M, W)).diagonal()
+    except:
+        return np.ones(W.shape[1], dtype=W.dtype)
+
+
+def check_alpha(alpha):
+    if not 0 < alpha < 2:
+        warnings.warn(
+            "Invalid value for alpha. alpha must be in (0,2). alpha set to 1.",
+            RuntimeWarning,
+        )
+        return 1
+    else:
+        return alpha

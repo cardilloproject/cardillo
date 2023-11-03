@@ -84,12 +84,12 @@ if __name__ == "__main__":
     width = L / slenderness
 
     # cross section and quadratic beam material
-    line_density = 1
+    volume_density = 1
     # cross_section = RectangularCrossSection(line_density, width, width)
-    cross_section = CircularCrossSection(line_density, width)
-    A_rho0 = line_density * cross_section.area
-    K_S_rho0 = line_density * cross_section.first_moment
-    K_I_rho0 = line_density * cross_section.second_moment
+    cross_section = CircularCrossSection(volume_density, width)
+    A_rho0 = volume_density * cross_section.area
+    K_S_rho0 = volume_density * cross_section.first_moment
+    K_I_rho0 = volume_density * cross_section.second_moment
     A = cross_section.area
     Ip, I2, I3 = np.diag(cross_section.second_moment)
     Ei = np.array([E * A, G * A, G * A])
