@@ -224,12 +224,12 @@ R = 100
 angle = pi / 4
 
 
-slendernesses = [1e1, 1e2, 1e3, 1e4]
-atols = [1e-2, 1e-6, 1e-10, 1e-13]
-f_vect = [6 * 1e6, 6 * 1e2, 6 * 1e-2, 6 * 1e-6]
-# slendernesses = [1e1, 1e2]
-# atols = [1e-2, 1e-6]
-# f_vect = [6 * 1e6, 6 * 1e2]
+# slendernesses = [1e1, 1e2, 1e3, 1e4]
+# atols = [1e-2, 1e-6, 1e-10, 1e-13]
+# f_vect = [6 * 1e6, 6 * 1e2, 6 * 1e-2, 6 * 1e-6]
+slendernesses = [1e1]
+atols = [1e-2]
+f_vect = [6 * 1e6]
 
 # starting point and orientation of initial point, initial length
 r_OP0 = np.zeros(3, dtype=float)
@@ -241,20 +241,20 @@ dcurve = lambda xi: np.array([R * np.sin(xi), R * np.cos(xi), 0])
 ddcurve = lambda xi: np.array([R * np.cos(xi), -R * np.sin(xi), 0])
 
 # define reference rod
-reference_rod = "SE3_Mixed"
-# reference_rod = "R12p2_Mixed"
+# reference_rod = "SE3_Mixed"
+reference_rod = "R12p2_Mixed"
 
-test_rods = ["R12p1_Mixed"]
+test_rods = ["R12p2_Mixed", "R12p2_Mixed"]
 # test_rods = ["R12p1", "R12p2", "SE3"]
 # test_rods = ["R12p1", "R12p1_Mixed"]
 # test_rods = ["SE3_Mixed", "SE3"]
 # test_rods = ["R12p1", "R12p1_Mixed", "R12p2", "R12p2_Mixed"]
 # test_rods = ["R12p1", "R12p1_Mixed", "R12p2", "R12p2_Mixed", "SE3_Mixed", "SE3"]
 
-nnodes_list = np.array([5, 9, 17, 33, 65, 129], dtype=int) 
-nnodes_ref = 513  
-# nnodes_list = np.array([5, 9, 17, 33], dtype=int) 
-# nnodes_ref = 513                                   
+# nnodes_list = np.array([5, 9, 17, 33, 65, 129], dtype=int) 
+# nnodes_ref = 513  
+nnodes_list = np.array([5], dtype=int) 
+nnodes_ref = 9                                   
 
 volume_correction = False
 # volume_correction = True
@@ -552,130 +552,133 @@ def convergence():
     ax.set_zlim3d(bottom=-L, top=L)
 
     plt.show()
-    # #################
-    # # strain measures
-    # #################
-    # def stress_strain(rod, sol, nxi=1000):
-    #     xis = np.linspace(0, 1, num=nxi)
 
-    #     K_Gamma_bar = np.zeros((3, nxi))
-    #     K_Kappa_bar = np.zeros((3, nxi))
-    #     K_Gamma = np.zeros((3, nxi))
-    #     K_Kappa = np.zeros((3, nxi))
-    #     K_n = np.zeros((3, nxi))
-    #     K_m = np.zeros((3, nxi))
-    #     I_n = np.zeros((3, nxi))
-    #     I_m = np.zeros((3, nxi))
-    #     for i in range(nxi):
-    #         frame_ID = (xis[i],)
-    #         elDOF = rod.local_qDOF_P(frame_ID)
 
-    #         # length of reference tangent vector
-    #         Qe = rod.Q[elDOF]
-    #         _, _, K_Gamma_bar0, K_Kappa_bar0 = rod._eval(Qe, xis[i])
-    #         J = norm(K_Gamma_bar0)
+    #################
+    # strain measures
+    #################
+    def stress_strain(rod, sol, nxi=1000):
+        xis = np.linspace(0, 1, num=nxi)
 
-    #         # current strain measures
-    #         qe = sol.q[-1, rod.qDOF][elDOF]
-    #         _, A_IK_i, K_Gamma_bar_i, K_Kappa_bar_i = rod._eval(qe, xis[i])
+        K_Gamma = np.zeros((3, nxi))
+        K_Kappa = np.zeros((3, nxi))
+        K_n = np.zeros((3, nxi))
+        K_m = np.zeros((3, nxi))
+        
+        if rod.mixed is True:
+            K_Gamma_DB_M = np.zeros((3, nxi))
+            K_Kappa_DB_M = np.zeros((3, nxi))
+            K_n_DB_M = np.zeros((3, nxi))
+            K_m_DB_M = np.zeros((3, nxi))
+            
+            for i, xii in enumerate(xis):
+                K_n[:, i], K_m[:, i], K_n_DB_M[:, i], K_m_DB_M[:, i] = rod.eval_stresses(sol.t[-1],sol.q[-1], xii, mixed=rod.mixed)
+                K_Gamma[:, i], K_Kappa[:, i], K_Gamma_DB_M[:, i], K_Kappa_DB_M[:, i] = rod.eval_strains(sol.t[-1],sol.q[-1], xii, mixed=rod.mixed)
+        
+            return xis, K_Gamma, K_Kappa, K_Gamma_DB_M, K_Kappa_DB_M, K_n, K_m, K_n_DB_M, K_m_DB_M
+        
+        else:
+            for i, xii in enumerate(xis):
+                K_n[:, i], K_m[:, i] = rod.eval_stresses(sol.t[-1],sol.q[-1], xii, mixed=rod.mixed)
+                K_Gamma[:, i], K_Kappa[:, i] = rod.eval_strains(sol.t[-1],sol.q[-1], xii, mixed=rod.mixed)
 
-    #         K_Gamma_bar[:, i] = K_Gamma_bar_i
-    #         K_Kappa_bar[:, i] = K_Kappa_bar_i
-    #         K_Gamma[:, i] = K_Gamma_bar_i / J
-    #         K_Kappa[:, i] = K_Kappa_bar_i / J
-    #         K_n[:, i] = material_model.K_n(
-    #             K_Gamma_bar_i / J, K_Gamma_bar0 / J, K_Kappa_bar_i / J, K_Kappa_bar0 / J
-    #         )
-    #         K_m[:, i] = material_model.K_m(
-    #             K_Gamma_bar_i / J, K_Gamma_bar0 / J, K_Kappa_bar_i / J, K_Kappa_bar0 / J
-    #         )
-    #         I_n[:, i] = A_IK_i @ K_n[:, i]
-    #         I_m[:, i] = A_IK_i @ K_m[:, i]
+            return xis, K_Gamma, K_Kappa, K_n, K_m
 
-    #     return xis, K_Gamma_bar, K_Gamma, K_Kappa_bar, K_Kappa, K_n, K_m, I_n, I_m
 
-    # fig, ax = plt.subplots(1, 4)
+    fig, ax = plt.subplots(1, 4)
 
-    # xis, K_Gamma_bar, K_Gamma, K_Kappa_bar, K_Kappa, K_n, K_m, I_n, I_m = stress_strain(
-    #     rod_ref, sol_ref
-    # )
-    # header = "xi, K_Gamma1_minus_1, K_Gamma2, K_Gamma3, K_Kappa1, K_Kappa2, K_Kappa3, K_n1, K_n2, K_n3, K_m1, K_m2, K_m3"
-    # export_data = np.vstack(
-    #     [xis, K_Gamma[0] - 1.0, K_Gamma[1], K_Gamma[2], *K_Kappa, *K_n, *K_m]
-    # ).T
-    # np.savetxt(
-    #     f"StrainMeasuresConvergence_Reference_{reference_rod}.txt",
-    #     export_data,
-    #     delimiter=", ",
-    #     header=header,
-    #     comments="",
-    # )
+    if rod_ref.mixed:
+        xis, K_Gamma, K_Kappa, K_Gamma_DB_M, K_Kappa_DB_M, K_n, K_m, K_n_DB_M, K_m_DB_M = stress_strain(
+        rod_ref, sol_ref)
 
-    # ax[0].set_title("K_Gamma")
-    # ax[0].plot(K_Gamma[0], label="K_Gamma0 - reference")
-    # ax[0].plot(K_Gamma[1], label="K_Gamma1 - reference")
-    # ax[0].plot(K_Gamma[2], label="K_Gamma2 - reference")
+        header = "xi, K_Gamma1_minus_1, K_Gamma2, K_Gamma3, K_Kappa1, K_Kappa2, K_Kappa3, \
+              K_Gamma1_minus_1_DB_M, K_Gamma2_DB_M, K_Gamma3_DB_M, K_Kappa1_DB_M, K_Kappa2_DB_M, K_Kappa3_DB_M, \
+              K_n1, K_n2, K_n3, K_m1, K_m2, K_m3,\
+              K_n1_DB_M, K_n2_DB_M, K_n3_DB_M, K_m1_DB_M, K_m2_DB_M, K_m3_DB_M"
+        export_data = np.vstack(
+            [xis, K_Gamma[0] - 1.0, K_Gamma[1], K_Gamma[2], *K_Kappa, 
+             K_Gamma_DB_M[0] - 1.0, K_Gamma_DB_M[1], K_Gamma_DB_M[2], *K_Kappa_DB_M, *K_n, *K_m, *K_n_DB_M, *K_m_DB_M]
+        ).T
+    else: 
+        xis, K_Gamma, K_Kappa, K_n, K_m = stress_strain(rod_ref, sol_ref)
+        header = "xi, K_Gamma1_minus_1, K_Gamma2, K_Gamma3, K_Kappa1, K_Kappa2, K_Kappa3, \
+                K_n1, K_n2, K_n3, K_m1, K_m2, K_m3"
+        export_data = np.vstack(
+            [xis, K_Gamma[0] - 1.0, K_Gamma[1], K_Gamma[2], *K_Kappa, *K_n, *K_m]
+        ).T
 
-    # ax[1].set_title("K_Gamma")
-    # ax[1].plot(K_Kappa[0], label="K_Kappa0 - reference")
-    # ax[1].plot(K_Kappa[1], label="K_Kappa1 - reference")
-    # ax[1].plot(K_Kappa[2], label="K_Kappa2 - reference")
+    np.savetxt(
+        f"StrainMeasuresConvergence_Reference_{reference_rod}.txt",
+        export_data,
+        delimiter=", ",
+        header=header,
+        comments="",
+    )
 
-    # ax[2].set_title("K_n")
-    # ax[2].plot(K_n[0], label="K_n0 - reference")
-    # ax[2].plot(K_n[1], label="K_n1 - reference")
-    # ax[2].plot(K_n[2], label="K_n2 - reference")
+    ax[0].set_title("K_Gamma")
+    ax[0].plot(K_Gamma[0], label="K_Gamma0 - reference")
+    ax[0].plot(K_Gamma[1], label="K_Gamma1 - reference")
+    ax[0].plot(K_Gamma[2], label="K_Gamma2 - reference")
 
-    # ax[3].set_title("K_m")
-    # ax[3].plot(K_m[0], label="K_m0 - reference")
-    # ax[3].plot(K_m[1], label="K_m1 - reference")
-    # ax[3].plot(K_m[2], label="K_m2 - reference")
+    ax[1].set_title("K_Kappa")
+    ax[1].plot(K_Kappa[0], label="K_Kappa0 - reference")
+    ax[1].plot(K_Kappa[1], label="K_Kappa1 - reference")
+    ax[1].plot(K_Kappa[2], label="K_Kappa2 - reference")
 
-    # for j, (rod, sol) in enumerate(zip(rods, sols)):
-    #     (
-    #         xis,
-    #         K_Gamma_bar,
-    #         K_Gamma,
-    #         K_Kappa_bar,
-    #         K_Kappa,
-    #         K_n,
-    #         K_m,
-    #         I_n,
-    #         I_m,
-    #     ) = stress_strain(rod, sol)
-    #     export_data = np.vstack(
-    #         [xis, K_Gamma[0] - 1.0, K_Gamma[1], K_Gamma[2], *K_Kappa, *K_n, *K_m]
-    #     ).T
-    #     np.savetxt(
-    #         f"StrainMeasuresConvergence_{test_rods[j]}.txt",
-    #         export_data,
-    #         delimiter=", ",
-    #         header=header,
-    #         comments="",
-    #     )
+    ax[2].set_title("K_n")
+    ax[2].plot(K_n[0], label="K_n0 - reference")
+    ax[2].plot(K_n[1], label="K_n1 - reference")
+    ax[2].plot(K_n[2], label="K_n2 - reference")
 
-    #     ax[0].plot(K_Gamma[0], label=f"K_Gamma0 - {test_rods[j]}")
-    #     ax[0].plot(K_Gamma[1], label=f"K_Gamma1 - {test_rods[j]}")
-    #     ax[0].plot(K_Gamma[2], label=f"K_Gamma2 - {test_rods[j]}")
+    ax[3].set_title("K_m")
+    ax[3].plot(K_m[0], label="K_m0 - reference")
+    ax[3].plot(K_m[1], label="K_m1 - reference")
+    ax[3].plot(K_m[2], label="K_m2 - reference")
 
-    #     ax[1].plot(K_Kappa[0], label=f"K_Kappa0 - {test_rods[j]}")
-    #     ax[1].plot(K_Kappa[1], label=f"K_Kappa1 - {test_rods[j]}")
-    #     ax[1].plot(K_Kappa[2], label=f"K_Kappa2 - {test_rods[j]}")
+    for j, (rod, sol) in enumerate(zip(rods, sols)):
 
-    #     ax[2].plot(K_n[0], label=f"K_n0 - {test_rods[j]}")
-    #     ax[2].plot(K_n[1], label=f"K_n1 - {test_rods[j]}")
-    #     ax[2].plot(K_n[2], label=f"K_n2 - {test_rods[j]}")
+        if rod[j].mixed is True:
+            xis, K_Gamma, K_Kappa, K_Gamma_DB_M, K_Kappa_DB_M, K_n, K_m, K_n_DB_M, K_m_DB_M = stress_strain(rod[j], sol[j])
+            export_data = np.vstack(
+                [xis, K_Gamma[0] - 1.0, K_Gamma[1], K_Gamma[2], *K_Kappa, K_Gamma_DB_M[0] - 1.0, K_Gamma_DB_M[1],
+                K_Gamma_DB_M[2], *K_Kappa_DB_M, *K_n, *K_m, *K_n_DB_M, *K_m_DB_M]
+            ).T
+        else:
+            xis, K_Gamma, K_Kappa, K_n, K_m = stress_strain(rod[j], sol[j])
+            export_data = np.vstack(
+                [xis, K_Gamma[0] - 1.0, K_Gamma[1], K_Gamma[2], *K_Kappa, *K_n, *K_m]
+            ).T
 
-    #     ax[3].plot(K_m[0], label=f"K_m0 - {test_rods[j]}")
-    #     ax[3].plot(K_m[1], label=f"K_m1 - {test_rods[j]}")
-    #     ax[3].plot(K_m[2], label=f"K_m2 - {test_rods[j]}")
+        np.savetxt(
+            f"StrainMeasuresConvergence_{test_rods[j]}.txt",
+            export_data,
+            delimiter=", ",
+            header=header,
+            comments="",
+        )
 
-    # ax[0].grid()
-    # ax[0].legend()
-    # ax[1].grid()
-    # ax[1].legend()
+        ax[0].plot(K_Gamma[0], label=f"K_Gamma0 - {test_rods[j]}")
+        ax[0].plot(K_Gamma[1], label=f"K_Gamma1 - {test_rods[j]}")
+        ax[0].plot(K_Gamma[2], label=f"K_Gamma2 - {test_rods[j]}")
 
-    # plt.show()
+        ax[1].plot(K_Kappa[0], label=f"K_Kappa0 - {test_rods[j]}")
+        ax[1].plot(K_Kappa[1], label=f"K_Kappa1 - {test_rods[j]}")
+        ax[1].plot(K_Kappa[2], label=f"K_Kappa2 - {test_rods[j]}")
+
+        ax[2].plot(K_n[0], label=f"K_n0 - {test_rods[j]}")
+        ax[2].plot(K_n[1], label=f"K_n1 - {test_rods[j]}")
+        ax[2].plot(K_n[2], label=f"K_n2 - {test_rods[j]}")
+
+        ax[3].plot(K_m[0], label=f"K_m0 - {test_rods[j]}")
+        ax[3].plot(K_m[1], label=f"K_m1 - {test_rods[j]}")
+        ax[3].plot(K_m[2], label=f"K_m2 - {test_rods[j]}")
+
+    ax[0].grid()
+    ax[0].legend()
+    ax[1].grid()
+    ax[1].legend()
+
+    plt.show()
 
 
 if __name__ == "__main__":
