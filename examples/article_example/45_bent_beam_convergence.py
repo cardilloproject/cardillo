@@ -244,7 +244,7 @@ ddcurve = lambda xi: np.array([R * np.cos(xi), -R * np.sin(xi), 0])
 # reference_rod = "SE3_Mixed"
 reference_rod = "R12p2_Mixed"
 
-test_rods = ["R12p2_Mixed", "R12p2_Mixed"]
+test_rods = ["R12p2_Mixed", "R12p1"]
 # test_rods = ["R12p1", "R12p2", "SE3"]
 # test_rods = ["R12p1", "R12p1_Mixed"]
 # test_rods = ["SE3_Mixed", "SE3"]
@@ -637,14 +637,14 @@ def convergence():
 
     for j, (rod, sol) in enumerate(zip(rods, sols)):
 
-        if rod[j].mixed is True:
-            xis, K_Gamma, K_Kappa, K_Gamma_DB_M, K_Kappa_DB_M, K_n, K_m, K_n_DB_M, K_m_DB_M = stress_strain(rod[j], sol[j])
+        if rod.mixed is True:
+            xis, K_Gamma, K_Kappa, K_Gamma_DB_M, K_Kappa_DB_M, K_n, K_m, K_n_DB_M, K_m_DB_M = stress_strain(rod, sol)
             export_data = np.vstack(
                 [xis, K_Gamma[0] - 1.0, K_Gamma[1], K_Gamma[2], *K_Kappa, K_Gamma_DB_M[0] - 1.0, K_Gamma_DB_M[1],
                 K_Gamma_DB_M[2], *K_Kappa_DB_M, *K_n, *K_m, *K_n_DB_M, *K_m_DB_M]
             ).T
         else:
-            xis, K_Gamma, K_Kappa, K_n, K_m = stress_strain(rod[j], sol[j])
+            xis, K_Gamma, K_Kappa, K_n, K_m = stress_strain(rod, sol)
             export_data = np.vstack(
                 [xis, K_Gamma[0] - 1.0, K_Gamma[1], K_Gamma[2], *K_Kappa, *K_n, *K_m]
             ).T
