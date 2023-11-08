@@ -215,6 +215,100 @@ def make_R12_rod(polynomial_degree, reduced_integration):
     
     return make
 
+def make_Q_rod_mixed(polynomial_degree):
+    def make(
+        R,
+        curve,
+        dcurve,
+        ddcurve,
+        angle,
+        r_OP0,
+        A_IK0,
+        cross_section,
+        material_model,
+        A_rho0,
+        K_S_rho0,
+        K_I_rho0,
+        nelements,
+    ):
+        q0 = CosseratRodPG_QuatMixed.deformed_configuration(
+            nelements,
+            curve,
+            dcurve,
+            ddcurve,
+            angle,
+            polynomial_degree=polynomial_degree,
+            r_OP=r_OP0,
+            A_IK=A_IK0,
+            mixed=True,
+        )
+
+        rod = CosseratRodPG_QuatMixed(
+            cross_section,
+            material_model,
+            A_rho0,
+            K_S_rho0,
+            K_I_rho0,
+            nelements,
+            Q=q0,
+            q0=q0,
+            polynomial_degree=polynomial_degree,
+            reduced_integration=False,
+            mixed=True,
+        )
+
+        return q0, rod
+
+    return make
+
+def make_Q_rod(polynomial_degree, reduced_integration):
+    def make(
+        R,
+        curve,
+        dcurve,
+        ddcurve,
+        angle,
+        r_OP0,
+        A_IK0,
+        cross_section,
+        material_model,
+        A_rho0,
+        K_S_rho0,
+        K_I_rho0,
+        nelements,
+    ):
+        q0 = CosseratRodPG_R12Mixed.deformed_configuration(
+            nelements,
+            curve,
+            dcurve,
+            ddcurve,
+            angle,
+            polynomial_degree=polynomial_degree,
+            r_OP=r_OP0,
+            A_IK=A_IK0,
+            mixed=False,
+        )
+
+        rod = CosseratRodPG_R12Mixed(
+            cross_section,
+            material_model,
+            A_rho0,
+            K_S_rho0,
+            K_I_rho0,
+            nelements,
+            Q=q0,
+            q0=q0,
+            polynomial_degree=polynomial_degree,
+            reduced_integration=reduced_integration,
+            mixed=False,
+        )
+
+        return q0, rod
+    
+    return make
+
+
+
 # Young's and shear modulus
 E = 1e7  # Meier2015
 G = 5e6  # Meier2015
@@ -227,9 +321,9 @@ angle = pi / 4
 # slendernesses = [1e1, 1e2, 1e3, 1e4]
 # atols = [1e-2, 1e-6, 1e-10, 1e-13]
 # f_vect = [6 * 1e6, 6 * 1e2, 6 * 1e-2, 6 * 1e-6]
-slendernesses = [1e1]
-atols = [1e-2]
-f_vect = [6 * 1e6]
+slendernesses = [1e1, 1e2]
+atols = [1e-2, 1e-6]
+f_vect = [6 * 1e6, 6 * 1e2]
 
 # starting point and orientation of initial point, initial length
 r_OP0 = np.zeros(3, dtype=float)
@@ -241,10 +335,10 @@ dcurve = lambda xi: np.array([R * np.sin(xi), R * np.cos(xi), 0])
 ddcurve = lambda xi: np.array([R * np.cos(xi), -R * np.sin(xi), 0])
 
 # define reference rod
-# reference_rod = "SE3_Mixed"
-reference_rod = "R12p2_Mixed"
+reference_rod = "SE3_Mixed"
+# reference_rod = "R12p2_Mixed"
 
-test_rods = ["R12p2_Mixed", "R12p1"]
+test_rods = ["R12p1_Mixed", "Qp1_Mixed"]
 # test_rods = ["R12p1", "R12p2", "SE3"]
 # test_rods = ["R12p1", "R12p1_Mixed"]
 # test_rods = ["SE3_Mixed", "SE3"]
@@ -306,12 +400,21 @@ def convergence():
             elif rod == "R12p1_Mixed":
                 nelements = nnodes - 1
                 make_rod = make_R12_rod_mixed(1)
+            elif rod == "Qp1_Mixed":
+                nelements = nnodes - 1
+                make_rod = make_Q_rod_mixed(1)
             elif rod == "R12p2_Mixed":
                 nelements = int((nnodes - 1) / 2)
                 make_rod = make_R12_rod_mixed(2)
             elif rod == "R12p1":
                 nelements = nnodes - 1
                 make_rod = make_R12_rod(
+                    1,
+                    reduced_integration=reduced_integration,
+                )
+            elif rod == "Qp1":
+                nelements = nnodes - 1
+                make_rod = make_Q_rod(
                     1,
                     reduced_integration=reduced_integration,
                 )
@@ -608,6 +711,7 @@ def convergence():
         ).T
 
     np.savetxt(
+        path /
         f"StrainMeasuresConvergence_Reference_{reference_rod}.txt",
         export_data,
         delimiter=", ",
@@ -635,21 +739,36 @@ def convergence():
     ax[3].plot(K_m[1], label="K_m1 - reference")
     ax[3].plot(K_m[2], label="K_m2 - reference")
 
-    for j, (rod, sol) in enumerate(zip(rods, sols)):
+    # for j, (rod, sol) in enumerate(zip(rods[0], sols[0])):
 
-        if rod.mixed is True:
-            xis, K_Gamma, K_Kappa, K_Gamma_DB_M, K_Kappa_DB_M, K_n, K_m, K_n_DB_M, K_m_DB_M = stress_strain(rod, sol)
+        # if rod.mixed is True:
+        #     xis, K_Gamma, K_Kappa, K_Gamma_DB_M, K_Kappa_DB_M, K_n, K_m, K_n_DB_M, K_m_DB_M = stress_strain(rod, sol)
+        #     export_data = np.vstack(
+        #         [xis, K_Gamma[0] - 1.0, K_Gamma[1], K_Gamma[2], *K_Kappa, K_Gamma_DB_M[0] - 1.0, K_Gamma_DB_M[1],
+        #         K_Gamma_DB_M[2], *K_Kappa_DB_M, *K_n, *K_m, *K_n_DB_M, *K_m_DB_M]
+        #     ).T
+        # else:
+        #     xis, K_Gamma, K_Kappa, K_n, K_m = stress_strain(rod, sol)
+        #     export_data = np.vstack(
+        #         [xis, K_Gamma[0] - 1.0, K_Gamma[1], K_Gamma[2], *K_Kappa, *K_n, *K_m]
+        #     ).T
+
+    for j in range(n_rods):
+
+        if rods[0][j].mixed is True:
+            xis, K_Gamma, K_Kappa, K_Gamma_DB_M, K_Kappa_DB_M, K_n, K_m, K_n_DB_M, K_m_DB_M = stress_strain(rods[0][j], sols[0][j])
             export_data = np.vstack(
                 [xis, K_Gamma[0] - 1.0, K_Gamma[1], K_Gamma[2], *K_Kappa, K_Gamma_DB_M[0] - 1.0, K_Gamma_DB_M[1],
                 K_Gamma_DB_M[2], *K_Kappa_DB_M, *K_n, *K_m, *K_n_DB_M, *K_m_DB_M]
             ).T
         else:
-            xis, K_Gamma, K_Kappa, K_n, K_m = stress_strain(rod, sol)
+            xis, K_Gamma, K_Kappa, K_n, K_m = stress_strain(rods[0][j], sols[0][j])
             export_data = np.vstack(
                 [xis, K_Gamma[0] - 1.0, K_Gamma[1], K_Gamma[2], *K_Kappa, *K_n, *K_m]
             ).T
 
         np.savetxt(
+            path /
             f"StrainMeasuresConvergence_{test_rods[j]}.txt",
             export_data,
             delimiter=", ",

@@ -580,7 +580,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
     @abstractmethod
     def _eval(self, qe, xi, mixed=False):
         """Compute (r_OP, A_IK, K_Gamma_bar, K_Kappa_bar)
-        and K_n_s, K_m_s in the mixed formulation"""
+        and K_n, K_m in the mixed formulation"""
         ...
 
     # @abstractmethod
@@ -773,6 +773,84 @@ class CosseratRodPGMixed(RodExportBase, ABC):
             )
 
         return E_pot_el
+
+
+    def eval_stresses(self, t, q, xi, mixed=False):
+
+        el = self.element_number(xi)
+        Qe = self.Q[self.elDOF[el]]
+        qe = q[self.elDOF[el]]
+
+        _, _, K_Gamma_bar0, K_Kappa_bar0 = self._eval(Qe, xi)
+        
+        J_0 = norm(K_Gamma_bar0)
+        K_Gamma0 = K_Gamma_bar0 / J_0
+        K_Kappa0 = K_Kappa_bar0 / J_0
+
+        _, _, K_Gamma_bar, K_Kappa_bar = self._eval(qe, xi)
+
+        J = norm(K_Gamma_bar)
+        K_Gamma = K_Gamma_bar/ J
+        K_Kappa = K_Kappa_bar / J
+
+        K_n_DB = self.material_model.K_n(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
+        K_m_DB = self.material_model.K_m(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
+
+        if mixed:
+            N_n = N_m = self.basis_functions_n(xi).flatten()
+            K_n = np.zeros(3, dtype=qe.dtype)
+            K_m = np.zeros(3, dtype=qe.dtype)
+
+            for node in range(self.nnodes_element_n):
+                n_node = qe[self.nodalDOF_element_n[node]]
+                K_n += N_n[node] * n_node
+                m_node = qe[self.nodalDOF_element_m[node]]
+                K_m += N_m[node] * m_node
+
+            
+            return K_n, K_m, K_n_DB, K_m_DB
+        else:
+            return K_n_DB, K_m_DB
+
+   
+    def eval_strains(self, t, q, xi, mixed=False):
+
+        el = self.element_number(xi)
+        Qe = self.Q[self.elDOF[el]]
+        qe = q[self.elDOF[el]]
+
+        _, _, K_Gamma_bar0, K_Kappa_bar0 = self._eval(Qe, xi)
+        
+        J_0 = norm(K_Gamma_bar0)
+        K_Gamma0 = K_Gamma_bar0 / J_0
+        K_Kappa0 = K_Kappa_bar0 / J_0
+
+        _, _, K_Gamma_bar, K_Kappa_bar = self._eval(qe, xi)
+
+        J = norm(K_Gamma_bar)
+        K_Gamma_DB = K_Gamma_bar/ J
+        K_Kappa_DB = K_Kappa_bar / J
+
+
+        if mixed:
+            N_n = N_m = self.basis_functions_n(xi).flatten()
+            K_n = np.zeros(3, dtype=qe.dtype)
+            K_m = np.zeros(3, dtype=qe.dtype)
+
+            for node in range(self.nnodes_element_n):
+                n_node = qe[self.nodalDOF_element_n[node]]
+                K_n += N_n[node] * n_node
+                m_node = qe[self.nodalDOF_element_m[node]]
+                K_m += N_m[node] * m_node
+
+            K_Gamma = self.material_model.K_gam_comp(K_n, K_Gamma0)
+            K_Kappa = self.material_model.K_kap_comp(K_m, K_Kappa0)
+
+            return K_Gamma, K_Kappa, K_Gamma_DB, K_Kappa_DB
+        else:
+            return K_Gamma_DB, K_Kappa_DB
+    
+
 
     def f_pot_el(self, qe, el):
         f_pot_el = np.zeros(self.nu_element, dtype=qe.dtype)
@@ -1353,6 +1431,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
     # r_OP/ A_IK contribution
     #########################
     def r_OP(self, t, q, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
+        # TODO: correct this function _eval need to qe insteaf of q
         r_OP, A_IK, _, _ = self._eval(q, frame_ID[0])
         return r_OP + A_IK @ K_r_SP
 
