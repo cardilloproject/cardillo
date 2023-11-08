@@ -134,9 +134,9 @@ class EulerBackward:
         elif self.method == "index 1":
             R[nqu : nqu + nla_g] = self.system.g_ddot(t, q, u, u_dot)
 
-        R[
-            nqu + nla_g + nla_gamma : nqu + nla_g + nla_gamma + nla_c
-        ] = self.system.K_c() @ la_c + self.system.c(t, q, u)
+        R[nqu + nla_g + nla_gamma : nqu + nla_g + nla_gamma + nla_c] = self.system.c(
+            t, q, u, la_c
+        )
 
         R[
             nqu + nla_g + nla_gamma + nla_c : nqu + nla_g + nla_gamma + nla_c + nla_S
@@ -161,10 +161,14 @@ class EulerBackward:
             - self.system.h_q(t, q, u)
             - self.system.Wla_g_q(t, q, la_g)
             - self.system.Wla_gamma_q(t, q, la_gamma)
+            - self.system.Wla_c_q(t, q, la_c, la_c)
         )
         D = self.M - dt * self.system.h_u(t, q, u)
 
         gamma_q = self.system.gamma_q(t, q, u)
+        c_q = self.system.c_q(t, q, u, la_c)
+        c_u = self.system.c_u(t, q, u, la_c)
+        c_la_c = self.system.c_la_c(t, q, u, la_c)
         g_S_q = self.g_S_q
 
         # fmt: off
@@ -173,30 +177,33 @@ class EulerBackward:
             g_dot_q = self.system.g_dot_q(t, q, u)
             A -= dt * self.system.g_q_T_mu_q(t, q, mu_g)
             J = bmat([
-                [           A,             -dt * B,      None,          None, -g_S_q.T, -g_q.T],
-                [      dt * C,                   D, -self.W_g, -self.W_gamma,     None,   None],
-                [dt * g_dot_q,     dt * self.W_g.T,      None,          None,     None,   None],
-                [dt * gamma_q, dt * self.W_gamma.T,      None,          None,     None,   None],
-                [  dt * g_S_q,                None,      None,          None,     None,   None],
-                [    dt * g_q,                None,      None,          None,     None,   None],
+                [           A,             -dt * B,      None,          None,      None, -g_S_q.T, -g_q.T],
+                [      dt * C,                   D, -self.W_g, -self.W_gamma, -self.W_c,     None,   None],
+                [dt * g_dot_q,     dt * self.W_g.T,      None,          None,      None,     None,   None],
+                [dt * gamma_q, dt * self.W_gamma.T,      None,          None,      None,     None,   None],
+                [    dt * c_q,            dt * c_u,      None,          None,    c_la_c,     None,   None],
+                [  dt * g_S_q,                None,      None,          None,      None,     None,   None],
+                [    dt * g_q,                None,      None,          None,      None,     None,   None],
             ], format="csc")
         elif self.method == "index 3":
             g_q = self.system.g_q(t, q)
             J = bmat([
-                [           A,             -dt * B,      None,          None, -g_S_q.T],
-                [      dt * C,                   D, -self.W_g, -self.W_gamma,     None],
-                [    dt * g_q,                None,      None,          None,     None],
-                [dt * gamma_q, dt * self.W_gamma.T,      None,          None,     None],
-                [  dt * g_S_q,                None,      None,          None,     None],
+                [           A,             -dt * B,      None,          None,      None, -g_S_q.T],
+                [      dt * C,                   D, -self.W_g, -self.W_gamma, -self.W_c,     None],
+                [    dt * g_q,                None,      None,          None,      None,     None],
+                [dt * gamma_q, dt * self.W_gamma.T,      None,          None,      None,     None],
+                [    dt * c_q,            dt * c_u,      None,          None,    c_la_c,     None],
+                [  dt * g_S_q,                None,      None,          None,      None,     None],
             ], format="csc")
         elif self.method == "index 2":
             g_dot_q = self.system.g_dot_q(t, q, u)
             J = bmat([
-                [           A,             -dt * B,      None,          None, -g_S_q.T],
-                [      dt * C,                   D, -self.W_g, -self.W_gamma,     None],
-                [dt * g_dot_q,     dt * self.W_g.T,      None,          None,     None],
-                [dt * gamma_q, dt * self.W_gamma.T,      None,          None,     None],
-                [  dt * g_S_q,                None,      None,          None,     None],
+                [           A,             -dt * B,      None,          None,      None, -g_S_q.T],
+                [      dt * C,                   D, -self.W_g, -self.W_gamma, -self.W_c,     None],
+                [dt * g_dot_q,     dt * self.W_g.T,      None,          None,      None,     None],
+                [dt * gamma_q, dt * self.W_gamma.T,      None,          None,      None,     None],
+                [dt * c_q,                dt * c_u,      None,          None,    c_la_c,     None],
+                [  dt * g_S_q,                None,      None,          None,      None,     None],
             ], format="csc")
         elif self.method == "index 1":
             g_ddot_q = self.system.g_ddot_q(t, q, u, u_dot)
@@ -204,11 +211,12 @@ class EulerBackward:
             gamma_dot_q = self.system.gamma_dot_q(t, q, u, u_dot)
             gamma_dot_u = self.system.gamma_dot_u(t, q, u, u_dot)
             J = bmat([
-                [               A,                           -dt * B,      None,          None, -g_S_q.T],
-                [          dt * C,                                 D, -self.W_g, -self.W_gamma,     None],
-                [   dt * g_ddot_q,        self.W_g.T + dt * g_ddot_u,      None,          None,     None],
-                [dt * gamma_dot_q, self.W_gamma.T + dt * gamma_dot_u,      None,          None,     None],
-                [      dt * g_S_q,                              None,      None,          None,     None],
+                [               A,                           -dt * B,      None,          None,      None, -g_S_q.T],
+                [          dt * C,                                 D, -self.W_g, -self.W_gamma, -self.W_c,     None],
+                [   dt * g_ddot_q,        self.W_g.T + dt * g_ddot_u,      None,          None,      None,     None],
+                [dt * gamma_dot_q, self.W_gamma.T + dt * gamma_dot_u,      None,          None,      None,     None],
+                [        dt * c_q,                          dt * c_u,      None,          None,    c_la_c,     None],
+                [      dt * g_S_q,                              None,      None,          None,      None,     None],
             ], format="csc")
         else:
             raise NotImplementedError
@@ -423,6 +431,7 @@ class NonsmoothBackwardEuler:
             - self.system.W_gamma(tn1, qn1, scipy_matrix=csr_matrix) @ la_gamman1
             - self.system.W_N(tn1, qn1, scipy_matrix=csr_matrix) @ la_Nn1
             - self.system.W_F(tn1, qn1, scipy_matrix=csr_matrix) @ la_Fn1
+            - self.system.W_P(tn1, qn1, scipy_matrix=csr_matrix) @ la_Pn1
         )
 
         #######################

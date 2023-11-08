@@ -15,6 +15,7 @@ def consistent_initial_conditions(
     t0 = system.t0
     q0 = system.q0
     u0 = system.u0
+    la_c0 = system.la_c0 # TODO solver for la_c0
 
     # normalize quaternions etc.
     system.step_callback(t0, q0, u0)
@@ -39,8 +40,8 @@ def consistent_initial_conditions(
     W_gamma = system.W_gamma(t0, q0, scipy_matrix=csr_matrix)
     W_N = system.W_N(t0, q0, scipy_matrix=csr_matrix)
     W_F = system.W_F(t0, q0, scipy_matrix=csr_matrix)
-    K_c = system.K_c(scipy_matrix=csr_matrix)
-    c = system.c(t0, q0, u0)
+    W_c = system.W_c(t0, q0, scipy_matrix=csr_matrix)
+    c_la_c = system.c_la_c(t0, q0, u0, la_c0, scipy_matrix=csc_matrix)
     gamma_F = system.gamma_F(t0, q0, u0)
 
     prox_r_N = system.prox_r_N(t0, q0)
@@ -61,7 +62,7 @@ def consistent_initial_conditions(
     C_N = np.zeros(system.nla_N, dtype=bool)
 
     def _R_F(x):
-        u_dot, _, _, la_N, la_F = np.array_split(x, split)
+        u_dot, _, _, _, la_N, la_F = np.array_split(x, split)
         gamma_F_dot = system.gamma_F_dot(t0, q0, u0, u_dot)
         R_la_F = np.zeros_like(la_F)
 
@@ -105,7 +106,13 @@ def consistent_initial_conditions(
         # equations of motion
         #####################
         R[: split[0]] = (
-            M @ u_dot - h - W_g @ la_g - W_gamma @ la_gamma - W_N @ la_N - W_F @ la_F
+            M @ u_dot
+            - h
+            - W_g @ la_g
+            - W_gamma @ la_gamma
+            - W_N @ la_N
+            - W_F @ la_F
+            - W_c @ la_c
         )
 
         #############################################
@@ -118,7 +125,7 @@ def consistent_initial_conditions(
         # compliance
         ############
         # TODO: For singular K_c we have to solve c_dot or c_ddot here!
-        R[split[2] : split[3]] = K_c @ la_c + c
+        R[split[2] : split[3]] = system.c(t0, q0, u0, la_c0)
 
         # #################################
         # # Signorini on acceleration level
@@ -138,7 +145,7 @@ def consistent_initial_conditions(
         return R
 
     def J(x, *args, **kwargs):
-        return csc_matrix(approx_fprime(x, R, method="3-point", eps=1.0e-6))
+        # return csc_matrix(approx_fprime(x, R, method="3-point", eps=1.0e-6))
         global C_N
         # TODO: Sparse matrix matrix or sparse matrix slicing?
         Rla_N_u_dot = diags(C_N.astype(float)) @ W_N.T
@@ -146,21 +153,24 @@ def consistent_initial_conditions(
         # Rla_N_u_dot[C_N] = W_N.T[C_N]
         Rla_N_la_N = diags((~C_N).astype(float))
 
-        Rla_F_u_dot, _, _, Rla_F_la_N, Rla_F_la_F = np.array_split(
-            # approx_fprime(x, lambda x: _R_F(x)), split, axis=1
+        Rla_F_u_dot, _, _, _, Rla_F_la_N, Rla_F_la_F = np.array_split(
             approx_fprime(x, lambda x: _R_F(x)),
             split,
-            axis=0,
+            axis=1
+            # approx_fprime(x, lambda x: _R_F(x)),
+            # split,
+            # axis=0,
         )
 
         # fmt: off
         _J = bmat(
             [
-                [          M, -W_g, -W_gamma,       -W_N,       -W_F],
-                [      W_g.T, None,     None,       None,       None],
-                [  W_gamma.T, None,     None,       None,       None],
-                [Rla_N_u_dot, None,     None, Rla_N_la_N,       None],
-                [Rla_F_u_dot, None,     None, Rla_F_la_N, Rla_F_la_F],
+                [          M, -W_g, -W_gamma,   -W_c,       -W_N,       -W_F],
+                [      W_g.T, None,     None,   None,       None,       None],
+                [  W_gamma.T, None,     None,   None,       None,       None],
+                [       None, None,     None, c_la_c,       None,       None],
+                [Rla_N_u_dot, None,     None,   None, Rla_N_la_N,       None],
+                [Rla_F_u_dot, None,     None,   None, Rla_F_la_N, Rla_F_la_F],
             ],
             format="csc",
         )

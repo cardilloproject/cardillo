@@ -67,7 +67,7 @@ class MaxwellElement:
 class MaxwellElementCompliance:
     """Pointmass connected with Maxwell element to origin."""
 
-    def __init__(self, mass, stiffness, damping, l0, q0, u0):
+    def __init__(self, mass, stiffness, damping, l0, q0, u0, la_c0):
         self.mass = mass
         self.stiffness = stiffness
         self.damping = damping
@@ -78,8 +78,10 @@ class MaxwellElementCompliance:
         self.nla_c = 1
         self.q0 = q0
         self.u0 = u0
+        self.la_c0 = la_c0
         assert self.nq == len(q0)
         assert self.nu == len(u0)
+        assert self.nla_c == len(la_c0)
 
     #####################
     # kinematic equations
@@ -119,31 +121,25 @@ class MaxwellElementCompliance:
     ############
     # compliance
     ############
-    def K_c(self):
-        return np.diag([1 / self.stiffness])
-
     def W_c(self, t, q):
         return np.ones((self.nu, self.nla_c))
 
-    def c(self, t, q, u):
+    def c(self, t, q, u, la_c):
         x, x_D = q
-        g_F = x - x_D - self.l0
+        g_F = 1 / self.stiffness * la_c + x - x_D - self.l0
         return np.array([g_F])
-        # return np.array([g_F**3])
 
-    def c_q(self, t, q, u):
-        c_q = np.zeros((self.nc, self.nq))
+    def c_q(self, t, q, u, la_c):
+        c_q = np.zeros((self.nla_c, self.nq))
         c_q[0, 0] = 1
         c_q[0, 1] = -1
         return c_q
 
-        # x, x_D = q
-        # g_F = x - x_D
-        # factor = 3 * g_F**2
-        # c_q = np.zeros((self.nc, self.nq))
-        # c_q[0, 0] = factor
-        # c_q[0, 1] = -factor
-        # return c_q
+    def c_la_c(self, t, q, u, la_c):
+        return np.diag([1 / self.stiffness])
+
+    def Wla_c_q(self, t, q, u, la_c):
+        np.zeros((self.nu, self.nq))
 
 
 class MaxwellElementForceElement:
@@ -173,23 +169,26 @@ if __name__ == "__main__":
     x_dot0 = 0.0
     q0 = np.array([x0, x_D0], dtype=float)
     u0 = np.array([x_dot0], dtype=float)
+    la_c0 = np.array([-5], dtype=float)
 
     # maxwell_element = MaxwellElement(mass, stiffness, damping, l0, q0, u0)
-    # maxwell_element = MaxwellElementCompliance(mass, stiffness, damping, l0, q0, u0)
+    maxwell_element = MaxwellElementCompliance(
+        mass, stiffness, damping, l0, q0, u0, la_c0
+    )
 
-    # system = System()
-    # system.add(maxwell_element)
-    # system.assemble()
+    system = System()
+    system.add(maxwell_element)
+    system.assemble()
 
-    system = MaxwellElementForceElement(
-        mass, stiffness, damping, l0, x0, x_D0, x_dot0
-    ).get_system()
+    # system = MaxwellElementForceElement(
+    #     mass, stiffness, damping, l0, x0, x_D0, x_dot0
+    # ).get_system()
 
     t0 = 0
     t1 = 2
     dt = 5e-3
-    # sol = EulerBackward(system, t1, dt, debug=False).solve()
-    sol = ScipyIVP(system, t1, dt).solve()
+    sol = EulerBackward(system, t1, dt, debug=False, method="index 1").solve()
+    # sol = ScipyIVP(system, t1, dt).solve()
 
     # - ref. solution
     def eqm(t, z):
