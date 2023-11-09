@@ -321,12 +321,9 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         polynomial_degree=1,
         r_OP=np.zeros(3, dtype=float),
         A_IK=np.eye(3, dtype=float),
-        mixed=False,
     ):
         nnodes_r = polynomial_degree * nelement + 1
         nnodes_psi = polynomial_degree * nelement + 1
-        nnodes_n = polynomial_degree * nelement
-        nnodes_m = polynomial_degree * nelement
 
         x0 = np.linspace(0, L, num=nnodes_r)
         y0 = np.zeros(nnodes_r)
@@ -341,14 +338,10 @@ class CosseratRodPGMixed(RodExportBase, ABC):
 
         # we have to extract the rotation vector from the given rotation matrix
         # and set its value for each node
-        psi = QuaternionRotationParameterization().Log_SO3(A_IK)
+        psi = QuaternionRotationParameterization().Log_SO3(A_IK)  # TODO
         q_psi = np.repeat(psi, nnodes_psi)
 
-        q = np.concatenate([q_r, q_psi])
-        if mixed:
-            q = np.concatenate([q_r, q_psi, np.zeros(3 * nnodes_n + 3 * nnodes_m)])
-
-        return q
+        return np.concatenate([q_r, q_psi])
 
     @staticmethod
     def deformed_configuration(
@@ -360,11 +353,8 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         polynomial_degree=1,
         r_OP=np.zeros(3, dtype=float),
         A_IK=np.eye(3, dtype=float),
-        mixed=False,
     ):
         nnodes_r = polynomial_degree * nelement + 1
-        nnodes_n = polynomial_degree * nelement
-        nnodes_m = polynomial_degree * nelement
 
         LL = np.linspace(0, angle, nnodes_r)
 
@@ -396,12 +386,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         q_r = r0.reshape(-1, order="C")
         q_P = P0.reshape(-1, order="C")
 
-        if mixed:
-            q = np.concatenate([q_r, q_P, np.zeros(3 * nnodes_n + 3 * nnodes_m)])
-        else:
-            q = np.concatenate([q_r, q_P])
-
-        return q
+        return np.concatenate([q_r, q_P])
 
     @staticmethod
     def straight_initial_configuration(
@@ -413,12 +398,9 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         v_P=np.zeros(3, dtype=float),
         K_omega_IK=np.zeros(3, dtype=float),
         rotation_parameterization=QuaternionRotationParameterization(),
-        mixed=False,
     ):
         nnodes_r = polynomial_degree * nelement + 1
         nnodes_psi = polynomial_degree * nelement + 1
-        nnodes_n = polynomial_degree * nelement
-        nnodes_m = polynomial_degree * nelement
 
         x0 = np.linspace(0, L, num=nnodes_r)
         y0 = np.zeros(nnodes_r)
@@ -451,10 +433,6 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         q0 = np.concatenate([q_r, q_psi])
         u0 = np.concatenate([u_r, u_psi])
 
-        if mixed:
-            q0 = np.concatenate([q_r, q_psi, np.zeros(3 * nnodes_n + 3 * nnodes_m)])
-            u0 = np.concatenate([u_r, u_psi, np.zeros(3 * nnodes_n + 3 * nnodes_m)])
-
         return q0, u0
 
     def element_number(self, xi):
@@ -473,8 +451,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
     ##################
     @abstractmethod
     def _eval(self, qe, xi, mixed=False):
-        """Compute (r_OP, A_IK, K_Gamma_bar, K_Kappa_bar)
-        and K_n, K_m in the mixed formulation"""
+        """Compute (r_OP, A_IK, K_Gamma_bar, K_Kappa_bar)."""
         ...
 
     # @abstractmethod
@@ -550,7 +527,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
 
         return q_dot
 
-    def B(self, t, q):
+    def q_dot_u(self, t, q, u):
         coo = CooMatrix((self.nq, self.nu))
 
         # trivial kinematic equation for centerline
@@ -584,43 +561,6 @@ class CosseratRodPGMixed(RodExportBase, ABC):
 
         return coo
 
-    # TODO: check which integrator requires this function. Function must be revised completely.
-    # def q_ddot(self, t, q, u, u_dot):
-    #     warnings.warn("'TimoshenkoPetrovGalerkinBase.q_ddot' is not tested yet!")
-
-    #     # centerline part
-    #     q_ddot = u_dot
-
-    #     # correct axis angle vector part
-    #     for node in range(self.nnodes_psi):
-    #         nodalDOF_psi = self.nodalDOF_psi[node]
-    #         nodalDOF_psi_u = self.nodalDOF_psi_u[node]
-
-    #         psi = q[nodalDOF_psi]
-    #         K_omega_IK = u[nodalDOF_psi_u]
-    #         K_omega_IK_dot = u_dot[nodalDOF_psi_u]
-
-    #         # T_inv = T_SO3_inv(psi)
-    #         # psi_dot = T_inv @ K_omega_IK
-
-    #         # T_dot = T_SO3_dot(psi, psi_dot)
-    #         # Tinv_dot = -T_inv @ T_dot @ T_inv
-    #         # psi_ddot = T_inv @ K_omega_IK_dot + Tinv_dot @ K_omega_IK
-
-    #         # # psi_ddot = (
-    #         # #     T_inv @ K_omega_IK_dot
-    #         # #     + np.einsum("ijk,j,k",
-    #         # #         approx_fprime(psi, T_SO3_inv, eps=1.0e-10, method="cs"),
-    #         # #         K_omega_IK,
-    #         # #         psi_dot
-    #         # #     )
-    #         # # )
-
-    #         # q_ddot[nodalDOF_psi] = psi_ddot
-    #         q_ddot[nodalDOF_psi] = self.q_ddot(psi, K_omega_IK, K_omega_IK_dot)
-
-    #     return q_ddot
-
     def step_callback(self, t, q, u):
         for node in range(self.nnodes_psi):
             psi = q[self.nodalDOF_psi[node]]
@@ -632,43 +572,46 @@ class CosseratRodPGMixed(RodExportBase, ABC):
     ###############################
     # potential and internal forces
     ###############################
-    def E_pot(self, t, q):
-        E_pot = 0.0
-        for el in range(self.nelement):
-            elDOF = self.elDOF[el]
-            E_pot += self.E_pot_el(q[elDOF], el)
-        return E_pot
+    # # TODO:
+    # def E_pot(self, t, q):
+    #     E_pot = 0.0
+    #     for el in range(self.nelement):
+    #         elDOF = self.elDOF[el]
+    #         E_pot += self.E_pot_el(q[elDOF], el)
+    #     return E_pot
 
-    def E_pot_el(self, qe, el):
-        E_pot_el = 0.0
+    # # TODO:
+    # def E_pot_el(self, qe, el):
+    #     E_pot_el = 0.0
 
-        for i in range(self.nquadrature):
-            # extract reference state variables
-            qpi = self.qp[el, i]
-            qwi = self.qw[el, i]
-            Ji = self.J[el, i]
-            K_Gamma0 = self.K_Gamma0[el, i]
-            K_Kappa0 = self.K_Kappa0[el, i]
+    #     for i in range(self.nquadrature):
+    #         # extract reference state variables
+    #         qpi = self.qp[el, i]
+    #         qwi = self.qw[el, i]
+    #         Ji = self.J[el, i]
+    #         K_Gamma0 = self.K_Gamma0[el, i]
+    #         K_Kappa0 = self.K_Kappa0[el, i]
 
-            # evaluate required quantities
-            _, _, K_Gamma_bar, K_Kappa_bar = self._eval(qe, qpi)
+    #         # evaluate required quantities
+    #         _, _, K_Gamma_bar, K_Kappa_bar = self._eval(qe, qpi)
 
-            # axial and shear strains
-            K_Gamma = K_Gamma_bar / Ji
+    #         # axial and shear strains
+    #         K_Gamma = K_Gamma_bar / Ji
 
-            # torsional and flexural strains
-            K_Kappa = K_Kappa_bar / Ji
+    #         # torsional and flexural strains
+    #         K_Kappa = K_Kappa_bar / Ji
 
-            # evaluate strain energy function
-            E_pot_el += (
-                self.material_model.potential(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
-                * Ji
-                * qwi
-            )
+    #         # evaluate strain energy function
+    #         E_pot_el += (
+    #             self.material_model.potential(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
+    #             * Ji
+    #             * qwi
+    #         )
 
-        return E_pot_el
+    #     return E_pot_el
 
     def eval_stresses(self, t, q, xi, mixed=False):
+        raise NotImplementedError
         el = self.element_number(xi)
         Qe = self.Q[self.elDOF[el]]
         qe = q[self.elDOF[el]]
@@ -704,6 +647,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
             return K_n_DB, K_m_DB
 
     def eval_strains(self, t, q, xi, mixed=False):
+        raise NotImplementedError
         el = self.element_number(xi)
         Qe = self.Q[self.elDOF[el]]
         qe = q[self.elDOF[el]]
@@ -738,103 +682,10 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         else:
             return K_Gamma_DB, K_Kappa_DB
 
-    def f_pot_el(self, qe, el):
-        f_pot_el = np.zeros(self.nu_element, dtype=qe.dtype)
+    if False:
 
-        for i in range(self.nquadrature):
-            # extract reference state variables
-            qpi = self.qp[el, i]
-            qwi = self.qw[el, i]
-            J = self.J[el, i]
-            K_Gamma0 = self.K_Gamma0[el, i]
-            K_Kappa0 = self.K_Kappa0[el, i]
-
-            # evaluate required quantities
-            _, A_IK, K_Gamma_bar, K_Kappa_bar = self._eval(qe, qpi)
-
-            # axial and shear strains
-            K_Gamma = K_Gamma_bar / J
-
-            # torsional and flexural strains
-            K_Kappa = K_Kappa_bar / J
-
-            if self.mixed:
-                # interpolation of the n and m
-                K_n = np.zeros(3, dtype=qe.dtype)
-                K_m = np.zeros(3, dtype=qe.dtype)
-                for node in range(self.nnodes_element_n):
-                    n_node = qe[self.nodalDOF_element_n[node]]
-                    K_n += self.N_n[el, i, node] * n_node
-
-                for node in range(self.nnodes_element_m):
-                    m_node = qe[self.nodalDOF_element_m[node]]
-                    K_m += self.N_m[el, i, node] * m_node
-
-                # compute contact forces and couples from partial derivatives of
-                # the strain energy function w.r.t. strain measures
-                K_gam_comp = self.material_model.K_gam_comp(K_n, K_Gamma0)
-                K_kap_comp = self.material_model.K_kap_comp(K_m, K_Kappa0)
-
-                ############################
-                # virtual work contributions of the internal stresses
-                ############################
-                for node in range(self.nnodes_element_n):
-                    f_pot_el[self.nodalDOF_element_n_u[node]] -= (
-                        self.N_n[el, i, node]
-                        * (K_Gamma_bar - J * K_gam_comp)
-                        * qwi
-                        # for shear-rigid and inextensible rod
-                        # self.N_n[el, i, node] * (K_Gamma_bar - J * np.array([1, 0, 0])) * qwi
-                        # for shear-rigid
-                        # self.N_n[el, i, node] * (K_Gamma_bar - J * np.array([K_gam_comp[0], 0, 0])) * qwi
-                    )
-
-                for node in range(self.nnodes_element_m):
-                    f_pot_el[self.nodalDOF_element_m_u[node]] -= (
-                        self.N_m[el, i, node]
-                        * (K_Kappa_bar - J * K_kap_comp)
-                        * qwi
-                        # For Ribbons
-                        # self.N_m[el, i, node] * (K_Kappa_bar - J * np.array([K_kap_comp[0], K_kap_comp[1], 0])) * qwi
-                    )
-
-            else:
-                # compute contact forces and couples from partial derivatives of
-                # the strain energy function w.r.t. strain measures
-                K_n = self.material_model.K_n(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
-                K_m = self.material_model.K_m(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
-
-            ############################
-            # virtual work contributions
-            ############################
-            for node in range(self.nnodes_element_r):
-                f_pot_el[self.nodalDOF_element_r_u[node]] -= (
-                    self.N_r_xi[el, i, node] * A_IK @ K_n * qwi
-                )
-
-            for node in range(self.nnodes_element_psi):
-                f_pot_el[self.nodalDOF_element_psi_u[node]] -= (
-                    self.N_psi_xi[el, i, node] * K_m * qwi
-                )
-
-                f_pot_el[self.nodalDOF_element_psi_u[node]] += (
-                    self.N_psi[el, i, node]
-                    * (cross3(K_Gamma_bar, K_n) + cross3(K_Kappa_bar, K_m))
-                    * qwi
-                )
-
-        return f_pot_el
-
-    def f_pot_el_q(self, qe, el):
-        if not hasattr(self, "_deval"):
-            warnings.warn(
-                "Class derived from TimoshenkoPetrovGalerkinBase does not implement _deval. We use a numerical Jacobian!"
-            )
-            return approx_fprime(
-                qe, lambda qe: self.f_pot_el(qe, el), method="3-point", eps=1e-6
-            )
-        else:
-            f_pot_q_el = np.zeros((self.nu_element, self.nq_element), dtype=float)
+        def f_pot_el(self, qe, el):
+            f_pot_el = np.zeros(self.nu_element, dtype=qe.dtype)
 
             for i in range(self.nquadrature):
                 # extract reference state variables
@@ -845,134 +696,336 @@ class CosseratRodPGMixed(RodExportBase, ABC):
                 K_Kappa0 = self.K_Kappa0[el, i]
 
                 # evaluate required quantities
-                (
-                    r_OP,
-                    A_IK,
-                    K_Gamma_bar,
-                    K_Kappa_bar,
-                    r_OP_qe,
-                    A_IK_qe,
-                    K_Gamma_bar_qe,
-                    K_Kappa_bar_qe,
-                ) = self._deval(qe, qpi)
+                _, A_IK, K_Gamma_bar, K_Kappa_bar = self._eval(qe, qpi)
 
                 # axial and shear strains
                 K_Gamma = K_Gamma_bar / J
-                K_Gamma_qe = K_Gamma_bar_qe / J
 
                 # torsional and flexural strains
                 K_Kappa = K_Kappa_bar / J
-                K_Kappa_qe = K_Kappa_bar_qe / J
 
                 if self.mixed:
                     # interpolation of the n and m
                     K_n = np.zeros(3, dtype=qe.dtype)
-                    K_n_qe = np.zeros((3, self.nq_element), dtype=qe.dtype)
                     K_m = np.zeros(3, dtype=qe.dtype)
-                    K_m_qe = np.zeros((3, self.nq_element), dtype=qe.dtype)
-
                     for node in range(self.nnodes_element_n):
-                        nodalDOF_n = self.nodalDOF_element_n[node]
                         n_node = qe[self.nodalDOF_element_n[node]]
                         K_n += self.N_n[el, i, node] * n_node
-                        K_n_qe[:, nodalDOF_n] += self.N_n[el, i, node] * np.eye(
-                            3, dtype=float
-                        )
 
                     for node in range(self.nnodes_element_m):
-                        nodalDOF_m = self.nodalDOF_element_m[node]
                         m_node = qe[self.nodalDOF_element_m[node]]
                         K_m += self.N_m[el, i, node] * m_node
-                        K_m_qe[:, nodalDOF_m] += self.N_m[el, i, node] * np.eye(
-                            3, dtype=float
-                        )
 
-                    C_n_inv = self.material_model.C_n_inverse()
-                    C_m_inv = self.material_model.C_m_inverse()
+                    # compute contact forces and couples from partial derivatives of
+                    # the strain energy function w.r.t. strain measures
+                    K_gam_comp = self.material_model.K_gam_comp(K_n, K_Gamma0)
+                    K_kap_comp = self.material_model.K_kap_comp(K_m, K_Kappa0)
 
                     ############################
-                    # third contribution
+                    # virtual work contributions of the internal stresses
                     ############################
                     for node in range(self.nnodes_element_n):
-                        f_pot_q_el[self.nodalDOF_element_n_u[node], :] -= (
+                        f_pot_el[self.nodalDOF_element_n_u[node]] -= (
                             self.N_n[el, i, node]
-                            * (K_Gamma_bar_qe - J * C_n_inv @ K_n_qe)
+                            * (K_Gamma_bar - J * K_gam_comp)
                             * qwi
+                            # for shear-rigid and inextensible rod
+                            # self.N_n[el, i, node] * (K_Gamma_bar - J * np.array([1, 0, 0])) * qwi
+                            # for shear-rigid
+                            # self.N_n[el, i, node] * (K_Gamma_bar - J * np.array([K_gam_comp[0], 0, 0])) * qwi
                         )
 
                     for node in range(self.nnodes_element_m):
-                        f_pot_q_el[self.nodalDOF_element_m_u[node], :] -= (
+                        f_pot_el[self.nodalDOF_element_m_u[node]] -= (
                             self.N_m[el, i, node]
-                            * (K_Kappa_bar_qe - J * C_m_inv @ K_m_qe)
+                            * (K_Kappa_bar - J * K_kap_comp)
                             * qwi
+                            # For Ribbons
+                            # self.N_m[el, i, node] * (K_Kappa_bar - J * np.array([K_kap_comp[0], K_kap_comp[1], 0])) * qwi
                         )
 
                 else:
                     # compute contact forces and couples from partial derivatives of
                     # the strain energy function w.r.t. strain measures
                     K_n = self.material_model.K_n(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
-                    K_n_K_Gamma = self.material_model.K_n_K_Gamma(
-                        K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
-                    )
-                    K_n_K_Kappa = self.material_model.K_n_K_Kappa(
-                        K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
-                    )
-                    K_n_qe = K_n_K_Gamma @ K_Gamma_qe + K_n_K_Kappa @ K_Kappa_qe
-
                     K_m = self.material_model.K_m(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
-                    K_m_K_Gamma = self.material_model.K_m_K_Gamma(
-                        K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
-                    )
-                    K_m_K_Kappa = self.material_model.K_m_K_Kappa(
-                        K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
-                    )
-                    K_m_qe = K_m_K_Gamma @ K_Gamma_qe + K_m_K_Kappa @ K_Kappa_qe
 
                 ############################
                 # virtual work contributions
                 ############################
                 for node in range(self.nnodes_element_r):
-                    f_pot_q_el[self.nodalDOF_element_r[node], :] -= (
-                        self.N_r_xi[el, i, node]
-                        * qwi
-                        * (np.einsum("ikj,k->ij", A_IK_qe, K_n) + A_IK @ K_n_qe)
+                    f_pot_el[self.nodalDOF_element_r_u[node]] -= (
+                        self.N_r_xi[el, i, node] * A_IK @ K_n * qwi
                     )
 
                 for node in range(self.nnodes_element_psi):
-                    f_pot_q_el[self.nodalDOF_element_psi_u[node], :] += (
+                    f_pot_el[self.nodalDOF_element_psi_u[node]] -= (
+                        self.N_psi_xi[el, i, node] * K_m * qwi
+                    )
+
+                    f_pot_el[self.nodalDOF_element_psi_u[node]] += (
                         self.N_psi[el, i, node]
+                        * (cross3(K_Gamma_bar, K_n) + cross3(K_Kappa_bar, K_m))
                         * qwi
-                        * (
-                            ax2skew(K_Gamma_bar) @ K_n_qe
-                            - ax2skew(K_n) @ K_Gamma_bar_qe
+                    )
+
+            return f_pot_el
+
+        def f_pot_el_q(self, qe, el):
+            if not hasattr(self, "_deval"):
+                warnings.warn(
+                    "Class derived from TimoshenkoPetrovGalerkinBase does not implement _deval. We use a numerical Jacobian!"
+                )
+                return approx_fprime(
+                    qe, lambda qe: self.f_pot_el(qe, el), method="3-point", eps=1e-6
+                )
+            else:
+                f_pot_q_el = np.zeros((self.nu_element, self.nq_element), dtype=float)
+
+                for i in range(self.nquadrature):
+                    # extract reference state variables
+                    qpi = self.qp[el, i]
+                    qwi = self.qw[el, i]
+                    J = self.J[el, i]
+                    K_Gamma0 = self.K_Gamma0[el, i]
+                    K_Kappa0 = self.K_Kappa0[el, i]
+
+                    # evaluate required quantities
+                    (
+                        r_OP,
+                        A_IK,
+                        K_Gamma_bar,
+                        K_Kappa_bar,
+                        r_OP_qe,
+                        A_IK_qe,
+                        K_Gamma_bar_qe,
+                        K_Kappa_bar_qe,
+                    ) = self._deval(qe, qpi)
+
+                    # axial and shear strains
+                    K_Gamma = K_Gamma_bar / J
+                    K_Gamma_qe = K_Gamma_bar_qe / J
+
+                    # torsional and flexural strains
+                    K_Kappa = K_Kappa_bar / J
+                    K_Kappa_qe = K_Kappa_bar_qe / J
+
+                    if self.mixed:
+                        # interpolation of the n and m
+                        K_n = np.zeros(3, dtype=qe.dtype)
+                        K_n_qe = np.zeros((3, self.nq_element), dtype=qe.dtype)
+                        K_m = np.zeros(3, dtype=qe.dtype)
+                        K_m_qe = np.zeros((3, self.nq_element), dtype=qe.dtype)
+
+                        for node in range(self.nnodes_element_n):
+                            nodalDOF_n = self.nodalDOF_element_n[node]
+                            n_node = qe[self.nodalDOF_element_n[node]]
+                            K_n += self.N_n[el, i, node] * n_node
+                            K_n_qe[:, nodalDOF_n] += self.N_n[el, i, node] * np.eye(
+                                3, dtype=float
+                            )
+
+                        for node in range(self.nnodes_element_m):
+                            nodalDOF_m = self.nodalDOF_element_m[node]
+                            m_node = qe[self.nodalDOF_element_m[node]]
+                            K_m += self.N_m[el, i, node] * m_node
+                            K_m_qe[:, nodalDOF_m] += self.N_m[el, i, node] * np.eye(
+                                3, dtype=float
+                            )
+
+                        C_n_inv = self.material_model.C_n_inverse()
+                        C_m_inv = self.material_model.C_m_inverse()
+
+                        ############################
+                        # third contribution
+                        ############################
+                        for node in range(self.nnodes_element_n):
+                            f_pot_q_el[self.nodalDOF_element_n_u[node], :] -= (
+                                self.N_n[el, i, node]
+                                * (K_Gamma_bar_qe - J * C_n_inv @ K_n_qe)
+                                * qwi
+                            )
+
+                        for node in range(self.nnodes_element_m):
+                            f_pot_q_el[self.nodalDOF_element_m_u[node], :] -= (
+                                self.N_m[el, i, node]
+                                * (K_Kappa_bar_qe - J * C_m_inv @ K_m_qe)
+                                * qwi
+                            )
+
+                    else:
+                        # compute contact forces and couples from partial derivatives of
+                        # the strain energy function w.r.t. strain measures
+                        K_n = self.material_model.K_n(
+                            K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
                         )
+                        K_n_K_Gamma = self.material_model.K_n_K_Gamma(
+                            K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
+                        )
+                        K_n_K_Kappa = self.material_model.K_n_K_Kappa(
+                            K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
+                        )
+                        K_n_qe = K_n_K_Gamma @ K_Gamma_qe + K_n_K_Kappa @ K_Kappa_qe
+
+                        K_m = self.material_model.K_m(
+                            K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
+                        )
+                        K_m_K_Gamma = self.material_model.K_m_K_Gamma(
+                            K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
+                        )
+                        K_m_K_Kappa = self.material_model.K_m_K_Kappa(
+                            K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
+                        )
+                        K_m_qe = K_m_K_Gamma @ K_Gamma_qe + K_m_K_Kappa @ K_Kappa_qe
+
+                    ############################
+                    # virtual work contributions
+                    ############################
+                    for node in range(self.nnodes_element_r):
+                        f_pot_q_el[self.nodalDOF_element_r[node], :] -= (
+                            self.N_r_xi[el, i, node]
+                            * qwi
+                            * (np.einsum("ikj,k->ij", A_IK_qe, K_n) + A_IK @ K_n_qe)
+                        )
+
+                    for node in range(self.nnodes_element_psi):
+                        f_pot_q_el[self.nodalDOF_element_psi_u[node], :] += (
+                            self.N_psi[el, i, node]
+                            * qwi
+                            * (
+                                ax2skew(K_Gamma_bar) @ K_n_qe
+                                - ax2skew(K_n) @ K_Gamma_bar_qe
+                            )
+                        )
+
+                        f_pot_q_el[self.nodalDOF_element_psi_u[node], :] -= (
+                            self.N_psi_xi[el, i, node] * qwi * K_m_qe
+                        )
+
+                        f_pot_q_el[self.nodalDOF_element_psi_u[node], :] += (
+                            self.N_psi[el, i, node]
+                            * qwi
+                            * (
+                                ax2skew(K_Kappa_bar) @ K_m_qe
+                                - ax2skew(K_m) @ K_Kappa_bar_qe
+                            )
+                        )
+
+                return f_pot_q_el
+
+                # f_pot_q_el_num = approx_fprime(
+                #     qe, lambda qe: self.f_pot_el(qe, el), eps=1.0e-10, method="cs"
+                # )
+                # # f_pot_q_el_num = approx_fprime(
+                # #     qe, lambda qe: self.f_pot_el(qe, el), eps=5.0e-6, method="2-point"
+                # # )
+                # diff = f_pot_q_el - f_pot_q_el_num
+                # error = np.linalg.norm(diff)
+                # print(f"error f_pot_q_el: {error}")
+                # return f_pot_q_el_num
+
+    def c(self, t, q, u, la_c):
+        c = np.zeros(self.nla_c, dtype=np.common_type(q, u, la_c))
+        for el in range(self.nelement):
+            elDOF = self.elDOF[el]
+            elDOF_la_c = self.elDOF_la_c[el]
+            c[elDOF_la_c] = self.c_el(t, q[elDOF], la_c[elDOF_la_c], el)
+        return c
+
+    def c_el(self, qe, ue, la_ce, el):
+        c_el = np.zeros(self.nla_c_element, dtype=np.common_type(qe, ue, la_ce))
+
+        for i in range(self.nquadrature):
+            # extract reference state variables
+            qpi = self.qp[el, i]
+            qwi = self.qw[el, i]
+            J = self.J[el, i]
+            K_Gamma0 = self.K_Gamma0[el, i]
+            K_Kappa0 = self.K_Kappa0[el, i]
+
+            # evaluate required quantities
+            _, _, K_Gamma_bar, K_Kappa_bar = self._eval(qe, qpi)
+
+            # interpolation of internal forces and moments
+            K_n = np.zeros(3, dtype=qe.dtype)
+            K_m = np.zeros(3, dtype=qe.dtype)
+            for node in range(self.nnodes_element_n):
+                n_node = qe[self.nodalDOF_element_n[node]]
+                K_n += self.N_n[el, i, node] * n_node
+
+            for node in range(self.nnodes_element_m):
+                m_node = qe[self.nodalDOF_element_m[node]]
+                K_m += self.N_m[el, i, node] * m_node
+
+            # compute contact forces and couples from partial derivatives of
+            # the strain energy function w.r.t. strain measures
+            C_n_inv = self.material_model.C_n_inv
+            C_m_inv = self.material_model.C_m_inv
+
+            # TODO: Store K_Gamma_bar0 and K_Kappa_bar0
+            c_n = (J * C_n_inv @ K_n - (K_Gamma_bar - J * K_Gamma0)) * qwi
+            c_m = (J * C_m_inv @ K_m - (K_Kappa_bar - J * K_Kappa0)) * qwi
+
+            for node in range(self.nnodes_element_n):
+                c_el[self.nodalDOF_element_n[node]] += self.N_n[el, i, node] * c_n
+
+            for node in range(self.nnodes_element_m):
+                c_el[self.nodalDOF_element_m[node]] += self.N_m[el, i, node] * c_m
+
+        return c_el
+
+    def W_c(self, t, q):
+        coo = CooMatrix((self.nu, self.nla_c))
+        for el in range(self.nelement):
+            elDOF = self.elDOF[el]
+            elDOF_u = self.elDOF_u[el]
+            elDOF_la_c = self.elDOF_la_c[el]
+            coo[elDOF_u, elDOF_la_c] = self.W_c_el(t, q[elDOF], el)
+        return coo
+
+    def W_c_el(self, qe, el):
+        W_c_el = np.zeros((self.nu_element, self.nla_c_element), dtype=qe.dtype)
+
+        for i in range(self.nquadrature):
+            # extract reference state variables
+            qpi = self.qp[el, i]
+            qwi = self.qw[el, i]
+
+            # evaluate required quantities
+            _, A_IK, K_Gamma_bar, K_Kappa_bar = self._eval(qe, qpi)
+
+            ############################
+            # virtual work contributions
+            ############################
+            for node_r in range(self.nnodes_element_r):
+                nodalDOF_r = self.nodalDOF_element_r_u[node_r]
+                N_r_xi = self.N_r_xi[el, i, node_r]
+                for node_n in range(self.nnodes_element_n):
+                    nodalDOF_n = self.nodalDOF_element_n[node_n]
+                    W_c_el[nodalDOF_r[:, None], nodalDOF_n] -= (
+                        N_r_xi * A_IK * self.N_n[el, i, node_n] * qwi
                     )
 
-                    f_pot_q_el[self.nodalDOF_element_psi_u[node], :] -= (
-                        self.N_psi_xi[el, i, node] * qwi * K_m_qe
-                    )
+            for node_psi in range(self.nnodes_element_psi):
+                nodalDOF_psi = self.nodalDOF_element_psi_u[node_psi]
+                N_psi = self.N_psi[el, i, node_psi]
+                N_psi_xi = self.N_psi_xi[el, i, node_psi]
 
-                    f_pot_q_el[self.nodalDOF_element_psi_u[node], :] += (
-                        self.N_psi[el, i, node]
+                for node_m in range(self.nnodes_element_m):
+                    nodalDOF_m = self.nodalDOF_element_m[node_m]
+                    W_c_el[nodalDOF_psi[:, None], nodalDOF_m] -= (
+                        (N_psi_xi * np.eye(3) - N_psi * ax2skew(K_Kappa_bar))
+                        * self.N_m[el, i, node_m]
                         * qwi
-                        * (
-                            ax2skew(K_Kappa_bar) @ K_m_qe
-                            - ax2skew(K_m) @ K_Kappa_bar_qe
-                        )
                     )
 
-            return f_pot_q_el
+                for node_n in range(self.nnodes_element_n):
+                    nodalDOF_n = self.nodalDOF_element_n[node_n]
+                    W_c_el[nodalDOF_psi[:, None], nodalDOF_n] += (
+                        N_psi * ax2skew(K_Gamma_bar) * self.N_n[el, i, node_n] * qwi
+                    )
 
-            # f_pot_q_el_num = approx_fprime(
-            #     qe, lambda qe: self.f_pot_el(qe, el), eps=1.0e-10, method="cs"
-            # )
-            # # f_pot_q_el_num = approx_fprime(
-            # #     qe, lambda qe: self.f_pot_el(qe, el), eps=5.0e-6, method="2-point"
-            # # )
-            # diff = f_pot_q_el - f_pot_q_el_num
-            # error = np.linalg.norm(diff)
-            # print(f"error f_pot_q_el: {error}")
-            # return f_pot_q_el_num
+        return W_c_el
 
     #########################################
     # equations of motion
@@ -1266,32 +1319,8 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF_u = self.elDOF_u[el]
-            h[elDOF_u] += self.f_pot_el(q[elDOF], el) - self.f_gyr_el(
-                t, q[elDOF], u[elDOF_u], el
-            )
+            h[elDOF_u] -= self.f_gyr_el(t, q[elDOF], u[elDOF_u], el)
         return h
-
-    # def h_q_dense(self, t, q, u):
-    #     h_q = np.zeros((self.nu, self.nq))
-    #     for el in range(self.nelement):
-    #         elDOF = self.elDOF[el]
-    #         elDOF_u = self.elDOF_u[el]
-    #         h_q[elDOF_u[:, None], elDOF] += self.f_pot_el_q(q[elDOF], el)
-    #     # return h_q
-    #     # h_q_num = approx_fprime(q, lambda q: self.h(t, q, u), method="3-point", eps=1e-6)
-    #     h_q_num = approx_fprime(q, lambda q: self.h(t, q, u), method="cs", eps=1e-12)
-    #     diff = h_q - h_q_num
-    #     error = np.linalg.norm(diff)
-    #     print(f"error h_q: {error}")
-    #     return h_q_num
-
-    def h_q(self, t, q, u):
-        coo = CooMatrix((self.nu, self.nq))
-        for el in range(self.nelement):
-            elDOF = self.elDOF[el]
-            elDOF_u = self.elDOF_u[el]
-            coo[elDOF_u, elDOF] = self.f_pot_el_q(q[elDOF], el)
-        return coo
 
     def h_u(self, t, q, u):
         coo = CooMatrix((self.nu, self.nu))

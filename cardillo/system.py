@@ -538,20 +538,14 @@ class System:
     ############
     # compliance
     ############
-    def W_c(self, t, q, scipy_matrix=coo_matrix):
-        coo = CooMatrix((self.nu, self.nla_c))
-        for contr in self.__c_contr:
-            coo[contr.uDOF, contr.la_cDOF] = contr.W_c(t, q[contr.qDOF])
-        return coo.tosparse(scipy_matrix)
-
     def la_c(self, t, q, u):
-        la_c = np.zeros(self.nla_c, dtype=np.common_type(q, u))
+        la_c = np.zeros(self.nla_c, dtype=np.common_type(q, u, la_c))
         for contr in self.__c_contr:
             la_c[contr.la_cDOF] = contr.la_c(t, q[contr.qDOF], u[contr.uDOF])
         return la_c
 
     def c(self, t, q, u, la_c):
-        c = np.zeros(self.nla_c, dtype=np.common_type(q, u))
+        c = np.zeros(self.nla_c, dtype=np.common_type(q, u, la_c))
         for contr in self.__c_contr:
             c[contr.la_cDOF] = contr.c(
                 t, q[contr.qDOF], u[contr.uDOF], la_c[contr.la_cDOF]
@@ -580,6 +574,12 @@ class System:
             coo[contr.la_cDOF, contr.la_cDOF] = contr.c_la_c(
                 t, q[contr.qDOF], u[contr.uDOF], la_c[contr.la_cDOF]
             )
+        return coo.tosparse(scipy_matrix)
+
+    def W_c(self, t, q, scipy_matrix=coo_matrix):
+        coo = CooMatrix((self.nu, self.nla_c))
+        for contr in self.__c_contr:
+            coo[contr.uDOF, contr.la_cDOF] = contr.W_c(t, q[contr.qDOF])
         return coo.tosparse(scipy_matrix)
 
     def Wla_c_q(self, t, q, u, la_c, scipy_matrix=coo_matrix):
