@@ -56,11 +56,8 @@ class CosseratRodPG_SE3Mixed(CosseratRodPGMixed):
         polynomial_degree=1,
         r_OP=np.zeros(3, dtype=float),
         A_IK=np.eye(3, dtype=float),
-        mixed=True,
     ):
-        return CosseratRodPGMixed.straight_configuration(
-            nelement, L, 1, r_OP, A_IK, mixed
-        )
+        return CosseratRodPGMixed.straight_configuration(nelement, L, 1, r_OP, A_IK)
 
     @staticmethod
     def straight_initial_configuration(

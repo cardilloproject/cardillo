@@ -1,4 +1,4 @@
-from cardillo.math import approx_fprime
+from cardillo.math import approx_fprime, fsolve
 from cardillo.solver.solution import Solution
 
 import numpy as np
@@ -7,6 +7,7 @@ from scipy.sparse import csr_matrix, coo_matrix, bmat, lil_matrix
 from tqdm import tqdm
 
 
+# TODO: refactor me!!!!
 class Newton:
     """Force and displacement controlled Newton-Raphson method. This solver
     is used to find a static solution for a mechanical system. Forces and
@@ -43,9 +44,11 @@ class Newton:
         self.nu = system.nu
         self.nla_g = system.nla_g
         self.nla_S = system.nla_S
+        self.nla_c = system.nla_c
         self.nla_N = system.nla_N
-        self.nx = self.nq + self.nla_g + self.nla_N
-        self.nf = self.nu + self.nla_g + self.nla_S + self.nla_N
+        self.nx = self.nq + self.nla_g + self.nla_c + self.nla_N
+        self.nf = self.nu + self.nla_g + self.nla_c + self.nla_S + self.nla_N
+        assert self.nx == self.nf
 
         # build atol, rtol vectors if scalars are given
         self.atol = atol
@@ -54,7 +57,7 @@ class Newton:
         self.x = np.zeros((self.nt, self.nx), dtype=float)
 
         # initial conditions
-        self.x[0] = np.concatenate((self.q0, system.la_g0, system.la_N0))
+        self.x[0] = np.concatenate((self.q0, system.la_g0, system.la_c0, system.la_N0))
         self.u = np.zeros(self.nu)  # zero velocities as system is static
 
         self.numdiff_method = numdiff_method
@@ -76,23 +79,27 @@ class Newton:
         nq = self.nq
         nu = self.nu
         nla_g = self.nla_g
+        nla_c = self.nla_c
         nla_S = self.nla_S
 
         q = x[:nq]
         la_g = x[nq : nq + nla_g]
-        la_N = x[nq + nla_g :]
+        la_c = x[nq + nla_g : nq + nla_g + nla_c]
+        la_N = x[nq + nla_g + nla_c :]
 
         # evaluate quantites that are required for computing the residual and
         # the jacobian
         W_g = self.system.W_g(t, q, scipy_matrix=csr_matrix)
+        W_c = self.system.W_c(t, q, scipy_matrix=csr_matrix)
         W_N = self.system.W_N(t, q, scipy_matrix=csr_matrix)
         g_N = self.system.g_N(t, q)
 
         R = np.zeros(self.nf, dtype=x.dtype)
-        R[:nu] = self.system.h(t, q, self.u0) + W_g @ la_g + W_N @ la_N
+        R[:nu] = self.system.h(t, q, self.u0) + W_g @ la_g + W_c @ la_c + W_N @ la_N
         R[nu : nu + nla_g] = self.system.g(t, q)
-        R[nu + nla_g : nu + nla_g + nla_S] = self.system.g_S(t, q)
-        R[nu + nla_g + nla_S :] = np.minimum(la_N, g_N)
+        R[nu + nla_g : nu + nla_g + nla_c] = self.system.c(t, q, self.u0, la_c)
+        R[nu + nla_g + nla_c : nu + nla_g + nla_c + nla_S] = self.system.g_S(t, q)
+        R[nu + nla_g + nla_c + nla_S :] = np.minimum(la_N, g_N)
         return R
 
     def __eval__analytic(self, t, x):
@@ -218,42 +225,49 @@ class Newton:
         if self.verbose:
             pbar = tqdm(pbar, leave=True)
         for i in pbar:
-            # compute initial residual
-            generator = self.__eval__(self.load_steps[i], self.x[i])
-            R = next(generator)
+            # TODO: This is not the optimal solution
+            f = lambda x: self.fun(self.load_steps[i], x)
+            self.x[i], converged, error, k, f = fsolve(
+                f, self.x[i], jac="2-point", atol=self.atol, max_iter=self.max_iter
+            )
+            pbar.set_description(self.__pbar_text(i, k, error))
 
-            error = self.__error_function(R)
-            converged = error < self.atol
+            # # compute initial residual
+            # generator = self.__eval__(self.load_steps[i], self.x[i])
+            # R = next(generator)
 
-            # reset counter and print inital status
-            k = 0
-            if self.verbose:
-                pbar.set_description(self.__pbar_text(i, k, error))
+            # error = self.__error_function(R)
+            # converged = error < self.atol
 
-            # perform newton step if necessary
-            while (not converged) and (k < self.max_iter):
-                k += 1
+            # # reset counter and print inital status
+            # k = 0
+            # if self.verbose:
+            #     pbar.set_description(self.__pbar_text(i, k, error))
 
-                # compute jacobian
-                dR = next(generator)
+            # # perform newton step if necessary
+            # while (not converged) and (k < self.max_iter):
+            #     k += 1
 
-                # solve linear system of equations and perform update
-                self.x[i] -= spsolve(dR, R)
+            #     # compute jacobian
+            #     dR = next(generator)
 
-                # compute new residual
-                generator = self.__eval__(self.load_steps[i], self.x[i])
-                R = next(generator)
+            #     # solve linear system of equations and perform update
+            #     self.x[i] -= spsolve(dR, R)
 
-                error = self.__error_function(R)
-                converged = error < self.atol
+            #     # compute new residual
+            #     generator = self.__eval__(self.load_steps[i], self.x[i])
+            #     R = next(generator)
 
-                # print status
-                if self.verbose:
-                    pbar.set_description(self.__pbar_text(i, k, error))
+            #     error = self.__error_function(R)
+            #     converged = error < self.atol
 
-                # check convergence
-                if converged:
-                    break
+            #     # print status
+            #     if self.verbose:
+            #         pbar.set_description(self.__pbar_text(i, k, error))
+
+            #     # check convergence
+            #     if converged:
+            #         break
 
             if not converged:
                 # return solution up to this iteration

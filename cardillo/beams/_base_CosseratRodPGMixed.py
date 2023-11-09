@@ -239,8 +239,8 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         self.nla_c_element = self.nla_c_element_n + self.nla_c_element_m
 
         # global element connectivity for copliance coordinates
-        self.elDOF_n = self.mesh_n.elDOF + self.nq_r + self.nq_psi
-        self.elDOF_m = self.mesh_m.elDOF + self.nq_r + self.nq_psi + self.nla_c_n
+        self.elDOF_n = self.mesh_n.elDOF
+        self.elDOF_m = self.mesh_m.elDOF + self.nla_c_n
 
         # global nodal connectivity
         self.nodalDOF_n = self.mesh_n.nodalDOF + self.nq_r + self.nq_psi
@@ -254,11 +254,14 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         self.elDOF_la_c = np.zeros((nelement, self.nla_c_element), dtype=int)
         for el in range(nelement):
             self.elDOF_la_c[el, : self.nla_c_element_n] = self.elDOF_n[el]
-            self.elDOF[el, self.nla_c_element_n :] = self.elDOF_m[el]
+            self.elDOF_la_c[el, self.nla_c_element_n :] = self.elDOF_m[el]
 
         # shape functions and their first derivatives
         self.N_n = self.mesh_n.N
         self.N_m = self.mesh_m.N
+
+        # TODO: Dummy initial values for compliance
+        self.la_c0 = np.zeros(self.nla_c, dtype=float)
 
         # evaluate shape functions at specific xi
         self.basis_functions_n = self.mesh_n.eval_basis
@@ -929,11 +932,11 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF_la_c = self.elDOF_la_c[el]
-            c[elDOF_la_c] = self.c_el(t, q[elDOF], la_c[elDOF_la_c], el)
+            c[elDOF_la_c] = self.c_el(q[elDOF], la_c[elDOF_la_c], el)
         return c
 
-    def c_el(self, qe, ue, la_ce, el):
-        c_el = np.zeros(self.nla_c_element, dtype=np.common_type(qe, ue, la_ce))
+    def c_el(self, qe, la_ce, el):
+        c_el = np.zeros(self.nla_c_element, dtype=np.common_type(qe, la_ce))
 
         for i in range(self.nquadrature):
             # extract reference state variables
@@ -947,14 +950,14 @@ class CosseratRodPGMixed(RodExportBase, ABC):
             _, _, K_Gamma_bar, K_Kappa_bar = self._eval(qe, qpi)
 
             # interpolation of internal forces and moments
-            K_n = np.zeros(3, dtype=qe.dtype)
-            K_m = np.zeros(3, dtype=qe.dtype)
+            K_n = np.zeros(3, dtype=la_ce.dtype)
+            K_m = np.zeros(3, dtype=la_ce.dtype)
             for node in range(self.nnodes_element_n):
-                n_node = qe[self.nodalDOF_element_n[node]]
+                n_node = la_ce[self.nodalDOF_element_n[node]]
                 K_n += self.N_n[el, i, node] * n_node
 
             for node in range(self.nnodes_element_m):
-                m_node = qe[self.nodalDOF_element_m[node]]
+                m_node = la_ce[self.nodalDOF_element_m[node]]
                 K_m += self.N_m[el, i, node] * m_node
 
             # compute contact forces and couples from partial derivatives of
@@ -980,7 +983,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
             elDOF = self.elDOF[el]
             elDOF_u = self.elDOF_u[el]
             elDOF_la_c = self.elDOF_la_c[el]
-            coo[elDOF_u, elDOF_la_c] = self.W_c_el(t, q[elDOF], el)
+            coo[elDOF_u, elDOF_la_c] = self.W_c_el(q[elDOF], el)
         return coo
 
     def W_c_el(self, qe, el):

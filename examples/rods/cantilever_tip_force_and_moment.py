@@ -76,10 +76,7 @@ def cantilever(
 
     # compute straight initial configuration of cantilever
     q0 = Rod.straight_configuration(
-        nelements,
-        length,
-        polynomial_degree=polynomial_degree,
-        mixed=mixed,
+        nelements, length, polynomial_degree=polynomial_degree
     )
     # construct cantilever
     cantilever = Rod(
