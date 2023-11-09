@@ -9,11 +9,8 @@ from cardillo.solver import (
     MoreauShifted,
     NonsmoothGeneralizedAlpha,
     Rattle,
-    MoreauShiftedNew,
     MoreauClassical,
-    NonsmoothBackwardEuler,
-    SimplifiedNonsmoothGeneralizedAlpha,
-    SimplifiedNonsmoothGeneralizedAlphaFirstOrder,
+    BackwardEuler,
 )
 
 
@@ -49,7 +46,7 @@ class RotatingBouncingBall:
     def q_ddot(self, t, q, u, u_dot):
         return u_dot
 
-    def B(self, t, q):
+    def q_dot_u(self, t, q, u):
         return np.ones(self.nq)
 
     #####################
@@ -92,6 +89,7 @@ class RotatingBouncingBall:
 
     def gamma_F_dot(self, t, q, u, u_dot):
         return np.array([u_dot[0] + self.radius * u_dot[2]])
+    
 
     def W_F(self, t, q):
         W_F = np.zeros((self.nla_F, self.nu), dtype=q.dtype)
@@ -191,8 +189,8 @@ def run(case, export=True):
     # solver1, label1 = Rattle(system, t_final, dt), "Rattle"
     # solver1, label1 = MoreauShifted(system, t_final, dt), "MoreauShifted"
     # solver1, label1 = MoreauShiftedNew(system, t_final, dt), "MoreauShiftedNew"
-    solver1, label1 = MoreauClassical(system, t_final, dt), "MoreauClassical"
-    # solver1, label1 = NonsmoothBackwardEuler(system, t_final, dt), "Euler backward"
+    # solver1, label1 = MoreauClassical(system, t_final, dt), "MoreauClassical"
+    solver1, label1 = BackwardEuler(system, t_final, dt), "Backward Euler"
 
     sol1 = solver1.solve()
     t1 = sol1.t
@@ -205,11 +203,12 @@ def run(case, export=True):
     P_N1 = sol1.P_N
     P_F1 = sol1.P_F
 
-    solver2, label2 = (
-        NonsmoothGeneralizedAlpha(system, t_final, dt),
-        "Gen-alpha",
-    )
+    # solver2, label2 = (
+    #     NonsmoothGeneralizedAlpha(system, t_final, dt),
+    #     "Gen-alpha",
+    # )
     # solver2, label2 = MoreauClassical(system, t_final, dt), "Moreau"
+    solver2, label2 = BackwardEuler(system, t_final, dt), "Backward Euler"
     # solver2, label2 = Rattle(system, t_final, dt), "Rattle"
     sol2 = solver2.solve()
     t2 = sol2.t

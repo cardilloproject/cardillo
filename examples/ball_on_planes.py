@@ -14,7 +14,7 @@ from cardillo.solver import (
     Rattle,
     MoreauShiftedNew,
     MoreauClassical,
-    NonsmoothBackwardEuler,
+    BackwardEuler,
     NPIRK,
     SimplifiedNonsmoothGeneralizedAlpha,
     SimplifiedNonsmoothGeneralizedAlphaFirstOrder,

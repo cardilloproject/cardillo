@@ -24,7 +24,7 @@ properties.extend(["c", "c_q", "c_u"])
 properties.extend(["g_S"])
 
 properties.extend(["g_N"])
-properties.extend(["gamma_F"])
+properties.extend(["gamma_F", "gamma_F_q"])
 
 properties.extend(["assembler_callback", "step_callback"])
 
@@ -59,6 +59,7 @@ class System:
         self.nu = 0
         self.nla_g = 0
         self.nla_gamma = 0
+        self.nla_c = 0
         self.nla_S = 0
         self.nla_N = 0
         self.nla_F = 0
@@ -167,7 +168,6 @@ class System:
         self.nla_F = 0
         q0 = []
         u0 = []
-        la_c0 = []
         e_N = []
         e_F = []
         mu = []
@@ -217,7 +217,6 @@ class System:
             if hasattr(contr, "nla_c"):
                 contr.la_cDOF = np.arange(0, contr.nla_c) + self.nla_c
                 self.nla_c += contr.nla_c
-                la_c0.extend(contr.la_c0.tolist())
 
             # if contribution has stabilization conditions for the kinematic equation
             if hasattr(contr, "nla_S"):
@@ -263,7 +262,6 @@ class System:
         # compute consisten initial conditions
         self.q0 = np.array(q0)
         self.u0 = np.array(u0)
-        self.la_c0 = np.array(la_c0)
         (
             self.t0,
             self.q0,
@@ -499,10 +497,10 @@ class System:
             )
         return coo.tosparse(scipy_matrix)
 
-    def gamma_u(self, t, q, scipy_matrix=coo_matrix):
+    def gamma_u(self, t, q, u, scipy_matrix=coo_matrix):
         coo = CooMatrix((self.nla_gamma, self.nu))
         for contr in self.__gamma_contr:
-            coo[contr.la_gammaDOF, contr.uDOF] = contr.gamma_u(t, q[contr.qDOF])
+            coo[contr.la_gammaDOF, contr.uDOF] = contr.gamma_u(t, q[contr.qDOF], u[contr.uDOF])
         return coo.tosparse(scipy_matrix)
 
     def gamma_dot_q(self, t, q, u, u_dot, scipy_matrix=coo_matrix):
@@ -582,7 +580,7 @@ class System:
             )
         return coo.tosparse(scipy_matrix)
 
-    def Wla_c_q(self, t, q, u, la_c, scipy_matrix=coo_matrix):
+    def Wla_c_q(self, t, q, la_c, scipy_matrix=coo_matrix):
         coo = CooMatrix((self.nu, self.nq))
         for contr in self.__c_q_contr:
             coo[contr.uDOF, contr.qDOF] = contr.Wla_c_q(
@@ -803,7 +801,7 @@ class System:
 
     def gamma_F_q(self, t, q, u, scipy_matrix=coo_matrix):
         coo = CooMatrix((self.nla_F, self.nq))
-        for contr in self.__gamma_F_contr:
+        for contr in self.__gamma_F_q_contr:
             coo[contr.la_FDOF, contr.qDOF] = contr.gamma_F_q(
                 t, q[contr.qDOF], u[contr.uDOF]
             )
