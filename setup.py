@@ -28,6 +28,7 @@ setup(
         # "meshio>=5.0.0", # beam export may not work with this!
         "sparseqr>=1.2",  # TODO: Is this working on windows an mac?
         "pytest",
+        "dill",
     ],
     packages=find_packages(),
     python_requires=">=3.10",
