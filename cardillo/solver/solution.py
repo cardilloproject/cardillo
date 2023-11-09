@@ -1,17 +1,17 @@
 from collections import namedtuple
-import pickle
+import dill
 
 
 def save_solution(sol, filename):
     """Store a `Solution` object into a given file."""
     with open(filename, mode="wb") as f:
-        pickle.dump(sol, f, protocol=pickle.HIGHEST_PROTOCOL)
+        dill.dump(sol, f)
 
 
 def load_solution(filename):
     """Load a `Solution` object from a given file."""
     with open(filename, mode="rb") as f:
-        return pickle.load(f)
+        return dill.load(f)
 
 
 class Solution:

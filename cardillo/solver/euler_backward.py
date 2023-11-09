@@ -294,6 +294,7 @@ class EulerBackward:
 
         # write solution
         return Solution(
+            system=self.system,
             t=self.t_eval,
             q=np.array(q_list),
             u=np.array(u_list),
