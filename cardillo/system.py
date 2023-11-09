@@ -500,7 +500,9 @@ class System:
     def gamma_u(self, t, q, u, scipy_matrix=coo_matrix):
         coo = CooMatrix((self.nla_gamma, self.nu))
         for contr in self.__gamma_contr:
-            coo[contr.la_gammaDOF, contr.uDOF] = contr.gamma_u(t, q[contr.qDOF], u[contr.uDOF])
+            coo[contr.la_gammaDOF, contr.uDOF] = contr.gamma_u(
+                t, q[contr.qDOF], u[contr.uDOF]
+            )
         return coo.tosparse(scipy_matrix)
 
     def gamma_dot_q(self, t, q, u, u_dot, scipy_matrix=coo_matrix):
@@ -584,7 +586,7 @@ class System:
         coo = CooMatrix((self.nu, self.nq))
         for contr in self.__c_q_contr:
             coo[contr.uDOF, contr.qDOF] = contr.Wla_c_q(
-                t, q[contr.uDOF], u[contr.uDOF], la_c[contr.la_cDOF]
+                t, q[contr.uDOF], la_c[contr.la_cDOF]
             )
         return coo.tosparse(scipy_matrix)
 

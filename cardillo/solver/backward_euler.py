@@ -7,6 +7,7 @@ from cardillo.math import fsolve, approx_fprime
 from cardillo.solver import Solution, consistent_initial_conditions
 from cardillo.utility.coo_matrix import CooMatrix
 
+
 class BackwardEuler:
     def __init__(
         self,
@@ -17,7 +18,7 @@ class BackwardEuler:
         max_iter=10,
         jac=None,
         debug=False,
-        debug_method='2-point',
+        debug_method="2-point",
         debug_tol=1e-6,
     ):
         self.system = system
@@ -118,9 +119,16 @@ class BackwardEuler:
     def R(self, yn1, update_index=False):
         tn, dt, qn, un = self.tn, self.dt, self.qn, self.un
 
-        q_dotn1, u_dotn1, la_gn1, la_gamman1, la_cn1, la_Nn1, la_Fn1, mu_Sn1 = np.array_split(
-            yn1, self.split
-        )
+        (
+            q_dotn1,
+            u_dotn1,
+            la_gn1,
+            la_gamman1,
+            la_cn1,
+            la_Nn1,
+            la_Fn1,
+            mu_Sn1,
+        ) = np.array_split(yn1, self.split)
         tn1 = tn + dt
         qn1 = qn + dt * q_dotn1
         un1 = un + dt * u_dotn1
@@ -206,9 +214,16 @@ class BackwardEuler:
     def J(self, yn1, *args, **kwargs):
         tn, dt, qn, un = self.tn, self.dt, self.qn, self.un
 
-        q_dotn1, u_dotn1, la_gn1, la_gamman1, la_cn1, la_Nn1, la_Fn1, mu_Sn1 = np.array_split(
-            yn1, self.split
-        )
+        (
+            q_dotn1,
+            u_dotn1,
+            la_gn1,
+            la_gamman1,
+            la_cn1,
+            la_Nn1,
+            la_Fn1,
+            mu_Sn1,
+        ) = np.array_split(yn1, self.split)
         tn1 = tn + dt
         qn1 = qn + dt * q_dotn1
         un1 = un + dt * u_dotn1
@@ -379,6 +394,7 @@ class BackwardEuler:
                 print(f"error J: {error}")
 
             return J_num
+
         return J
 
     def solve(self):

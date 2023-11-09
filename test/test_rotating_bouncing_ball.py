@@ -89,9 +89,9 @@ class RotatingBouncingBall:
 
     def gamma_F_dot(self, t, q, u, u_dot):
         return np.array([u_dot[0] + self.radius * u_dot[2]])
-    
 
     def W_F(self, t, q):
+        raise RuntimeError("This should raise an error since W_F has wrong shape!!!!")
         W_F = np.zeros((self.nla_F, self.nu), dtype=q.dtype)
         W_F[0, 0] = 1
         W_F[0, 2] = self.radius

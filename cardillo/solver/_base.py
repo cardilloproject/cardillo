@@ -212,7 +212,7 @@ def consistent_initial_conditions(
     )
     if jac is None:
         jac = J
-    
+
     x0, converged, error, i, f = fsolve(
         R,
         x0,
