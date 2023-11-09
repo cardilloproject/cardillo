@@ -15,7 +15,7 @@ def consistent_initial_conditions(
     t0 = system.t0
     q0 = system.q0
     u0 = system.u0
-    la_c0 = system.la_c0 # TODO solver for la_c0
+    la_c0 = system.la_c0  # TODO solver for la_c0
 
     # normalize quaternions etc.
     system.step_callback(t0, q0, u0)
