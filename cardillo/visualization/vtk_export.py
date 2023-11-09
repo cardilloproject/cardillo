@@ -15,13 +15,12 @@ class Export:
         overwrite: bool,
         fps: float,
         solution: Solution,
-        system,
     ) -> None:
         super().__init__()
         self.path = path
         self.folder = self.__create_vtk_folder(folder_name, overwrite)
         self.fps = fps
-        self.system = system
+        self.system = solution.system
         self.__prepare_data(solution)
 
     # helper functions
@@ -95,7 +94,7 @@ class Export:
             P_F = None
 
         # TODO default values + not None values of solution object
-        self.solution = Solution(
+        self.solution = Solution(sol.system,
             t=t,
             q=q,
             u=u,
