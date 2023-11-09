@@ -66,8 +66,7 @@ def test_some_rigid_bodies():
         folder_name=path.stem, 
         overwrite=True, 
         fps=30, 
-        solution=sol, 
-        system=system)
+        solution=sol)
     e.export_contr(ball)
     e.export_contr(box)
     e.export_contr(cylinder)

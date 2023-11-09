@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.sparse import csr_matrix, bmat, csc_matrix, lil_matrix, diags
-from cardillo.math import prox_sphere, prox_R0_nm, fsolve, norm, approx_fprime
+from cardillo.math import prox_sphere, fsolve, norm, approx_fprime
 
 
 def consistent_initial_conditions(
@@ -15,7 +15,7 @@ def consistent_initial_conditions(
     t0 = system.t0
     q0 = system.q0
     u0 = system.u0
-    la_c0 = system.la_c0  # TODO solver for la_c0
+    
 
     # normalize quaternions etc.
     system.step_callback(t0, q0, u0)
@@ -41,7 +41,6 @@ def consistent_initial_conditions(
     W_N = system.W_N(t0, q0, scipy_matrix=csr_matrix)
     W_F = system.W_F(t0, q0, scipy_matrix=csr_matrix)
     W_c = system.W_c(t0, q0, scipy_matrix=csr_matrix)
-    c_la_c = system.c_la_c(t0, q0, u0, la_c0, scipy_matrix=csc_matrix)
     gamma_F = system.gamma_F(t0, q0, u0)
 
     prox_r_N = system.prox_r_N(t0, q0)
@@ -124,23 +123,22 @@ def consistent_initial_conditions(
         ############
         # compliance
         ############
-        # TODO: For singular K_c we have to solve c_dot or c_ddot here!
-        R[split[2] : split[3]] = system.c(t0, q0, u0, la_c0)
+        R[split[2] : split[3]] = system.c(t0, q0, u0, la_c)
 
-        # #################################
-        # # Signorini on acceleration level
-        # #################################
-        # g_N_ddot = system.g_N_ddot(t0, q0, u0, u_dot)
-        # prox_arg = prox_r_N * g_N_ddot - la_N
-        # global C_N
-        # if update_index:
-        #     C_N = B_N * (prox_arg <= 0)
-        # R[split[3] : split[4]] = np.where(C_N, g_N_ddot, la_N)
+        #################################
+        # Signorini on acceleration level
+        #################################
+        g_N_ddot = system.g_N_ddot(t0, q0, u0, u_dot)
+        prox_arg = prox_r_N * g_N_ddot - la_N
+        global C_N
+        if update_index:
+            C_N = B_N * (prox_arg <= 0)
+        R[split[3] : split[4]] = np.where(C_N, g_N_ddot, la_N)
 
-        # ################################
-        # # friction on acceleration level
-        # ################################
-        # R[split[4] :] = _R_F(x)
+        ################################
+        # friction on acceleration level
+        ################################
+        R[split[4] :] = _R_F(x)
 
         return R
 
@@ -162,6 +160,8 @@ def consistent_initial_conditions(
             # axis=0,
         )
 
+        la_c0 = x[split[2] : split[3]]
+        c_la_c = system.c_la_c(t0, q0, u0, la_c0, scipy_matrix=csc_matrix)
         # fmt: off
         _J = bmat(
             [
@@ -196,6 +196,7 @@ def consistent_initial_conditions(
         jac = J
     else:
         jac = "3-point"
+    
     x0, converged, error, i, f = fsolve(
         R,
         x0,
@@ -209,6 +210,7 @@ def consistent_initial_conditions(
     assert (
         converged
     ), "Solving for consistent initial conditions does not converge after {i} iterations with error {error}."
+
     u_dot0, la_g0, la_gamma0, la_c0, la_N0, la_F0 = np.array_split(x0, split)
 
     # check if initial conditions satisfy constraints on position, velocity
