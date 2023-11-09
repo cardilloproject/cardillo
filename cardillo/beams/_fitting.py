@@ -41,22 +41,18 @@ def fit_configuration(
     ###########
     # initialized nodal unknowns with closest data w.r.t. xi values
     xi_idx_r = np.array(
-        [
-            np.where(xis >= xi)[0][0]
-            for xi in np.linspace(0, 1, rod.mesh_r.nnodes)
-        ]
+        [np.where(xis >= xi)[0][0] for xi in np.linspace(0, 1, rod.mesh_r.nnodes)]
     )
     xi_idx_psi = np.array(
-        [
-            np.where(xis >= xi)[0][0]
-            for xi in np.linspace(0, 1, rod.mesh_psi.nnodes)
-        ]
+        [np.where(xis >= xi)[0][0] for xi in np.linspace(0, 1, rod.mesh_psi.nnodes)]
     )
 
     for node, xi_idx in enumerate(xi_idx_r):
         Z0[rod.nodalDOF_r[node]] = r_OPs[xi_idx]
     for node, xi_idx in enumerate(xi_idx_psi):
-        Z0[rod.nodalDOF_psi[node]] = QuaternionRotationParameterization.Log_SO3(A_IKs[xi_idx])
+        Z0[rod.nodalDOF_psi[node]] = QuaternionRotationParameterization.Log_SO3(
+            A_IKs[xi_idx]
+        )
 
     # # TODO: Ensure that all quaternions are on the same hemisphere
     # # quats = np.array([
@@ -151,7 +147,12 @@ def fit_configuration(
             # compute homogeneous transformation and derivative
             H = SE3(A_IK, r_OP)
             H_qe = np.zeros((4, 4, len(ze)))
-            nodalDOF_element = np.concatenate([rod.nodalDOF_element_r.T.flatten(), rod.nodalDOF_element_psi.T.flatten()])
+            nodalDOF_element = np.concatenate(
+                [
+                    rod.nodalDOF_element_r.T.flatten(),
+                    rod.nodalDOF_element_psi.T.flatten(),
+                ]
+            )
             H_qe[:3, :3, :] = A_IK_ze[:, :, nodalDOF_element]
             H_qe[:3, 3, :] = r_OP_ze[:, nodalDOF_element]
 
@@ -187,7 +188,7 @@ def fit_configuration(
     )
     Q0 = res.x
     Z0 = np.zeros(rod.nq)
-    Z0[:rod.nq_r + rod.nq_psi] = make_redundant_coordinates(Q0)
+    Z0[: rod.nq_r + rod.nq_psi] = make_redundant_coordinates(Q0)
 
     rod.set_initial_strains(Z0)
     return Z0

@@ -37,9 +37,7 @@ class LagrangeKnotVector:
 
         element = np.zeros(lenxi, dtype=int)
         for j in range(lenxi):
-            element[j] = (
-                np.asarray(self.element_data <= nodes[j]).nonzero()[0][-1]
-            ) 
+            element[j] = np.asarray(self.element_data <= nodes[j]).nonzero()[0][-1]
             if nodes[j] == self.data[-1]:
                 element[j] -= 1
         # if lenxi == 1:
@@ -48,14 +46,15 @@ class LagrangeKnotVector:
 
     def element_interval(self, el):
         return np.array(
-                [
-                    self.element_data[el],
-                    self.element_data[el + 1],
-                ]
-            )
+            [
+                self.element_data[el],
+                self.element_data[el + 1],
+            ]
+        )
 
     def verify_data(self):
         assert len(self.element_data) == self.nel + 1
+
 
 class LagrangeBasis:
     """Lagrange basis function on [interval[0], interval[1]], see Wiki.

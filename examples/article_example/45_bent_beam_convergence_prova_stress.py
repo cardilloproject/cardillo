@@ -34,7 +34,6 @@ from pathlib import Path
 from shutil import rmtree
 
 
-
 def make_SE3_rod_mixed(reduced_integration):
     def make(
         R,
@@ -73,11 +72,12 @@ def make_SE3_rod_mixed(reduced_integration):
             q0=q0,
             polynomial_degree=1,
             reduced_integration=reduced_integration,
-            mixed=True
+            mixed=True,
         )
         return q0, rod
 
     return make
+
 
 def make_R12_rod_mixed(polynomial_degree):
     def make(
@@ -125,6 +125,7 @@ def make_R12_rod_mixed(polynomial_degree):
 
     return make
 
+
 def make_SE3_rod(reduced_integration):
     def make(
         R,
@@ -163,11 +164,12 @@ def make_SE3_rod(reduced_integration):
             q0=q0,
             polynomial_degree=1,
             reduced_integration=reduced_integration,
-            mixed=False
+            mixed=False,
         )
         return q0, rod
 
     return make
+
 
 def make_R12_rod(polynomial_degree, reduced_integration):
     def make(
@@ -212,8 +214,9 @@ def make_R12_rod(polynomial_degree, reduced_integration):
         )
 
         return q0, rod
-    
+
     return make
+
 
 def make_Q_rod_mixed(polynomial_degree):
     def make(
@@ -261,6 +264,7 @@ def make_Q_rod_mixed(polynomial_degree):
 
     return make
 
+
 def make_Q_rod(polynomial_degree, reduced_integration):
     def make(
         R,
@@ -304,9 +308,8 @@ def make_Q_rod(polynomial_degree, reduced_integration):
         )
 
         return q0, rod
-    
-    return make
 
+    return make
 
 
 # Young's and shear modulus
@@ -350,10 +353,10 @@ test_rods = ["R12p1"]
 # test_rods = ["SE3_Mixed"]
 
 
-nnodes_list = np.array([5, 9, 17, 33, 65, 129], dtype=int) 
-nnodes_ref = 513  
-# nnodes_list = np.array([5], dtype=int) 
-# nnodes_ref = 513                                  
+nnodes_list = np.array([5, 9, 17, 33, 65, 129], dtype=int)
+nnodes_ref = 513
+# nnodes_list = np.array([5], dtype=int)
+# nnodes_ref = 513
 
 volume_correction = False
 reduced_integration = False
@@ -361,11 +364,10 @@ reduced_integration = False
 # reduced_integration = True
 
 
-
-def convergence(): 
-    n_rods = len(test_rods)  
+def convergence():
+    n_rods = len(test_rods)
     n_slenderness = len(slendernesses)
-    nnodes = len(nnodes_list) 
+    nnodes = len(nnodes_list)
     rods = np.zeros((n_slenderness, n_rods), dtype=object)
     sols = np.zeros((n_slenderness, n_rods), dtype=object)
     position_errors = np.zeros((n_slenderness, n_rods, nnodes), dtype=float)
@@ -394,7 +396,6 @@ def convergence():
         Ei = np.array([E * A, G * A, G * A])
         Fi = np.array([G * Ip, E * I2, E * I3])
         material_model = Simo1986(Ei, Fi)
-
 
         def solve(nnodes, rod, volume_correction, reduced_integration):
             assert nnodes % 2 == 1
@@ -444,7 +445,6 @@ def convergence():
                 print(f"wrong rod: '{rod}'")
                 raise NotImplementedError
 
-
             q0, rod = make_rod(
                 R,
                 curve,
@@ -468,13 +468,13 @@ def convergence():
             frame1 = Frame(r_OP=r_OP0, A_IK=A_IK0)
 
             # generate the constraint on the beam
-            A_IK_clamping= lambda t: A_IK_basic(0.).z()
+            A_IK_clamping = lambda t: A_IK_basic(0.0).z()
             clamping_point = Frame(A_IK=A_IK_clamping)
             clamping_left = RigidConnection(clamping_point, rod, frame_ID2=(0,))
-            
+
             F = lambda t: ff * t * e3
             force = Force(F, rod, frame_ID=(1,))
-            
+
             # assemble the system
             system = System()
             system.add(rod)
@@ -498,9 +498,13 @@ def convergence():
 
         # solve system with reference rod
         rod_ref, sol_ref, _ = solve(
-        # rod_ref, sol_ref = solve(
-            nnodes_ref, reference_rod, volume_correction=False, reduced_integration=False)
-        ''' Be careful to set the reduced_integration to False when we use mixed elements'''
+            # rod_ref, sol_ref = solve(
+            nnodes_ref,
+            reference_rod,
+            volume_correction=False,
+            reduced_integration=False,
+        )
+        """ Be careful to set the reduced_integration to False when we use mixed elements"""
 
         # sample centerline deflection of reference solution
         num = 100
@@ -512,7 +516,7 @@ def convergence():
             print(f"rod: {rod_name}")
             for k, nnodes in enumerate(nnodes_list):
                 rod, sol, n_iter_tot = solve(
-                # rod, sol = solve(
+                    # rod, sol = solve(
                     nnodes,
                     rod_name,
                     volume_correction=volume_correction,
@@ -520,10 +524,10 @@ def convergence():
                 )
 
                 # Newton iteration number
-                Newton_iterations[i, j, k] = n_iter_tot 
+                Newton_iterations[i, j, k] = n_iter_tot
                 # rods e sols for each mesh and for each rod
-                rods_stress[i , j, k] = rod
-                sols_stress[i , j, k] = sol
+                rods_stress[i, j, k] = rod
+                sols_stress[i, j, k] = sol
 
                 # centerline errors
                 r_OPj = rod.centerline(sol.q[-1], num=num)
@@ -591,7 +595,6 @@ def convergence():
             # Each vectors is organized in this way: each row is related to a defined mesh for the type of element considered.
             # The row contains the position, angle and twist errors plus the total number of Newton's iterations
 
-
     ##########################
     # plot rate of convergence
     ##########################
@@ -617,14 +620,11 @@ def convergence():
     #         # ax[j].legend()
     #         # ax[j].legend(loc='upper right')  # Imposta la posizione della legenda
 
-
-    
-
     # Define a list of markers
     # markers = ['o', 's', '^', 'v', '<', '>', 'p', 'h']
-    markers = ['o', 's', '^']
+    markers = ["o", "s", "^"]
     # Define a list of line styles
-    line_styles = ['-', '-', '-.']
+    line_styles = ["-", "-", "-."]
 
     for i in range(n_slenderness):
         # Create a new figure for each slenderness value
@@ -634,7 +634,13 @@ def convergence():
             marker = markers[(i * n_rods + j) % len(markers)]
             line_style = line_styles[i % len(line_styles)]
             # Plot the twist_errors for each combination of slenderness and rod_name with a line and marker style
-            ax.loglog(nnodes_list, twist_errors[i, j], line_style + marker, label=f"{slendernesses[i]}, {rod_name}", markerfacecolor='none')
+            ax.loglog(
+                nnodes_list,
+                twist_errors[i, j],
+                line_style + marker,
+                label=f"{slendernesses[i]}, {rod_name}",
+                markerfacecolor="none",
+            )
 
         # Plot the reference lines once
         ax.loglog(nnodes_list, 90 / nnodes_list, "--k", label="~1 / n_el")
@@ -645,20 +651,14 @@ def convergence():
         ax.set_xlabel("nnodes_list")
         ax.set_ylabel("Twist Errors")
         ax.grid()
-        ax.legend(loc='lower left')
-
+        ax.legend(loc="lower left")
 
     # ax[0].legend(loc='lower left')
 
     # for i in range(n_slenderness):
     #     fig.savefig(f"C:/Users/Domenico/Desktop/cardillo/examples/mixed_examples/45_bent_beam_convergence/slenderness_{slendernesses[i]}.eps", format='eps', bbox_inches='tight')
 
-
     plt.show()
-
-    
-
-
 
     ####################################################
     # visualize centerline curves of final configuration
@@ -678,7 +678,6 @@ def convergence():
 
     plt.show()
 
-
     #################
     # strain measures
     #################
@@ -689,42 +688,87 @@ def convergence():
         K_Kappa = np.zeros((3, nxi))
         K_n = np.zeros((3, nxi))
         K_m = np.zeros((3, nxi))
-        
+
         if rod.mixed is True:
             K_Gamma_DB_M = np.zeros((3, nxi))
             K_Kappa_DB_M = np.zeros((3, nxi))
             K_n_DB_M = np.zeros((3, nxi))
             K_m_DB_M = np.zeros((3, nxi))
-            
+
             for i, xii in enumerate(xis):
-                K_n[:, i], K_m[:, i], K_n_DB_M[:, i], K_m_DB_M[:, i] = rod.eval_stresses(sol.t[-1],sol.q[-1], xii, mixed=rod.mixed)
-                K_Gamma[:, i], K_Kappa[:, i], K_Gamma_DB_M[:, i], K_Kappa_DB_M[:, i] = rod.eval_strains(sol.t[-1],sol.q[-1], xii, mixed=rod.mixed)
-        
-            return xis, K_Gamma, K_Kappa, K_Gamma_DB_M, K_Kappa_DB_M, K_n, K_m, K_n_DB_M, K_m_DB_M
-        
+                (
+                    K_n[:, i],
+                    K_m[:, i],
+                    K_n_DB_M[:, i],
+                    K_m_DB_M[:, i],
+                ) = rod.eval_stresses(sol.t[-1], sol.q[-1], xii, mixed=rod.mixed)
+                (
+                    K_Gamma[:, i],
+                    K_Kappa[:, i],
+                    K_Gamma_DB_M[:, i],
+                    K_Kappa_DB_M[:, i],
+                ) = rod.eval_strains(sol.t[-1], sol.q[-1], xii, mixed=rod.mixed)
+
+            return (
+                xis,
+                K_Gamma,
+                K_Kappa,
+                K_Gamma_DB_M,
+                K_Kappa_DB_M,
+                K_n,
+                K_m,
+                K_n_DB_M,
+                K_m_DB_M,
+            )
+
         else:
             for i, xii in enumerate(xis):
-                K_n[:, i], K_m[:, i] = rod.eval_stresses(sol.t[-1],sol.q[-1], xii, mixed=rod.mixed)
-                K_Gamma[:, i], K_Kappa[:, i] = rod.eval_strains(sol.t[-1],sol.q[-1], xii, mixed=rod.mixed)
+                K_n[:, i], K_m[:, i] = rod.eval_stresses(
+                    sol.t[-1], sol.q[-1], xii, mixed=rod.mixed
+                )
+                K_Gamma[:, i], K_Kappa[:, i] = rod.eval_strains(
+                    sol.t[-1], sol.q[-1], xii, mixed=rod.mixed
+                )
 
             return xis, K_Gamma, K_Kappa, K_n, K_m
-
 
     fig, ax = plt.subplots(1, 4)
 
     if rod_ref.mixed:
-        xis, K_Gamma, K_Kappa, K_Gamma_DB_M, K_Kappa_DB_M, K_n, K_m, K_n_DB_M, K_m_DB_M = stress_strain(
-        rod_ref, sol_ref)
+        (
+            xis,
+            K_Gamma,
+            K_Kappa,
+            K_Gamma_DB_M,
+            K_Kappa_DB_M,
+            K_n,
+            K_m,
+            K_n_DB_M,
+            K_m_DB_M,
+        ) = stress_strain(rod_ref, sol_ref)
 
         header = "xi, K_Gamma1_minus_1, K_Gamma2, K_Gamma3, K_Kappa1, K_Kappa2, K_Kappa3, \
               K_Gamma1_minus_1_DB_M, K_Gamma2_DB_M, K_Gamma3_DB_M, K_Kappa1_DB_M, K_Kappa2_DB_M, K_Kappa3_DB_M, \
               K_n1, K_n2, K_n3, K_m1, K_m2, K_m3,\
               K_n1_DB_M, K_n2_DB_M, K_n3_DB_M, K_m1_DB_M, K_m2_DB_M, K_m3_DB_M"
         export_data = np.vstack(
-            [xis, K_Gamma[0] - 1.0, K_Gamma[1], K_Gamma[2], *K_Kappa, 
-             K_Gamma_DB_M[0] - 1.0, K_Gamma_DB_M[1], K_Gamma_DB_M[2], *K_Kappa_DB_M, *K_n, *K_m, *K_n_DB_M, *K_m_DB_M]
+            [
+                xis,
+                K_Gamma[0] - 1.0,
+                K_Gamma[1],
+                K_Gamma[2],
+                *K_Kappa,
+                K_Gamma_DB_M[0] - 1.0,
+                K_Gamma_DB_M[1],
+                K_Gamma_DB_M[2],
+                *K_Kappa_DB_M,
+                *K_n,
+                *K_m,
+                *K_n_DB_M,
+                *K_m_DB_M,
+            ]
         ).T
-    else: 
+    else:
         xis, K_Gamma, K_Kappa, K_n, K_m = stress_strain(rod_ref, sol_ref)
         header = "xi, K_Gamma1_minus_1, K_Gamma2, K_Gamma3, K_Kappa1, K_Kappa2, K_Kappa3, \
                 K_n1, K_n2, K_n3, K_m1, K_m2, K_m3"
@@ -733,8 +777,7 @@ def convergence():
         ).T
 
     np.savetxt(
-        path /
-        f"StrainMeasuresConvergence_Reference_{reference_rod}.txt",
+        path / f"StrainMeasuresConvergence_Reference_{reference_rod}.txt",
         export_data,
         delimiter=", ",
         header=header,
@@ -763,18 +806,18 @@ def convergence():
 
     # for j, (rod, sol) in enumerate(zip(rods[0], sols[0])):
 
-        # if rod.mixed is True:
-        #     xis, K_Gamma, K_Kappa, K_Gamma_DB_M, K_Kappa_DB_M, K_n, K_m, K_n_DB_M, K_m_DB_M = stress_strain(rod, sol)
-        #     export_data = np.vstack(
-        #         [xis, K_Gamma[0] - 1.0, K_Gamma[1], K_Gamma[2], *K_Kappa, K_Gamma_DB_M[0] - 1.0, K_Gamma_DB_M[1],
-        #         K_Gamma_DB_M[2], *K_Kappa_DB_M, *K_n, *K_m, *K_n_DB_M, *K_m_DB_M]
-        #     ).T
-        # else:
-        #     xis, K_Gamma, K_Kappa, K_n, K_m = stress_strain(rod, sol)
-        #     export_data = np.vstack(
-        #         [xis, K_Gamma[0] - 1.0, K_Gamma[1], K_Gamma[2], *K_Kappa, *K_n, *K_m]
-        #     ).T
-    
+    # if rod.mixed is True:
+    #     xis, K_Gamma, K_Kappa, K_Gamma_DB_M, K_Kappa_DB_M, K_n, K_m, K_n_DB_M, K_m_DB_M = stress_strain(rod, sol)
+    #     export_data = np.vstack(
+    #         [xis, K_Gamma[0] - 1.0, K_Gamma[1], K_Gamma[2], *K_Kappa, K_Gamma_DB_M[0] - 1.0, K_Gamma_DB_M[1],
+    #         K_Gamma_DB_M[2], *K_Kappa_DB_M, *K_n, *K_m, *K_n_DB_M, *K_m_DB_M]
+    #     ).T
+    # else:
+    #     xis, K_Gamma, K_Kappa, K_n, K_m = stress_strain(rod, sol)
+    #     export_data = np.vstack(
+    #         [xis, K_Gamma[0] - 1.0, K_Gamma[1], K_Gamma[2], *K_Kappa, *K_n, *K_m]
+    #     ).T
+
     ax[0].grid()
     ax[0].legend()
     ax[1].grid()
@@ -786,35 +829,57 @@ def convergence():
 
     plt.show()
 
-
     fig, ax = plt.subplots(1, 4)
 
     for j in range(n_rods):
-
         if rods_stress[0, j, 1].mixed is True:
-            xis, K_Gamma, K_Kappa, K_Gamma_DB_M, K_Kappa_DB_M, K_n, K_m, K_n_DB_M, K_m_DB_M = stress_strain(rods_stress[0, j, 1], sols_stress[0, j, 1])
+            (
+                xis,
+                K_Gamma,
+                K_Kappa,
+                K_Gamma_DB_M,
+                K_Kappa_DB_M,
+                K_n,
+                K_m,
+                K_n_DB_M,
+                K_m_DB_M,
+            ) = stress_strain(rods_stress[0, j, 1], sols_stress[0, j, 1])
             header = "xi, K_Gamma1_minus_1, K_Gamma2, K_Gamma3, K_Kappa1, K_Kappa2, K_Kappa3, \
                 K_Gamma1_minus_1_DB_M, K_Gamma2_DB_M, K_Gamma3_DB_M, K_Kappa1_DB_M, K_Kappa2_DB_M, K_Kappa3_DB_M, \
                 K_n1, K_n2, K_n3, K_m1, K_m2, K_m3,\
                 K_n1_DB_M, K_n2_DB_M, K_n3_DB_M, K_m1_DB_M, K_m2_DB_M, K_m3_DB_M"
-            
+
             export_data = np.vstack(
-                [xis, K_Gamma[0] - 1.0, K_Gamma[1], K_Gamma[2], *K_Kappa, K_Gamma_DB_M[0] - 1.0, K_Gamma_DB_M[1],
-                K_Gamma_DB_M[2], *K_Kappa_DB_M, *K_n, *K_m, *K_n_DB_M, *K_m_DB_M]
+                [
+                    xis,
+                    K_Gamma[0] - 1.0,
+                    K_Gamma[1],
+                    K_Gamma[2],
+                    *K_Kappa,
+                    K_Gamma_DB_M[0] - 1.0,
+                    K_Gamma_DB_M[1],
+                    K_Gamma_DB_M[2],
+                    *K_Kappa_DB_M,
+                    *K_n,
+                    *K_m,
+                    *K_n_DB_M,
+                    *K_m_DB_M,
+                ]
             ).T
         else:
-            xis, K_Gamma, K_Kappa, K_n, K_m = stress_strain(rods_stress[0, j, 1], sols_stress[0, j, 1])
+            xis, K_Gamma, K_Kappa, K_n, K_m = stress_strain(
+                rods_stress[0, j, 1], sols_stress[0, j, 1]
+            )
 
             header = "xi, K_Gamma1_minus_1, K_Gamma2, K_Gamma3, K_Kappa1, K_Kappa2, K_Kappa3, \
                         K_n1, K_n2, K_n3, K_m1, K_m2, K_m3"
-            
+
             export_data = np.vstack(
                 [xis, K_Gamma[0] - 1.0, K_Gamma[1], K_Gamma[2], *K_Kappa, *K_n, *K_m]
             ).T
 
         np.savetxt(
-            path /
-            f"StrainMeasuresConvergence_{test_rods[j]}.txt",
+            path / f"StrainMeasuresConvergence_{test_rods[j]}.txt",
             export_data,
             delimiter=", ",
             header=header,

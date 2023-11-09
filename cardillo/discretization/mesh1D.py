@@ -203,7 +203,6 @@ class Mesh1D:
         # evaluate element shape functions at quadrature points
         self.shape_functions()  # non cambia con Lagrange_Disc
 
-
     def basis1D(self, xis):
         if self.basis == "B-spline":
             return B_spline_basis1D(
@@ -280,8 +279,6 @@ class Mesh1D:
                 self.N_xi[el] = NN[1]
                 if self.derivative_order > 1:
                     self.N_xixi[el] = NN[2]
-
-    
 
     def reference_mappings(self, Q):
         """Compute inverse gradient from the reference configuration to the parameter space and scale quadrature points by its determinant. See Bonet 1997 (7.6a,b)"""

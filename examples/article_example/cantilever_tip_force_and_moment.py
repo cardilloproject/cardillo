@@ -117,7 +117,7 @@ def cantilever(
     # add Newton solver
     solver = Newton(
         system,
-        n_load_steps=n_load_steps+1,
+        n_load_steps=n_load_steps + 1,
         max_iter=30,
         atol=1e-8,
     )
@@ -169,7 +169,7 @@ def cantilever(
     Z_z = np.zeros_like(X_z)
     ax1.plot_surface(X_z, Y_z, Z_z, alpha=0.2)
 
-    path = Path(__file__) # creation of a current path
+    path = Path(__file__)  # creation of a current path
 
     # add reference solution to the animation
     centerline_T = np.loadtxt(

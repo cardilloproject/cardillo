@@ -34,7 +34,6 @@ from pathlib import Path
 from shutil import rmtree
 
 
-
 def make_SE3_rod_mixed(reduced_integration):
     def make(
         R,
@@ -73,11 +72,12 @@ def make_SE3_rod_mixed(reduced_integration):
             q0=q0,
             polynomial_degree=1,
             reduced_integration=reduced_integration,
-            mixed=True
+            mixed=True,
         )
         return q0, rod
 
     return make
+
 
 def make_R12_rod_mixed(polynomial_degree):
     def make(
@@ -125,6 +125,7 @@ def make_R12_rod_mixed(polynomial_degree):
 
     return make
 
+
 def make_SE3_rod(reduced_integration):
     def make(
         R,
@@ -163,11 +164,12 @@ def make_SE3_rod(reduced_integration):
             q0=q0,
             polynomial_degree=1,
             reduced_integration=reduced_integration,
-            mixed=False
+            mixed=False,
         )
         return q0, rod
 
     return make
+
 
 def make_R12_rod(polynomial_degree, reduced_integration):
     def make(
@@ -212,8 +214,9 @@ def make_R12_rod(polynomial_degree, reduced_integration):
         )
 
         return q0, rod
-    
+
     return make
+
 
 # Young's and shear modulus
 E = 1e7  # Meier2015
@@ -249,10 +252,10 @@ reference_rod = "SE3_Mixed"
 # test_rods = ["SE3_Mixed", "SE3"]
 test_rods = ["R12p1", "R12p1_Mixed", "R12p2", "R12p2_Mixed"]
 
-# nnodes_list = np.array([5, 9, 17, 33, 65, 129], dtype=int) 
-# nnodes_ref = 513  
-nnodes_list = np.array([5, 9, 17, 33], dtype=int) 
-nnodes_ref = 513                                   
+# nnodes_list = np.array([5, 9, 17, 33, 65, 129], dtype=int)
+# nnodes_ref = 513
+nnodes_list = np.array([5, 9, 17, 33], dtype=int)
+nnodes_ref = 513
 
 volume_correction = False
 # volume_correction = True
@@ -261,10 +264,10 @@ volume_correction = False
 reduced_integration = False
 
 
-def convergence(): 
-    n_rods = len(test_rods)  
+def convergence():
+    n_rods = len(test_rods)
     n_slenderness = len(slendernesses)
-    nnodes = len(nnodes_list) 
+    nnodes = len(nnodes_list)
     rods = np.zeros((n_slenderness, n_rods), dtype=object)
     sols = np.zeros((n_slenderness, n_rods), dtype=object)
     position_errors = np.zeros((n_slenderness, n_rods, nnodes), dtype=float)
@@ -291,7 +294,6 @@ def convergence():
         Ei = np.array([E * A, G * A, G * A])
         Fi = np.array([G * Ip, E * I2, E * I3])
         material_model = Simo1986(Ei, Fi)
-
 
         def solve(nnodes, rod, volume_correction, reduced_integration):
             assert nnodes % 2 == 1
@@ -323,7 +325,6 @@ def convergence():
                 print(f"wrong rod: '{rod}'")
                 raise NotImplementedError
 
-
             q0, rod = make_rod(
                 R,
                 curve,
@@ -347,13 +348,13 @@ def convergence():
             frame1 = Frame(r_OP=r_OP0, A_IK=A_IK0)
 
             # generate the constraint on the beam
-            A_IK_clamping= lambda t: A_IK_basic(0.).z()
+            A_IK_clamping = lambda t: A_IK_basic(0.0).z()
             clamping_point = Frame(A_IK=A_IK_clamping)
             clamping_left = RigidConnection(clamping_point, rod, frame_ID2=(0,))
-            
+
             F = lambda t: ff * t * e3
             force = Force(F, rod, frame_ID=(1,))
-            
+
             # assemble the system
             system = System()
             system.add(rod)
@@ -376,8 +377,12 @@ def convergence():
 
         # solve system with reference rod
         rod_ref, sol_ref, _ = solve(
-            nnodes_ref, reference_rod, volume_correction=False, reduced_integration=False)
-        ''' Be careful to set the reduced_integration to False when we use mixed elements'''
+            nnodes_ref,
+            reference_rod,
+            volume_correction=False,
+            reduced_integration=False,
+        )
+        """ Be careful to set the reduced_integration to False when we use mixed elements"""
 
         # sample centerline deflection of reference solution
         num = 100
@@ -396,7 +401,7 @@ def convergence():
                 )
 
                 # Newton iteration number
-                Newton_iterations[i, j, k] = n_iter_tot 
+                Newton_iterations[i, j, k] = n_iter_tot
 
                 # centerline errors
                 r_OPj = rod.centerline(sol.q[-1], num=num)
@@ -464,7 +469,6 @@ def convergence():
             # Each vectors is organized in this way: each row is related to a defined mesh for the type of element considered.
             # The row contains the position, angle and twist errors plus the total number of Newton's iterations
 
-
     ##########################
     # plot rate of convergence
     ##########################
@@ -490,14 +494,11 @@ def convergence():
     #         # ax[j].legend()
     #         # ax[j].legend(loc='upper right')  # Imposta la posizione della legenda
 
-
-    
-
     # Define a list of markers
     # markers = ['o', 's', '^', 'v', '<', '>', 'p', 'h']
-    markers = ['o', 's', '^']
+    markers = ["o", "s", "^"]
     # Define a list of line styles
-    line_styles = ['-', '-', '-.']
+    line_styles = ["-", "-", "-."]
 
     for i in range(n_slenderness):
         # Create a new figure for each slenderness value
@@ -507,7 +508,13 @@ def convergence():
             marker = markers[(i * n_rods + j) % len(markers)]
             line_style = line_styles[i % len(line_styles)]
             # Plot the twist_errors for each combination of slenderness and rod_name with a line and marker style
-            ax.loglog(nnodes_list, twist_errors[i, j], line_style + marker, label=f"{slendernesses[i]}, {rod_name}", markerfacecolor='none')
+            ax.loglog(
+                nnodes_list,
+                twist_errors[i, j],
+                line_style + marker,
+                label=f"{slendernesses[i]}, {rod_name}",
+                markerfacecolor="none",
+            )
 
         # Plot the reference lines once
         ax.loglog(nnodes_list, 90 / nnodes_list, "--k", label="~1 / n_el")
@@ -518,20 +525,14 @@ def convergence():
         ax.set_xlabel("nnodes_list")
         ax.set_ylabel("Twist Errors")
         ax.grid()
-        ax.legend(loc='lower left')
-
+        ax.legend(loc="lower left")
 
     # ax[0].legend(loc='lower left')
 
     # for i in range(n_slenderness):
     #     fig.savefig(f"C:/Users/Domenico/Desktop/cardillo/examples/mixed_examples/45_bent_beam_convergence/slenderness_{slendernesses[i]}.eps", format='eps', bbox_inches='tight')
 
-
     plt.show()
-
-    
-
-
 
     ####################################################
     # visualize centerline curves of final configuration

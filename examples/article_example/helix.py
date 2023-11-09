@@ -27,13 +27,13 @@ Rod = CosseratRodPG_SE3Mixed
 
 # slenderness = 1.0e1
 # atol = 1.0e-8
-slenderness = 1.0e2
-atol = 1.0e-10
+# slenderness = 1.0e2
+# atol = 1.0e-10
 # slenderness = 1.0e3
 # atol = 1.0e-12
-# slenderness = 1.0e4
+slenderness = 1.0e4
 # atol = 1.0e-14
-# atol = 1.0e-12
+atol = 1.0e-12
 
 # number of elements
 # nelements = 20
@@ -44,9 +44,8 @@ nelements = 20
 polynomial_degree = 2
 basis = "Lagrange"
 # mixed=False
-mixed=True
-red_int=False
-
+mixed = True
+red_int = False
 
 
 if __name__ == "__main__":
@@ -120,7 +119,7 @@ if __name__ == "__main__":
     # system.add(force)
     system.assemble()
 
-    n_load_steps = 10
+    n_load_steps = 2
     # n_load_steps = 400
     # n_load_steps = 10
     solver = Newton(
@@ -146,7 +145,6 @@ if __name__ == "__main__":
     #     else:
     #         print(f"correct hemisphere")
 
-
     # ############
     # # VTK export
     # ############
@@ -158,5 +156,3 @@ if __name__ == "__main__":
     # animation
     ###########
     animate_beam(t, q, [cantilever], length, show=True, repeat=False)
-
-

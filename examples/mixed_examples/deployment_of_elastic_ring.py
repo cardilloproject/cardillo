@@ -33,15 +33,17 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 
-'''
+"""
 Example proposed by Goto, Y. et al,
 "Elastic buckling phenomenon applicable to deployable rings" ,
 International Journal of Solids and Structures, 29(7):893– 909, 1992,
 https://sci-hub.hkvisa.net/10.1016/0020-7683(92)90024-n, 1988
-'''
+"""
 
-def deployment_of_elastic_ring(load_type="moment", rod_hypothesis_penalty="shear_deformable", VTK_export=False):
-    
+
+def deployment_of_elastic_ring(
+    load_type="moment", rod_hypothesis_penalty="shear_deformable", VTK_export=False
+):
     Rod = CosseratRodPG_R12Mixed
     # Rod = CosseratRodPG_QuatMixed
     # Rod = CosseratRodPG_SE3Mixed
@@ -49,20 +51,20 @@ def deployment_of_elastic_ring(load_type="moment", rod_hypothesis_penalty="shear
     nelements_Lagrangian = 20
     polynomial_degree = 1
 
-     # number of elements
+    # number of elements
     if Rod is CosseratRodPG_SE3Mixed:
         nelements = nelements_Lagrangian * polynomial_degree
     else:
         nelements = nelements_Lagrangian
 
     # geometry of the rod
-    width = 1/3.
+    width = 1 / 3.0
     height = 1
 
     # cross section
     line_density = 1
     cross_section = RectangularCrossSection(line_density, width, height)
-    
+
     A = cross_section.area
     A_rho0 = line_density * cross_section.area
     K_S_rho0 = line_density * cross_section.first_moment
@@ -70,18 +72,18 @@ def deployment_of_elastic_ring(load_type="moment", rod_hypothesis_penalty="shear
 
     atol = 1e-10
 
-    EE = 2.1 * 1e7 # Young's modulus
-    GG = EE / (2 * (1 + 0.3)) # shear modulus
-   
+    EE = 2.1 * 1e7  # Young's modulus
+    GG = EE / (2 * (1 + 0.3))  # shear modulus
+
     # material model
     if rod_hypothesis_penalty == "shear_deformable":
-        Ei = np.array([EE * A, GG * A,  GG * A])
+        Ei = np.array([EE * A, GG * A, GG * A])
     elif rod_hypothesis_penalty == "shear_rigid":
         Ei = np.array([EE * A, 1e10 * GG * A, 1e10 * GG * A])
     elif rod_hypothesis_penalty == "inextensilbe_shear_rigid":
-        Ei = np.array([EE * A, GG * A,  GG * A]) * 1e10
-            
-    Fi = np.array([GG * K_I_rho0[0,0], EE * K_I_rho0[1,1], EE * K_I_rho0[2,2]])
+        Ei = np.array([EE * A, GG * A, GG * A]) * 1e10
+
+    Fi = np.array([GG * K_I_rho0[0, 0], EE * K_I_rho0[1, 1], EE * K_I_rho0[2, 2]])
 
     material_model = Simo1986(Ei, Fi)
 
@@ -120,7 +122,7 @@ def deployment_of_elastic_ring(load_type="moment", rod_hypothesis_penalty="shear
         q0=q0,
         polynomial_degree=polynomial_degree,
         reduced_integration=False,
-        mixed=True
+        mixed=True,
     )
 
     # create the system
@@ -137,7 +139,7 @@ def deployment_of_elastic_ring(load_type="moment", rod_hypothesis_penalty="shear
     # clamping_point_2 = Frame(A_IK=A_IK0)
     # clamping = Frame(A_IK=A_IK_displ)
 
-    A_IK_disp = lambda t:  A_IK_basic(2* pi * t).x()
+    A_IK_disp = lambda t: A_IK_basic(2 * pi * t).x()
     displ = lambda t: np.array([-4 * R / 3 * t, 0, 0])
 
     displ_imposed = Frame(r_OP=displ, A_IK=A_IK_disp)
@@ -146,8 +148,7 @@ def deployment_of_elastic_ring(load_type="moment", rod_hypothesis_penalty="shear
     clamping_right = Cylindrical(system.origin, cantilever, 0, frame_ID2=(1,))
     # clamping_right = Cylindrical(system.origin, cantilever, 0, frame_ID2=(0.5,))
     # clamping_left_2 = RigidConnection(system.origin, cantilever, frame_ID2=(1,))
-    
-    
+
     # assemble the system
     system.add(cantilever)
     # system.add(displ_imposed)
@@ -157,14 +158,13 @@ def deployment_of_elastic_ring(load_type="moment", rod_hypothesis_penalty="shear
     # system.add(clamping_left_2)
     # system.add(clamping_point_2)
 
-    M = lambda t: EE * K_I_rho0[1,1] / R * t * np.array([1, 0, 0])
+    M = lambda t: EE * K_I_rho0[1, 1] / R * t * np.array([1, 0, 0])
 
-    moment = Moment(M, cantilever, (1, ))
+    moment = Moment(M, cantilever, (1,))
     # moment = Moment(M, cantilever, (0.5, ))
     system.add(moment)
 
     system.assemble()
-
 
     # solver = Newton(
     #     system,
@@ -206,14 +206,14 @@ def deployment_of_elastic_ring(load_type="moment", rod_hypothesis_penalty="shear
     # matplotlib visualization
     # construct animation of beam
     fig1, ax1, anim1 = animate_beam(
-    t,
-    q, 
-    [cantilever],
-    scale=2*R,
-    scale_di=0.05,
-    show=False,
-    n_frames=cantilever.nelement + 1,
-    repeat=True,
+        t,
+        q,
+        [cantilever],
+        scale=2 * R,
+        scale_di=0.05,
+        show=False,
+        n_frames=cantilever.nelement + 1,
+        repeat=True,
     )
 
     x_tip_displacement = np.zeros(len(t))
@@ -225,35 +225,43 @@ def deployment_of_elastic_ring(load_type="moment", rod_hypothesis_penalty="shear
     qDOF_element_of_interest = cantilever.local_qDOF_P(frame_ID)
     r0 = cantilever.r_OP(0, q[0, qDOF_element_of_interest], frame_ID=frame_ID)
 
-    # the plotted displacements depend on how the structure is modelled in the 3D space. In this case we have that the x 
-    for (i, ti) in enumerate(t):
+    # the plotted displacements depend on how the structure is modelled in the 3D space. In this case we have that the x
+    for i, ti in enumerate(t):
         ri = cantilever.r_OP(ti, q[i, qDOF_element_of_interest], frame_ID=frame_ID)
         x_tip_displacement[i] = ri[0] - r0[0]
         y_tip_displacement[i] = ri[1] - r0[1]
-        z_tip_displacement[i] = ri[2] - r0[2] 
-        
-    
+        z_tip_displacement[i] = ri[2] - r0[2]
+
     fig2, ax = plt.subplots()
 
     # ax.plot(t, x_tip_displacement, '-', color='blue', label='X Tip Displacement', marker='o')
     # ax.plot(t, y_tip_displacement, '-', color='red', label='Y Tip Displacement', marker='s')
-    ax.plot(x_tip_displacement, t, '-', color='blue', label='X Tip Displacement', marker='o')
-    ax.plot(y_tip_displacement, t, '-', color='red', label='Y Tip Displacement', marker='s')
-    ax.plot(z_tip_displacement, t, '-', color='green', label='Y Tip Displacement', marker='^')
+    ax.plot(
+        x_tip_displacement, t, "-", color="blue", label="X Tip Displacement", marker="o"
+    )
+    ax.plot(
+        y_tip_displacement, t, "-", color="red", label="Y Tip Displacement", marker="s"
+    )
+    ax.plot(
+        z_tip_displacement,
+        t,
+        "-",
+        color="green",
+        label="Y Tip Displacement",
+        marker="^",
+    )
 
     # Aggiungi una legenda
-    ax.legend(loc='upper left')
+    ax.legend(loc="upper left")
 
     # Personalizza il titolo e le label degli assi se necessario
-    ax.set_title('Displacements of the point B')
-    ax.set_xlabel('u, v')
-    ax.set_ylabel('Load Factor')
+    ax.set_title("Displacements of the point B")
+    ax.set_xlabel("u, v")
+    ax.set_ylabel("Load Factor")
     # ax.set_ylim(-1.5, 3.0)
 
     plt.show()
 
 
-
 if __name__ == "__main__":
     deployment_of_elastic_ring(load_type="moment", VTK_export=False)
- 

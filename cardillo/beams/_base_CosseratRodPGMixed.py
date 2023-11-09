@@ -333,7 +333,6 @@ class CosseratRodPGMixed(RodExportBase, ABC):
             self.basis_functions_n = self.mesh_n.eval_basis
             self.basis_functions_m = self.mesh_m.eval_basis
 
-
         # self.set_initial_strains(self.q0)
         self.set_initial_strains(self.Q)
 
@@ -453,7 +452,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
             q = np.concatenate([q_r, q_psi, np.zeros(3 * nnodes_n + 3 * nnodes_m)])
 
         return q
-    
+
     @staticmethod
     def deformed_configuration(
         nelement,
@@ -475,7 +474,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         # nodal positions
         r0 = np.zeros((3, nnodes_r))
         P0 = np.zeros((4, nnodes_r))
-        
+
         for i in range(nnodes_r):
             r0[:, i] = r_OP + A_IK @ curve(LL[i])
             A_KC = np.zeros((3, 3))
@@ -487,8 +486,8 @@ class CosseratRodPGMixed(RodExportBase, ABC):
 
             # TODO: check for half space
 
-        for i in range(nnodes_r-1):
-            inner = P0[:,i] @ P0[:,i+1]
+        for i in range(nnodes_r - 1):
+            inner = P0[:, i] @ P0[:, i + 1]
             print(f"i: {i}")
             if inner < 0:
                 print("wrong hemisphere!")
@@ -499,15 +498,13 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         # reshape nodal positions for generalized coordinates tuple
         q_r = r0.reshape(-1, order="C")
         q_P = P0.reshape(-1, order="C")
-        
+
         if mixed:
             q = np.concatenate([q_r, q_P, np.zeros(3 * nnodes_n + 3 * nnodes_m)])
         else:
             q = np.concatenate([q_r, q_P])
 
         return q
-
-
 
     @staticmethod
     def straight_initial_configuration(
@@ -774,15 +771,13 @@ class CosseratRodPGMixed(RodExportBase, ABC):
 
         return E_pot_el
 
-
     def eval_stresses(self, t, q, xi, mixed=False):
-
         el = self.element_number(xi)
         Qe = self.Q[self.elDOF[el]]
         qe = q[self.elDOF[el]]
 
         _, _, K_Gamma_bar0, K_Kappa_bar0 = self._eval(Qe, xi)
-        
+
         J_0 = norm(K_Gamma_bar0)
         K_Gamma0 = K_Gamma_bar0 / J_0
         K_Kappa0 = K_Kappa_bar0 / J_0
@@ -790,7 +785,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         _, _, K_Gamma_bar, K_Kappa_bar = self._eval(qe, xi)
 
         J = norm(K_Gamma_bar)
-        K_Gamma = K_Gamma_bar/ J
+        K_Gamma = K_Gamma_bar / J
         K_Kappa = K_Kappa_bar / J
 
         K_n_DB = self.material_model.K_n(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
@@ -807,20 +802,17 @@ class CosseratRodPGMixed(RodExportBase, ABC):
                 m_node = qe[self.nodalDOF_element_m[node]]
                 K_m += N_m[node] * m_node
 
-            
             return K_n, K_m, K_n_DB, K_m_DB
         else:
             return K_n_DB, K_m_DB
 
-   
     def eval_strains(self, t, q, xi, mixed=False):
-
         el = self.element_number(xi)
         Qe = self.Q[self.elDOF[el]]
         qe = q[self.elDOF[el]]
 
         _, _, K_Gamma_bar0, K_Kappa_bar0 = self._eval(Qe, xi)
-        
+
         J_0 = norm(K_Gamma_bar0)
         K_Gamma0 = K_Gamma_bar0 / J_0
         K_Kappa0 = K_Kappa_bar0 / J_0
@@ -828,9 +820,8 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         _, _, K_Gamma_bar, K_Kappa_bar = self._eval(qe, xi)
 
         J = norm(K_Gamma_bar)
-        K_Gamma_DB = K_Gamma_bar/ J
+        K_Gamma_DB = K_Gamma_bar / J
         K_Kappa_DB = K_Kappa_bar / J
-
 
         if mixed:
             N_n = N_m = self.basis_functions_n(xi).flatten()
@@ -849,8 +840,6 @@ class CosseratRodPGMixed(RodExportBase, ABC):
             return K_Gamma, K_Kappa, K_Gamma_DB, K_Kappa_DB
         else:
             return K_Gamma_DB, K_Kappa_DB
-    
-
 
     def f_pot_el(self, qe, el):
         f_pot_el = np.zeros(self.nu_element, dtype=qe.dtype)
@@ -894,7 +883,9 @@ class CosseratRodPGMixed(RodExportBase, ABC):
                 ############################
                 for node in range(self.nnodes_element_n):
                     f_pot_el[self.nodalDOF_element_n_u[node]] -= (
-                        self.N_n[el, i, node] * (K_Gamma_bar - J * K_gam_comp) * qwi
+                        self.N_n[el, i, node]
+                        * (K_Gamma_bar - J * K_gam_comp)
+                        * qwi
                         # for shear-rigid and inextensible rod
                         # self.N_n[el, i, node] * (K_Gamma_bar - J * np.array([1, 0, 0])) * qwi
                         # for shear-rigid
@@ -903,7 +894,9 @@ class CosseratRodPGMixed(RodExportBase, ABC):
 
                 for node in range(self.nnodes_element_m):
                     f_pot_el[self.nodalDOF_element_m_u[node]] -= (
-                        self.N_m[el, i, node] * (K_Kappa_bar - J * K_kap_comp) * qwi
+                        self.N_m[el, i, node]
+                        * (K_Kappa_bar - J * K_kap_comp)
+                        * qwi
                         # For Ribbons
                         # self.N_m[el, i, node] * (K_Kappa_bar - J * np.array([K_kap_comp[0], K_kap_comp[1], 0])) * qwi
                     )
@@ -975,7 +968,6 @@ class CosseratRodPGMixed(RodExportBase, ABC):
                 K_Kappa_qe = K_Kappa_bar_qe / J
 
                 if self.mixed:
-
                     # interpolation of the n and m
                     K_n = np.zeros(3, dtype=qe.dtype)
                     K_n_qe = np.zeros((3, self.nq_element), dtype=qe.dtype)
@@ -986,13 +978,17 @@ class CosseratRodPGMixed(RodExportBase, ABC):
                         nodalDOF_n = self.nodalDOF_element_n[node]
                         n_node = qe[self.nodalDOF_element_n[node]]
                         K_n += self.N_n[el, i, node] * n_node
-                        K_n_qe[:, nodalDOF_n] += self.N_n[el, i, node] * np.eye(3, dtype=float)
+                        K_n_qe[:, nodalDOF_n] += self.N_n[el, i, node] * np.eye(
+                            3, dtype=float
+                        )
 
                     for node in range(self.nnodes_element_m):
                         nodalDOF_m = self.nodalDOF_element_m[node]
                         m_node = qe[self.nodalDOF_element_m[node]]
                         K_m += self.N_m[el, i, node] * m_node
-                        K_m_qe[:, nodalDOF_m] += self.N_m[el, i, node] * np.eye(3, dtype=float)
+                        K_m_qe[:, nodalDOF_m] += self.N_m[el, i, node] * np.eye(
+                            3, dtype=float
+                        )
 
                     C_n_inv = self.material_model.C_n_inverse()
                     C_m_inv = self.material_model.C_m_inverse()

@@ -30,16 +30,19 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-''' 
+""" 
 Lee's frame example proposed by Kadapa, C. in 
 "A simple extrapolated predictor for overcoming the starting and tracking
 issues in the arc-length method for nonlinear structural mechanics",
 Engineering structures, 2021
 https://doi.org/10.1016/j.engstruct.2020.111755
 
-'''
+"""
 
-def cantilever(load_type="force", rod_hypothesis_penalty="shear_deformable", VTK_export=False):
+
+def cantilever(
+    load_type="force", rod_hypothesis_penalty="shear_deformable", VTK_export=False
+):
     # interpolation of Ansatz/trial functions
     Rod = CosseratRodPG_R12Mixed
     # Rod = CosseratRodPG_QuatMixed
@@ -64,26 +67,25 @@ def cantilever(load_type="force", rod_hypothesis_penalty="shear_deformable", VTK
 
     atol = 1e-7
 
-    Ee = 720.
+    Ee = 720.0
     Poisson = 0.3
     Gg = Ee / (2 * (1 + Poisson))
     Area = 6
     II = 2
 
     # material model
-    Ei = np.array([Ee * Area, Gg * Area, Gg * Area])        
+    Ei = np.array([Ee * Area, Gg * Area, Gg * Area])
     Fi = np.array([Ee * II, Ee * II, Ee * II])
-    
+
     material_model = Simo1986(Ei, Fi)
 
     # position and orientation of left point
     r_OP01 = np.zeros(3, dtype=float)
     A_IK01 = np.eye(3, dtype=float)
     r_OP02 = np.zeros(3, dtype=float)
-    r_OP02[0]= length
+    r_OP02[0] = length
     angolo_rad = np.radians(90)
-    A_IK02 = A_IK_basic(angolo_rad).y() 
-
+    A_IK02 = A_IK_basic(angolo_rad).y()
 
     # construct system
     system = System()
@@ -107,7 +109,7 @@ def cantilever(load_type="force", rod_hypothesis_penalty="shear_deformable", VTK
         q0=q01,
         polynomial_degree=polynomial_degree,
         reduced_integration=False,
-        mixed=True
+        mixed=True,
     )
 
     q02 = Rod.straight_configuration(
@@ -129,30 +131,32 @@ def cantilever(load_type="force", rod_hypothesis_penalty="shear_deformable", VTK
         q0=q02,
         polynomial_degree=polynomial_degree,
         reduced_integration=False,
-        mixed=True
+        mixed=True,
     )
 
     # rigid connection between beams
-    clamping_c1_c2 = RigidConnection(cantilever1, cantilever2, frame_ID1=(1,), frame_ID2=(0,))
+    clamping_c1_c2 = RigidConnection(
+        cantilever1, cantilever2, frame_ID1=(1,), frame_ID2=(0,)
+    )
 
     # hinge on the left of beam 1
     # x-axis rotation
-    frame_left_c1= Frame(r_OP01, A_IK01)
-    hinge_left_c1= Revolute(frame_left_c1, cantilever1, 1, frame_ID2=(0,))
+    frame_left_c1 = Frame(r_OP01, A_IK01)
+    hinge_left_c1 = Revolute(frame_left_c1, cantilever1, 1, frame_ID2=(0,))
 
     # hinge on the right of beam 2
     r_OP02_right = np.zeros(3, dtype=float)
     r_OP02_right[0] = length
     r_OP02_right[2] = -length
-    frame_right_c2= Frame(r_OP02_right, A_IK02)
-    hinge_right_c2= Revolute(frame_right_c2, cantilever2, 1, frame_ID2=(1,))
+    frame_right_c2 = Frame(r_OP02_right, A_IK02)
+    hinge_right_c2 = Revolute(frame_right_c2, cantilever2, 1, frame_ID2=(1,))
     # hinge_right_c2= Revolute(cantilever2, system.origin, 0, frame_ID1=(1,))
-    
+
     f_max = 100
     # concentrated force
-    F = lambda t: - f_max * t * e1
+    F = lambda t: -f_max * t * e1
     force = Force(F, cantilever2, frame_ID=(0.2,))
-    
+
     # assemble the system
     system.add(cantilever1)
     system.add(cantilever2)
@@ -194,7 +198,7 @@ def cantilever(load_type="force", rod_hypothesis_penalty="shear_deformable", VTK
     # construct animation of beam
     fig1, ax1, anim1 = animate_beam(
         t,
-        q, # nuova configurazione derivata dal linearSolve
+        q,  # nuova configurazione derivata dal linearSolve
         [cantilever1, cantilever2],
         scale=length,
         scale_di=0.05,
@@ -212,31 +216,43 @@ def cantilever(load_type="force", rod_hypothesis_penalty="shear_deformable", VTK
     qDOF_element_of_interest = cantilever2.qDOF[cantilever2.local_qDOF_P(frame_ID)]
     r0 = cantilever2.r_OP(0, q[0, qDOF_element_of_interest], frame_ID=frame_ID)
 
-    # the plotted displacements depend on how the structure is modelled in the 3D space. In this case we have that the x 
-    for (i, ti) in enumerate(t):
+    # the plotted displacements depend on how the structure is modelled in the 3D space. In this case we have that the x
+    for i, ti in enumerate(t):
         ri = cantilever2.r_OP(ti, q[i, qDOF_element_of_interest], frame_ID=frame_ID)
         y_tip_displacement[i] = -(ri[0] - r0[0])
         x_tip_displacement[i] = -(ri[2] - r0[2])
-    
+
     fig2, ax = plt.subplots()
 
     # ax.plot(t, x_tip_displacement, '-', color='blue', label='X Tip Displacement', marker='o')
     # ax.plot(t, y_tip_displacement, '-', color='red', label='Y Tip Displacement', marker='s')
-    ax.plot(x_tip_displacement, f_max * t, '-', color='blue', label='X Tip Displacement', marker='o')
-    ax.plot(y_tip_displacement, f_max * t, '-', color='red', label='Y Tip Displacement', marker='s')
+    ax.plot(
+        x_tip_displacement,
+        f_max * t,
+        "-",
+        color="blue",
+        label="X Tip Displacement",
+        marker="o",
+    )
+    ax.plot(
+        y_tip_displacement,
+        f_max * t,
+        "-",
+        color="red",
+        label="Y Tip Displacement",
+        marker="s",
+    )
 
     # Aggiungi una legenda
-    ax.legend(loc='upper left')
+    ax.legend(loc="upper left")
 
     # Personalizza il titolo e le label degli assi se necessario
-    ax.set_title('Displacements of the point B')
-    ax.set_xlabel('u, v')
-    ax.set_ylabel('Load Factor')
+    ax.set_title("Displacements of the point B")
+    ax.set_xlabel("u, v")
+    ax.set_ylabel("Load Factor")
     ax.set_ylim(-1.5, 3.0)
 
     plt.show()
-
-
 
     # VTK export
     if VTK_export:

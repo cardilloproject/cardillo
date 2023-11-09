@@ -40,7 +40,8 @@ class ShearStiffQuadratic:
 
     def K_m_K_Kappa(self, lambda_, K_Kappa, K_Kappa0):
         return self.C_m
-    
+
+
 class Harsch2021:
     """
     Material model for shear deformable beam with nonlinear axial deformation.
@@ -63,7 +64,11 @@ class Harsch2021:
         lambda_ = norm(K_Gamma)
         lambda0_ = norm(K_Gamma0)
         dK = K_Kappa - K_Kappa0
-        return 0.5 * dG @ self.C_n @ dG + 0.5 * self.Ei[0] * (lambda_ - lambda0_)**2 + 0.5 * dK @ self.C_m @ dK
+        return (
+            0.5 * dG @ self.C_n @ dG
+            + 0.5 * self.Ei[0] * (lambda_ - lambda0_) ** 2
+            + 0.5 * dK @ self.C_m @ dK
+        )
 
     def K_n(self, K_Gamma, K_Gamma0, K_Kappa, K_Kappa0):
         dG = K_Gamma - K_Gamma0
@@ -78,7 +83,10 @@ class Harsch2021:
     def K_n_K_Gamma(self, K_Gamma, K_Gamma0, K_Kappa, K_Kappa0):
         lambda_ = norm(K_Gamma)
         lambda0_ = norm(K_Gamma0)
-        return self.C_n + self.Ei[0] * ((1 - lambda0_ / lambda_) * np.eye(3) + np.outer(K_Gamma, K_Gamma) / lambda_**3)
+        return self.C_n + self.Ei[0] * (
+            (1 - lambda0_ / lambda_) * np.eye(3)
+            + np.outer(K_Gamma, K_Gamma) / lambda_**3
+        )
 
     def K_n_K_Kappa(self, K_Gamma, K_Gamma0, K_Kappa, K_Kappa0):
         return np.zeros((3, 3), dtype=float)
@@ -88,7 +96,6 @@ class Harsch2021:
 
     def K_m_K_Kappa(self, K_Gamma, K_Gamma0, K_Kappa, K_Kappa0):
         return self.C_m
-
 
 
 class Simo1986:

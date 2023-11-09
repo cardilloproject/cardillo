@@ -3,7 +3,10 @@ from cardillo.beams import (
     CircularCrossSection,
     Simo1986,
 )
-from cardillo.beams.cosseratRodPGMixed import CosseratRodPG_SE3Mixed, CosseratRodPG_R12Mixed
+from cardillo.beams.cosseratRodPGMixed import (
+    CosseratRodPG_SE3Mixed,
+    CosseratRodPG_R12Mixed,
+)
 from cardillo.beams import K_R12_PetrovGalerkin_Quaternion
 from cardillo.beams import K_SE3_PetrovGalerkin_Quaternion
 from cardillo.beams._fitting import fit_configuration
@@ -149,7 +152,7 @@ print(f"Fi: {Fi}")
 # else:
 #     raise NotImplementedError
 
-Q0 = Rod.straight_configuration(nelements, L=1, mixed=True,polynomial_degree=p)
+Q0 = Rod.straight_configuration(nelements, L=1, mixed=True, polynomial_degree=p)
 rod = Rod(
     cross_section,
     material_model,
