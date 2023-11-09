@@ -3,14 +3,9 @@ from abc import ABC, abstractmethod
 import warnings
 
 from cardillo.beams._base_export import RodExportBase
-from cardillo.beams._base_parametrization import (
-    AxisAngleRotationParameterization,
-    QuaternionRotationParameterization,
-    R9RotationParameterization,
-)
+from cardillo.beams._base_parametrization import QuaternionRotationParameterization
 
 from cardillo.math import (
-    e1,
     norm,
     cross3,
     ax2skew,
@@ -19,8 +14,6 @@ from cardillo.math import (
 
 from cardillo.utility.coo_matrix import CooMatrix
 from cardillo.discretization.lagrange import LagrangeKnotVector
-from cardillo.discretization.b_spline import BSplineKnotVector
-from cardillo.discretization.hermite import HermiteNodeVector
 from cardillo.discretization.mesh1D import Mesh1D
 
 
@@ -375,11 +368,6 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         self.K_Gamma0 = np.zeros((self.nelement, self.nquadrature, 3), dtype=float)
         # curvature of the reference configuration
         self.K_Kappa0 = np.zeros((self.nelement, self.nquadrature, 3), dtype=float)
-
-        # possibly never used
-        if self.mixed:
-            self.K_n0 = np.zeros((self.nelement, self.nquadrature, 3), dtype=float)
-            self.K_m0 = np.zeros((self.nelement, self.nquadrature, 3), dtype=float)
 
         for el in range(self.nelement):
             qe = self.Q[self.elDOF[el]]
