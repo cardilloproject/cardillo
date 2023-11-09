@@ -149,7 +149,7 @@ if __name__ == "__main__":
     # VTK export
     ############
     path = Path(__file__)
-    e = Export(path.parent, path.stem, True, 30, sol, system)
+    e = Export(path.parent, path.stem, True, 30, sol)
     e.export_contr(cantilever, level="centerline + directors", num=20)
     e.export_contr(cantilever, level="volume", n_segments=nelements, num=50)
 

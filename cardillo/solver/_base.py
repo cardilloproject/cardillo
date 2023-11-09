@@ -15,7 +15,6 @@ def consistent_initial_conditions(
     t0 = system.t0
     q0 = system.q0
     u0 = system.u0
-    
 
     # normalize quaternions etc.
     system.step_callback(t0, q0, u0)
@@ -196,7 +195,7 @@ def consistent_initial_conditions(
         jac = J
     else:
         jac = "3-point"
-    
+
     x0, converged, error, i, f = fsolve(
         R,
         x0,

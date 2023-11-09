@@ -283,6 +283,7 @@ class Newton:
         if self.verbose:
             pbar.close()
         return Solution(
+            self.system,
             t=self.load_steps,
             q=self.x[: i + 1, : self.nq],
             u=np.zeros((len(self.load_steps), self.nu)),

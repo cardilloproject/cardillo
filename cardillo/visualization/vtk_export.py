@@ -94,7 +94,8 @@ class Export:
             P_F = None
 
         # TODO default values + not None values of solution object
-        self.solution = Solution(sol.system,
+        self.solution = Solution(
+            sol.system,
             t=t,
             q=q,
             u=u,
