@@ -150,7 +150,7 @@ def fsolve(
         )
     else:
         jacobian = jac
-    assert callable(jacobian)
+    assert callable(jacobian), "jacobian must be callable or in {'2-point', '3-point', 'cs'}."
 
     # prepare solution vector; make a copy since we modify the value
     x = np.atleast_1d(x0).copy()

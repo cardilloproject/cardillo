@@ -169,23 +169,26 @@ def consistent_initial_conditions(
         Rla_F_u_dot, _, _, _, Rla_F_la_N, Rla_F_la_F = np.array_split(
             approx_fprime(x, lambda x: _R_F(x)),
             split,
-            axis=1
+            axis=0
             # approx_fprime(x, lambda x: _R_F(x)),
             # split,
             # axis=0,
         )
+
+        g_ddot_u_dot = system.g_dot_u(t0, q0, u0, scipy_matrix=csc_matrix)
+        gamma_dot_u_dot = system.gamma_u(t0, q0, u0, scipy_matrix=csc_matrix)
 
         la_c0 = x[split[2] : split[3]]
         c_la_c = system.c_la_c(t0, q0, u0, la_c0, scipy_matrix=csc_matrix)
         # fmt: off
         _J = bmat(
             [
-                [          M, -W_g, -W_gamma,   -W_c,       -W_N,       -W_F],
-                [      W_g.T, None,     None,   None,       None,       None],
-                [  W_gamma.T, None,     None,   None,       None,       None],
-                [       None, None,     None, c_la_c,       None,       None],
-                [Rla_N_u_dot, None,     None,   None, Rla_N_la_N,       None],
-                [Rla_F_u_dot, None,     None,   None, Rla_F_la_N, Rla_F_la_F],
+                [              M, -W_g, -W_gamma,   -W_c,       -W_N,       -W_F],
+                [   g_ddot_u_dot, None,     None,   None,       None,       None],
+                [gamma_dot_u_dot, None,     None,   None,       None,       None],
+                [           None, None,     None, c_la_c,       None,       None],
+                [    Rla_N_u_dot, None,     None,   None, Rla_N_la_N,       None],
+                [    Rla_F_u_dot, None,     None,   None, Rla_F_la_N, Rla_F_la_F],
             ],
             format="csc",
         )
@@ -209,9 +212,7 @@ def consistent_initial_conditions(
     )
     if jac is None:
         jac = J
-    else:
-        jac = "3-point"
-
+    
     x0, converged, error, i, f = fsolve(
         R,
         x0,

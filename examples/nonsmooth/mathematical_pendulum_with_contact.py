@@ -8,7 +8,7 @@ from cardillo.solver import (
     MoreauShifted,
     Rattle,
     NonsmoothGeneralizedAlpha,
-    NonsmoothBackwardEuler,
+    BackwardEuler,
 )
 
 
