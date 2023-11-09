@@ -270,6 +270,7 @@ class Newton:
                     f"up to iteration {i+1:>{self.len_t}d}/{self.nt}"
                 )
                 return Solution(
+                    n_iter_tot=0,
                     t=self.load_steps,
                     q=self.x[: i + 1, : self.nq],
                     la_g=self.x[: i + 1, self.nq :],

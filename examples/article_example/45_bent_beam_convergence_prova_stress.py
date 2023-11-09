@@ -372,6 +372,8 @@ def convergence():
     rotation_errors = np.zeros((n_slenderness, n_rods, nnodes), dtype=float)
     twist_errors = np.zeros((n_slenderness, n_rods, nnodes), dtype=float)
     Newton_iterations = np.zeros((n_slenderness, n_rods, nnodes), dtype=int)
+    rods_stress = np.zeros((n_slenderness, n_rods, nnodes), dtype=object)
+    sols_stress = np.zeros((n_slenderness, n_rods, nnodes), dtype=object)
 
     for i in range(n_slenderness):
         slenderness = slendernesses[i]
@@ -519,6 +521,9 @@ def convergence():
 
                 # Newton iteration number
                 Newton_iterations[i, j, k] = n_iter_tot 
+                # rods e sols for each mesh and for each rod
+                rods_stress[i , j, k] = rod
+                sols_stress[i , j, k] = sol
 
                 # centerline errors
                 r_OPj = rod.centerline(sol.q[-1], num=num)
@@ -781,14 +786,13 @@ def convergence():
 
     plt.show()
 
-    
 
     fig, ax = plt.subplots(1, 4)
 
     for j in range(n_rods):
 
-        if rods[0][j].mixed is True:
-            xis, K_Gamma, K_Kappa, K_Gamma_DB_M, K_Kappa_DB_M, K_n, K_m, K_n_DB_M, K_m_DB_M = stress_strain(rods[0][j], sols[0][j])
+        if rods_stress[0, j, 1].mixed is True:
+            xis, K_Gamma, K_Kappa, K_Gamma_DB_M, K_Kappa_DB_M, K_n, K_m, K_n_DB_M, K_m_DB_M = stress_strain(rods_stress[0, j, 1], sols_stress[0, j, 1])
             header = "xi, K_Gamma1_minus_1, K_Gamma2, K_Gamma3, K_Kappa1, K_Kappa2, K_Kappa3, \
                 K_Gamma1_minus_1_DB_M, K_Gamma2_DB_M, K_Gamma3_DB_M, K_Kappa1_DB_M, K_Kappa2_DB_M, K_Kappa3_DB_M, \
                 K_n1, K_n2, K_n3, K_m1, K_m2, K_m3,\
@@ -799,7 +803,7 @@ def convergence():
                 K_Gamma_DB_M[2], *K_Kappa_DB_M, *K_n, *K_m, *K_n_DB_M, *K_m_DB_M]
             ).T
         else:
-            xis, K_Gamma, K_Kappa, K_n, K_m = stress_strain(rods[0][j], sols[0][j])
+            xis, K_Gamma, K_Kappa, K_n, K_m = stress_strain(rods_stress[0, j, 1], sols_stress[0, j, 1])
 
             header = "xi, K_Gamma1_minus_1, K_Gamma2, K_Gamma3, K_Kappa1, K_Kappa2, K_Kappa3, \
                         K_n1, K_n2, K_n3, K_m1, K_m2, K_m3"
