@@ -61,7 +61,7 @@ class Mesh1D:
         if dim_u is None:
             self.dim_u = dim_u = dim_q
 
-        if basis == "Lagrange" or basis == "B-spline":
+        if basis in ["Lagrange", "B-spline", "Lagrange_Disc"]:
             self.nnodes_per_element = (
                 self.degree + 1
             )  # number of nodes influencing each element
@@ -110,6 +110,30 @@ class Mesh1D:
                 self.elDOF_u[el] = elDOF_el_u + el * self.degree
 
             self.vtk_cell_type = "VTK_LAGRANGE_CURVE"
+        elif basis == "Lagrange_Disc":
+            # total number of nodes
+            self.nnodes = (self.degree + 1) * self.nelement
+
+            elDOF_el = np.concatenate(
+                [
+                    np.arange(self.nnodes_per_element) + i * self.nnodes
+                    for i in range(dim_q)
+                ]
+            )
+
+            elDOF_el_u = np.concatenate(
+                [
+                    np.arange(self.nnodes_per_element) + i * self.nnodes
+                    for i in range(dim_u)
+                ]
+            )
+
+            for el in range(self.nelement):
+                self.elDOF[el] = elDOF_el + el * (self.degree + 1)
+                self.elDOF_u[el] = elDOF_el_u + el * (self.degree + 1)
+
+            # TODO: check if VTK export works
+            self.vtk_cell_type = "VTK_LAGRANGE_CURVE"
         elif basis == "Hermite":
             # raise NotImplementedError("Adapt according to new ordering of q!")
 
@@ -154,10 +178,11 @@ class Mesh1D:
             self.vtk_cell_type = "VTK_BEZIER_CURVE"
 
         # todal number of degrees of freedoms
+
         self.nq = self.nnodes * dim_q
         self.nu = self.nnodes * dim_u
 
-        # construct tthe Boolean selection amtrix that choses the coordinates
+        # construct the Boolean selection matrix that choses the coordinates
         # of an individual node via q[nodalDOF[a]] = C^a * q
         self.nodalDOF = np.arange(self.nq).reshape(self.nnodes, dim_q, order="F")
         self.nodalDOF_u = np.arange(self.nu).reshape(self.nnodes, dim_u, order="F")
@@ -178,9 +203,6 @@ class Mesh1D:
         # evaluate element shape functions at quadrature points
         self.shape_functions()
 
-        # end_points degrees of freedom
-        self.end_points()
-
     def basis1D(self, xis):
         if self.basis == "B-spline":
             return B_spline_basis1D(
@@ -191,6 +213,14 @@ class Mesh1D:
                 squeeze=False,
             )
         elif self.basis == "Lagrange":
+            return lagrange_basis1D(
+                self.degree,
+                xis,
+                self.derivative_order,
+                self.knot_vector,
+                squeeze=False,
+            )
+        elif self.basis == "Lagrange_Disc":
             return lagrange_basis1D(
                 self.degree,
                 xis,
@@ -211,6 +241,10 @@ class Mesh1D:
         elif self.basis == "Lagrange":
             return lagrange_basis1D(
                 self.degree, xi, self.derivative_order, self.knot_vector, squeeze=True
+            )
+        elif self.basis == "Lagrange_Disc":
+            return lagrange_basis1D(
+                self.degree, xi, self.derivative_order, self.knot_vector, squeeze=False
             )
         elif self.basis == "Hermite":
             return cubic_Hermite_basis_1D(xi, self.knot_vector, self.derivative_order)
@@ -245,31 +279,6 @@ class Mesh1D:
                 self.N_xi[el] = NN[1]
                 if self.derivative_order > 1:
                     self.N_xixi[el] = NN[2]
-
-    def end_points(self):
-        def select_end_points(**kwargs):
-            nn_0 = kwargs.get("nn_0", range(self.nnodes))
-
-            end_points = []
-            for i in nn_0:
-                end_points.append(i)
-
-            DOF_x = np.array(end_points)
-            nn_edge = len(end_points)
-            DOF = np.zeros((self.dim_q, nn_edge), dtype=int)
-            for i in range(self.dim_q):
-                DOF[i] = DOF_x + i * self.nnodes
-
-            return DOF
-
-        self.point_qDOF = (
-            select_end_points(nn_0=[0]),
-            select_end_points(nn_0=[self.nnodes - 1]),
-        )
-
-        # evaluate shape functions at the boundaries
-        self.NN_bdry0 = self.eval_basis(0)
-        self.NN_bdry1 = self.eval_basis(1)
 
     def reference_mappings(self, Q):
         """Compute inverse gradient from the reference configuration to the parameter space and scale quadrature points by its determinant. See Bonet 1997 (7.6a,b)"""
@@ -339,7 +348,7 @@ class Mesh1D:
             # decompose B-spline mesh in Bezier patches
             Qw = decompose_B_spline_curve(self.knot_vector, Pw)
 
-        elif self.basis == "Lagrange":
+        elif self.basis in ["Lagrange", "Lagrange_Disc"]:
             # rearrange q's from solver to Piegl's 3D ordering
             Qw = np.zeros((self.nelement, self.degree + 1, dim))
             for el in range(self.nelement):
@@ -366,7 +375,7 @@ class Mesh1D:
             # decompose B-spline mesh in Bezier patches
             Qw = decompose_B_spline_curve(self.knot_vector, Pw)
 
-        elif self.basis == "Lagrange":
+        elif self.basis in ["Lagrange", "Lagrange_Disc"]:
             # rearrange q's from solver to Piegl's 1D ordering
             Qw = np.zeros((self.nelement, self.degree + 1, self.dim_q))
             for el in range(self.nelement):
