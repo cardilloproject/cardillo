@@ -56,7 +56,7 @@ if __name__ == "__main__":
     plt.plot(t, q[:, 2], "-.b")
     plt.show()
 
-    sol.save('harmonic_oscillator')
+    sol.save("harmonic_oscillator")
     # # save current state of main:
     # from cardillo.utility.save_load_state import save_state
 
