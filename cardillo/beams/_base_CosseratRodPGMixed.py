@@ -37,9 +37,11 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         """Base class for Petrov-Galerkin Cosserat rod formulations that uses quaternions for the parametrization of the nodal orientations."""
 
         super().__init__(cross_section)
-        self.mixed = mixed
+
+        assert mixed, "This implements the mixed formulation only!"
+
         # beam properties
-        self.material_model = material_model  # material model
+        self.material_model = material_model
         self.A_rho0 = A_rho0
         self.K_S_rho0 = K_S_rho0
         self.K_I_rho0 = K_I_rho0
@@ -50,13 +52,6 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         else:
             self.constant_mass_matrix = False
 
-        # discretization parameters
-        self.polynomial_degree_r = polynomial_degree
-        self.polynomial_degree_psi = polynomial_degree
-        if self.mixed:
-            self.polynomial_degree_n = polynomial_degree - 1
-            self.polynomial_degree_m = polynomial_degree - 1
-
         # distinguish between inertia quadrature and other parts
         self.nquadrature_dyn = nquadrature_dyn
         self.nquadrature = nquadrature
@@ -64,17 +59,13 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         print(f"nquadrature_dyn: {nquadrature_dyn}")
         print(f"nquadrature: {nquadrature}")
 
-        # chose basis functions
-        self.basis_r = "Lagrange"
-        basis_r = "Lagrange"
-        self.basis_psi = "Lagrange"
-        basis_psi = "Lagrange"
-
+        ######################################################
+        # discretization parameters centerline and orientation
+        ######################################################
+        self.polynomial_degree_r = polynomial_degree
+        self.polynomial_degree_psi = polynomial_degree
         self.knot_vector_r = LagrangeKnotVector(self.polynomial_degree_r, nelement)
         self.knot_vector_psi = LagrangeKnotVector(self.polynomial_degree_psi, nelement)
-        if self.mixed:
-            self.knot_vector_n = LagrangeKnotVector(self.polynomial_degree_n, nelement)
-            self.knot_vector_m = LagrangeKnotVector(self.polynomial_degree_m, nelement)
 
         # build mesh objects
         self.mesh_r = Mesh1D(
@@ -93,11 +84,10 @@ class CosseratRodPGMixed(RodExportBase, ABC):
             basis="Lagrange",
             quadrature="Gauss",
         )
-
         self.mesh_psi = Mesh1D(
             self.knot_vector_psi,
             nquadrature,
-            dim_q=QuaternionRotationParameterization.dim(),
+            dim_q=QuaternionRotationParameterization.dim(),  # TODO: remove this
             derivative_order=1,
             basis="Lagrange",
             quadrature="Gauss",
@@ -106,54 +96,20 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         self.mesh_psi_dyn = Mesh1D(
             self.knot_vector_psi,
             nquadrature_dyn,
-            dim_q=QuaternionRotationParameterization.dim(),
+            dim_q=QuaternionRotationParameterization.dim(),  # TODO: remove this
             derivative_order=1,
             basis="Lagrange",
             quadrature="Gauss",
             dim_u=3,
         )
 
-        if self.mixed:
-            self.mesh_n = Mesh1D(
-                self.knot_vector_n,
-                nquadrature,
-                dim_q=3,
-                derivative_order=0,
-                basis="Lagrange_Disc",
-                quadrature="Gauss",
-                dim_u=3,
-            )
-            self.mesh_m = Mesh1D(
-                self.knot_vector_m,
-                nquadrature,
-                dim_q=3,
-                derivative_order=0,
-                basis="Lagrange_Disc",
-                quadrature="Gauss",
-                dim_u=3,
-            )
-
         # total number of nodes
         self.nnodes_r = self.mesh_r.nnodes
         self.nnodes_psi = self.mesh_psi.nnodes
-        if self.mixed:
-            self.nnodes_n = self.mesh_n.nnodes
-            self.nnodes_m = self.mesh_m.nnodes
-
-        dim_g_S = 1
-        self.nla_S = self.nnodes_psi * dim_g_S
-        self.nodalDOF_la_S = np.arange(self.nla_S).reshape(self.nnodes_psi, dim_g_S)
-        self.la_S0 = np.zeros(self.nla_S, dtype=float)
-        self.g_S = self.__g_S
-        self.g_S_q = self.__g_S_q
-        self.g_S_q_T_mu_q = self.__g_S_q_T_mu_q
 
         # number of nodes per element
         self.nnodes_element_r = self.mesh_r.nnodes_per_element
         self.nnodes_element_psi = self.mesh_psi.nnodes_per_element
-        if self.mixed:
-            self.nnodes_element_n = self.mesh_n.nnodes_per_element
-            self.nnodes_element_m = self.mesh_m.nnodes_per_element
 
         # total number of generalized coordinates and velocities
         self.nq_r = self.mesh_r.nq
@@ -164,15 +120,6 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         self.nu_psi = self.mesh_psi.nu
         self.nu = self.nu_r + self.nu_psi
 
-        if self.mixed:
-            self.nq_n = self.mesh_n.nq
-            self.nq_m = self.mesh_m.nq
-            self.nq += self.nq_n + self.nq_m
-
-            self.nu_n = self.mesh_n.nu
-            self.nu_m = self.mesh_m.nu
-            self.nu += self.nu_n + self.nu_m
-
         # number of generalized coordinates and velocities per element
         self.nq_element_r = self.mesh_r.nq_per_element
         self.nq_element_psi = self.mesh_psi.nq_per_element
@@ -182,42 +129,22 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         self.nu_element_psi = self.mesh_psi.nu_per_element
         self.nu_element = self.nu_element_r + self.nu_element_psi
 
-        if self.mixed:
-            self.nq_element_n = self.mesh_n.nq_per_element
-            self.nq_element_m = self.mesh_m.nq_per_element
-            self.nq_element += self.nq_element_n + self.nq_element_m
-
-            self.nu_element_n = self.mesh_n.nu_per_element
-            self.nu_element_m = self.mesh_m.nu_per_element
-            self.nu_element += self.nu_element_n + self.nu_element_m
-
         # global element connectivity
+        # qe = q[elDOF[e]] "q^e = C_e,q q"
         self.elDOF_r = self.mesh_r.elDOF
         self.elDOF_psi = self.mesh_psi.elDOF + self.nq_r
         self.elDOF_r_u = self.mesh_r.elDOF_u
         self.elDOF_psi_u = self.mesh_psi.elDOF_u + self.nu_r
-        if self.mixed:
-            self.elDOF_n = self.mesh_n.elDOF + self.nq_r + self.nq_psi
-            self.elDOF_m = self.mesh_m.elDOF + self.nq_r + self.nq_psi + self.nq_n
 
-            self.elDOF_n_u = self.mesh_n.elDOF_u + self.nu_r + self.nu_psi
-            self.elDOF_m_u = self.mesh_m.elDOF_u + self.nu_r + self.nu_psi + self.nu_n
-        # qe = q[elDOF[e]] "q^e = C_e,q q"
-
-        # global nodal
+        # global nodal connectivity
         self.nodalDOF_r = self.mesh_r.nodalDOF
         self.nodalDOF_psi = self.mesh_psi.nodalDOF + self.nq_r
         self.nodalDOF_r_u = self.mesh_r.nodalDOF_u
         self.nodalDOF_psi_u = self.mesh_psi.nodalDOF_u + self.nu_r
-        if self.mixed:
-            self.nodalDOF_n = self.mesh_n.nodalDOF + self.nq_r + self.nq_psi
-            self.nodalDOF_m = self.mesh_m.nodalDOF + self.nq_r + self.nq_psi + self.nq_n
-            self.nodalDOF_n_u = self.mesh_n.nodalDOF_u + self.nu_r + self.nu_psi
-            self.nodalDOF_m_u = (
-                self.mesh_m.nodalDOF_u + self.nu_r + self.nu_psi + self.nu_n
-            )
 
         # nodal connectivity on element level
+        # r_OP_i^e = C_r,i^e * C_e,q q = C_r,i^e * q^e
+        # r_OPi = qe[nodelDOF_element_r[i]]
         self.nodalDOF_element_r = self.mesh_r.nodalDOF_element
         self.nodalDOF_element_psi = self.mesh_psi.nodalDOF_element + self.nq_element_r
         self.nodalDOF_element_r_u = self.mesh_r.nodalDOF_element_u
@@ -225,63 +152,14 @@ class CosseratRodPGMixed(RodExportBase, ABC):
             self.mesh_psi.nodalDOF_element_u + self.nu_element_r
         )
 
-        if self.mixed:
-            self.nodalDOF_element_n = (
-                self.mesh_n.nodalDOF_element + self.nq_element_r + self.nq_element_psi
-            )
-            self.nodalDOF_element_m = (
-                self.mesh_m.nodalDOF_element
-                + self.nq_element_r
-                + self.nq_element_psi
-                + self.nq_element_n
-            )
-
-            self.nodalDOF_element_n_u = (
-                self.mesh_n.nodalDOF_element_u + self.nu_element_r + self.nu_element_psi
-            )
-            self.nodalDOF_element_m_u = (
-                self.mesh_m.nodalDOF_element_u
-                + self.nu_element_r
-                + self.nu_element_psi
-                + self.nu_element_n
-            )
-
-        # r_OP_i^e = C_r,i^e * C_e,q q = C_r,i^e * q^e
-        # r_OPi = qe[nodelDOF_element_r[i]]
-
         # build global elDOF connectivity matrix
         self.elDOF = np.zeros((nelement, self.nq_element), dtype=int)
         self.elDOF_u = np.zeros((nelement, self.nu_element), dtype=int)
         for el in range(nelement):
             self.elDOF[el, : self.nq_element_r] = self.elDOF_r[el]
-            self.elDOF[
-                el, self.nq_element_r : self.nq_element_r + self.nq_element_psi
-            ] = self.elDOF_psi[el]
+            self.elDOF[el, self.nq_element_r :] = self.elDOF_psi[el]
             self.elDOF_u[el, : self.nu_element_r] = self.elDOF_r_u[el]
-            self.elDOF_u[
-                el, self.nu_element_r : self.nu_element_r + self.nu_element_psi
-            ] = self.elDOF_psi_u[el]
-            if self.mixed:
-                self.elDOF[
-                    el,
-                    self.nq_element_r
-                    + self.nq_element_psi : self.nq_element_r
-                    + self.nq_element_psi
-                    + self.nq_element_n,
-                ] = self.elDOF_n[el]
-                self.elDOF[
-                    el, self.nq_element_r + self.nq_element_psi + self.nq_element_n :
-                ] = self.elDOF_m[el]
-                self.elDOF_u[
-                    el,
-                    self.nu_element_r
-                    + self.nu_element_psi : self.nu_element_r
-                    + self.nu_element_psi
-                    + self.nu_element_n,
-                ] = self.elDOF_n_u[el]
-                self.elDOF_u[
-                    el, self.nu_element_r + self.nu_element_psi + self.nu_element_n :
-                ] = self.elDOF_m_u[el]
+            self.elDOF_u[el, self.nu_element_r :] = self.elDOF_psi_u[el]
 
         # shape functions and their first derivatives
         self.N_r = self.mesh_r.N
@@ -292,27 +170,12 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         self.N_r_dyn = self.mesh_r_dyn.N
         self.N_psi_dyn = self.mesh_psi_dyn.N
 
-        if self.mixed:
-            self.N_n = self.mesh_n.N
-            self.N_m = self.mesh_m.N
-
         # quadrature points
+        # note: compliance equations use the same quadrature points
         self.qp = self.mesh_r.qp  # quadrature points
         self.qw = self.mesh_r.wp  # quadrature weights
         self.qp_dyn = self.mesh_r_dyn.qp  # quadrature points for dynamics
         self.qw_dyn = self.mesh_r_dyn.wp  # quadrature weights for dynamics
-
-        # if RotationBase is QuaternionRotationParameterization:
-        #     for i in range(self.nnodes_psi - 1):
-        #         Pi = Q[self.nodalDOF_psi[i]]
-        #         Pi1 = Q[self.nodalDOF_psi[i + 1]]
-        #         inner = Pi @ Pi1
-        #         print(f"i: {i}")
-        #         if inner < 0:
-        #             print("wrong hemisphere!")
-        #             Q[self.nodalDOF_psi[i + 1]] *= -1
-        #         else:
-        #             print(f"correct hemisphere")
 
         # reference generalized coordinates, initial coordinates and initial velocities
         self.Q = Q
@@ -322,43 +185,89 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         # evaluate shape functions at specific xi
         self.basis_functions_r = self.mesh_r.eval_basis
         self.basis_functions_psi = self.mesh_psi.eval_basis
-        if self.mixed:
-            self.basis_functions_n = self.mesh_n.eval_basis
-            self.basis_functions_m = self.mesh_m.eval_basis
 
-        # self.set_initial_strains(self.q0)
-        self.set_initial_strains(self.Q)
+        # quaternion constraints
+        dim_g_S = 1
+        self.nla_S = self.nnodes_psi * dim_g_S
+        self.nodalDOF_la_S = np.arange(self.nla_S).reshape(self.nnodes_psi, dim_g_S)
+        self.la_S0 = np.zeros(self.nla_S, dtype=float)
 
-    # TODO: rename function to set_reference_strains
-    def set_initial_strains(self, Q):
+        #######################################################
+        # discretization parameters internal forces and moments
+        #######################################################
+        self.polynomial_degree_n = polynomial_degree - 1
+        self.polynomial_degree_m = polynomial_degree - 1
+        self.knot_vector_n = LagrangeKnotVector(self.polynomial_degree_n, nelement)
+        self.knot_vector_m = LagrangeKnotVector(self.polynomial_degree_m, nelement)
+
+        # build mesh objects
+        self.mesh_n = Mesh1D(
+            self.knot_vector_n,
+            nquadrature,
+            dim_q=3,
+            derivative_order=0,
+            basis="Lagrange_Disc",
+            quadrature="Gauss",
+            dim_u=3,
+        )
+        self.mesh_m = Mesh1D(
+            self.knot_vector_m,
+            nquadrature,
+            dim_q=3,
+            derivative_order=0,
+            basis="Lagrange_Disc",
+            quadrature="Gauss",
+            dim_u=3,
+        )
+
+        # total number of nodes
+        self.nnodes_n = self.mesh_n.nnodes
+        self.nnodes_m = self.mesh_m.nnodes
+
+        # number of nodes per element
+        self.nnodes_element_n = self.mesh_n.nnodes_per_element
+        self.nnodes_element_m = self.mesh_m.nnodes_per_element
+
+        # total number of compliance coordiantes
+        self.nla_c_n = self.mesh_n.nq
+        self.nla_c_m = self.mesh_m.nq
+        self.nla_c = self.nla_c_n + self.nla_c_m
+
+        # number of compliance coordinates per element
+        self.nla_c_element_n = self.mesh_n.nq_per_element
+        self.nla_c_element_m = self.mesh_m.nq_per_element
+        self.nla_c_element = self.nla_c_element_n + self.nla_c_element_m
+
+        # global element connectivity for copliance coordinates
+        self.elDOF_n = self.mesh_n.elDOF + self.nq_r + self.nq_psi
+        self.elDOF_m = self.mesh_m.elDOF + self.nq_r + self.nq_psi + self.nla_c_n
+
+        # global nodal connectivity
+        self.nodalDOF_n = self.mesh_n.nodalDOF + self.nq_r + self.nq_psi
+        self.nodalDOF_m = self.mesh_m.nodalDOF + self.nq_r + self.nq_psi + self.nla_c_n
+
+        # nodal connectivity on element level
+        self.nodalDOF_element_n = self.mesh_n.nodalDOF_element
+        self.nodalDOF_element_m = self.mesh_m.nodalDOF_element + self.nla_c_element_n
+
+        # build global elDOF connectivity matrix
+        self.elDOF_la_c = np.zeros((nelement, self.nla_c_element), dtype=int)
+        for el in range(nelement):
+            self.elDOF_la_c[el, : self.nla_c_element_n] = self.elDOF_n[el]
+            self.elDOF[el, self.nla_c_element_n :] = self.elDOF_m[el]
+
+        # shape functions and their first derivatives
+        self.N_n = self.mesh_n.N
+        self.N_m = self.mesh_m.N
+
+        # evaluate shape functions at specific xi
+        self.basis_functions_n = self.mesh_n.eval_basis
+        self.basis_functions_m = self.mesh_m.eval_basis
+
+        self.set_reference_strains(self.Q)
+
+    def set_reference_strains(self, Q):
         self.Q = Q.copy()
-
-        # # # ensure quaternions on same hemisphere, see Gosh2008 above (35)
-        # # # TODO: Why is this not sufficient?
-        # # for i in range(self.nnodes_psi):
-        # #     if self.Q[self.nodalDOF_psi[i][0]] < 0:
-        # #         self.Q[self.nodalDOF_psi[i]] = -self.Q[self.nodalDOF_psi[i]]
-
-        # # ensure quaternions on same hemisphere
-        # # for i in range(1, len(quats)):
-        # # Q0 = self.Q[self.nodalDOF_psi[0]]
-        # # for i in range(1, self.nnodes_psi):
-        # #     Qi = self.Q[self.nodalDOF_psi[i]]
-        # #     inner = Q0 @ Qi
-        # #     if inner < 0:
-        # #         self.Q[self.nodalDOF_psi[i]] *= -1
-        # for i in range(self.nnodes_psi - 1):
-        #     Qi = self.Q[self.nodalDOF_psi[i]]
-        #     Qi1 = self.Q[self.nodalDOF_psi[i + 1]]
-        #     if np.linalg.norm(Qi1 - Qi) > 1:
-        #         self.Q[self.nodalDOF_psi[i + 1]] *= -1
-        #     # inner = Qi @ Qi1
-        #     # if inner < 0:
-        #     # # angle = np.arccos(Qi @ Qi1)
-        #     # # print(f"angle: {angle}")
-        #     # # if angle > np.pi:
-        #     #     print(f"flip quaternion")
-        #     #     self.Q[self.nodalDOF_psi[i + 1]] *= -1
 
         # precompute values of the reference configuration in order to save computation time
         # J in Harsch2020b (5)
@@ -593,14 +502,14 @@ class CosseratRodPGMixed(RodExportBase, ABC):
     ################################################
     # constraint equations without constraint forces
     ################################################
-    def __g_S(self, t, q):
+    def g_S(self, t, q):
         g_S = np.zeros(self.nla_S, dtype=q.dtype)
         for node in range(self.nnodes_psi):
             psi = q[self.nodalDOF_psi[node]]
             g_S[self.nodalDOF_la_S[node]] = np.array([psi @ psi - 1])
         return g_S
 
-    def __g_S_q(self, t, q):
+    def g_S_q(self, t, q):
         coo = CooMatrix((self.nla_S, self.nq))
         for node in range(self.nnodes_psi):
             nodalDOF = self.nodalDOF_psi[node]
@@ -609,7 +518,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
             coo[nodalDOF_S, nodalDOF] = 2 * psi.reshape(1, -1)
         return coo
 
-    def __g_S_q_T_mu_q(self, t, q, mu):
+    def g_S_q_T_mu_q(self, t, q, mu):
         coo = CooMatrix((self.nq, self.nq))
         for node in range(self.nnodes_psi):
             nodalDOF = self.nodalDOF_psi[node]
