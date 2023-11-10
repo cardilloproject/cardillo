@@ -977,6 +977,30 @@ class CosseratRodPGMixed(RodExportBase, ABC):
 
         return c_el
 
+    def c_la_c(self, t, q, u, la_c):
+        coo = CooMatrix((self.nla_c, self.nla_c))
+        for el in range(self.nelement):
+            elDOF = self.elDOF[el]
+            elDOF_la_c = self.elDOF_la_c[el]
+            coo[elDOF_la_c, elDOF_la_c] = self.c_la_c_el(q[elDOF], la_c[elDOF_la_c], el)
+        return coo
+
+    # TODO:
+    def c_la_c_el(self, qe, la_ce, el):
+        return approx_fprime(la_ce, lambda la_c: self.c_el(qe, la_c, el))
+
+    def c_q(self, t, q, u, la_c):
+        coo = CooMatrix((self.nla_c, self.nq))
+        for el in range(self.nelement):
+            elDOF = self.elDOF[el]
+            elDOF_la_c = self.elDOF_la_c[el]
+            coo[elDOF_la_c, elDOF] = self.c_q_el(q[elDOF], la_c[elDOF_la_c], el)
+        return coo
+
+    # TODO:
+    def c_q_el(self, qe, la_ce, el):
+        return approx_fprime(qe, lambda q: self.c_el(q, la_ce, el))
+
     def W_c(self, t, q):
         coo = CooMatrix((self.nu, self.nla_c))
         for el in range(self.nelement):
@@ -1029,6 +1053,19 @@ class CosseratRodPGMixed(RodExportBase, ABC):
                     )
 
         return W_c_el
+
+    def Wla_c_q(self, t, q, la_c):
+        coo = CooMatrix((self.nu, self.nq))
+        for el in range(self.nelement):
+            elDOF = self.elDOF[el]
+            elDOF_u = self.elDOF_u[el]
+            elDOF_la_c = self.elDOF_la_c[el]
+            coo[elDOF_u, elDOF] = self.Wla_c_q_el(q[elDOF], la_c[elDOF_la_c], el)
+        return coo
+
+    # TODO:
+    def Wla_c_q_el(self, qe, la_ce, el):
+        return approx_fprime(qe, lambda q: self.W_c_el(q, el) @ la_ce)
 
     #########################################
     # equations of motion

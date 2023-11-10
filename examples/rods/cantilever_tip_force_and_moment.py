@@ -104,6 +104,7 @@ def cantilever(
     F = lambda t: -P(t) * e2
     force = Force(F, cantilever, (1,))
     system.add(force)
+
     # moment at cantilever tip
     M = lambda t: 2.5 * P(t) * e3
     moment = K_Moment(M, cantilever, (1,))
@@ -114,7 +115,7 @@ def cantilever(
     # add Newton solver
     solver = Newton(
         system,
-        n_load_steps=n_load_steps + 1,
+        n_load_steps=n_load_steps,
         max_iter=30,
         atol=1e-8,
     )

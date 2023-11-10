@@ -586,7 +586,7 @@ class System:
         coo = CooMatrix((self.nu, self.nq))
         for contr in self.__c_q_contr:
             coo[contr.uDOF, contr.qDOF] = contr.Wla_c_q(
-                t, q[contr.uDOF], la_c[contr.la_cDOF]
+                t, q[contr.qDOF], la_c[contr.la_cDOF]
             )
         return coo.tosparse(scipy_matrix)
 
