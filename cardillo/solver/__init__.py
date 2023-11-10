@@ -3,7 +3,7 @@ from .solution import Solution, save_solution, load_solution
 
 # common solver functionality
 from ._base import consistent_initial_conditions, compute_I_F
-from ._common import convergence_analysis
+from ..utility.convergence_analysis import convergence_analysis
 
 # dynamic solvers
 from .scipy_ivp import ScipyIVP
@@ -11,7 +11,7 @@ from .moreau import (
     MoreauShifted,
     MoreauClassical,
 )
-from .euler_backward import EulerBackward, NonsmoothBackwardEuler
+from .backward_euler import BackwardEuler
 from .generalized_alpha_first_order import GeneralizedAlphaFirstOrder
 from .nonsmooth_generalized_alpha import (
     NonsmoothGeneralizedAlpha,

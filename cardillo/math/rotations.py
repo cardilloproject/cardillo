@@ -622,6 +622,36 @@ def T_SO3_quat(P, normalize=True):
         return 2 * np.hstack((-p.T, p0 * np.eye(3, dtype=P.dtype) - ax2skew(p)))
 
 
+def T_SO3_quat_P(P, normalize=True):
+    if normalize:
+        p0, p = np.array_split(P, [1])
+        P2 = P @ P
+        T_P = np.einsum(
+            "ij,k->ijk",
+            np.hstack((-p[:, None], p0 * np.eye(3, dtype=P.dtype) - ax2skew(p))),
+            -4 * P / (P2 * P2),
+        )
+        P22 = 2 / P2
+        T_P[:, 0, 1:] -= P22 * np.eye(3, dtype=float)
+        T_P[:, 1:, 0] += P22 * np.eye(3, dtype=float)
+        T_P[:, 1:, 1:] -= P22 * ax2skew_a()
+    else:
+        T_P = np.zeros((3, 4, 4), dtype=float)
+        T_P[:, 0, 1:] -= 2 * np.eye(3, dtype=float)
+        T_P[:, 1:, 0] += 2 * np.eye(3, dtype=float)
+        T_P[:, 1:, 1:] -= 2 * ax2skew_a()
+
+    return T_P
+
+    # from cardillo.math import approx_fprime
+
+    # T_P_num = approx_fprime(P, T_SO3_quat, method="3-point", eps=1e-6)
+    # diff = T_P - T_P_num
+    # error = np.linalg.norm(diff)
+    # print(f"error T_P: {error}")
+    # return T_P_num
+
+
 def T_SO3_inv_quat(P, normalize=True):
     """Inverse tangent map for unit quaternion. See Egeland2002 (6.329) and
     (6.330) as well as Nuetzi2016 (3.11), (3.12) and (4.19).

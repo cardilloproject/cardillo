@@ -9,11 +9,8 @@ from cardillo.solver import (
     MoreauShifted,
     NonsmoothGeneralizedAlpha,
     Rattle,
-    MoreauShiftedNew,
     MoreauClassical,
-    NonsmoothBackwardEuler,
-    SimplifiedNonsmoothGeneralizedAlpha,
-    SimplifiedNonsmoothGeneralizedAlphaFirstOrder,
+    BackwardEuler,
 )
 
 
@@ -49,8 +46,8 @@ class RotatingBouncingBall:
     def q_ddot(self, t, q, u, u_dot):
         return u_dot
 
-    def B(self, t, q):
-        return np.ones(self.nq)
+    def q_dot_u(self, t, q, u):
+        return np.eye(self.nq)
 
     #####################
     # equations of motion
@@ -79,7 +76,7 @@ class RotatingBouncingBall:
         return g_N_q
 
     def W_N(self, t, q):
-        return self.g_N_q(t, q)
+        return self.g_N_q(t, q).T
 
     def Wla_N_q(self, t, q, la_N):
         return np.zeros((self.nu, self.nq))
@@ -90,14 +87,17 @@ class RotatingBouncingBall:
     def gamma_F(self, t, q, u):
         return np.array([u[0] + self.radius * u[2]])
 
+    def gamma_F_u(self, t, q):
+        gamma_F_u = np.zeros((self.nla_F, self.nu), dtype=q.dtype)
+        gamma_F_u[0, 0] = 1
+        gamma_F_u[0, 2] = self.radius
+        return gamma_F_u
+
     def gamma_F_dot(self, t, q, u, u_dot):
         return np.array([u_dot[0] + self.radius * u_dot[2]])
 
     def W_F(self, t, q):
-        W_F = np.zeros((self.nla_F, self.nu), dtype=q.dtype)
-        W_F[0, 0] = 1
-        W_F[0, 2] = self.radius
-        return W_F
+        return self.gamma_F_u(t, q).T
 
     def Wla_F_q(self, t, q, la_F):
         return np.zeros((self.nu, self.nq))
@@ -161,8 +161,14 @@ def run(case, export=True):
     else:
         raise AssertionError("Case not found!")
 
-    q0 = np.array([x0, y0, 0], dtype=float)
-    u0 = np.array([x_dot0, y_dot0, omega], dtype=float)
+    # q0 = np.array([x0, y0, 0], dtype=float)
+    # u0 = np.array([x_dot0, y_dot0, omega], dtype=float)
+
+    # TODO: Remove this
+    q0 = np.array([x0, 0.1, 0], dtype=float)
+    x_dot0 = 0.1
+    omega = -1
+    u0 = np.array([x_dot0, 0, omega], dtype=float)
 
     mass = 1.0
     radius = 0.1
@@ -191,8 +197,8 @@ def run(case, export=True):
     # solver1, label1 = Rattle(system, t_final, dt), "Rattle"
     # solver1, label1 = MoreauShifted(system, t_final, dt), "MoreauShifted"
     # solver1, label1 = MoreauShiftedNew(system, t_final, dt), "MoreauShiftedNew"
-    solver1, label1 = MoreauClassical(system, t_final, dt), "MoreauClassical"
-    # solver1, label1 = NonsmoothBackwardEuler(system, t_final, dt), "Euler backward"
+    # solver1, label1 = MoreauClassical(system, t_final, dt), "MoreauClassical"
+    solver1, label1 = BackwardEuler(system, t_final, dt), "Backward Euler"
 
     sol1 = solver1.solve()
     t1 = sol1.t
@@ -205,11 +211,12 @@ def run(case, export=True):
     P_N1 = sol1.P_N
     P_F1 = sol1.P_F
 
-    solver2, label2 = (
-        NonsmoothGeneralizedAlpha(system, t_final, dt),
-        "Gen-alpha",
-    )
-    # solver2, label2 = MoreauClassical(system, t_final, dt), "Moreau"
+    # solver2, label2 = (
+    #     NonsmoothGeneralizedAlpha(system, t_final, dt),
+    #     "Gen-alpha",
+    # )
+    solver2, label2 = MoreauClassical(system, t_final, dt), "Moreau"
+    # solver2, label2 = BackwardEuler(system, t_final, dt), "Backward Euler"
     # solver2, label2 = Rattle(system, t_final, dt), "Rattle"
     sol2 = solver2.solve()
     t2 = sol2.t
@@ -437,6 +444,6 @@ def run(case, export=True):
 
 if __name__ == "__main__":
     # run(1)
-    # run(2)
+    run(2)
     # run(3)
-    run(4)
+    # run(4)

@@ -2,7 +2,7 @@ import warnings
 from scipy.sparse import csc_array, csr_array, coo_array
 from scipy.sparse._sputils import isshape, check_shape
 from scipy.sparse import spmatrix
-from numpy import repeat, tile, atleast_1d, arange
+from numpy import repeat, tile, atleast_1d, atleast_2d, arange
 from array import array
 
 
@@ -86,54 +86,38 @@ class CooMatrix:
             cols = atleast_1d(cols)
 
             if isinstance(value, CooMatrix):
+                assert value.shape == (len(rows), len(cols)), "inconsistent assignment"
+
                 # extend arrays from given CooMatrix
                 self.data.extend(value.data)
                 self.row.extend(rows[value.row])
                 self.col.extend(cols[value.col])
+                # TODO: benchmark
                 # self.data.fromlist(value.data.tolist())
                 # self.row.fromlist(rows[value.row].tolist())
                 # self.col.fromlist(cols[value.col].tolist())
             elif isinstance(value, spmatrix):
+                assert value.shape == (len(rows), len(cols)), "inconsistent assignment"
+
                 # all scipy sparse matrices are converted to coo_matrix, their
                 # data, row and column lists are subsequently appended
                 coo = value.tocoo()
                 self.data.extend(coo.data)
                 self.row.extend(rows[coo.row])
                 self.col.extend(cols[coo.col])
+                # TODO: benchmark
                 # self.data.fromlist(coo.data.tolist())
                 # self.row.fromlist(rows[coo.row].tolist())
                 # self.col.fromlist(cols[coo.col].tolist())
             else:
-                value = atleast_1d(value)
-                ndim = value.ndim
-                if ndim > 1:
-                    # # 2D array
-                    self.data.extend(value.ravel(order="C"))
-                    self.row.extend(repeat(rows, len(cols)))
-                    self.col.extend(tile(cols, len(rows)))
-                    # self.data.fromlist(value.ravel(order="C").tolist())
-                    # self.row.fromlist(repeat(rows, len(cols)).tolist())
-                    # self.col.fromlist(tile(cols, len(rows)).tolist())
-                else:
-                    # 1D array
-                    self.data.extend(value)
-                    # self.row.extend(rows)
-                    if rows.size > cols.size:
-                        warnings.warn(
-                            "Testing needed for adding column vectors to CooMatrix",
-                            RuntimeWarning,
-                        )
-                        self.col.extend(tile(cols, len(rows)))
-                    else:
-                        self.col.extend(cols)
-                    if cols.size > rows.size:
-                        raise RuntimeError("This implementation is not tested yet!")
-                        self.row.extend(tile(rows, len(cols)))
-                    else:
-                        self.row.extend(rows)
-                    # self.data.fromlist(value.tolist())
-                    # self.row.fromlist(rows.tolist())
-                    # self.col.fromlist(cols.tolist())
+                # convert everything als to 2D numpy arrays
+                value = atleast_2d(value)
+                assert value.shape == (len(rows), len(cols)), "inconsistent assignment"
+
+                # 2D array
+                self.data.extend(value.ravel(order="C"))
+                self.row.extend(repeat(rows, len(cols)))
+                self.col.extend(tile(cols, len(rows)))
 
     def extend(self, matrix, DOF):
         warnings.warn(

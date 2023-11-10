@@ -19,6 +19,17 @@ def prox_sphere(x, radius):
     else:
         return x if nx <= radius else radius * x
 
+def prox_sphere_x(x, radius):
+    nx = np.linalg.norm(x)
+    if nx > 0:
+        return (
+            np.ones_like(x)
+            if nx <= radius
+            else radius * (np.eye(len(x)) / nx - np.outer(x, x) / nx**3)
+        )
+    else:
+        return 1 if nx <= radius else radius
+
 
 """
 Estimation of relaxation parameter $\vr_N$ of prox function for normal contacts.
@@ -52,3 +63,4 @@ def check_alpha(alpha):
         return 1
     else:
         return alpha
+

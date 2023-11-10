@@ -13,7 +13,7 @@ from cardillo.visualization import Export
 from cardillo.solver import (
     MoreauShifted,
     Rattle,
-    NonsmoothBackwardEuler,
+    BackwardEuler,
     NPIRK,
     MoreauShiftedNew,
     MoreauClassical,
@@ -42,7 +42,7 @@ alpha = 0.4
 
 Solver = {
     "NPIRK": (NPIRK, "NPIRK", 5e-2, {"butcher_tableau": RadauIIATableau(2)}),
-    "BackwardEuler": (NonsmoothBackwardEuler, "Euler backward", 1e-2, {}),
+    "BackwardEuler": (BackwardEuler, "Euler backward", 1e-2, {}),
     "Rattle": (Rattle, "Rattle", 1e-2, {}),
     "MoreauShifted": (MoreauShifted, "MoreauShifted", 2e-2, {"alpha": alpha}),
     "MoreauShiftedNew": (MoreauShiftedNew, "MoreauShiftedNew", 1e-2, {"alpha": alpha}),
