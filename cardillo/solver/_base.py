@@ -43,8 +43,14 @@ def consistent_initial_conditions(
     gamma_F = system.gamma_F(t0, q0, u0)
     A_N = np.isclose(g_N, np.zeros(system.nla_N), rtol, atol)
     B_N = A_N * np.isclose(g_N_dot, np.zeros(system.nla_N), rtol, atol)
-    global C_N  # contact on acceleration level
+    global C_N  # normal contact on acceleration level
     C_N = np.zeros(system.nla_N, dtype=bool)
+    global slip_vel  # slip on velocity level
+    slip_vel = np.zeros(system.nla_N, dtype=bool)
+    global slip_acc  # slip on acceleration level
+    slip_acc = np.zeros(system.nla_N, dtype=bool)
+    global stick_acc  # stick on acceleration level
+    stick_acc = np.zeros(system.nla_N, dtype=bool)
 
     assert np.all(
         np.logical_or(g_N >= 0, A_N)
@@ -161,6 +167,11 @@ def consistent_initial_conditions(
         # R[split[4] :] = la_F
         gamma_F_dot = W_F.T @ u_dot + zeta_F
 
+        global D_N, E_N
+        D_N = np.zeros(system.nla_N, dtype=bool)
+        E_N = np.zeros(system.nla_N, dtype=bool)
+        # global D_N  # stick on acceleration level
+        # global E_N  # slip on velocity level
         for i_N, i_F in enumerate(system.NF_connectivity):
             i_F = np.array(i_F)
             if len(i_F) > 0:
@@ -173,13 +184,16 @@ def consistent_initial_conditions(
                         norm_prox_arg = norm(prox_arg)
                         radius = mu[i_N] * la_N[i_N]
                         if norm_prox_arg <= radius:  # stick on acceleration level
+                            stick_acc[i_N] = True
                             R[split[4] + i_F] = gamma_F_dot[i_F]
                         else:  # slip on acceleration level
+                            slip_acc[i_N] = True
                             R[split[4] + i_F] = (
                                 la_F[i_F]
                                 + mu[i_N] * la_N[i_N] * prox_arg / norm_prox_arg
                             )
                     else:  # slip
+                        slip_vel[i_N] = True
                         R[split[4] + i_F] = (
                             la_F[i_F]
                             + mu[i_N] * la_N[i_N] * gamma_F[i_F] / norm_gamma_Fi
