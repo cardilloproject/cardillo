@@ -18,7 +18,7 @@ from cardillo.forces import (
     LinearDamper,
     LinearSpring,
 )
-from cardillo.solver import EulerBackward, ScipyIVP
+from cardillo.solver import BackwardEuler, ScipyIVP
 
 
 def run(joint, Solver, k=None, d=None, **solver_args):
@@ -370,19 +370,19 @@ if __name__ == "__main__":
     #######################
     # spherical joint tests
     #######################
-    # run("Spherical", EulerBackward, method="index 1")
-    # run("Spherical", EulerBackward, method="index 2")
-    # run("Spherical", EulerBackward, method="index 3")
-    # run("Spherical", EulerBackward, method="index 2 GGL")
+    # run("Spherical", BackwardEuler, method="index 1")
+    # run("Spherical", BackwardEuler, method="index 2")
+    # run("Spherical", BackwardEuler, method="index 3")
+    # run("Spherical", BackwardEuler, method="index 2 GGL")
     run("Spherical", ScipyIVP)
 
     ######################
     # revolute joint tests
     ######################
-    # run("Revolute", EulerBackward, method="index 1")
-    # run("Revolute", EulerBackward, method="index 2")
-    # run("Revolute", EulerBackward, method="index 3")
-    # run("Revolute", EulerBackward, method="index 2 GGL")
+    # run("Revolute", BackwardEuler, method="index 1")
+    # run("Revolute", BackwardEuler, method="index 2")
+    # run("Revolute", BackwardEuler, method="index 3")
+    # run("Revolute", BackwardEuler, method="index 2 GGL")
     run("Revolute", ScipyIVP)
 
     ###########################
@@ -392,10 +392,10 @@ if __name__ == "__main__":
     k = 1e2
     d = 3e1
 
-    # run("PDRotational", EulerBackward, method="index 1", k=k, d=d)
-    # run("PDRotational", EulerBackward, method="index 2", k=k, d=d)
-    # run("PDRotational", EulerBackward, method="index 3", k=k, d=d)
-    # run("PDRotational", EulerBackward, method="index 2 GGL", k=k, d=d)
+    # run("PDRotational", BackwardEuler, method="index 1", k=k, d=d)
+    # run("PDRotational", BackwardEuler, method="index 2", k=k, d=d)
+    # run("PDRotational", BackwardEuler, method="index 3", k=k, d=d)
+    # run("PDRotational", BackwardEuler, method="index 2 GGL", k=k, d=d)
 
     atol = 1e-8
     rtol = 1e-8

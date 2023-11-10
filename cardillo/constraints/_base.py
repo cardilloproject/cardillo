@@ -355,7 +355,7 @@ class PositionOrientationBase:
 
         return g_dot_q
 
-    def g_dot_u(self, t, q):
+    def g_dot_u(self, t, q, u):
         return self.W_g(t, q).T
 
     def g_ddot(self, t, q, u, u_dot):
@@ -721,7 +721,7 @@ class ProjectedPositionOrientationBase:
         # print(f"error g_dot_q: {error}")
         # return g_dot_q_num
 
-    def g_dot_u(self, t, q):
+    def g_dot_u(self, t, q, u):
         return self.W_g(t, q).T
 
     def g_ddot(self, t, q, u, u_dot):
