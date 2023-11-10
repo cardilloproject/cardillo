@@ -3,13 +3,15 @@ from abc import ABC, abstractmethod
 import warnings
 
 from cardillo.beams._base_export import RodExportBase
-from cardillo.beams._base_parametrization import QuaternionRotationParameterization
 
 from cardillo.math import (
     norm,
     cross3,
     ax2skew,
     approx_fprime,
+    Log_SO3_quat,
+    T_SO3_inv_quat,
+    T_SO3_inv_quat_P,
 )
 
 from cardillo.utility.coo_matrix import CooMatrix
@@ -87,7 +89,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         self.mesh_psi = Mesh1D(
             self.knot_vector_psi,
             nquadrature,
-            dim_q=QuaternionRotationParameterization.dim(),  # TODO: remove this
+            dim_q=4,
             derivative_order=1,
             basis="Lagrange",
             quadrature="Gauss",
@@ -96,7 +98,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         self.mesh_psi_dyn = Mesh1D(
             self.knot_vector_psi,
             nquadrature_dyn,
-            dim_q=QuaternionRotationParameterization.dim(),  # TODO: remove this
+            dim_q=4, 
             derivative_order=1,
             basis="Lagrange",
             quadrature="Gauss",
@@ -341,7 +343,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
 
         # we have to extract the rotation vector from the given rotation matrix
         # and set its value for each node
-        psi = QuaternionRotationParameterization().Log_SO3(A_IK)  # TODO
+        psi = Log_SO3_quat(A_IK)
         q_psi = np.repeat(psi, nnodes_psi)
 
         return np.concatenate([q_r, q_psi])
@@ -372,7 +374,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
             A_KC[:, 1] = ddcurve(LL[i]) / norm(ddcurve(LL[i]))
             A_KC[:, 2] = cross3(A_KC[:, 0], A_KC[:, 1])
             A_IC = A_IK @ A_KC
-            P0[:, i] = QuaternionRotationParameterization().Log_SO3(A_IC)
+            P0[:, i] = Log_SO3_quat(A_IC)
 
             # TODO: check for half space
 
@@ -400,7 +402,6 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         A_IK=np.eye(3, dtype=float),
         v_P=np.zeros(3, dtype=float),
         K_omega_IK=np.zeros(3, dtype=float),
-        rotation_parameterization=QuaternionRotationParameterization(),
     ):
         nnodes_r = polynomial_degree * nelement + 1
         nnodes_psi = polynomial_degree * nelement + 1
@@ -416,7 +417,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         # reshape generalized coordinates to nodal ordering
         q_r = r_OC0.reshape(-1, order="C")
 
-        psi = rotation_parameterization.Log_SO3(A_IK)
+        psi = Log_SO3_quat(A_IK)
         q_psi = np.repeat(psi, nnodes_psi)
 
         ################################
@@ -524,9 +525,8 @@ class CosseratRodPGMixed(RodExportBase, ABC):
             nodalDOF_psi_u = self.nodalDOF_psi_u[node]
             psi = q[nodalDOF_psi]
             K_omega_IK = u[nodalDOF_psi_u]
-            q_dot[nodalDOF_psi] = QuaternionRotationParameterization.q_dot(
-                psi, K_omega_IK
-            )
+            q_dot[nodalDOF_psi] = T_SO3_inv_quat(psi, normalize=False) @ K_omega_IK
+            
 
         return q_dot
 
@@ -542,9 +542,8 @@ class CosseratRodPGMixed(RodExportBase, ABC):
             nodalDOF_psi_u = self.nodalDOF_psi_u[node]
 
             psi = q[nodalDOF_psi]
-            coo[nodalDOF_psi, nodalDOF_psi_u] = QuaternionRotationParameterization.B(
-                psi
-            )
+            psi = psi / norm(psi)
+            coo[nodalDOF_psi, nodalDOF_psi_u] = T_SO3_inv_quat(psi, normalize=False)
 
         return coo
 
@@ -560,7 +559,11 @@ class CosseratRodPGMixed(RodExportBase, ABC):
 
             coo[
                 nodalDOF_psi, nodalDOF_psi
-            ] = QuaternionRotationParameterization.q_dot_q(psi, K_omega_IK)
+            ] = np.einsum(
+            "ijk,j->ik",
+            T_SO3_inv_quat_P(psi, normalize=False),
+            K_omega_IK,
+        )
 
         return coo
 
@@ -569,7 +572,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
             psi = q[self.nodalDOF_psi[node]]
             q[
                 self.nodalDOF_psi[node]
-            ] = QuaternionRotationParameterization.step_callback(psi)
+            ] = psi / norm(psi)
         return q, u
 
     ###############################
