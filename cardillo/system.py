@@ -539,7 +539,7 @@ class System:
     # compliance
     ############
     def la_c(self, t, q, u):
-        la_c = np.zeros(self.nla_c, dtype=np.common_type(q, u, la_c))
+        la_c = np.zeros(self.nla_c, dtype=np.common_type(q, u))
         for contr in self.__c_contr:
             la_c[contr.la_cDOF] = contr.la_c(t, q[contr.qDOF], u[contr.uDOF])
         return la_c

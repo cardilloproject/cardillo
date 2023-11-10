@@ -57,20 +57,18 @@ class ScipyIVP:
         W_g = self.system.W_g(t, q)
         W_gamma = self.system.W_gamma(t, q)
         W_c = self.system.W_c(t, q)
+        la_c = self.system.la_c(t, q, u)
         zeta_g = self.system.zeta_g(t, q, u)
         zeta_gamma = self.system.zeta_gamma(t, q, u)
 
         # TODO: Can be use a sparse ldl decomposition here as done in C++?
         # fmt: off
-        A = bmat([[        M, -W_g, -W_gamma, -W_c], \
-                  [    W_g.T, None,     None, None], \
-                  [W_gamma.T, None,     None, None], \
-                  [None, None, None, self.system.K_c(scipy_matrix=csc_matrix)]], format="csc")
+        A = bmat([[        M, -W_g, -W_gamma],
+                  [    W_g.T, None,     None], 
+                  [W_gamma.T, None,     None]], format="csc")
         # fmt: on
 
-        ula = spsolve(
-            A, np.concatenate([h, -zeta_g, -zeta_gamma, -self.system.c(t, q, u)])
-        )
+        ula = spsolve(A, np.concatenate([h + W_c @ la_c, -zeta_g, -zeta_gamma]))
 
         dx = np.zeros(self.nx)
         dx[: self.nq] = self.system.q_dot(t, q, u)
@@ -81,9 +79,7 @@ class ScipyIVP:
         W_g = self.system.W_g(t, q, scipy_matrix=csc_matrix)
         W_gamma = self.system.W_gamma(t, q, scipy_matrix=csc_matrix)
         W_c = self.system.W_c(t, q, scipy_matrix=csc_matrix)
-        la_c = -spsolve(
-            self.system.K_c(scipy_matrix=csc_matrix), self.system.c(t, q, u)
-        )
+        la_c = self.system.la_c(t, q, u)
         zeta_g = self.system.zeta_g(t, q, u)
         zeta_gamma = self.system.zeta_gamma(t, q, u)
         M = self.system.M(t, q, scipy_matrix=csc_matrix)
@@ -144,6 +140,12 @@ class ScipyIVP:
             )
 
         return Solution(
-            t=t, q=q, u=u, u_dot=u_dot, la_g=la_g, la_gamma=la_gamma, la_c=la_c
+            self.system,
+            t=t,
+            q=q,
+            u=u,
+            u_dot=u_dot,
+            la_g=la_g,
+            la_gamma=la_gamma,
+            la_c=la_c,
         )
-        # return Solution(t=t, q=q, u=u)

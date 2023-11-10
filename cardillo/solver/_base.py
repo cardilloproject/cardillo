@@ -23,19 +23,19 @@ def consistent_initial_conditions(
 
     import warnings
 
-    warnings.warn("Wrong initial conditions are used!")
-    return (
-        t0,
-        q0,
-        u0,
-        q_dot0,
-        np.zeros(system.nu),
-        np.zeros(system.nla_g),
-        np.zeros(system.nla_gamma),
-        np.zeros(system.nla_c),
-        np.zeros(system.nla_N),
-        np.zeros(system.nla_F),
-    )
+    # warnings.warn("Wrong initial conditions are used!")
+    # return (
+    #     t0,
+    #     q0,
+    #     u0,
+    #     q_dot0,
+    #     np.zeros(system.nu),
+    #     np.zeros(system.nla_g),
+    #     np.zeros(system.nla_gamma),
+    #     np.zeros(system.nla_c),
+    #     np.zeros(system.nla_N),
+    #     np.zeros(system.nla_F),
+    # )
 
     g_N = system.g_N(t0, q0)
     g_N_dot = system.g_N_dot(t0, q0, u0)
