@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.sparse import csr_array, coo_array, lil_array, eye, diags, bmat
-from cardillo.math import prox_sphere, fsolve, norm, approx_fprime
+from cardillo.math import prox_sphere, prox_R0_nm, fsolve, norm, approx_fprime, prox_r
 
 
 def consistent_initial_conditions(
@@ -12,6 +12,7 @@ def consistent_initial_conditions(
     # jac=None,
     jac="2-point",
     error_function=lambda x: np.max(np.absolute(x)),
+    alpha=1,
 ):
     t0 = system.t0
     q0 = system.q0
@@ -71,9 +72,10 @@ def consistent_initial_conditions(
     zeta_N = system.g_N_ddot(t0, q0, u0, np.zeros(system.nu))
     W_F = system.W_F(t0, q0, scipy_matrix=csr_array)
     zeta_F = system.gamma_F_dot(t0, q0, u0, np.zeros(system.nu))
-
-    prox_r_N = system.prox_r_N(t0, q0)
-    prox_r_F = system.prox_r_F(t0, q0)
+    I_N = np.isclose(g_N, np.zeros(system.nla_N), rtol, atol)
+    prox_r_N = prox_r(alpha, W_N[:, I_N], M)
+    I_F = compute_I_F(I_N, system.NF_connectivity)
+    prox_r_F = prox_r(alpha, W_F[:, I_F], M)
     mu = system.mu
 
     split = np.cumsum(

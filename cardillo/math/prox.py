@@ -19,6 +19,7 @@ def prox_sphere(x, radius):
     else:
         return x if nx <= radius else radius * x
 
+
 def prox_sphere_x(x, radius):
     nx = np.linalg.norm(x)
     if nx > 0:
@@ -49,7 +50,7 @@ Schweizer2015: https://doi.org/10.3929/ethz-a-010464319
 
 def prox_r(alpha, W, M):
     try:
-        return alpha / csr_matrix(W.T @ spsolve(M, W)).diagonal()
+        return alpha / csr_matrix(W.T @ spsolve(M, csc_matrix(W))).diagonal()
     except:
         return np.ones(W.shape[1], dtype=W.dtype)
 
@@ -63,4 +64,3 @@ def check_alpha(alpha):
         return 1
     else:
         return alpha
-

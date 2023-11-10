@@ -3,9 +3,10 @@ from scipy.sparse import csc_matrix, csr_matrix, eye, diags, bmat
 from tqdm import tqdm
 import warnings
 
-from cardillo.math import fsolve, approx_fprime
+from cardillo.math import fsolve, approx_fprime, prox_r
 from cardillo.solver import Solution, consistent_initial_conditions
 from cardillo.utility.coo_matrix import CooMatrix
+from ._base import compute_I_F
 
 
 class BackwardEuler:
@@ -20,6 +21,7 @@ class BackwardEuler:
         debug=False,
         debug_method="2-point",
         debug_tol=1e-6,
+        alpha = 1
     ):
         self.system = system
 
@@ -115,6 +117,9 @@ class BackwardEuler:
         # initialize index sets
         self.I_N = np.zeros(self.nla_N, dtype=bool)
         self.NF_connectivity = self.system.NF_connectivity
+        self.prox_r_N = np.ones(self.nla_N)
+        self.prox_r_F = np.ones(self.nla_F)
+        self.alpha = alpha
 
     def R(self, yn1, update_index=False):
         tn, dt, qn, un = self.tn, self.dt, self.qn, self.un
@@ -146,17 +151,20 @@ class BackwardEuler:
             q_dotn1 - self.system.q_dot(tn1, qn1, un1) - g_S_q.T @ mu_Sn1
         )
 
-        ####################
+        #####################
         # equations of motion
-        ####################
+        #####################
+        M = self.system.M(tn1, qn1, scipy_matrix=csr_matrix)
+        W_N = self.system.W_N(tn1, qn1, scipy_matrix=csr_matrix)
+        W_F = self.system.W_F(tn1, qn1, scipy_matrix=csr_matrix)
         R[self.split[0] : self.split[1]] = (
-            self.system.M(tn1, qn1, scipy_matrix=csr_matrix) @ u_dotn1
+            M @ u_dotn1
             - self.system.h(tn1, qn1, un1)
             - self.system.W_g(tn1, qn1, scipy_matrix=csr_matrix) @ la_gn1
             - self.system.W_gamma(tn1, qn1, scipy_matrix=csr_matrix) @ la_gamman1
             - self.system.W_c(tn1, qn1, scipy_matrix=csr_matrix) @ la_cn1
-            - self.system.W_N(tn1, qn1, scipy_matrix=csr_matrix) @ la_Nn1
-            - self.system.W_F(tn1, qn1, scipy_matrix=csr_matrix) @ la_Fn1
+            - W_N @ la_Nn1
+            - W_F @ la_Fn1
         )
 
         #######################
@@ -177,6 +185,12 @@ class BackwardEuler:
         prox_arg = g_Nn1 - self.prox_r_N * la_Nn1
         if update_index:
             self.I_N = prox_arg <= 0.0
+            self.prox_r_N = prox_r(self.alpha, W_N[:, self.I_N], M)
+            self.prox_r_F = prox_r(
+                self.alpha,
+                W_F[:, compute_I_F(self.I_N, self.system.NF_connectivity)],
+                M,
+            )
 
         R[self.split[4] : self.split[5]] = np.where(self.I_N, g_Nn1, la_Nn1)
 
@@ -372,10 +386,11 @@ class BackwardEuler:
         return J
 
     def J_debug(self, method, tol):
-        def J(self, yn1, *args, **kwargs):
+        def J(yn1, *args, self=self, **kwargs):
+            J = self.J(yn1, *args, **kwargs)
             J_num = csr_matrix(approx_fprime(yn1, self.R, method=method, eps=tol))
 
-            diff = (self.J(yn1, *args, **kwargs) - J_num).toarray()
+            diff = (J - J_num).toarray()
             # TODO: compute all diffs for the blocks and print matrix with the blockwise errors
 
             # diff = diff[:self.split[0]]
@@ -390,7 +405,7 @@ class BackwardEuler:
             # diff = diff[self.split[4] : self.split[5], self.split[0] : self.split[1]]
             # diff = diff[self.split[5] :]
             error = np.linalg.norm(diff)
-            if error > 1.0e-8:
+            if error > 10 * tol:
                 print(f"error J: {error}")
 
             return J_num
@@ -415,9 +430,9 @@ class BackwardEuler:
 
         pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
         for _ in pbar:
-            # only compute optimized proxparameters once per time step
-            self.prox_r_N = self.system.prox_r_N(self.tn, self.qn)
-            self.prox_r_F = self.system.prox_r_F(self.tn, self.qn)
+            # # only compute optimized proxparameters once per time step
+            # self.prox_r_N = self.system.prox_r_N(self.tn, self.qn)
+            # self.prox_r_F = self.system.prox_r_F(self.tn, self.qn)
 
             # perform a solver step
             tn1 = self.tn + self.dt
