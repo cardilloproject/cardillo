@@ -65,15 +65,26 @@ class System:
         self.nla_F = 0
 
         self.contributions = []
+        self.contributions_map = {}
+        self.ncontr = 0
 
         self.origin = Frame()
-        self.origin.name = "origin"
+        self.origin.name = "cardillo_origin"
         self.add(self.origin)
 
     def add(self, *contrs):
         for contr in contrs:
             if not contr in self.contributions:
                 self.contributions.append(contr)
+                if not hasattr(contr, "name"):
+                    contr.name = "contr" + str(self.ncontr)
+
+                if contr.name in self.contributions_map:
+                    new_name = contr.name + "_contr" + str(self.ncontr)
+                    print(f"There is another contribution named '{contr.name}' which is already part of the system. Changed the name to '{new_name}' and added it to the system.")
+                    contr.name = new_name
+                self.contributions_map[contr.name] = contr
+                self.ncontr += 1
             else:
                 raise ValueError(f"contribution {str(contr)} already added")
 

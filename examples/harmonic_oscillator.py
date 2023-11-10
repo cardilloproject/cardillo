@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from cardillo import System
-from cardillo.solver import ScipyIVP, EulerBackward
+from cardillo.solver import ScipyIVP, BackwardEuler
 from cardillo.discrete import PointMass
 from cardillo.forces import Force
 from cardillo.forces import (
@@ -32,7 +32,6 @@ if __name__ == "__main__":
     scalar_force_element = ScalarForceTranslational(
         system.origin, mass, linear_spring, linear_damper
     )
-
     system.add(mass)
     system.add(f_g)
     system.add(scalar_force_element)
@@ -46,7 +45,7 @@ if __name__ == "__main__":
     t1 = 2
     dt = 1.0e-2
     # solver = ScipyIVP(system, t1, dt)
-    solver = EulerBackward(system, t1, dt)
+    solver = BackwardEuler(system, t1, dt)
     sol = solver.solve()
     t = sol.t
     q = sol.q
@@ -56,8 +55,3 @@ if __name__ == "__main__":
     plt.plot(t, q[:, 2], "-.b")
     plt.show()
 
-    sol.save("harmonic_oscillator")
-    # # save current state of main:
-    # from cardillo.utility.save_load_state import save_state
-
-    # save_state("harmonic_oscillator_fcn.pkl")
