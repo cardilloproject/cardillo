@@ -55,7 +55,9 @@ class ScipyIVP:
         M = self.system.M(t, q)
         h = self.system.h(t, q, u)
         W_g = self.system.W_g(t, q)
+        g_dot_u = self.system.g_dot_u(t, q, u)
         W_gamma = self.system.W_gamma(t, q)
+        gamma_u = self.system.gamma_u(t, q, u)
         W_c = self.system.W_c(t, q)
         la_c = self.system.la_c(t, q, u)
         zeta_g = self.system.zeta_g(t, q, u)
@@ -63,9 +65,9 @@ class ScipyIVP:
 
         # TODO: Can be use a sparse ldl decomposition here as done in C++?
         # fmt: off
-        A = bmat([[        M, -W_g, -W_gamma],
-                  [    W_g.T, None,     None], 
-                  [W_gamma.T, None,     None]], format="csc")
+        A = bmat([[      M, -W_g, -W_gamma],
+                  [g_dot_u, None,     None], 
+                  [gamma_u, None,     None]], format="csc")
         # fmt: on
 
         ula = spsolve(A, np.concatenate([h + W_c @ la_c, -zeta_g, -zeta_gamma]))
@@ -76,9 +78,12 @@ class ScipyIVP:
         return dx
 
     def la_g_la_gamma_la_c(self, t, q, u):
+
         W_g = self.system.W_g(t, q, scipy_matrix=csc_matrix)
         W_gamma = self.system.W_gamma(t, q, scipy_matrix=csc_matrix)
         W_c = self.system.W_c(t, q, scipy_matrix=csc_matrix)
+        g_dot_u = self.system.g_dot_u(t, q, u)
+        gamma_u = self.system.gamma_u(t, q, u)
         la_c = self.system.la_c(t, q, u)
         zeta_g = self.system.zeta_g(t, q, u)
         zeta_gamma = self.system.zeta_gamma(t, q, u)
@@ -93,17 +98,17 @@ class ScipyIVP:
             MW_gamma = (spsolve(M, W_gamma)).reshape((self.nu, self.nla_gamma))
         else:
             MW_gamma = csc_matrix((self.nu, self.nla_gamma))
-        Mh = spsolve(M, h + W_c @ la_c)
+        Mhla_c = spsolve(M, h + W_c @ la_c)
 
         # fmt: off
-        G = bmat([[    W_g.T @ MW_g,     W_g.T @ MW_gamma], \
-                  [W_gamma.T @ MW_g, W_gamma.T @ MW_gamma]], format="csc")
+        G = bmat([[g_dot_u @ MW_g, g_dot_u @ MW_gamma], \
+                  [gamma_u @ MW_g, gamma_u @ MW_gamma]], format="csc")
         # fmt: on
 
         mu = np.concatenate(
             (
-                zeta_g + W_g.T @ Mh,
-                zeta_gamma + W_gamma.T @ Mh,
+                zeta_g + g_dot_u @ Mhla_c,
+                zeta_gamma + gamma_u @ Mhla_c,
             )
         )
         la = spsolve(G, -mu)

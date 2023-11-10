@@ -29,7 +29,7 @@ class PointMass:
         return u_dot
 
     def q_dot_u(self, t, q, u):
-        return np.ones(self.nq)
+        return np.eye(self.nq)
 
     #####################
     # equations of motion

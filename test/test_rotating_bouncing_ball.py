@@ -161,14 +161,14 @@ def run(case, export=True):
     else:
         raise AssertionError("Case not found!")
 
-    # q0 = np.array([x0, y0, 0], dtype=float)
-    # u0 = np.array([x_dot0, y_dot0, omega], dtype=float)
+    q0 = np.array([x0, y0, 0], dtype=float)
+    u0 = np.array([x_dot0, y_dot0, omega], dtype=float)
 
     # TODO: Remove this
-    q0 = np.array([x0, 0.1, 0], dtype=float)
-    x_dot0 = 0.1
-    omega = -1
-    u0 = np.array([x_dot0, 0, omega], dtype=float)
+    # q0 = np.array([x0, 0.1, 0], dtype=float)
+    # x_dot0 = 0.1
+    # omega = -1
+    # u0 = np.array([x_dot0, 0, omega], dtype=float)
 
     mass = 1.0
     radius = 0.1

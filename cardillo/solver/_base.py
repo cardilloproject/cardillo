@@ -63,8 +63,10 @@ def consistent_initial_conditions(
     M = system.M(t0, q0, scipy_matrix=csr_array)
     h = system.h(t0, q0, u0)
     W_g = system.W_g(t0, q0, scipy_matrix=csr_array)
+    g_q = system.g_q(t0, q0, scipy_matrix=csr_array)
     zeta_g = system.g_ddot(t0, q0, u0, np.zeros(system.nu))
     W_gamma = system.W_gamma(t0, q0, scipy_matrix=csr_array)
+    gamma_u = system.gamma_u(t0, q0, u0, scipy_matrix=csr_array)
     zeta_gamma = system.gamma_dot(t0, q0, u0, np.zeros(system.nu))
     W_c = system.W_c(t0, q0, scipy_matrix=csr_array)
     W_N = system.W_N(t0, q0, scipy_matrix=csr_array)
@@ -232,12 +234,12 @@ def consistent_initial_conditions(
         # fmt: off
         J = bmat(
             [
-                [          M, -W_g, -W_gamma,   -W_c,     -W_N,  -W_F],
-                [      W_g.T, None,     None,   None,     None,  None],
-                [  W_gamma.T, None,     None,   None,     None,  None],
-                [       None, None,     None, c_la_c,     None,  None],
-                [  J_N_u_dot, None,     None,   None, J_N_la_N,  None],
-                [       None, None,     None,   None,     None, eye_F],
+                [        M, -W_g, -W_gamma,   -W_c,     -W_N,  -W_F],
+                [      g_q, None,     None,   None,     None,  None],
+                [  gamma_u, None,     None,   None,     None,  None],
+                [     None, None,     None, c_la_c,     None,  None],
+                [J_N_u_dot, None,     None,   None, J_N_la_N,  None],
+                [     None, None,     None,   None,     None, eye_F],
                 # [Rla_F_u_dot, None,     None,   None, Rla_F_la_N, Rla_F_la_F],
             ],
             format="csc",
