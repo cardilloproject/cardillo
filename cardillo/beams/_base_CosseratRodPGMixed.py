@@ -983,9 +983,36 @@ class CosseratRodPGMixed(RodExportBase, ABC):
             coo[elDOF_la_c, elDOF_la_c] = self.c_la_c_el(q[elDOF], la_c[elDOF_la_c], el)
         return coo
 
-    # TODO:
     def c_la_c_el(self, qe, la_ce, el):
-        return approx_fprime(la_ce, lambda la_c: self.c_el(qe, la_c, el))
+        c_la_c_el = np.zeros((self.nla_c_element, self.nla_c_element), dtype=np.common_type(qe, la_ce))
+        for i in range(self.nquadrature):
+            qwi = self.qw[el, i]
+            J = self.J[el, i]
+
+            C_n_inv = self.material_model.C_n_inv
+            C_m_inv = self.material_model.C_m_inv
+
+            for node_n1 in range(self.nnodes_element_n):
+                    nodalDOF_n1 = self.nodalDOF_element_n[node_n1]
+                    for node_n2 in range(self.nnodes_element_n):
+                        nodalDOF_n2 = self.nodalDOF_element_n[node_n2]
+                        c_la_c_el[nodalDOF_n1[:, None], nodalDOF_n2] += (
+                           self.N_n[el, i, node_n1] * C_n_inv * self.N_n[el, i, node_n2]* J * qwi
+                        )
+
+            for node_m1 in range(self.nnodes_element_m):
+                    nodalDOF_m1 = self.nodalDOF_element_m[node_m1]
+                    for node_m2 in range(self.nnodes_element_m):
+                        nodalDOF_m2 = self.nodalDOF_element_m[node_m2]
+                        c_la_c_el[nodalDOF_m1[:, None], nodalDOF_m2] += (
+                           self.N_m[el, i, node_m1] * C_m_inv * self.N_m[el, i, node_n2]* J * qwi
+                        )
+
+        # c_la_c_el_num = approx_fprime(la_ce, lambda la_c: self.c_el(qe, la_c, el), method="cs")
+        # diff = np.linalg.norm(c_la_c_el_num - c_la_c_el)
+        # print(diff)
+
+        return c_la_c_el
 
     def c_q(self, t, q, u, la_c):
         coo = CooMatrix((self.nla_c, self.nq))
@@ -995,9 +1022,31 @@ class CosseratRodPGMixed(RodExportBase, ABC):
             coo[elDOF_la_c, elDOF] = self.c_q_el(q[elDOF], la_c[elDOF_la_c], el)
         return coo
 
-    # TODO:
     def c_q_el(self, qe, la_ce, el):
-        return approx_fprime(qe, lambda q: self.c_el(q, la_ce, el))
+
+        c_q_el = np.zeros((self.nla_c_element, self.nq_element), dtype=np.common_type(qe, la_ce))
+        for i in range(self.nquadrature):
+            # extract reference state variables
+            qpi = self.qp[el, i]
+            qwi = self.qw[el, i]
+            J = self.J[el, i]
+
+            # evaluate required quantities
+            _, _, _, _, _, _, K_Gamma_bar_qe, K_Kappa_bar_qe, = self._deval(qe, qpi)
+
+            for node in range(self.nnodes_element_n):
+                nodalDOF_n = self.nodalDOF_element_n[node]
+                c_q_el[nodalDOF_n, :] -= (self.N_n[el, i, node] * K_Gamma_bar_qe * qwi)
+            
+            for node in range(self.nnodes_element_m):
+                nodalDOF_m = self.nodalDOF_element_m[node]
+                c_q_el[nodalDOF_m, :] -= (self.N_m[el, i, node] * K_Kappa_bar_qe * qwi)
+        
+        # c_q_el_num = approx_fprime(qe, lambda q: self.c_el(q, la_ce, el), method="cs")
+        # diff = np.linalg.norm(c_q_el_num - c_q_el)
+        # print(diff)
+
+        return c_q_el
 
     def W_c(self, t, q):
         coo = CooMatrix((self.nu, self.nla_c))
@@ -1063,7 +1112,59 @@ class CosseratRodPGMixed(RodExportBase, ABC):
 
     # TODO:
     def Wla_c_q_el(self, qe, la_ce, el):
-        return approx_fprime(qe, lambda q: self.W_c_el(q, el) @ la_ce)
+        # Wla_c_q_el = np.zeros((self.nu_element, self.nq_element), dtype=np.common_type(qe, la_ce))
+
+        # for i in range(self.nquadrature):
+        #     # extract reference state variables
+        #     qpi = self.qp[el, i]
+        #     qwi = self.qw[el, i]
+        #     J = self.J[el, i]
+
+        #     # evaluate required quantities
+        #     (
+        #         r_OP,
+        #         A_IK,
+        #         K_Gamma_bar,
+        #         K_Kappa_bar,
+        #         r_OP_qe,
+        #         A_IK_qe,
+        #         K_Gamma_bar_qe,
+        #         K_Kappa_bar_qe,
+        #     ) = self._deval(qe, qpi)
+
+        #     # interpolation of the n and m
+        #     K_n = np.zeros(3, dtype=qe.dtype)
+        #     K_m = np.zeros(3, dtype=qe.dtype)
+
+        #     for node in range(self.nnodes_element_n):
+        #         n_node = qe[self.nodalDOF_element_n[node]]
+        #         K_n += self.N_n[el, i, node] * n_node
+
+        #     for node in range(self.nnodes_element_m):
+        #         m_node = qe[self.nodalDOF_element_m[node]]
+        #         K_m += self.N_m[el, i, node] * m_node
+
+        #     for node in range(self.nnodes_element_r):
+        #         Wla_c_q_el[self.nodalDOF_element_r_u[node], :] -= (
+        #             self.N_r_xi[el, i, node] * qwi * (np.einsum("ikj,k->ij", A_IK_qe, K_n))
+        #         )
+
+        #     for node in range(self.nnodes_element_psi):
+        #         Wla_c_q_el[self.nodalDOF_element_psi_u[node], :] += (
+        #             self.N_psi[el, i, node]
+        #             * qwi
+        #             * (
+        #                 - ax2skew(K_n) @ K_Gamma_bar_qe
+        #                 - ax2skew(K_m) @ K_Kappa_bar_qe
+        #             )
+        #         )
+
+        Wla_c_q_el_num = approx_fprime(qe, lambda q: self.W_c_el(q, el) @ la_ce)
+        # diff = np.linalg.norm(Wla_c_q_el_num - Wla_c_q_el)
+        # print(diff)
+
+        return Wla_c_q_el_num
+    
 
     #########################################
     # equations of motion
