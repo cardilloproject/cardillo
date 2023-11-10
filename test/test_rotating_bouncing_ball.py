@@ -166,6 +166,8 @@ def run(case, export=True):
 
     # TODO: Remove this
     q0 = np.array([x0, 0.1, 0], dtype=float)
+    x_dot0 = 0.1
+    omega = -1
     u0 = np.array([x_dot0, 0, omega], dtype=float)
 
     mass = 1.0
@@ -441,7 +443,7 @@ def run(case, export=True):
 
 
 if __name__ == "__main__":
-    run(1)
-    # run(2)
+    # run(1)
+    run(2)
     # run(3)
     # run(4)

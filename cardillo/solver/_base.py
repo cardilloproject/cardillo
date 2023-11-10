@@ -9,7 +9,8 @@ def consistent_initial_conditions(
     atol=1.0e-8,
     newton_atol=1e-10,
     newton_max_iter=10,
-    jac=None,
+    # jac=None,
+    jac="2-point",
     error_function=lambda x: np.max(np.absolute(x)),
 ):
     t0 = system.t0
@@ -39,6 +40,7 @@ def consistent_initial_conditions(
 
     g_N = system.g_N(t0, q0)
     g_N_dot = system.g_N_dot(t0, q0, u0)
+    gamma_F = system.gamma_F(t0, q0, u0)
     A_N = np.isclose(g_N, np.zeros(system.nla_N), rtol, atol)
     B_N = A_N * np.isclose(g_N_dot, np.zeros(system.nla_N), rtol, atol)
     global C_N  # contact on acceleration level
@@ -62,7 +64,7 @@ def consistent_initial_conditions(
     W_N = system.W_N(t0, q0, scipy_matrix=csr_array)
     zeta_N = system.g_N_ddot(t0, q0, u0, np.zeros(system.nu))
     W_F = system.W_F(t0, q0, scipy_matrix=csr_array)
-    # gamma_F = system.gamma_F(t0, q0, u0)
+    zeta_F = system.gamma_F_dot(t0, q0, u0, np.zeros(system.nu))
 
     prox_r_N = system.prox_r_N(t0, q0)
     prox_r_F = system.prox_r_F(t0, q0)
@@ -153,11 +155,37 @@ def consistent_initial_conditions(
             C_N = B_N * (prox_arg <= 0)
         R[split[3] : split[4]] = np.where(C_N, g_N_ddot, la_N)
 
-        # ################################
-        # # friction on acceleration level
-        # ################################
-        # R[split[4] :] = _R_F(x)
-        R[split[4] :] = la_F
+        ################################
+        # friction on acceleration level
+        ################################
+        # R[split[4] :] = la_F
+        gamma_F_dot = W_F.T @ u_dot + zeta_F
+
+        for i_N, i_F in enumerate(system.NF_connectivity):
+            i_F = np.array(i_F)
+            if len(i_F) > 0:
+                if B_N[i_N]:  # active normal contact
+                    norm_gamma_Fi = norm(gamma_F[i_F])
+                    if np.isclose(
+                        norm_gamma_Fi, 0, rtol, atol
+                    ):  # possible stick on acceleration level
+                        prox_arg = prox_r_F[i_F] * gamma_F_dot[i_F] - la_F[i_F]
+                        norm_prox_arg = norm(prox_arg)
+                        radius = mu[i_N] * la_N[i_N]
+                        if norm_prox_arg <= radius:  # stick on acceleration level
+                            R[split[4] + i_F] = gamma_F_dot[i_F]
+                        else:  # slip on acceleration level
+                            R[split[4] + i_F] = (
+                                la_F[i_F]
+                                + mu[i_N] * la_N[i_N] * prox_arg / norm_prox_arg
+                            )
+                    else:  # slip
+                        R[split[4] + i_F] = (
+                            la_F[i_F]
+                            + mu[i_N] * la_N[i_N] * gamma_F[i_F] / norm_gamma_Fi
+                        )
+                else:  # open normal contact
+                    R[split[4] + i_F] = la_F[i_F]
 
         return R
 
