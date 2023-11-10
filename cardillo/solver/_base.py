@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.sparse import csr_array, coo_array, lil_array, eye, bmat
+from scipy.sparse import csr_array, coo_array, lil_array, eye, diags, bmat
 from cardillo.math import prox_sphere, fsolve, norm, approx_fprime
 
 
@@ -37,33 +37,36 @@ def consistent_initial_conditions(
     #     np.zeros(system.nla_F),
     # )
 
-    # g_N = system.g_N(t0, q0)
-    # g_N_dot = system.g_N_dot(t0, q0, u0)
-    # I_N = np.isclose(g_N, np.zeros(system.nla_N), rtol, atol)
-    # B_N = I_N * np.isclose(g_N_dot, np.zeros(system.nla_N), rtol, atol)
+    g_N = system.g_N(t0, q0)
+    g_N_dot = system.g_N_dot(t0, q0, u0)
+    A_N = np.isclose(g_N, np.zeros(system.nla_N), rtol, atol)
+    B_N = A_N * np.isclose(g_N_dot, np.zeros(system.nla_N), rtol, atol)
+    global C_N  # contact on acceleration level
+    C_N = np.zeros(system.nla_N, dtype=bool)
 
-    # assert np.all(g_N >= 0) or np.allclose(
-    #     g_N, np.zeros(system.nla_N), rtol, atol
-    # ), "Initial conditions do not fulfill g_N0!"
-    # assert np.all(g_N_dot[I_N] >= 0) or np.allclose(
-    #     g_N_dot[I_N], np.zeros(system.nla_N), rtol, atol
-    # ), "Initial conditions do not fulfill g_N_dot0!"
+    assert np.all(
+        np.logical_or(g_N >= 0, A_N)
+    ), "Initial conditions do not fulfill g_N0!"
+    assert np.all(
+        np.logical_or(A_N * g_N_dot >= 0, B_N)
+    ), "Initial conditions do not fulfill g_N_dot0!"
 
     # csr for fast matrix vector product
     M = system.M(t0, q0, scipy_matrix=csr_array)
     h = system.h(t0, q0, u0)
     W_g = system.W_g(t0, q0, scipy_matrix=csr_array)
-    W_gamma = system.W_gamma(t0, q0, scipy_matrix=csr_array)
-    W_c = system.W_c(t0, q0, scipy_matrix=csr_array)
     zeta_g = system.g_ddot(t0, q0, u0, np.zeros(system.nu))
+    W_gamma = system.W_gamma(t0, q0, scipy_matrix=csr_array)
     zeta_gamma = system.gamma_dot(t0, q0, u0, np.zeros(system.nu))
+    W_c = system.W_c(t0, q0, scipy_matrix=csr_array)
     W_N = system.W_N(t0, q0, scipy_matrix=csr_array)
+    zeta_N = system.g_N_ddot(t0, q0, u0, np.zeros(system.nu))
     W_F = system.W_F(t0, q0, scipy_matrix=csr_array)
     # gamma_F = system.gamma_F(t0, q0, u0)
 
-    # prox_r_N = system.prox_r_N(t0, q0)
-    # prox_r_F = system.prox_r_F(t0, q0)
-    # mu = system.mu
+    prox_r_N = system.prox_r_N(t0, q0)
+    prox_r_F = system.prox_r_F(t0, q0)
+    mu = system.mu
 
     split = np.cumsum(
         [
@@ -74,9 +77,6 @@ def consistent_initial_conditions(
             system.nla_N,
         ]
     )
-
-    # global C_N
-    # C_N = np.zeros(system.nla_N, dtype=bool)
 
     def _R_F(x):
         u_dot, _, _, _, la_N, la_F = np.array_split(x, split)
@@ -143,16 +143,15 @@ def consistent_initial_conditions(
         ############
         R[split[2] : split[3]] = system.c(t0, q0, u0, la_c)
 
-        # #################################
-        # # Signorini on acceleration level
-        # #################################
-        # g_N_ddot = system.g_N_ddot(t0, q0, u0, u_dot)
-        # prox_arg = prox_r_N * g_N_ddot - la_N
-        # global C_N
-        # if update_index:
-        #     C_N = B_N * (prox_arg <= 0)
-        # R[split[3] : split[4]] = np.where(C_N, g_N_ddot, la_N)
-        R[split[3] : split[4]] = la_N
+        #################################
+        # Signorini on acceleration level
+        #################################
+        g_N_ddot = W_N.T @ u_dot + zeta_N
+        prox_arg = prox_r_N * g_N_ddot - la_N
+        global C_N
+        if update_index:
+            C_N = B_N * (prox_arg <= 0)
+        R[split[3] : split[4]] = np.where(C_N, g_N_ddot, la_N)
 
         # ################################
         # # friction on acceleration level
@@ -165,13 +164,6 @@ def consistent_initial_conditions(
     def J(x, *args, **kwargs):
         # return csc_matrix(approx_fprime(x, R, method="3-point", eps=1.0e-6))
 
-        # global C_N
-        # # TODO: Sparse matrix matrix or sparse matrix slicing?
-        # Rla_N_u_dot = diags(C_N.astype(float)) @ W_N.T
-        # # Rla_N_u_dot = lil_matrix((system.nla_N, system.nu))
-        # # Rla_N_u_dot[C_N] = W_N.T[C_N]
-        # Rla_N_la_N = diags((~C_N).astype(float))
-
         # Rla_F_u_dot, _, _, _, Rla_F_la_N, Rla_F_la_F = np.array_split(
         #     approx_fprime(x, lambda x: _R_F(x)),
         #     split,
@@ -181,21 +173,29 @@ def consistent_initial_conditions(
         #     # axis=0,
         # )
 
-        la_c0 = x[split[2] : split[3]]
         # coo for fast bmat
-        c_la_c = system.c_la_c(t0, q0, u0, la_c0, scipy_matrix=coo_array)
-        # fmt: off
-        eye_N = eye(system.nla_N, format="coo")
+        c_la_c = system.c_la_c(
+            t0, q0, u0, x[split[2] : split[3]], scipy_matrix=coo_array
+        )
+
+        global C_N
+        J_N_u_dot = csr_array((system.nla_N, system.nu))
+        J_N_u_dot[C_N] = W_N.T[C_N]
+        J_N_la_N = diags((~C_N).astype(float))
+        # eye_N = eye(system.nla_N, format="coo")
+
         eye_F = eye(system.nla_F, format="coo")
+
+        # assemble jacobian
+        # fmt: off
         J = bmat(
             [
-                [          M, -W_g, -W_gamma,   -W_c,  -W_N,  -W_F],
-                [      W_g.T, None,     None,   None,  None,  None],
-                [  W_gamma.T, None,     None,   None,  None,  None],
-                [       None, None,     None, c_la_c,  None,  None],
-                [       None, None,     None,   None, eye_N,  None],
-                [       None, None,     None,   None,  None, eye_F],
-                # [Rla_N_u_dot, None,     None,   None, Rla_N_la_N,       None],
+                [          M, -W_g, -W_gamma,   -W_c,     -W_N,  -W_F],
+                [      W_g.T, None,     None,   None,     None,  None],
+                [  W_gamma.T, None,     None,   None,     None,  None],
+                [       None, None,     None, c_la_c,     None,  None],
+                [  J_N_u_dot, None,     None,   None, J_N_la_N,  None],
+                [       None, None,     None,   None,     None, eye_F],
                 # [Rla_F_u_dot, None,     None,   None, Rla_F_la_N, Rla_F_la_F],
             ],
             format="csc",

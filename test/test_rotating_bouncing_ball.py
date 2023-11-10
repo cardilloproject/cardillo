@@ -161,8 +161,12 @@ def run(case, export=True):
     else:
         raise AssertionError("Case not found!")
 
-    q0 = np.array([x0, y0, 0], dtype=float)
-    u0 = np.array([x_dot0, y_dot0, omega], dtype=float)
+    # q0 = np.array([x0, y0, 0], dtype=float)
+    # u0 = np.array([x_dot0, y_dot0, omega], dtype=float)
+
+    # TODO: Remove this
+    q0 = np.array([x0, 0.1, 0], dtype=float)
+    u0 = np.array([x_dot0, 0, omega], dtype=float)
 
     mass = 1.0
     radius = 0.1
@@ -209,8 +213,8 @@ def run(case, export=True):
     #     NonsmoothGeneralizedAlpha(system, t_final, dt),
     #     "Gen-alpha",
     # )
-    # solver2, label2 = MoreauClassical(system, t_final, dt), "Moreau"
-    solver2, label2 = BackwardEuler(system, t_final, dt), "Backward Euler"
+    solver2, label2 = MoreauClassical(system, t_final, dt), "Moreau"
+    # solver2, label2 = BackwardEuler(system, t_final, dt), "Backward Euler"
     # solver2, label2 = Rattle(system, t_final, dt), "Rattle"
     sol2 = solver2.solve()
     t2 = sol2.t
@@ -437,7 +441,7 @@ def run(case, export=True):
 
 
 if __name__ == "__main__":
-    # run(1)
+    run(1)
     # run(2)
     # run(3)
-    run(4)
+    # run(4)
