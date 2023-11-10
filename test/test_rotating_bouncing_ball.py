@@ -47,7 +47,7 @@ class RotatingBouncingBall:
         return u_dot
 
     def q_dot_u(self, t, q, u):
-        return np.ones(self.nq)
+        return np.eye(self.nq)
 
     #####################
     # equations of motion
@@ -76,7 +76,7 @@ class RotatingBouncingBall:
         return g_N_q
 
     def W_N(self, t, q):
-        return self.g_N_q(t, q)
+        return self.g_N_q(t, q).T
 
     def Wla_N_q(self, t, q, la_N):
         return np.zeros((self.nu, self.nq))
@@ -87,15 +87,17 @@ class RotatingBouncingBall:
     def gamma_F(self, t, q, u):
         return np.array([u[0] + self.radius * u[2]])
 
+    def gamma_F_u(self, t, q):
+        gamma_F_u = np.zeros((self.nla_F, self.nu), dtype=q.dtype)
+        gamma_F_u[0, 0] = 1
+        gamma_F_u[0, 2] = self.radius
+        return gamma_F_u
+
     def gamma_F_dot(self, t, q, u, u_dot):
         return np.array([u_dot[0] + self.radius * u_dot[2]])
 
     def W_F(self, t, q):
-        raise RuntimeError("This should raise an error since W_F has wrong shape!!!!")
-        W_F = np.zeros((self.nla_F, self.nu), dtype=q.dtype)
-        W_F[0, 0] = 1
-        W_F[0, 2] = self.radius
-        return W_F
+        return self.gamma_F_u(t, q).T
 
     def Wla_F_q(self, t, q, la_F):
         return np.zeros((self.nu, self.nq))

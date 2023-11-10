@@ -181,8 +181,7 @@ def consistent_initial_conditions(
         #     # axis=0,
         # )
 
-        # la_c0 = x[split[2] : split[3]]
-        la_c0 = x[split[2] :]
+        la_c0 = x[split[2] : split[3]]
         # coo for fast bmat
         c_la_c = system.c_la_c(t0, q0, u0, la_c0, scipy_matrix=coo_array)
         # fmt: off
@@ -216,8 +215,8 @@ def consistent_initial_conditions(
         + system.nla_g
         + system.nla_gamma
         + system.nla_c
-        # + system.nla_N
-        # + system.nla_F
+        + system.nla_N
+        + system.nla_F
     )
     if jac is None:
         jac = J

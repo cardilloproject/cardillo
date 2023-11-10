@@ -98,7 +98,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         self.mesh_psi_dyn = Mesh1D(
             self.knot_vector_psi,
             nquadrature_dyn,
-            dim_q=4, 
+            dim_q=4,
             derivative_order=1,
             basis="Lagrange",
             quadrature="Gauss",
@@ -526,7 +526,6 @@ class CosseratRodPGMixed(RodExportBase, ABC):
             psi = q[nodalDOF_psi]
             K_omega_IK = u[nodalDOF_psi_u]
             q_dot[nodalDOF_psi] = T_SO3_inv_quat(psi, normalize=False) @ K_omega_IK
-            
 
         return q_dot
 
@@ -557,22 +556,18 @@ class CosseratRodPGMixed(RodExportBase, ABC):
             psi = q[nodalDOF_psi]
             K_omega_IK = u[nodalDOF_psi_u]
 
-            coo[
-                nodalDOF_psi, nodalDOF_psi
-            ] = np.einsum(
-            "ijk,j->ik",
-            T_SO3_inv_quat_P(psi, normalize=False),
-            K_omega_IK,
-        )
+            coo[nodalDOF_psi, nodalDOF_psi] = np.einsum(
+                "ijk,j->ik",
+                T_SO3_inv_quat_P(psi, normalize=False),
+                K_omega_IK,
+            )
 
         return coo
 
     def step_callback(self, t, q, u):
         for node in range(self.nnodes_psi):
             psi = q[self.nodalDOF_psi[node]]
-            q[
-                self.nodalDOF_psi[node]
-            ] = psi / norm(psi)
+            q[self.nodalDOF_psi[node]] = psi / norm(psi)
         return q, u
 
     ###############################
