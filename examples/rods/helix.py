@@ -15,7 +15,7 @@ from cardillo.beams.cosseratRodPGMixed import (
 
 from cardillo.forces import K_Moment, Force
 from cardillo import System
-from cardillo.solver import Newton, Riks, EulerBackward, ScipyIVP
+from cardillo.solver import Newton
 from cardillo.visualization import Export
 
 import numpy as np
@@ -84,7 +84,6 @@ if __name__ == "__main__":
         nelements,
         length,
         polynomial_degree=polynomial_degree,
-        mixed=mixed,
     )
     cantilever = Rod(
         cross_section,
