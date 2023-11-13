@@ -7,7 +7,6 @@ from cardillo.math import norm, cross3, ax2skew, trace3, ax2skew_a, ei, LeviCivi
 # angle_singular = 1.0e-6
 angle_singular = 0.0
 
-
 def Exp_SO3(psi: np.ndarray) -> np.ndarray:
     """SO(3) exponential function, see Crisfield1999 above (4.1) and 
     Park2005 (12).
@@ -31,7 +30,6 @@ def Exp_SO3(psi: np.ndarray) -> np.ndarray:
     else:
         # first order approximation
         return np.eye(3, dtype=float) + ax2skew(psi)
-
 
 def Exp_SO3_psi(psi: np.ndarray) -> np.ndarray:
     """Derivative of the axis-angle rotation found in Crisfield1999 above (4.1). 
@@ -96,7 +94,6 @@ def Exp_SO3_psi(psi: np.ndarray) -> np.ndarray:
 
     return A_psi
 
-
 def Log_SO3(A: np.ndarray) -> np.ndarray:
     ca = 0.5 * (trace3(A) - 1.0)
     ca = np.clip(ca, -1, 1)  # clip to [-1, 1] for arccos!
@@ -113,7 +110,6 @@ def Log_SO3(A: np.ndarray) -> np.ndarray:
     if angle > angle_singular and angle < np.pi:
         psi *= angle / np.sqrt(1.0 - ca * ca)
     return psi
-
 
 def Log_SO3_A(A: np.ndarray) -> np.ndarray:
     """Derivative of the SO(3) Log map. See Blanco-Claraco2010 (10.11)
@@ -151,7 +147,6 @@ def Log_SO3_A(A: np.ndarray) -> np.ndarray:
 
     return psi_A
 
-
 def T_SO3(psi: np.ndarray) -> np.ndarray:
     angle2 = psi @ psi
     angle = np.sqrt(angle2)
@@ -170,7 +165,6 @@ def T_SO3(psi: np.ndarray) -> np.ndarray:
     else:
         # first order approximation
         return np.eye(3, dtype=float) - 0.5 * ax2skew(psi)
-
 
 def T_SO3_psi(psi: np.ndarray) -> np.ndarray:
     T_SO3_psi = np.zeros((3, 3, 3), dtype=float)
@@ -221,7 +215,6 @@ def T_SO3_psi(psi: np.ndarray) -> np.ndarray:
 
     return T_SO3_psi
 
-
 def T_SO3_dot(psi: np.ndarray, psi_dot: np.ndarray) -> np.ndarray:
     """Derivative of tangent map w.r.t. scalar argument of rotation vector, see
     Ibrahimbegović1995 (71). Actually in Ibrahimbegovic1995 (28) T_s^{T}
@@ -252,7 +245,6 @@ def T_SO3_dot(psi: np.ndarray, psi_dot: np.ndarray) -> np.ndarray:
     else:
         return np.zeros((3, 3), dtype=float)  # Cardona1988 after (46)
 
-
 def T_SO3_inv(psi: np.ndarray) -> np.ndarray:
     angle2 = psi @ psi
     angle = np.sqrt(angle2)
@@ -268,7 +260,6 @@ def T_SO3_inv(psi: np.ndarray) -> np.ndarray:
     else:
         # first order approximation
         return np.eye(3, dtype=float) + 0.5 * psi_tilde
-
 
 def T_SO3_inv_psi(psi: np.ndarray) -> np.ndarray:
     T_SO3_inv_psi = np.zeros((3, 3, 3), dtype=psi.dtype)
@@ -305,7 +296,6 @@ def T_SO3_inv_psi(psi: np.ndarray) -> np.ndarray:
 
     return T_SO3_inv_psi
 
-
 def SE3(A_IK: np.ndarray, r_OP: np.ndarray) -> np.ndarray:
     H = np.zeros((4, 4), dtype=np.common_type(A_IK, r_OP))
     H[:3, :3] = A_IK
@@ -313,12 +303,10 @@ def SE3(A_IK: np.ndarray, r_OP: np.ndarray) -> np.ndarray:
     H[3, 3] = 1.0
     return H
 
-
 def SE3inv(H: np.ndarray) -> np.ndarray:
     A_IK = H[:3, :3]
     r_OP = H[:3, 3]
     return SE3(A_IK.T, -A_IK.T @ r_OP)
-
 
 def Exp_SE3(h: np.ndarray) -> np.ndarray:
     r = h[:3]
@@ -331,7 +319,6 @@ def Exp_SE3(h: np.ndarray) -> np.ndarray:
 
     return H
 
-
 def Exp_SE3_h(h: np.ndarray) -> np.ndarray:
     r = h[:3]
     psi = h[3:]
@@ -342,14 +329,12 @@ def Exp_SE3_h(h: np.ndarray) -> np.ndarray:
     H_h[:3, 3, :3] = T_SO3(psi).T
     return H_h
 
-
 def Log_SE3(H: np.ndarray) -> np.ndarray:
     A = H[:3, :3]
     r = H[:3, 3]
     psi = Log_SO3(A)
     h = np.concatenate((T_SO3_inv(psi).T @ r, psi))
     return h
-
 
 def Log_SE3_H(H: np.ndarray) -> np.ndarray:
     A = H[:3, :3]
@@ -361,7 +346,6 @@ def Log_SE3_H(H: np.ndarray) -> np.ndarray:
     h_H[:3, :3, 3] = T_SO3_inv(psi).T
     h_H[3:, :3, :3] = psi_A
     return h_H
-
 
 def U(a, b):
     a_tilde = ax2skew(a)
@@ -387,7 +371,6 @@ def U(a, b):
     else:
         return -0.5 * a_tilde  # Soneville2014
 
-
 def T_SE3(h: np.ndarray) -> np.ndarray:
     r = h[:3]
     psi = h[3:]
@@ -396,7 +379,6 @@ def T_SE3(h: np.ndarray) -> np.ndarray:
     T[:3, :3] = T[3:, 3:] = T_SO3(psi)
     T[:3, 3:] = U(r, psi)
     return T
-
 
 class A_IK_basic:
     """Basic rotations in Euclidean space."""
@@ -454,7 +436,6 @@ class A_IK_basic:
                          [        0,        0, 0]])
         # fmt: on
 
-
 def Spurrier(R: np.ndarray) -> np.ndarray:
     """
     Spurrier's algorithm to extract the unit quaternion from a given rotation
@@ -466,31 +447,28 @@ def Spurrier(R: np.ndarray) -> np.ndarray:
     Simo1986: https://doi.org/10.1016/0045-7825(86)90079-4 \\
     Crisfield1997: http://inis.jinr.ru/sl/M_Mathematics/MN_Numerical%20methods/MNf_Finite%20elements/Crisfield%20M.A.%20Vol.2.%20Non-linear%20Finite%20Element%20Analysis%20of%20Solids%20and%20Structures..%20Advanced%20Topics%20(Wiley,1996)(ISBN%20047195649X)(509s).pdf
     """
-    trace = R[0, 0] + R[1, 1] + R[2, 2]
+    decision = np.zeros(4, dtype=float)
+    decision[:3] = np.diag(R)
+    decision[3] = np.trace(R)
+    i = np.argmax(decision)
 
-    A = np.array([trace, R[0, 0], R[1, 1], R[2, 2]])
-    idx = A.argmax()
-    a = A[idx]
+    quat = np.zeros(4, dtype=float)
+    if i != 3:
+        j = (i + 1) % 3
+        k = (j + 1) % 3
 
-    if idx > 0:
-        i = idx - 1
-        # make i, j, k a cyclic permutation of 0, 1, 2
-        i, j, k = np.roll(np.arange(3), -i)
+        quat[i + 1] = np.sqrt(0.5 * R[i, i] + 0.25 * (1 - decision[3]))
+        quat[0] = (R[k, j] - R[j, k]) / (4 * quat[i + 1])
+        quat[j + 1] = (R[j, i] + R[i, j]) / (4 * quat[i + 1])
+        quat[k + 1] = (R[k, i] + R[i, k]) / (4 * quat[i + 1])
 
-        q = np.zeros(4)
-        q[i + 1] = sqrt(0.5 * a + 0.25 * (1 - trace))
-        q[0] = 0.25 * (R[k, j] - R[j, k]) / q[i + 1]
-        q[j + 1] = 0.25 * (R[j, i] + R[i, j]) / q[i + 1]
-        q[k + 1] = 0.25 * (R[k, i] + R[i, k]) / q[i + 1]
     else:
-        q0 = 0.5 * sqrt(1 + trace)
-        q1 = 0.25 * (R[2, 1] - R[1, 2]) / q0
-        q2 = 0.25 * (R[0, 2] - R[2, 0]) / q0
-        q3 = 0.25 * (R[1, 0] - R[0, 1]) / q0
-        q = np.array([q0, q1, q2, q3])
+        quat[0] = 0.5 * np.sqrt(1 + decision[3])
+        quat[1] = (R[2, 1] - R[1, 2]) / (4 * quat[0])
+        quat[2] = (R[0, 2] - R[2, 0]) / (4 * quat[0])
+        quat[3] = (R[1, 0] - R[0, 1]) / (4 * quat[0])
 
-    return q
-
+    return quat
 
 def quat2axis_angle(Q: np.ndarray) -> np.ndarray:
     """Extract the rotation vector psi for a given quaterion Q = [q0, q] in
@@ -508,7 +486,6 @@ def quat2axis_angle(Q: np.ndarray) -> np.ndarray:
         return angle * axis
     else:
         return np.zeros(3)
-
 
 def smallest_rotation(
     J_a: np.ndarray, J_b: np.ndarray, normalize: bool = True
@@ -547,7 +524,6 @@ def smallest_rotation(
         psi = np.arccos(cos_psi)
         return Exp_SO3(psi * axis)
 
-
 def Exp_SO3_quat(P, normalize=True):
     """Exponential mapping defined by (unit) quaternion, see 
     Egeland2002 (6.199) and Nuetzi2016 (3.31).
@@ -560,11 +536,10 @@ def Exp_SO3_quat(P, normalize=True):
     p0, p = np.array_split(P, [1])
     p_tilde = ax2skew(p)
     if normalize:
-        s = P @ P
-        return np.eye(3, dtype=P.dtype) + (2 / s) * (p0 * p_tilde + p_tilde @ p_tilde)
+        P2 = P @ P
+        return np.eye(3, dtype=P.dtype) + (2 / P2) * (p0 * p_tilde + p_tilde @ p_tilde)
     else:
         return np.eye(3, dtype=P.dtype) + 2 * (p0 * p_tilde + p_tilde @ p_tilde)
-
 
 def Exp_SO3_quat_p(P, normalize=True):
     """Derivative of Exp_SO3_quat with respect to P."""
@@ -573,11 +548,11 @@ def Exp_SO3_quat_p(P, normalize=True):
     p_tilde_p = ax2skew_a()
 
     if normalize:
-        s = P @ P
+        P2 = P @ P
         A_P = np.einsum(
-            "ij,k->ijk", p0 * p_tilde + p_tilde @ p_tilde, -(4 / (s * s)) * P
+            "ij,k->ijk", p0 * p_tilde + p_tilde @ p_tilde, -(4 / (P2 * P2)) * P
         )
-        s2 = 2 / s
+        s2 = 2 / P2
         A_P[:, :, 0] += s2 * p_tilde
         A_P[:, :, 1:] += (
             s2 * p0 * p_tilde_p
@@ -603,9 +578,56 @@ def Exp_SO3_quat_p(P, normalize=True):
     # print(f"error Exp_SO3_quat_psi: {error}")
     # return A_P_num
 
-
 Log_SO3_quat = Spurrier
+# def Log_SO3_quat(A):
+#     # from scipy.spatial.transform import Rotation
+#     # return Rotation.from_matrix(A).as_quat()
+#     psi = Log_SO3(A)
+#     angle = norm(psi)
+#     if angle > 0:
+#         axis = psi / angle
+#     else:
+#         axis = np.array([1, 0, 0])
+#     return axis_angle2quat(axis, angle)
 
+# def Log_SO3_quat(A):
+#     """Unit quaternion from rotation matrix, see scipy and Markley2012
+
+#     References:
+#     -----------
+#     Markley2012: https://doi.org/10.2514/1.31730 \\
+#     scipy: https://github.com/scipy/scipy/blob/main/scipy/spatial/transform/_rotation.pyx#L848-L995
+#     """
+#     decision = np.zeros(4, dtype=float)
+#     decision[:3] = np.diag(A)
+#     decision[3] = np.trace(A)
+#     choice = np.argmax(decision)
+
+#     quat = np.zeros(4, dtype=float)
+#     if choice != 3:
+#         i = choice
+#         j = (i + 1) % 3
+#         k = (j + 1) % 3
+
+#         quat[i] = 1 + 2 * A[i, i] - decision[3]
+#         quat[j] = A[j, i] - A[i, j]
+#         quat[k] = A[k, i] - A[i, k]
+#         quat[3] = A[k, j] - A[j, k]
+#     #     quat[i] = 0.5 * np.sqrt(1 + 2 * A[i, i] - decision[3])
+#     #     quat[j] = 0.5 * (A[j, i] - A[i, j]) / (4 * quat[i])
+#     #     quat[k] = 0.5 * (A[k, i] - A[i, k]) / (4 * quat[i])
+#     #     quat[3] = 0.5 * (A[k, j] - A[j, k]) / (4 * quat[i])
+#     else:
+#         quat[0] = A[2, 1] - A[1, 2]
+#         quat[1] = A[0, 2] - A[2, 0]
+#         quat[2] = A[1, 0] - A[0, 1]
+#         quat[3] = 1 + decision[3]
+#         # quat[3] = 0.5 * np.sqrt(1 + decision[3])
+#         # quat[0] = (A[2, 1] - A[1, 2]) / (4 * quat[3])
+#         # quat[1] = (A[0, 2] - A[2, 0]) / (4 * quat[3])
+#         # quat[2] = (A[1, 0] - A[0, 1]) / (4 * quat[3])
+
+#     return quat / norm(quat)
 
 def T_SO3_quat(P, normalize=True):
     """Tangent map for unit quaternion. See Egeland2002 (6.327).
@@ -616,11 +638,28 @@ def T_SO3_quat(P, normalize=True):
     """
     p0, p = np.array_split(P, [1])
     if normalize:
-        s = P @ P
-        raise NotImplementedError
+        return (2 / (P @ P)) * np.hstack(
+            (-p[:, None], p0 * np.eye(3, dtype=P.dtype) - ax2skew(p))
+        )
     else:
         return 2 * np.hstack((-p.T, p0 * np.eye(3, dtype=P.dtype) - ax2skew(p)))
 
+def T_SO3_inv_quat(P, normalize=True):
+    """Inverse tangent map for unit quaternion. See Egeland2002 (6.329) and
+    (6.330) as well as Nuetzi2016 (3.11), (3.12) and (4.19).
+
+    References:
+    -----------
+    Egenland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf \\
+    Nuetzi2016: https://www.research-collection.ethz.ch/handle/20.500.11850/117165
+    """
+    p0, p = np.array_split(P, [1])
+    if normalize:
+        return (0.5 / (P @ P)) * np.vstack(
+            (-p.T, p0 * np.eye(3, dtype=P.dtype) + ax2skew(p))
+        )
+    else:
+        return 0.5 * np.vstack((-p.T, p0 * np.eye(3, dtype=P.dtype) + ax2skew(p)))
 
 def T_SO3_quat_P(P, normalize=True):
     if normalize:
@@ -651,24 +690,6 @@ def T_SO3_quat_P(P, normalize=True):
     # print(f"error T_P: {error}")
     # return T_P_num
 
-
-def T_SO3_inv_quat(P, normalize=True):
-    """Inverse tangent map for unit quaternion. See Egeland2002 (6.329) and
-    (6.330) as well as Nuetzi2016 (3.11), (3.12) and (4.19).
-
-    References:
-    -----------
-    Egenland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf \\
-    Nuetzi2016: https://www.research-collection.ethz.ch/handle/20.500.11850/117165
-    """
-    p0, p = np.array_split(P, [1])
-    if normalize:
-        s = P @ P
-        return (0.5 / s) * np.vstack((-p.T, p0 * np.eye(3, dtype=P.dtype) + ax2skew(p)))
-    else:
-        return 0.5 * np.vstack((-p.T, p0 * np.eye(3, dtype=P.dtype) + ax2skew(p)))
-
-
 def T_SO3_inv_quat_P(P, normalize=True):
     if normalize:
         p0, p = np.array_split(P, [1])
@@ -696,7 +717,6 @@ def T_SO3_inv_quat_P(P, normalize=True):
     # print(f"error T_inv_P: {error}")
     # return T_inv_P_num
 
-
 def quatprod(P, Q):
     """Quaternion product, see Egeland2002 (6.190).
 
@@ -710,7 +730,8 @@ def quatprod(P, Q):
     z = p0 * q + q0 * p + cross3(p, q)
     return np.array([z0, *z])
 
-
 def axis_angle2quat(axis, angle):
     n = axis / norm(axis)
     return np.concatenate([[np.cos(angle / 2)], np.sin(angle / 2) * n])
+
+

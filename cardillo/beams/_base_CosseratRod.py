@@ -1447,7 +1447,6 @@ class CosseratRodMixed(CosseratRod, ABC):
             mixed=False,
         )
 
-        assert mixed, "This implements the mixed formulation only!"
 
         #######################################################
         # discretization parameters internal forces and moments
