@@ -14,10 +14,10 @@ from cardillo.math import (
     Exp_SO3_quat_p,
 )
 
-from cardillo.beams._base_CosseratRodPGMixed import CosseratRodPGMixed
+from cardillo.beams._base_CosseratRod import CosseratRod
 
 
-class CosseratRodPG_SE3Mixed(CosseratRodPGMixed):
+class CosseratRodPG_SE3Mixed(CosseratRod):
     def __init__(
         self,
         cross_section,
@@ -57,7 +57,7 @@ class CosseratRodPG_SE3Mixed(CosseratRodPGMixed):
         r_OP=np.zeros(3, dtype=float),
         A_IK=np.eye(3, dtype=float),
     ):
-        return CosseratRodPGMixed.straight_configuration(nelement, L, 1, r_OP, A_IK)
+        return CosseratRod.straight_configuration(nelement, L, 1, r_OP, A_IK)
 
     @staticmethod
     def straight_initial_configuration(
@@ -68,7 +68,7 @@ class CosseratRodPG_SE3Mixed(CosseratRodPGMixed):
         v_P=np.zeros(3, dtype=float),
         K_omega_IK=np.zeros(3, dtype=float),
     ):
-        return CosseratRodPGMixed.straight_initial_configuration(
+        return CosseratRod.straight_initial_configuration(
             1,
             1,
             "Lagrange",
@@ -247,7 +247,7 @@ class CosseratRodPG_SE3Mixed(CosseratRodPGMixed):
         return self._deval(q, frame_ID[0])[5]
 
 
-class CosseratRodPG_R12Mixed(CosseratRodPGMixed):
+class CosseratRodPG_R12Mixed(CosseratRod):
     def __init__(
         self,
         cross_section,
@@ -458,7 +458,7 @@ class CosseratRodPG_R12Mixed(CosseratRodPGMixed):
         return A_IK_q
 
 
-class CosseratRodPG_QuatMixed(CosseratRodPGMixed):
+class CosseratRodPG_QuatMixed(CosseratRod):
     def __init__(
         self,
         cross_section,
@@ -510,7 +510,7 @@ class CosseratRodPG_QuatMixed(CosseratRodPGMixed):
         v_P=np.zeros(3, dtype=float),
         K_omega_IK=np.zeros(3, dtype=float),
     ):
-        return CosseratRodPGMixed.straight_initial_configuration(
+        return CosseratRod.straight_initial_configuration(
             polynomial_degree,
             polynomial_degree,
             basis,

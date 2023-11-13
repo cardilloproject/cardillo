@@ -7,7 +7,7 @@ from cardillo.beams import (
 from cardillo.discrete import Frame
 from cardillo.constraints import RigidConnection
 from cardillo.beams import animate_beam
-from cardillo.beams.cosseratRodPGMixed import (
+from cardillo.beams.cosseratRodPG import (
     CosseratRodPG_R12Mixed,
     CosseratRodPG_QuatMixed,
     CosseratRodPG_SE3Mixed,
@@ -118,7 +118,7 @@ if __name__ == "__main__":
     # system.add(force)
     system.assemble()
 
-    n_load_steps = 2
+    n_load_steps = 1
     # n_load_steps = 400
     # n_load_steps = 10
     solver = Newton(

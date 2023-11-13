@@ -19,7 +19,7 @@ from cardillo.discretization.lagrange import LagrangeKnotVector
 from cardillo.discretization.mesh1D import Mesh1D
 
 
-class CosseratRodPGMixed(RodExportBase, ABC):
+class CosseratRod(RodExportBase, ABC):
     def __init__(
         self,
         cross_section,
