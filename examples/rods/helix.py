@@ -10,7 +10,7 @@ from cardillo.beams import animate_beam
 from cardillo.beams.cosseratRodPG import (
     CosseratRodPG_R12Mixed,
     CosseratRodPG_QuatMixed,
-    CosseratRodPG_SE3Mixed,
+    CosseratRod_SE3Mixed,
 )
 
 from cardillo.forces import K_Moment, Force
@@ -23,7 +23,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 # Rod = CosseratRodPG_R12Mixed
-Rod = CosseratRodPG_SE3Mixed
+Rod = CosseratRod_SE3Mixed
 
 # slenderness = 1.0e1
 # atol = 1.0e-8

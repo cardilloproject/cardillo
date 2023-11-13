@@ -14,10 +14,10 @@ from cardillo.math import (
     Exp_SO3_quat_p,
 )
 
-from cardillo.beams._base_CosseratRod import CosseratRod
+from cardillo.beams._base_CosseratRod import CosseratRod, CosseratRodMixed
 
 
-class CosseratRodPG_SE3Mixed(CosseratRod):
+class CosseratRod_SE3Mixed(CosseratRodMixed):
     def __init__(
         self,
         cross_section,
