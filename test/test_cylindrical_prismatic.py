@@ -5,12 +5,11 @@ from scipy.integrate import solve_ivp
 import pytest
 
 from cardillo import System
-from cardillo.solver import ScipyIVP, BackwardEuler, MoreauClassical
+from cardillo.solver import ScipyIVP, MoreauClassical, BackwardEuler
 from cardillo.constraints import RigidConnection, Cylindrical, Prismatic
 from cardillo.discrete import Frame, RigidBody
 from cardillo.forces import Force, ScalarForceTranslational, LinearSpring, LinearDamper
 from cardillo.math import (
-    e1,
     Exp_SO3,
     T_SO3,
     T_SO3_psi,
@@ -20,34 +19,36 @@ from cardillo.math import (
     ax2skew,
 )
 
-# solver parameters
-t_span = (0.0, 5.0)
-t0, t1 = t_span
-dt = 1.0e-2
-
-# parameters
-k = 10
-d = 10
-g = 9.81
-l = 10
-m = 1
-r = 0.2
-C = 1 / 2 * m * r**2
-A = 1 / 4 * m * r**2 + 1 / 12 * m * l**2
-K_theta_S = np.diag(np.array([C, A, A]))
-
-show = False
-
 
 def run(
     joint: str,
     RigidBody,
     Solver,
+    show=False,
     **solver_kwargs,
 ):
     ############################################################################
     #                   system setup
     ############################################################################
+    ###################
+    # solver parameters
+    ###################
+    t_span = (0.0, 5.0)
+    t0, t1 = t_span
+    dt = 1.0e-2
+
+    ############
+    # parameters
+    ############
+    k = 10
+    d = 10
+    g = 9.81
+    l = 10
+    m = 1
+    r = 0.2
+    C = 1 / 2 * m * r**2
+    A = 1 / 4 * m * r**2 + 1 / 12 * m * l**2
+    K_theta_S = np.diag(np.array([C, A, A]))
 
     #############
     # origin axis
@@ -389,25 +390,16 @@ def test_prismatic(RigidBody, Solver, kwargs):
 
 
 if __name__ == "__main__":
-    show = True
-
     #############
     # Cylindrical
     #############
-    # run("Cylindrical", RigidBody, ScipyIVP)
-    # run("Cylindrical", rigid_bodies[0], solver_and_kwargs[6][0], **solver_and_kwargs[6][1])
-    # run(
-    #     "Cylindrical",
-    #     rigid_bodies[0],
-    #     solver_and_kwargs[0][0],
-    #     **solver_and_kwargs[0][1],
-    # )
-    # run("Cylindrical", RigidBody, MoreauClassical)
-    run("Cylindrical", RigidBody, BackwardEuler)
+    run("Cylindrical", RigidBody, ScipyIVP, show=True)
+    run("Cylindrical", RigidBody, MoreauClassical, show=True)
+    # run("Cylindrical", RigidBody, BackwardEuler, show=True)
 
     ###########
     # Prismatic
     ###########
-    # run("Prismatic", RigidBody, ScipyIVP)
-    # run("Prismatic", RigidBody, MoreauClassical)
-    # run("Prismatic", RigidBody, BackwardEuler)
+    run("Prismatic", RigidBody, ScipyIVP, show=True)
+    run("Prismatic", RigidBody, MoreauClassical, show=True)
+    # run("Prismatic", RigidBody, BackwardEuler, show=True)
