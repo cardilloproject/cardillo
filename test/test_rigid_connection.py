@@ -8,7 +8,7 @@ from cardillo import System
 from cardillo.discrete import Frame, RigidBody
 from cardillo.constraints import Revolute, RigidConnection
 from cardillo.forces import Force, PDRotational, LinearSpring, LinearDamper
-from cardillo.solver import EulerBackward, ScipyIVP
+from cardillo.solver import BackwardEuler, ScipyIVP
 
 
 def run(revolute_joint_used=False):
@@ -110,10 +110,7 @@ def run(revolute_joint_used=False):
     t1 = 2
     dt = 1e-2
 
-    # solver = EulerBackward(system, t1, dt, method="index 1")
-    # solver = EulerBackward(system, t1, dt, method="index 2")
-    # solver = EulerBackward(system, t1, dt, method="index 3")
-    # solver = EulerBackward(system, t1, dt, method="index 2 GGL")
+    # solver = BackwardEuler(system, t1, dt) # TODO: Fix singular jacobian.
     solver = ScipyIVP(system, t1, dt)
 
     sol = solver.solve()
