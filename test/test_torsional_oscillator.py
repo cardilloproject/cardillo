@@ -136,4 +136,4 @@ if __name__ == "__main__":
 
     run(ScipyIVP)
     run(MoreauClassical)
-    # run(BackwardEuler)
+    run(BackwardEuler)

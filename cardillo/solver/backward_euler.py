@@ -8,7 +8,7 @@ from cardillo.solver import Solution
 from cardillo.utility.coo_matrix import CooMatrix
 
 
-NEWTON_MAXITER = 10  # Maximum number of Newton iterations.
+NEWTON_MAXITER = 6  # Maximum number of Newton iterations.
 
 
 class BackwardEulerFixedPoint:
@@ -193,7 +193,7 @@ class BackwardEulerFixedPoint:
         return R_x
 
     def J_x(self, xn1, yn1):
-        # return csc_array(approx_fprime(xn1, lambda x: self.R_x(x, yn1)))
+        # return csc_array(approx_fprime(xn1, lambda x: self.R_x(x, yn1), method="3-point"))
 
         (
             q_dotn1,
@@ -230,8 +230,6 @@ class BackwardEulerFixedPoint:
         W_g = self.system.W_g(tn1, qn1)
         W_gamma = self.system.W_gamma(tn1, qn1)
         W_c = self.system.W_c(tn1, qn1)
-        W_N = self.system.W_N(tn1, qn1)
-        W_F = self.system.W_F(tn1, qn1)
 
         Ru_dot_q_dot = (
             self.system.Mu_q(tn1, qn1, u_dotn1)
@@ -339,6 +337,7 @@ class BackwardEulerFixedPoint:
         # initial Jacobian
         i_newton = 0
         lu = splu(self.J_x(self.xn.copy(), self.yn.copy()))
+        n_lu = 1
 
         pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
         for _ in pbar:
@@ -373,7 +372,7 @@ class BackwardEulerFixedPoint:
                 # compute new Jacobian if requested
                 if i_newton > NEWTON_MAXITER and not converged:
                     lu = splu(self.J_x(x0, y0))
-                    print(f"new LU-decomposition")
+                    n_lu += 1
 
                 # Newton loop with inexact Jacobian
                 i_newton = 0
@@ -459,6 +458,7 @@ class BackwardEulerFixedPoint:
             f" - iterations: max = {max(n_iter_list)}, avg={sum(n_iter_list) / float(len(n_iter_list))}"
         )
         print(f" - errors: max = {max(errors)}, avg={sum(errors) / float(len(errors))}")
+        print(f" - lu-decompositions: {n_lu}")
         print("-" * 80)
 
         # write solution
