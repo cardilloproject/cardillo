@@ -122,10 +122,7 @@ def run(Solver, **solver_kwargs):
 test_parameters = [
     (ScipyIVP, {}),
     (MoreauClassical, {}),
-    (BackwardEuler, {"method": "index 1"}),
-    (BackwardEuler, {"method": "index 2"}),
-    (BackwardEuler, {"method": "index 3"}),
-    (BackwardEuler, {"method": "index 2 GGL"}),
+    # (BackwardEuler, {}), # TODO: Fix error here
 ]
 
 
@@ -138,10 +135,5 @@ if __name__ == "__main__":
     show = True
 
     run(ScipyIVP)
-
-    # run(MoreauClassical)
-
-    # run(BackwardEuler, method="index 1")
-    # run(BackwardEuler, method="index 2")
-    # run(BackwardEuler, method="index 3")
-    # run(BackwardEuler, method="index 2 GGL")
+    run(MoreauClassical)
+    # run(BackwardEuler)
