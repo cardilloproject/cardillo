@@ -5,9 +5,9 @@ from scipy.integrate import solve_ivp
 
 from cardillo import System
 from cardillo.discrete import Frame, PointMass
-from cardillo.constraints import FixedDistance, Spherical
+from cardillo.constraints import FixedDistance
 from cardillo.forces import Force
-from cardillo.solver import ScipyIVP, EulerBackward
+from cardillo.solver import ScipyIVP, BackwardEuler
 from cardillo.math import A_IK_basic, inv2D
 
 
@@ -135,11 +135,8 @@ def comparison_mathematical_pendulum3D(
 
     debug = False
 
-    # solver = EulerBackward(system, t1, dt, method="index 1", debug=debug)
-    # solver = EulerBackward(system, t1, dt, method="index 2", debug=debug)
-    solver = EulerBackward(system, t1, dt, method="index 3", debug=debug)
-    # solver = EulerBackward(system, t1, dt, method="index 2 GGL", debug=debug)
-    # solver = ScipyIVP(system, t1, dt)
+    # solver = BackwardEuler(system, t1, dt, debug=debug)
+    solver = ScipyIVP(system, t1, dt)
 
     sol = solver.solve()
     t = sol.t

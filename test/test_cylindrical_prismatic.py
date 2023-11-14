@@ -5,7 +5,7 @@ from scipy.integrate import solve_ivp
 import pytest
 
 from cardillo import System
-from cardillo.solver import ScipyIVP, EulerBackward, MoreauClassical
+from cardillo.solver import ScipyIVP, BackwardEuler, MoreauClassical
 from cardillo.constraints import RigidConnection, Cylindrical, Prismatic
 from cardillo.discrete import Frame, RigidBody
 from cardillo.forces import Force, ScalarForceTranslational, LinearSpring, LinearDamper
@@ -364,10 +364,7 @@ def run(
 solver_and_kwargs = [
     (ScipyIVP, {}),
     (MoreauClassical, {}),
-    (EulerBackward, {"method": "index 1"}),
-    (EulerBackward, {"method": "index 2"}),
-    (EulerBackward, {"method": "index 3"}),
-    (EulerBackward, {"method": "index 2 GGL"}),
+    (BackwardEuler, {}),
 ]
 
 rigid_bodies = [
@@ -399,28 +396,18 @@ if __name__ == "__main__":
     #############
     # run("Cylindrical", RigidBody, ScipyIVP)
     # run("Cylindrical", rigid_bodies[0], solver_and_kwargs[6][0], **solver_and_kwargs[6][1])
-    run(
-        "Cylindrical",
-        rigid_bodies[0],
-        solver_and_kwargs[0][0],
-        **solver_and_kwargs[0][1],
-    )
-
+    # run(
+    #     "Cylindrical",
+    #     rigid_bodies[0],
+    #     solver_and_kwargs[0][0],
+    #     **solver_and_kwargs[0][1],
+    # )
     # run("Cylindrical", RigidBody, MoreauClassical)
-
-    # run("Cylindrical", RigidBody, EulerBackward, method="index 1")
-    # run("Cylindrical", RigidBody, EulerBackward, method="index 2")
-    # run("Cylindrical", RigidBody, EulerBackward, method="index 3")
-    # run("Cylindrical", RigidBody, EulerBackward, method="index 2 GGL")
+    run("Cylindrical", RigidBody, BackwardEuler)
 
     ###########
     # Prismatic
     ###########
     # run("Prismatic", RigidBody, ScipyIVP)
-
     # run("Prismatic", RigidBody, MoreauClassical)
-
-    # run("Prismatic", RigidBody, EulerBackward, method="index 1")
-    # run("Prismatic", RigidBody, EulerBackward, method="index 2")
-    # run("Prismatic", RigidBody, EulerBackward, method="index 3")
-    # run("Prismatic", RigidBody, EulerBackward, method="index 2 GGL")
+    run("Prismatic", RigidBody, BackwardEuler)
