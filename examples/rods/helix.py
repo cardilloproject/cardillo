@@ -21,21 +21,30 @@ from cardillo.visualization import Export
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
+from math import pi
 
 def helix(Rod, nelements=20, polynomial_degree=2, n_load_steps=10, reduced_integration=True, VTK_export=False):
     
     # geometry of the rod
-    length = 1.0e3
+    n = 2       # number of coils
+    R0 = 10     # radius of the helix
+    h = 50      # height of the helix
+    c = h / (2 * R0 * pi * n) # pitch of the helix
+    length = np.sqrt(1 + c**2) * R0 * 2 * pi * n
+    cc = 1 / (np.sqrt(1 + c**2))
+
+    alpha = lambda xi: 2 * pi * n * xi
+    alpha_xi = 2 * pi * n
 
     # cross section properties 
     # slenderness = 1.0e1
     # atol = 1.0e-8
-    slenderness = 1.0e2
-    atol = 1.0e-10
+    # slenderness = 1.0e2
+    # atol = 1.0e-9
     # slenderness = 1.0e3
-    # atol = 1.0e-12
-    # slenderness = 1.0e4
-    # atol = 1.0e-12
+    # atol = 1.0e-10
+    slenderness = 1.0e4
+    atol = 1.0e-12
 
     width = length / slenderness
     line_density = 1
@@ -56,14 +65,23 @@ def helix(Rod, nelements=20, polynomial_degree=2, n_load_steps=10, reduced_integ
     # construct system
     system = System()
 
-    # starting point and orientation of initial point, initial length
-    r_OP0 = np.zeros(3, dtype=float)
-    A_IK0 = np.eye(3, dtype=float)
+    alpha_0 = alpha(0)
+
+    r_OP0 = R0 * np.array([np.sin(alpha_0), -np.cos(alpha_0), c * alpha_0])
+
+    e_x = cc * np.array([np.cos(alpha_0), np.sin(alpha_0), c])
+    e_y = np.array([- np.sin(alpha_0), np.cos(alpha_0), 0])
+    e_z = cc * np.array([- c * np.cos(alpha_0), - c * np.sin(alpha_0), 1])
+
+    A_IK0 = np.vstack((e_x, e_y, e_z))
+    A_IK0 = A_IK0.T
 
     q0 = Rod.straight_configuration(
         nelements,
         length,
         polynomial_degree=polynomial_degree,
+        r_OP=r_OP0,
+        A_IK=A_IK0,
     )
     cantilever = Rod(
         cross_section,
@@ -86,7 +104,8 @@ def helix(Rod, nelements=20, polynomial_degree=2, n_load_steps=10, reduced_integ
 
     # moment at right end
     Fi = material_model.Fi
-    M = lambda t: 2 * np.pi / length * (e1 * Fi[0] + e3 * Fi[2]) * t * 1.5
+    M = lambda t: (R0 * alpha_xi**2) / (length**2) * (c * e1 * Fi[0] + e3 * Fi[2]) * t
+    # M = lambda t: 2 * np.pi / length * (e1 * Fi[0] + e3 * Fi[2]) * t * 1.5
     moment = K_Moment(M, cantilever, (1,))
     system.add(moment)
 
@@ -142,20 +161,17 @@ def helix(Rod, nelements=20, polynomial_degree=2, n_load_steps=10, reduced_integ
 
 
 if __name__ == "__main__":
-    #############################
-    # helix example of Harsch2023
-    #############################
-
     # SE3 interpolation:
-    # helix(Rod=make_CosseratRod_SE3(mixed=True), nelements=10, polynomial_degree=1, n_load_steps = 10, reduced_integration=False)
-    helix(Rod=make_CosseratRod_SE3(mixed=False), nelements=10, polynomial_degree=1, n_load_steps = 300, reduced_integration=True)
+    # helix(Rod=make_CosseratRod_SE3(mixed=True), nelements=5, polynomial_degree=1, n_load_steps = 1, reduced_integration=False)
+    # helix(Rod=make_CosseratRod_SE3(mixed=False), nelements=10, polynomial_degree=1, n_load_steps = 499, reduced_integration=True)
 
     # Quaternion interpolation:
+    # helix(Rod=make_CosseratRod_Quat(mixed=True), nelements=10, polynomial_degree=2, n_load_steps = 2, reduced_integration=False)
+    # helix(Rod=make_CosseratRod_Quat(mixed=False), nelements=10, polynomial_degree=2, n_load_steps = 500, reduced_integration=True)
     
     # R12 interpolation:
-    # helix(Rod=make_CosseratRod_R12(mixed=True), nelements=10, polynomial_degree=2, n_load_steps = 3)
-    # helix(Rod=make_CosseratRod_SE3(mixed=True), nelements=10, polynomial_degree=3, n_load_steps = 20, reduced_integration=False, VTK_export=True)
-    # helix(Rod=make_CosseratRod_Quat(mixed=True), nelements=20, polynomial_degree=2, n_load_steps = 10, reduced_integration=False, VTK_export=False)
+    # helix(Rod=make_CosseratRod_R12(mixed=True), nelements=10, polynomial_degree=2, n_load_steps = 2, reduced_integration=False)
+    helix(Rod=make_CosseratRod_R12(mixed=False), nelements=10, polynomial_degree=2, n_load_steps = 500, reduced_integration=True)
 
     
 

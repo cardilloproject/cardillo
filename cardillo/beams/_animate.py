@@ -17,17 +17,19 @@ def animate_beam(
 
     # prepare data for animation
     frames = len(q)
-    if frames > 0:
-        target_frames = min(frames, 100)
-        frac = max(1, int(np.ceil(frames / target_frames)))
-    else:
-        target_frames = 1
-        frac = 1
+    # if frames > 0:
+    target_frames = min(frames, 100)
+    frac = max(1, int(np.ceil(frames / target_frames)))
+    # else:
+    #     target_frames = 1
+    #     frac = 1
     animation_time = 1
     interval = animation_time * 1000 / target_frames
 
     t = t[::frac]
     q = q[::frac]
+
+    target_frames = q.shape[0]
 
     # animated objects
     nodes = []
