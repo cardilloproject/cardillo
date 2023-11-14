@@ -129,7 +129,7 @@ class RotatingBouncingBall:
         return np.concatenate((r_OS[:, None], r_OPs), axis=-1)
 
 
-def run(case, export=True):
+def run(case, export=False):
     """Example 10.1 of Capobianco2021.
 
     Three different cases are implemented:

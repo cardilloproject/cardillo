@@ -64,9 +64,10 @@ def consistent_initial_conditions(
     h = system.h(t0, q0, u0)
     W_g = system.W_g(t0, q0, scipy_matrix=csr_array)
     g_q = system.g_q(t0, q0, scipy_matrix=csr_array)
+    g_dot_u = system.g_dot_u(t0, q0, u0, scipy_matrix=csr_array)
     zeta_g = system.g_ddot(t0, q0, u0, np.zeros(system.nu))
     W_gamma = system.W_gamma(t0, q0, scipy_matrix=csr_array)
-    gamma_u = system.gamma_u(t0, q0, scipy_matrix=csr_array)
+    gamma_u = system.gamma_u(t0, q0, u0, scipy_matrix=csr_array)
     zeta_gamma = system.gamma_dot(t0, q0, u0, np.zeros(system.nu))
     W_c = system.W_c(t0, q0, scipy_matrix=csr_array)
     W_N = system.W_N(t0, q0, scipy_matrix=csr_array)
@@ -145,8 +146,8 @@ def consistent_initial_conditions(
         #############################################
         # bilateral constraints on acceleration level
         #############################################
-        R[split[0] : split[1]] = W_g.T @ u_dot + zeta_g
-        R[split[1] : split[2]] = W_gamma.T @ u_dot + zeta_gamma
+        R[split[0] : split[1]] = g_dot_u @ u_dot + zeta_g
+        R[split[1] : split[2]] = gamma_u @ u_dot + zeta_gamma
 
         ############
         # compliance
@@ -206,7 +207,7 @@ def consistent_initial_conditions(
         return R
 
     def J(x, *args, **kwargs):
-        # return csc_matrix(approx_fprime(x, R, method="3-point", eps=1.0e-6))
+        # return approx_fprime(x, R, method="3-point", eps=1.0e-6)
 
         # Rla_F_u_dot, _, _, _, Rla_F_la_N, Rla_F_la_F = np.array_split(
         #     approx_fprime(x, lambda x: _R_F(x)),
@@ -235,7 +236,7 @@ def consistent_initial_conditions(
         J = bmat(
             [
                 [        M, -W_g, -W_gamma,   -W_c,     -W_N,  -W_F],
-                [      g_q, None,     None,   None,     None,  None],
+                [  g_dot_u, None,     None,   None,     None,  None],
                 [  gamma_u, None,     None,   None,     None,  None],
                 [     None, None,     None, c_la_c,     None,  None],
                 [J_N_u_dot, None,     None,   None, J_N_la_N,  None],

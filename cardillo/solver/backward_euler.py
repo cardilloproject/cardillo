@@ -1,10 +1,9 @@
 import numpy as np
-from scipy.sparse import csc_matrix, csr_matrix, eye, diags, bmat
+from scipy.sparse import csc_array, csr_array, eye, diags, bmat
 from tqdm import tqdm
-import warnings
 
 from cardillo.math import fsolve, approx_fprime
-from cardillo.solver import Solution, consistent_initial_conditions
+from cardillo.solver import Solution
 from cardillo.utility.coo_matrix import CooMatrix
 
 
@@ -136,12 +135,12 @@ class BackwardEuler:
         ###################
         # evaluate residual
         ###################
-        R = np.zeros(self.ny, dtype=yn1.dtype)
+        R = np.zeros_like(yn1)
 
         ####################
         # kinematic equation
         ####################
-        g_S_q = self.system.g_S_q(tn1, qn1, scipy_matrix=csc_matrix)
+        g_S_q = self.system.g_S_q(tn1, qn1, scipy_matrix=csc_array)
         R[: self.split[0]] = (
             q_dotn1 - self.system.q_dot(tn1, qn1, un1) - g_S_q.T @ mu_Sn1
         )
@@ -150,13 +149,13 @@ class BackwardEuler:
         # equations of motion
         ####################
         R[self.split[0] : self.split[1]] = (
-            self.system.M(tn1, qn1, scipy_matrix=csr_matrix) @ u_dotn1
+            self.system.M(tn1, qn1, scipy_matrix=csr_array) @ u_dotn1
             - self.system.h(tn1, qn1, un1)
-            - self.system.W_g(tn1, qn1, scipy_matrix=csr_matrix) @ la_gn1
-            - self.system.W_gamma(tn1, qn1, scipy_matrix=csr_matrix) @ la_gamman1
-            - self.system.W_c(tn1, qn1, scipy_matrix=csr_matrix) @ la_cn1
-            - self.system.W_N(tn1, qn1, scipy_matrix=csr_matrix) @ la_Nn1
-            - self.system.W_F(tn1, qn1, scipy_matrix=csr_matrix) @ la_Fn1
+            - self.system.W_g(tn1, qn1, scipy_matrix=csr_array) @ la_gn1
+            - self.system.W_gamma(tn1, qn1, scipy_matrix=csr_array) @ la_gamman1
+            - self.system.W_c(tn1, qn1, scipy_matrix=csr_array) @ la_cn1
+            - self.system.W_N(tn1, qn1, scipy_matrix=csr_array) @ la_Nn1
+            - self.system.W_F(tn1, qn1, scipy_matrix=csr_array) @ la_Fn1
         )
 
         #######################
@@ -212,6 +211,7 @@ class BackwardEuler:
         return R
 
     def J(self, yn1, *args, **kwargs):
+        return csr_array(approx_fprime(yn1, self.R))
         tn, dt, qn, un = self.tn, self.dt, self.qn, self.un
 
         (
@@ -278,9 +278,9 @@ class BackwardEuler:
         # Signorini
         ###########
         if np.any(self.I_N):
-            # note: csr_matrix is best for row slicing, see
-            # (https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csr_matrix.html#scipy.sparse.csr_matrix)
-            g_N_q_dot = dt * self.system.g_N_q(tn1, qn1, scipy_matrix=csr_matrix)
+            # note: csr_array is best for row slicing, see
+            # (https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csr_array.html#scipy.sparse.csr_array)
+            g_N_q_dot = dt * self.system.g_N_q(tn1, qn1, scipy_matrix=csr_array)
 
         Rla_N_q_dot = CooMatrix((self.nla_N, self.nq))
         Rla_N_la_N = CooMatrix((self.nla_N, self.nla_N))
@@ -297,13 +297,13 @@ class BackwardEuler:
         prox_r_F = self.prox_r_F
         gamma_F = self.system.gamma_F(tn1, qn1, un1)
 
-        # note: csr_matrix is best for row slicing, see
-        # (https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csr_matrix.html#scipy.sparse.csr_matrix)
-        gamma_F_q = self.system.gamma_F_q(tn1, qn1, un1, scipy_matrix=csr_matrix)
+        # note: csr_array is best for row slicing, see
+        # (https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csr_array.html#scipy.sparse.csr_array)
+        gamma_F_q = self.system.gamma_F_q(tn1, qn1, un1, scipy_matrix=csr_array)
 
-        # note: we use csc_matrix sicne its transpose is a csr_matrix that is best for row slicing, see,
-        # (https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csr_matrix.html#scipy.sparse.csr_matrix)
-        gamma_F_u = self.system.W_F(tn1, qn1, scipy_matrix=csc_matrix).T
+        # note: we use csc_array sicne its transpose is a csr_array that is best for row slicing, see,
+        # (https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csr_array.html#scipy.sparse.csr_array)
+        gamma_F_u = self.system.W_F(tn1, qn1, scipy_matrix=csc_array).T
 
         Rla_F_q = CooMatrix((self.nla_F, self.nq))
         Rla_F_u = CooMatrix((self.nla_F, self.nu))
@@ -373,7 +373,7 @@ class BackwardEuler:
 
     def J_debug(self, method, tol):
         def J(self, yn1, *args, **kwargs):
-            J_num = csr_matrix(approx_fprime(yn1, self.R, method=method, eps=tol))
+            J_num = csr_array(approx_fprime(yn1, self.R, method=method, eps=tol))
 
             diff = (self.J(yn1, *args, **kwargs) - J_num).toarray()
             # TODO: compute all diffs for the blocks and print matrix with the blockwise errors
@@ -425,7 +425,7 @@ class BackwardEuler:
             yn1, converged, error, n_iter, _ = fsolve(
                 self.R,
                 self.yn,
-                jac=self.jac,
+                # jac=self.jac,
                 fun_args=(True,),
                 jac_args=(False,),
                 atol=self.atol,

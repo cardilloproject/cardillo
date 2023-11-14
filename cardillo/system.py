@@ -433,10 +433,12 @@ class System:
     def chi_g(self, t, q):
         return self.g_dot(t, q, np.zeros(self.nu))
 
-    def g_dot_u(self, t, q, scipy_matrix=coo_matrix):
+    def g_dot_u(self, t, q, u, scipy_matrix=coo_matrix):
         coo = CooMatrix((self.nla_g, self.nu))
         for contr in self.__g_contr:
-            coo[contr.la_gDOF, contr.uDOF] = contr.g_dot_u(t, q[contr.qDOF])
+            coo[contr.la_gDOF, contr.uDOF] = contr.g_dot_u(
+                t, q[contr.qDOF], u[contr.uDOF]
+            )
         return coo.tosparse(scipy_matrix)
 
     def g_dot_q(self, t, q, u, scipy_matrix=coo_matrix):
@@ -508,10 +510,12 @@ class System:
             )
         return coo.tosparse(scipy_matrix)
 
-    def gamma_u(self, t, q, scipy_matrix=coo_matrix):
+    def gamma_u(self, t, q, u, scipy_matrix=coo_matrix):
         coo = CooMatrix((self.nla_gamma, self.nu))
         for contr in self.__gamma_contr:
-            coo[contr.la_gammaDOF, contr.uDOF] = contr.gamma_u(t, q[contr.qDOF])
+            coo[contr.la_gammaDOF, contr.uDOF] = contr.gamma_u(
+                t, q[contr.qDOF], u[contr.uDOF]
+            )
         return coo.tosparse(scipy_matrix)
 
     def gamma_dot_q(self, t, q, u, u_dot, scipy_matrix=coo_matrix):
