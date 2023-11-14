@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.sparse import csc_array, csr_array, eye, diags, bmat
+from scipy.sparse import csr_matrix
 from scipy.sparse.linalg import splu
 from tqdm import tqdm
 
@@ -20,10 +21,6 @@ class BackwardEulerFixedPoint:
         atol=1e-8,
         max_iter=10,
         max_iter_fixed_point=int(1e3),
-        jac=None,
-        debug=False,
-        debug_method="2-point",
-        debug_tol=1e-6,
     ):
         self.system = system
 
@@ -42,16 +39,6 @@ class BackwardEulerFixedPoint:
         self.atol = atol
         self.max_iter = max_iter
         self.max_iter_fixed_point = max_iter_fixed_point
-        if jac is None:
-            self.jac = self.J_x
-        else:
-            self.jac = jac
-
-        if debug:
-            self.jac = self.J_debug(debug_method, debug_tol)
-            self.jac = lambda x, y: approx_fprime(
-                x, lambda x: self.R_x(x, y), method=debug_method, eps=debug_tol
-            )
 
         #######################################################################
         # dimensions
@@ -682,7 +669,6 @@ class BackwardEuler:
         return R
 
     def J(self, yn1, *args, **kwargs):
-        return csr_array(approx_fprime(yn1, self.R))
         tn, dt, qn, un = self.tn, self.dt, self.qn, self.un
 
         (
@@ -751,7 +737,9 @@ class BackwardEuler:
         if np.any(self.I_N):
             # note: csr_array is best for row slicing, see
             # (https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csr_array.html#scipy.sparse.csr_array)
-            g_N_q_dot = dt * self.system.g_N_q(tn1, qn1, scipy_matrix=csr_array)
+            # g_N_q_dot = dt * self.system.g_N_q(tn1, qn1, scipy_matrix=csr_array)
+            # note: csr_matrix is required for sparse slicing - not supported by csr_array yet
+            g_N_q_dot = dt * self.system.g_N_q(tn1, qn1, scipy_matrix=csr_matrix)
 
         Rla_N_q_dot = CooMatrix((self.nla_N, self.nq))
         Rla_N_la_N = CooMatrix((self.nla_N, self.nla_N))
@@ -843,7 +831,7 @@ class BackwardEuler:
         return J
 
     def J_debug(self, method, tol):
-        def J(self, yn1, *args, **kwargs):
+        def J(yn1, *args, self=self, **kwargs):
             J_num = csr_array(approx_fprime(yn1, self.R, method=method, eps=tol))
 
             diff = (self.J(yn1, *args, **kwargs) - J_num).toarray()
@@ -896,7 +884,7 @@ class BackwardEuler:
             yn1, converged, error, n_iter, _ = fsolve(
                 self.R,
                 self.yn,
-                # jac=self.jac,
+                jac=self.jac,
                 fun_args=(True,),
                 jac_args=(False,),
                 atol=self.atol,
@@ -969,4 +957,4 @@ class BackwardEuler:
         )
 
 
-BackwardEuler = BackwardEulerFixedPoint
+# BackwardEuler = BackwardEulerFixedPoint
