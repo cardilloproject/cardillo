@@ -274,6 +274,7 @@ class System:
             contr.variable_mass if hasattr(contr, "variable_mass") else False
             for contr in self.__M_contr
         ]
+        self.__M_contr = np.array(self.__M_contr)
         coo = CooMatrix((self.nu, self.nu))
         for contr in self.__M_contr:
             coo[contr.uDOF, contr.uDOF] = contr.M(self.t0, self.q0[contr.qDOF])

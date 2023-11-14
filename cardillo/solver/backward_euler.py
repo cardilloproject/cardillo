@@ -2,6 +2,7 @@ import numpy as np
 from scipy.sparse import csc_matrix, csr_matrix, eye, diags, bmat
 from tqdm import tqdm
 import warnings
+import matplotlib.pyplot as plt
 
 from cardillo.math import fsolve, approx_fprime, prox_r
 from cardillo.solver import Solution, consistent_initial_conditions
@@ -21,7 +22,7 @@ class BackwardEuler:
         debug=False,
         debug_method="2-point",
         debug_tol=1e-6,
-        alpha = 1
+        alpha=1,
     ):
         self.system = system
 
@@ -263,7 +264,7 @@ class BackwardEuler:
         W_F = self.system.W_F(tn1, qn1)
 
         Ru_dot_q_dot = dt * (
-            self.system.Mu_q(tn1, qn1, u_dotn1)
+            self.system.Mu_q(tn1, qn1, un1)
             - self.system.h_q(tn1, qn1, un1)
             - self.system.Wla_g_q(tn1, qn1, la_gn1)
             - self.system.Wla_gamma_q(tn1, qn1, la_gamman1)

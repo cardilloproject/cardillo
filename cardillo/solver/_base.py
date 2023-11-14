@@ -9,8 +9,8 @@ def consistent_initial_conditions(
     atol=1.0e-8,
     newton_atol=1e-10,
     newton_max_iter=10,
-    # jac=None,
-    jac="2-point",
+    jac=None,
+    # jac="2-point",
     error_function=lambda x: np.max(np.absolute(x)),
     alpha=1,
 ):

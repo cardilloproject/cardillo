@@ -275,6 +275,7 @@ class MoreauShifted:
             ) = (tn1, qn1, un1, P_gn1, P_gamman1, P_Nn1, P_Fn1)
 
         return Solution(
+            system=self.system,
             t=np.array(self.t),
             q=np.array(q),
             u=np.array(u),
