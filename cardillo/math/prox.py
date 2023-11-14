@@ -26,4 +26,4 @@ def prox_sphere_x(x, radius):
             else radius * (np.eye(len(x)) / nx - np.outer(x, x) / nx**3)
         )
     else:
-        return 1 if nx <= radius else radius
+        return np.ones_like(x) if nx <= radius else radius

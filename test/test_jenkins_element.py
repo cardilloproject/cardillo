@@ -83,26 +83,26 @@ class JenkinsElement:
         raise RuntimeError("This is not working yet.")
         f = lambda la_c: self.c(t, q, u, la_c)
         jac = lambda la_c: self.c_la_c(t, q, u, la_c)
-        jac = "2-point"
+        # jac = "2-point"
 
-        _, sigma = u
-        r = 1 / self.stiffness
-        # prox = lambda la_c: prox_sphere(sigma - r * la_c, self.yieldstress)
-        # from scipy.optimize import fixed_point
-        # la_c = fixed_point(prox, self.la_c0.copy(), xtol=1e-4, method="del2", maxiter=int(1e5))
-        # converged = True
+        # _, sigma = u
+        # r = 1 / self.stiffness
+        # # prox = lambda la_c: prox_sphere(sigma - r * la_c, self.yieldstress)
+        # # from scipy.optimize import fixed_point
+        # # la_c = fixed_point(prox, self.la_c0.copy(), xtol=1e-4, method="del2", maxiter=int(1e5))
+        # # converged = True
 
-        la_c0 = self.la_c0.copy()
-        converged = False
-        tol = 1e-10
-        i = 0
-        prox_r = 0.99
-        while not converged:
-            i += 1
-            la_c = prox_sphere(sigma - prox_r * r * la_c0, self.yieldstress)
-            error = np.max(np.abs(la_c - la_c0))
-            converged = error < tol
-            la_c0 = la_c.copy()
+        # la_c0 = self.la_c0.copy()
+        # converged = False
+        # tol = 1e-10
+        # i = 0
+        # prox_r = 0.99
+        # while not converged:
+        #     i += 1
+        #     la_c = prox_sphere(sigma - prox_r * r * la_c0, self.yieldstress)
+        #     error = np.max(np.abs(la_c - la_c0))
+        #     converged = error < tol
+        #     la_c0 = la_c.copy()
 
         # from scipy.optimize import least_squares
         # sol = least_squares(f, self.la_c0, jac=jac, method="lm", ftol=1e-10, xtol=1e-10, gtol=1e-10)
@@ -136,14 +136,14 @@ class JenkinsElement:
         c_u = np.zeros((self.nla_c, self.nu))
         _, sigma = u
         r = 1 / self.stiffness
-        c_u[0, 1] = -1 + prox_sphere_x(sigma - r * la_c, self.yieldstress)
+        c_u[0, 1] = -1 + prox_sphere_x(sigma - r * la_c, self.yieldstress)[0]
         return c_u
 
     def c_la_c(self, t, q, u, la_c):
         c_la_c = np.zeros((self.nla_c, self.nla_c))
         _, sigma = u
         r = 1 / self.stiffness
-        c_la_c[0] = -r * prox_sphere_x(sigma - r * la_c, self.yieldstress)
+        c_la_c[0] = -r * prox_sphere_x(sigma - r * la_c, self.yieldstress)[0]
         return c_la_c
 
 
@@ -183,9 +183,9 @@ if __name__ == "__main__":
     dt = 5e-3
 
     # sol = ScipyIVP(system, t1, dt, method="RK45").solve()
-    sol = ScipyIVP(system, t1, dt, method="RK23").solve()
+    # sol = ScipyIVP(system, t1, dt, method="RK23").solve()
     # sol = ScipyIVP(system, t1, dt, method="BDF").solve()
-    # sol = BackwardEuler(system, t1, dt, debug=False).solve()
+    sol = BackwardEuler(system, t1, dt, debug=False).solve()
 
     # - ref. solution
     # def eqm(t, z):

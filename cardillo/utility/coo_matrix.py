@@ -1,7 +1,7 @@
 import warnings
 from scipy.sparse import csc_array, csr_array, coo_array
 from scipy.sparse._sputils import isshape, check_shape
-from scipy.sparse import spmatrix
+from scipy.sparse import spmatrix, sparray
 from numpy import repeat, tile, atleast_1d, atleast_2d, arange
 from array import array
 
@@ -96,7 +96,7 @@ class CooMatrix:
                 # self.data.fromlist(value.data.tolist())
                 # self.row.fromlist(rows[value.row].tolist())
                 # self.col.fromlist(cols[value.col].tolist())
-            elif isinstance(value, spmatrix):
+            elif isinstance(value, spmatrix) or isinstance(value, sparray):
                 assert value.shape == (len(rows), len(cols)), "inconsistent assignment"
 
                 # all scipy sparse matrices are converted to coo_matrix, their

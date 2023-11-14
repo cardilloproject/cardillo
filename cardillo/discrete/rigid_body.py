@@ -156,7 +156,7 @@ class RigidBody:
         return np.arange(self.nu)
 
     def A_IK(self, t, q, frame_ID=None):
-        if not (t == self.t and np.allclose(q, self.q)):
+        if not (t == self.t and np.allclose(q, self.q, rtol=1e-12, atol=1e-12)):
             self._A_IK = Exp_SO3_quat(q[3:])
             self.t = t
             self.q = q
