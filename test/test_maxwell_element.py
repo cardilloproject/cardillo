@@ -5,7 +5,7 @@ from scipy.integrate import solve_ivp
 from cardillo import System
 from cardillo.discrete import PointMass
 from cardillo.forces import MaxwellElement as MaxwellElementFL
-from cardillo.solver import EulerBackward, MoreauClassical, ScipyIVP
+from cardillo.solver import BackwardEuler, MoreauClassical, ScipyIVP
 
 
 class MaxwellElement:
@@ -187,7 +187,7 @@ if __name__ == "__main__":
     t0 = 0
     t1 = 2
     dt = 5e-3
-    sol = EulerBackward(system, t1, dt, debug=False, method="index 1").solve()
+    sol = BackwardEuler(system, t1, dt, debug=False).solve()
     # sol = ScipyIVP(system, t1, dt).solve()
 
     # - ref. solution

@@ -3,11 +3,11 @@ import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
 
 from cardillo import System
-from cardillo.math import prox_sphere, prox_sphere_x
+from cardillo.math import prox_sphere, prox_sphere_x, fsolve
 from cardillo.discrete import PointMass
-from cardillo.forces import MaxwellElement as MaxwellElementFL
+from cardillo.forces import MaxwellElement as MaxwellElementFL  # TODO: This is unused!
 from cardillo.forces import Force
-from cardillo.solver import EulerBackward, MoreauClassical, ScipyIVP
+from cardillo.solver import ScipyIVP, MoreauClassical, BackwardEuler
 
 
 class JenkinsElement:
@@ -79,6 +79,49 @@ class JenkinsElement:
     ############
     # compliance
     ############
+    def la_c(self, t, q, u):
+        raise RuntimeError("This is not working yet.")
+        f = lambda la_c: self.c(t, q, u, la_c)
+        jac = lambda la_c: self.c_la_c(t, q, u, la_c)
+        jac = "2-point"
+
+        _, sigma = u
+        r = 1 / self.stiffness
+        # prox = lambda la_c: prox_sphere(sigma - r * la_c, self.yieldstress)
+        # from scipy.optimize import fixed_point
+        # la_c = fixed_point(prox, self.la_c0.copy(), xtol=1e-4, method="del2", maxiter=int(1e5))
+        # converged = True
+
+        la_c0 = self.la_c0.copy()
+        converged = False
+        tol = 1e-10
+        i = 0
+        prox_r = 0.99
+        while not converged:
+            i += 1
+            la_c = prox_sphere(sigma - prox_r * r * la_c0, self.yieldstress)
+            error = np.max(np.abs(la_c - la_c0))
+            converged = error < tol
+            la_c0 = la_c.copy()
+
+        # from scipy.optimize import least_squares
+        # sol = least_squares(f, self.la_c0, jac=jac, method="lm", ftol=1e-10, xtol=1e-10, gtol=1e-10)
+        # converged = sol.success
+        # la_c = sol.x
+
+        # from scipy.optimize import root_scalar
+        # method = "secant"
+        # method = "newton"
+        # sol = root_scalar(f, x0=self.la_c0, method=method, fprime=jac)
+        # converged = sol.converged
+        # la_c = sol.root
+
+        # la_c, converged, error, i, _ = fsolve(f, self.la_c0, jac=jac, atol=1e-4, max_iter=1000)
+
+        assert converged, "JenkinsElement.la_c is not converged"
+        self.la_c0 = la_c.copy()
+        return la_c
+
     def W_c(self, t, q):
         W_c = np.zeros((self.nu, self.nla_c))
         W_c[1, 0] = 1
@@ -104,6 +147,7 @@ class JenkinsElement:
         return c_la_c
 
 
+# TODO: Make this a test!
 if __name__ == "__main__":
     mass = 1
     stiffness = 1
@@ -137,7 +181,11 @@ if __name__ == "__main__":
     t0 = 0
     t1 = 4
     dt = 5e-3
-    sol = EulerBackward(system, t1, dt, debug=False).solve()
+
+    # sol = ScipyIVP(system, t1, dt, method="RK45").solve()
+    sol = ScipyIVP(system, t1, dt, method="RK23").solve()
+    # sol = ScipyIVP(system, t1, dt, method="BDF").solve()
+    # sol = BackwardEuler(system, t1, dt, debug=False).solve()
 
     # - ref. solution
     # def eqm(t, z):
@@ -165,11 +213,13 @@ if __name__ == "__main__":
     plt.xlabel("$t$")
 
     ax[2].plot(t, u[:, 0], label="$\dot\epsilon$")
-    ax[2].plot(t, eps_p_dot[:, 0], "-r", label="$\dot\epsilon_p$")
+    if eps_p_dot is not None:
+        ax[2].plot(t, eps_p_dot[:, 0], "-r", label="$\dot\epsilon_p$")
     ax[2].grid()
     ax[2].legend()
     plt.xlabel("$t$")
 
+    # TODO: add axis labels
     ax[3].plot(q[:, 0], -u[:, 1])
     ax[3].grid()
     plt.xlabel("$\epsilon$")

@@ -96,6 +96,7 @@ def test_matrix_valued(method, eps, tol, show=False):
         n, m = X.shape
         assert n == m
 
+        # fmt: off
         return np.einsum(
             "ij,kl->ijkl",
             X,
@@ -106,6 +107,7 @@ def test_matrix_valued(method, eps, tol, show=False):
             np.eye(n),
             np.eye(n),
         )
+        # fmt: on
 
     x0 = np.random.rand(2, 2)
 

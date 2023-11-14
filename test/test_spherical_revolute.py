@@ -370,19 +370,13 @@ if __name__ == "__main__":
     #######################
     # spherical joint tests
     #######################
-    # run("Spherical", BackwardEuler, method="index 1")
-    # run("Spherical", BackwardEuler, method="index 2")
-    # run("Spherical", BackwardEuler, method="index 3")
-    # run("Spherical", BackwardEuler, method="index 2 GGL")
+    # run("Spherical", BackwardEuler)
     run("Spherical", ScipyIVP)
 
     ######################
     # revolute joint tests
     ######################
-    # run("Revolute", BackwardEuler, method="index 1")
-    # run("Revolute", BackwardEuler, method="index 2")
-    # run("Revolute", BackwardEuler, method="index 3")
-    # run("Revolute", BackwardEuler, method="index 2 GGL")
+    # run("Revolute", BackwardEuler)
     run("Revolute", ScipyIVP)
 
     ###########################
@@ -392,10 +386,7 @@ if __name__ == "__main__":
     k = 1e2
     d = 3e1
 
-    # run("PDRotational", BackwardEuler, method="index 1", k=k, d=d)
-    # run("PDRotational", BackwardEuler, method="index 2", k=k, d=d)
-    # run("PDRotational", BackwardEuler, method="index 3", k=k, d=d)
-    # run("PDRotational", BackwardEuler, method="index 2 GGL", k=k, d=d)
+    run("PDRotational", BackwardEuler, k=k, d=d)
 
     atol = 1e-8
     rtol = 1e-8

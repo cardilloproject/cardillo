@@ -1,7 +1,7 @@
 import numpy as np
 from pathlib import Path
 from cardillo.discrete import RigidBody
-from cardillo.discrete.shapes import Cuboid, Ball, Cylinder, FromSTL
+from cardillo.discrete.shapes import Cuboid, Ball, Cylinder, FromSTL, Tetrahedron
 from cardillo import System
 from cardillo.solver import MoreauClassical
 from cardillo.visualization import Export
@@ -52,11 +52,18 @@ def test_some_rigid_bodies():
     q0 = np.array([*(0.5 * dimensions), 1, 0, 0, 0], dtype=float)
     ball = Ball(RigidBody)(mass=1, radius=0.2, q0=q0, u0=u0)
 
+    ########################
+    # tetraherdron primitive
+    ########################
+    u0 = np.random.rand(6)
+    q0 = np.array([*(-0.5 * dimensions), 1, 0, 0, 0], dtype=float)
+    tetrahedron = Tetrahedron(RigidBody)(mass=1, edge=1, q0=q0, u0=u0)
+
     ######################################
     # solve system and generate vtk export
     ######################################
     system = System()
-    system.add(ball, box, cylinder, stl_box)
+    system.add(ball, box, cylinder, stl_box, tetrahedron)
     system.assemble()
 
     sol = MoreauClassical(system, 10, 1e-2).solve()
@@ -71,6 +78,7 @@ def test_some_rigid_bodies():
     e.export_contr(box)
     e.export_contr(cylinder)
     e.export_contr(stl_box)
+    e.export_contr(tetrahedron)
 
 
 if __name__ == "__main__":
