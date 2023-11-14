@@ -66,7 +66,7 @@ def consistent_initial_conditions(
     g_q = system.g_q(t0, q0, scipy_matrix=csr_array)
     zeta_g = system.g_ddot(t0, q0, u0, np.zeros(system.nu))
     W_gamma = system.W_gamma(t0, q0, scipy_matrix=csr_array)
-    gamma_u = system.gamma_u(t0, q0, u0, scipy_matrix=csr_array)
+    gamma_u = system.gamma_u(t0, q0, scipy_matrix=csr_array)
     zeta_gamma = system.gamma_dot(t0, q0, u0, np.zeros(system.nu))
     W_c = system.W_c(t0, q0, scipy_matrix=csr_array)
     W_N = system.W_N(t0, q0, scipy_matrix=csr_array)

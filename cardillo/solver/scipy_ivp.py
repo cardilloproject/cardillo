@@ -55,15 +55,14 @@ class ScipyIVP:
         M = self.system.M(t, q)
         h = self.system.h(t, q, u)
         W_g = self.system.W_g(t, q)
-        g_dot_u = self.system.g_dot_u(t, q, u)
+        g_dot_u = self.system.g_dot_u(t, q)
         W_gamma = self.system.W_gamma(t, q)
-        gamma_u = self.system.gamma_u(t, q, u)
+        gamma_u = self.system.gamma_u(t, q)
         W_c = self.system.W_c(t, q)
         la_c = self.system.la_c(t, q, u)
         zeta_g = self.system.zeta_g(t, q, u)
         zeta_gamma = self.system.zeta_gamma(t, q, u)
 
-        # TODO: Can be use a sparse ldl decomposition here as done in C++?
         # fmt: off
         A = bmat([[      M, -W_g, -W_gamma],
                   [g_dot_u, None,     None], 
@@ -78,12 +77,11 @@ class ScipyIVP:
         return dx
 
     def la_g_la_gamma_la_c(self, t, q, u):
-
         W_g = self.system.W_g(t, q, scipy_matrix=csc_matrix)
         W_gamma = self.system.W_gamma(t, q, scipy_matrix=csc_matrix)
         W_c = self.system.W_c(t, q, scipy_matrix=csc_matrix)
-        g_dot_u = self.system.g_dot_u(t, q, u)
-        gamma_u = self.system.gamma_u(t, q, u)
+        g_dot_u = self.system.g_dot_u(t, q)
+        gamma_u = self.system.gamma_u(t, q)
         la_c = self.system.la_c(t, q, u)
         zeta_g = self.system.zeta_g(t, q, u)
         zeta_gamma = self.system.zeta_gamma(t, q, u)
