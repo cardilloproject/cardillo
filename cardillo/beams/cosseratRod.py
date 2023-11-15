@@ -14,7 +14,7 @@ from cardillo.math import (
     Exp_SO3_quat_p,
 )
 
-from cardillo.beams._base_CosseratRod import CosseratRod, CosseratRodMixed
+from cardillo.beams._base_CosseratRod import CosseratRod, CosseratRodMixed, make_CosseratRodConstrained
 
 
 def make_CosseratRod_SE3(mixed=False):
@@ -255,11 +255,17 @@ def make_CosseratRod_SE3(mixed=False):
     return CosseratRod_SE3
 
 
-def make_CosseratRod_R12(mixed=False):
+def make_CosseratRod_R12(mixed=False, constraints=None):
     if mixed == True:
-        CosseratRodBase = CosseratRodMixed
+        if constraints==None:
+            CosseratRodBase = CosseratRodMixed
+        else:
+            CosseratRodBase = make_CosseratRodConstrained(mixed=mixed, constraints=constraints)
     else:
-        CosseratRodBase = CosseratRod
+        if constraints==None:
+            CosseratRodBase = CosseratRod
+        else:
+            CosseratRodBase = make_CosseratRodConstrained(mixed=mixed, constraints=constraints)
 
     class CosseratRod_R12(CosseratRodBase):
         def __init__(

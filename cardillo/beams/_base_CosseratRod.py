@@ -1411,7 +1411,6 @@ class CosseratRod(RodExportBase, ABC):
     def distributed_force1D_q(self, t, q, force):
         return None
 
-
 class CosseratRodMixed(CosseratRod, ABC):
     def __init__(
         self,
@@ -1910,3 +1909,306 @@ class CosseratRodMixed(CosseratRod, ABC):
             elDOF_u = self.elDOF_u[el]
             coo[elDOF_u, elDOF_u] = -self.f_gyr_u_el(t, q[elDOF], u[elDOF_u], el)
         return coo
+
+def make_CosseratRodConstrained(mixed=False, constraints=[1, 2]):
+    if mixed == True:
+        CosseratRodBase = CosseratRodMixed
+    else:
+        CosseratRodBase = CosseratRod
+
+    class CosseratRodConstrained(CosseratRodBase, ABC):
+        def __init__(
+            self,
+            cross_section,
+            material_model,
+            A_rho0,
+            K_S_rho0,
+            K_I_rho0,
+            polynomial_degree,
+            nelement,
+            nquadrature,
+            nquadrature_dyn,
+            Q,
+            q0=None,
+            u0=None,
+            mixed=False,
+        ):
+            super().__init__(
+                cross_section,
+                material_model,
+                A_rho0,
+                K_S_rho0,
+                K_I_rho0,
+                polynomial_degree,
+                nelement,
+                nquadrature,
+                nquadrature_dyn,
+                Q,
+                q0=q0,
+                u0=u0,
+                mixed=mixed,
+            )
+
+            #######################################################
+            # discretization parameters internal forces and moments
+            #######################################################
+            self.polynomial_degree_gn = polynomial_degree - 1
+            self.polynomial_degree_gm = polynomial_degree - 1
+            self.knot_vector_gn = LagrangeKnotVector(self.polynomial_degree_gn, nelement)
+            self.knot_vector_gm = LagrangeKnotVector(self.polynomial_degree_gm, nelement)
+
+            # build mesh objects
+            self.mesh_gn = Mesh1D(
+                self.knot_vector_gn,
+                nquadrature,
+                dim_q=3,
+                derivative_order=0,
+                basis="Lagrange_Disc",
+                quadrature="Gauss",
+                dim_u=3,
+            )
+            self.mesh_gm = Mesh1D(
+                self.knot_vector_gm,
+                nquadrature,
+                dim_q=3,
+                derivative_order=0,
+                basis="Lagrange_Disc",
+                quadrature="Gauss",
+                dim_u=3,
+            )
+
+            # total number of nodes
+            self.nnodes_gn = self.mesh_gn.nnodes
+            self.nnodes_gm = self.mesh_gm.nnodes
+
+            # number of nodes per element
+            self.nnodes_element_gn = self.mesh_gn.nnodes_per_element
+            self.nnodes_element_gm = self.mesh_gm.nnodes_per_element
+
+            # total number of constraint coordinates
+            self.nla_g_n = self.mesh_gn.nq
+            self.nla_g_m = self.mesh_gm.nq
+            self.nla_g = self.nla_g_n + self.nla_g_m
+
+            # number of compliance coordinates per element
+            self.nla_g_element_gn = self.mesh_gn.nq_per_element
+            self.nla_g_element_gm = self.mesh_gm.nq_per_element
+            self.nla_g_element = self.nla_g_element_gn + self.nla_g_element_gm
+
+            # global element connectivity for copliance coordinates
+            self.elDOF_gn = self.mesh_gn.elDOF
+            self.elDOF_gm = self.mesh_gm.elDOF + self.nla_g_n
+
+            # global nodal connectivity
+            # TODO: Take care of self.nla_c for the mixed formulation
+            self.nodalDOF_gn = self.mesh_gn.nodalDOF + self.nq_r + self.nq_psi
+            self.nodalDOF_gm = self.mesh_gm.nodalDOF + self.nq_r + self.nq_psi + self.nla_g_n
+
+            # nodal connectivity on element level
+            self.nodalDOF_element_gn = self.mesh_gn.nodalDOF_element
+            self.nodalDOF_element_gm = self.mesh_gm.nodalDOF_element + self.nla_g_element_gn
+
+            # build global elDOF connectivity matrix
+            self.elDOF_la_g = np.zeros((nelement, self.nla_g_element), dtype=int)
+            for el in range(nelement):
+                self.elDOF_la_g[el, : self.nla_g_element_gn] = self.elDOF_gn[el]
+                self.elDOF_la_g[el, self.nla_g_element_gn :] = self.elDOF_gm[el]
+
+            # shape functions and their first derivatives
+            self.N_gn = self.mesh_gn.N
+            self.N_gm = self.mesh_gm.N
+
+            # TODO: Dummy initial values for compliance
+            self.la_g0 = np.zeros(self.nla_g, dtype=float)
+
+            # evaluate shape functions at specific xi
+            self.basis_functions_gn = self.mesh_gn.eval_basis
+            self.basis_functions_gm = self.mesh_gm.eval_basis
+
+        def g(self, t, q):
+            g = np.zeros(self.nla_g, dtype=q.dtype)
+            for el in range(self.nelement):
+                elDOF = self.elDOF[el]
+                elDOF_la_g = self.elDOF_la_g[el]
+                g[elDOF_la_g] = self.g_el(q[elDOF], el)
+            return g
+
+        def g_el(self, qe, el):
+            g_el = np.zeros(self.nla_g_element, dtype=qe.dtype)
+
+            for i in range(self.nquadrature):
+                # extract reference state variables
+                qpi = self.qp[el, i]
+                qwi = self.qw[el, i]
+                J = self.J[el, i]
+                K_Gamma0 = self.K_Gamma0[el, i]
+                K_Kappa0 = self.K_Kappa0[el, i]
+
+                # evaluate required quantities
+                _, _, K_Gamma_bar, K_Kappa_bar = self._eval(qe, qpi)
+
+                # TODO: Store K_Gamma_bar0 and K_Kappa_bar0
+                g_n = - (K_Gamma_bar - J * K_Gamma0) * qwi
+                g_m = - (K_Kappa_bar - J * K_Kappa0) * qwi
+
+                for node in range(self.nnodes_element_gn):
+                    g_el[self.nodalDOF_element_gn[node]] += self.N_gn[el, i, node] * g_n
+
+                for node in range(self.nnodes_element_gm):
+                    g_el[self.nodalDOF_element_gm[node]] += self.N_gm[el, i, node] * g_m
+
+            return g_el
+
+        def g_q(self, t, q):
+            coo = CooMatrix((self.nla_g, self.nq))
+            for el in range(self.nelement):
+                elDOF = self.elDOF[el]
+                elDOF_la_g = self.elDOF_la_g[el]
+                coo[elDOF_la_g, elDOF] = self.g_q_el(q[elDOF], el)
+            return coo
+
+        def g_q_el(self, qe, el):
+            g_q_el = np.zeros(
+                (self.nla_g_element, self.nq_element), dtype=qe.dtype)
+            for i in range(self.nquadrature):
+                # extract reference state variables
+                qpi = self.qp[el, i]
+                qwi = self.qw[el, i]
+                J = self.J[el, i]
+
+                # evaluate required quantities
+                (
+                    _,
+                    _,
+                    _,
+                    _,
+                    _,
+                    _,
+                    K_Gamma_bar_qe,
+                    K_Kappa_bar_qe,
+                ) = self._deval(qe, qpi)
+
+                for node in range(self.nnodes_element_gn):
+                    nodalDOF_gn = self.nodalDOF_element_gn[node]
+                    g_q_el[nodalDOF_gn, :] -= self.N_gn[el, i, node] * K_Gamma_bar_qe * qwi
+
+                for node in range(self.nnodes_element_gm):
+                    nodalDOF_gm = self.nodalDOF_element_gm[node]
+                    g_q_el[nodalDOF_gm, :] -= self.N_gm[el, i, node] * K_Kappa_bar_qe * qwi
+
+            return g_q_el
+
+        def W_g(self, t, q):
+            coo = CooMatrix((self.nu, self.nla_g))
+            for el in range(self.nelement):
+                elDOF = self.elDOF[el]
+                elDOF_u = self.elDOF_u[el]
+                elDOF_la_g = self.elDOF_la_g[el]
+                coo[elDOF_u, elDOF_la_g] = self.W_g_el(q[elDOF], el)
+            return coo
+
+        def W_g_el(self, qe, el):
+            W_g_el = np.zeros((self.nu_element, self.nla_g_element), dtype=qe.dtype)
+
+            for i in range(self.nquadrature):
+                # extract reference state variables
+                qpi = self.qp[el, i]
+                qwi = self.qw[el, i]
+
+                # evaluate required quantities
+                _, A_IK, K_Gamma_bar, K_Kappa_bar = self._eval(qe, qpi)
+
+                ############################
+                # virtual work contributions
+                ############################
+                for node_r in range(self.nnodes_element_r):
+                    nodalDOF_r = self.nodalDOF_element_r_u[node_r]
+                    N_r_xi = self.N_r_xi[el, i, node_r]
+                    for node_gn in range(self.nnodes_element_gn):
+                        nodalDOF_gn = self.nodalDOF_element_gn[node_gn]
+                        W_g_el[nodalDOF_r[:, None], nodalDOF_gn] -= (
+                            N_r_xi * A_IK * self.N_gn[el, i, node_gn] * qwi
+                        )
+
+                for node_psi in range(self.nnodes_element_psi):
+                    nodalDOF_psi = self.nodalDOF_element_psi_u[node_psi]
+                    N_psi = self.N_psi[el, i, node_psi]
+                    N_psi_xi = self.N_psi_xi[el, i, node_psi]
+
+                    for node_gm in range(self.nnodes_element_gm):
+                        nodalDOF_gm = self.nodalDOF_element_gm[node_gm]
+                        W_g_el[nodalDOF_psi[:, None], nodalDOF_gm] -= (
+                            (N_psi_xi * np.eye(3) - N_psi * ax2skew(K_Kappa_bar))
+                            * self.N_gm[el, i, node_gm]
+                            * qwi
+                        )
+
+                    for node_gn in range(self.nnodes_element_gn):
+                        nodalDOF_gn = self.nodalDOF_element_gn[node_gn]
+                        W_g_el[nodalDOF_psi[:, None], nodalDOF_gn] += (
+                            N_psi * ax2skew(K_Gamma_bar) * self.N_gn[el, i, node_gn] * qwi
+                        )
+
+            return W_g_el
+
+        def Wla_g_q(self, t, q, la_g):
+            coo = CooMatrix((self.nu, self.nq))
+            for el in range(self.nelement):
+                elDOF = self.elDOF[el]
+                elDOF_u = self.elDOF_u[el]
+                elDOF_la_g = self.elDOF_la_g[el]
+                coo[elDOF_u, elDOF] = self.Wla_g_q_el(q[elDOF], la_g[elDOF_la_g], el)
+            return coo
+
+        def Wla_g_q_el(self, qe, la_ge, el):
+            Wla_g_q_el = np.zeros(
+                (self.nu_element, self.nq_element), dtype=np.common_type(qe, la_ge)
+            )
+
+            for i in range(self.nquadrature):
+                # extract reference state variables
+                qpi = self.qp[el, i]
+                qwi = self.qw[el, i]
+                J = self.J[el, i]
+
+                # evaluate required quantities
+                (
+                    r_OP,
+                    A_IK,
+                    K_Gamma_bar,
+                    K_Kappa_bar,
+                    r_OP_qe,
+                    A_IK_qe,
+                    K_Gamma_bar_qe,
+                    K_Kappa_bar_qe,
+                ) = self._deval(qe, qpi)
+
+                # interpolation of the n and m
+                K_gn = np.zeros(3, dtype=qe.dtype)
+                K_gm = np.zeros(3, dtype=qe.dtype)
+
+                for node in range(self.nnodes_element_gn):
+                    gn_node = la_ge[self.nodalDOF_element_gn[node]]
+                    K_gn += self.N_gn[el, i, node] * gn_node
+
+                for node in range(self.nnodes_element_gm):
+                    gm_node = la_ge[self.nodalDOF_element_gm[node]]
+                    K_gm += self.N_gm[el, i, node] * gm_node
+
+                for node in range(self.nnodes_element_r):
+                    Wla_g_q_el[self.nodalDOF_element_r_u[node], :] -= (
+                        self.N_r_xi[el, i, node]
+                        * qwi
+                        * (np.einsum("ikj,k->ij", A_IK_qe, K_gn))
+                    )
+
+                for node in range(self.nnodes_element_psi):
+                    Wla_g_q_el[self.nodalDOF_element_psi_u[node], :] += (
+                        self.N_psi[el, i, node]
+                        * qwi
+                        * (-ax2skew(K_gn) @ K_Gamma_bar_qe - ax2skew(K_gm) @ K_Kappa_bar_qe)
+                    )
+
+            return Wla_g_q_el
+
+    return CosseratRodConstrained
