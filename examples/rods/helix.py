@@ -23,20 +23,27 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 from math import pi
 
-def helix(Rod, nelements=20, polynomial_degree=2, n_load_steps=10, reduced_integration=True, VTK_export=False):
-    
+
+def helix(
+    Rod,
+    nelements=20,
+    polynomial_degree=2,
+    n_load_steps=10,
+    reduced_integration=True,
+    VTK_export=False,
+):
     # geometry of the rod
-    n = 2       # number of coils
-    R0 = 10     # radius of the helix
-    h = 50      # height of the helix
-    c = h / (2 * R0 * pi * n) # pitch of the helix
+    n = 2  # number of coils
+    R0 = 10  # radius of the helix
+    h = 50  # height of the helix
+    c = h / (2 * R0 * pi * n)  # pitch of the helix
     length = np.sqrt(1 + c**2) * R0 * 2 * pi * n
     cc = 1 / (np.sqrt(1 + c**2))
 
     alpha = lambda xi: 2 * pi * n * xi
     alpha_xi = 2 * pi * n
 
-    # cross section properties 
+    # cross section properties
     # slenderness = 1.0e1
     # atol = 1.0e-8
     # slenderness = 1.0e2
@@ -56,8 +63,8 @@ def helix(Rod, nelements=20, polynomial_degree=2, n_load_steps=10, reduced_integ
     Ip, I2, I3 = np.diag(cross_section.second_moment)
 
     # material model
-    E = 1.0     # Young's modulus
-    G = 0.5     # shear modulus
+    E = 1.0  # Young's modulus
+    G = 0.5  # shear modulus
     Ei = np.array([E * A, G * A, G * A])
     Fi = np.array([G * Ip, E * I2, E * I3])
     material_model = Simo1986(Ei, Fi)
@@ -70,8 +77,8 @@ def helix(Rod, nelements=20, polynomial_degree=2, n_load_steps=10, reduced_integ
     r_OP0 = R0 * np.array([np.sin(alpha_0), -np.cos(alpha_0), c * alpha_0])
 
     e_x = cc * np.array([np.cos(alpha_0), np.sin(alpha_0), c])
-    e_y = np.array([- np.sin(alpha_0), np.cos(alpha_0), 0])
-    e_z = cc * np.array([- c * np.cos(alpha_0), - c * np.sin(alpha_0), 1])
+    e_y = np.array([-np.sin(alpha_0), np.cos(alpha_0), 0])
+    e_z = cc * np.array([-c * np.cos(alpha_0), -c * np.sin(alpha_0), 1])
 
     A_IK0 = np.vstack((e_x, e_y, e_z))
     A_IK0 = A_IK0.T
@@ -104,7 +111,12 @@ def helix(Rod, nelements=20, polynomial_degree=2, n_load_steps=10, reduced_integ
 
     # moment at right end
     Fi = material_model.Fi
-    M = lambda t: (R0 * alpha_xi**2) / (length**2) * (c * e1 * Fi[0] + e3 * Fi[2]) * t
+    M = (
+        lambda t: (R0 * alpha_xi**2)
+        / (length**2)
+        * (c * e1 * Fi[0] + e3 * Fi[2])
+        * t
+    )
     # M = lambda t: 2 * np.pi / length * (e1 * Fi[0] + e3 * Fi[2]) * t * 1.5
     moment = K_Moment(M, cantilever, (1,))
     system.add(moment)
@@ -168,12 +180,13 @@ if __name__ == "__main__":
     # Quaternion interpolation:
     # helix(Rod=make_CosseratRod_Quat(mixed=True), nelements=10, polynomial_degree=2, n_load_steps = 2, reduced_integration=False)
     # helix(Rod=make_CosseratRod_Quat(mixed=False), nelements=10, polynomial_degree=2, n_load_steps = 500, reduced_integration=True)
-    
+
     # R12 interpolation:
-    helix(Rod=make_CosseratRod_R12(mixed=True), nelements=10, polynomial_degree=2, n_load_steps = 2, reduced_integration=False)
+    helix(
+        Rod=make_CosseratRod_R12(mixed=True),
+        nelements=10,
+        polynomial_degree=2,
+        n_load_steps=2,
+        reduced_integration=False,
+    )
     # helix(Rod=make_CosseratRod_R12(mixed=False), nelements=10, polynomial_degree=2, n_load_steps = 500, reduced_integration=True)
-
-    
-
-
-    

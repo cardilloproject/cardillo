@@ -28,6 +28,7 @@ from pathlib import Path
 
 """ Cantilever oscillations """
 
+
 def cantilever(
     Rod,
     nelements=10,
@@ -43,7 +44,7 @@ def cantilever(
     # cross section properties for visualization purposes
     slenderness = 1.0e2
     width = length / slenderness
-    density = 80 # [kg / m^3]
+    density = 80  # [kg / m^3]
     # cross_section = RectangularCrossSection(density, width, width)
     cross_section = RectangularCrossSection(density, width, 3 * width)
     A = cross_section.area
@@ -52,8 +53,8 @@ def cantilever(
     K_I_rho0 = density * cross_section.second_moment
     Ip, Iy, Iz = np.diagonal(cross_section.second_moment)
 
-    E = 210.e6
-    G = 80.e6
+    E = 210.0e6
+    G = 80.0e6
     Ei = np.array([E * A, G * A, G * A])
     Fi = np.array([G * Ip, E * Iy, E * Iz])
 
@@ -87,20 +88,21 @@ def cantilever(
     system.add(cantilever)
     system.add(clamping_left)
 
-    if load_type=="force":
+    if load_type == "force":
         # spatially fixed load at cantilever tip
         P = lambda t: 5 * t * material_model.Fi[2] / length**2
         F = lambda t: -P(t) * e2
         load = K_Force(F, cantilever, (1,))
 
-    elif load_type=="torsion":
+    elif load_type == "torsion":
         # spatially fixed load at cantilever tip
         n = 1
-        P = lambda t: material_model.Fi[0] * t * 2 * pi * n  / length 
+        P = lambda t: material_model.Fi[0] * t * 2 * pi * n / length
         F = lambda t: P(t) * e1
         load = Moment(F, cantilever, (1,))
 
-    else: raise NotImplementedError("This load type has not been implemented")
+    else:
+        raise NotImplementedError("This load type has not been implemented")
 
     system.add(load)
     system.assemble()
@@ -125,10 +127,15 @@ def cantilever(
     system.remove(load)
     system.assemble()
 
-    dt = 1e-2
+    # dt = 1e-2
+    dt = 5e-3
+    # dt = 1e-3
     # solver = BackwardEuler(
     solver = BackwardEulerFixedPoint(
-        system, t1=1, dt=dt, atol=1e-6,
+        system,
+        t1=1,
+        dt=dt,
+        atol=1e-6,
     )
 
     sol = solver.solve()
@@ -186,11 +193,12 @@ def cantilever(
 if __name__ == "__main__":
     # SE3 interpolation:
     cantilever(
-        Rod=make_CosseratRod_SE3(mixed=True),
+        Rod=make_CosseratRod_SE3(mixed=False),
         nelements=5,
         polynomial_degree=1,
         n_load_steps=3,
         load_type="force",
+        # load_type="torsion",
         VTK_export=False,
     )
     # cantilever(
