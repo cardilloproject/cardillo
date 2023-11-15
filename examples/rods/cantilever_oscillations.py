@@ -11,7 +11,7 @@ from cardillo.beams.cosseratRod import (
 )
 
 from cardillo.constraints import RigidConnection
-from cardillo.solver import Newton, BackwardEuler
+from cardillo.solver import Newton, BackwardEuler, BackwardEulerFixedPoint
 from cardillo.forces import Force, K_Moment, Moment, K_Force
 
 from cardillo.math import e1, e2, e3
@@ -41,10 +41,11 @@ def cantilever(
     length = 2 * np.pi
 
     # cross section properties for visualization purposes
-    slenderness = 1.0e1
+    slenderness = 1.0e2
     width = length / slenderness
     density = 80 # [kg / m^3]
-    cross_section = RectangularCrossSection(density, width, width)
+    # cross_section = RectangularCrossSection(density, width, width)
+    cross_section = RectangularCrossSection(density, width, 3 * width)
     A = cross_section.area
     A_rho0 = density * cross_section.area
     K_S_rho0 = density * cross_section.first_moment
@@ -52,8 +53,7 @@ def cantilever(
     Ip, Iy, Iz = np.diagonal(cross_section.second_moment)
 
     E = 210.e6
-    # G = 80.e6
-    G = 80.e5
+    G = 80.e6
     Ei = np.array([E * A, G * A, G * A])
     Fi = np.array([G * Ip, E * Iy, E * Iz])
 
@@ -125,8 +125,10 @@ def cantilever(
     system.remove(load)
     system.assemble()
 
-    solver = BackwardEuler(
-        system, t1=0.1, dt=1e-3
+    dt = 1e-2
+    # solver = BackwardEuler(
+    solver = BackwardEulerFixedPoint(
+        system, t1=1, dt=dt, atol=1e-6,
     )
 
     sol = solver.solve()
@@ -138,7 +140,7 @@ def cantilever(
     # VTK export
     if VTK_export:
         path = Path(__file__)
-        e = Export(path.parent, path.stem, True, 3000, sol)
+        e = Export(path.parent, path.stem, True, 30, sol)
         e.export_contr(
             cantilever,
             level="centerline + directors",
@@ -189,7 +191,7 @@ if __name__ == "__main__":
         polynomial_degree=1,
         n_load_steps=3,
         load_type="force",
-        VTK_export=True,
+        VTK_export=False,
     )
     # cantilever(
     #     Rod=make_CosseratRod_SE3(mixed=False),

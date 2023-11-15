@@ -99,14 +99,14 @@ class BackwardEulerFixedPoint:
         #######################################################################
         self.zn = np.concatenate(
             (
-                self.dt * self.q_dotn,
-                self.dt * self.u_dotn,
-                self.dt * self.la_gn,
-                self.dt * self.la_gamman,
-                self.dt * self.la_cn,
-                self.dt * self.mu_Sn,
-                self.dt * self.la_Nn,
-                self.dt * self.la_Fn,
+                self.q_dotn,
+                self.u_dotn,
+                self.la_gn,
+                self.la_gamman,
+                self.la_cn,
+                self.mu_Sn,
+                self.la_Nn,
+                self.la_Fn,
             )
         )
         self.xn = self.zn[: self.nx].copy()
@@ -132,8 +132,8 @@ class BackwardEulerFixedPoint:
 
         tn, dt, qn, un = self.tn, self.dt, self.qn, self.un
         tn1 = tn + dt
-        qn1 = qn + q_dotn1
-        un1 = un + u_dotn1
+        qn1 = qn + q_dotn1 * dt
+        un1 = un + u_dotn1 * dt
 
         ###################
         # evaluate residual
@@ -145,7 +145,7 @@ class BackwardEulerFixedPoint:
         ####################
         g_S_q = self.system.g_S_q(tn1, qn1, scipy_matrix=csc_array)
         R_x[: self.split_x[0]] = (
-            q_dotn1 - self.dt * self.system.q_dot(tn1, qn1, un1) - g_S_q.T @ mu_Sn1
+            q_dotn1 - self.system.q_dot(tn1, qn1, un1) - g_S_q.T @ mu_Sn1
         )
 
         ####################
@@ -153,7 +153,7 @@ class BackwardEulerFixedPoint:
         ####################
         R_x[self.split_x[0] : self.split_x[1]] = (
             self.system.M(tn1, qn1, scipy_matrix=csr_array) @ u_dotn1
-            - self.dt * self.system.h(tn1, qn1, un1)
+            - self.system.h(tn1, qn1, un1)
             - self.system.W_g(tn1, qn1, scipy_matrix=csr_array) @ la_gn1
             - self.system.W_gamma(tn1, qn1, scipy_matrix=csr_array) @ la_gamman1
             - self.system.W_c(tn1, qn1, scipy_matrix=csr_array) @ la_cn1
@@ -180,7 +180,7 @@ class BackwardEulerFixedPoint:
         return R_x
 
     def J_x(self, xn1, yn1):
-        # return csc_array(approx_fprime(xn1, lambda x: self.R_x(x, yn1), method="3-point"))
+        # return csc_array(approx_fprime(xn1, lambda x: self.R_x(x, yn1), method="2-point"))
 
         (
             q_dotn1,
@@ -197,14 +197,14 @@ class BackwardEulerFixedPoint:
 
         tn, dt, qn, un = self.tn, self.dt, self.qn, self.un
         tn1 = tn + dt
-        qn1 = qn + q_dotn1
-        un1 = un + u_dotn1
+        qn1 = qn + q_dotn1 * dt
+        un1 = un + u_dotn1 * dt
 
         ####################
         # kinematic equation
         ####################
-        Rq_dot_q_dot = eye(self.nq) - (
-            dt * self.system.q_dot_q(tn1, qn1, un1)
+        Rq_dot_q_dot = eye(self.nq) - dt * (
+            self.system.q_dot_q(tn1, qn1, un1)
             + self.system.g_S_q_T_mu_q(tn1, qn1, mu_Sn1)
         )
         Rq_dot_u_dot = -dt * self.system.q_dot_u(tn1, qn1, un1)
@@ -218,9 +218,9 @@ class BackwardEulerFixedPoint:
         W_gamma = self.system.W_gamma(tn1, qn1)
         W_c = self.system.W_c(tn1, qn1)
 
-        Ru_dot_q_dot = (
+        Ru_dot_q_dot = dt * (
             self.system.Mu_q(tn1, qn1, u_dotn1)
-            - dt * self.system.h_q(tn1, qn1, un1)
+            - self.system.h_q(tn1, qn1, un1)
             - self.system.Wla_g_q(tn1, qn1, la_gn1)
             - self.system.Wla_gamma_q(tn1, qn1, la_gamman1)
             - self.system.Wla_c_q(tn1, qn1, la_cn1)
@@ -232,15 +232,15 @@ class BackwardEulerFixedPoint:
         #######################
         # bilateral constraints
         #######################
-        Rla_g_q_dot = self.system.g_q(tn1, qn1)
-        Rla_gamma_q_dot = self.system.gamma_q(tn1, qn1, un1)
-        Rla_gamma_u_dot = self.system.gamma_u(tn1, qn1, un1)
+        Rla_g_q_dot = dt * self.system.g_q(tn1, qn1)
+        Rla_gamma_q_dot = dt * self.system.gamma_q(tn1, qn1, un1)
+        Rla_gamma_u_dot = dt * self.system.gamma_u(tn1, qn1, un1)
 
         ############
         # compliance
         ############
-        Rla_c_q_dot = self.system.c_q(tn1, qn1, un1, la_cn1)
-        Rla_c_u_dot = self.system.c_u(tn1, qn1, un1, la_cn1)
+        Rla_c_q_dot = dt * self.system.c_q(tn1, qn1, un1, la_cn1)
+        Rla_c_u_dot = dt * self.system.c_u(tn1, qn1, un1, la_cn1)
         Rla_c_la_c = self.system.c_la_c(tn1, qn1, un1, la_cn1)
 
         # fmt: off
@@ -251,7 +251,7 @@ class BackwardEulerFixedPoint:
                 [    Rla_g_q_dot,            None, None,     None,       None,     None],
                 [Rla_gamma_q_dot, Rla_gamma_u_dot, None,     None,       None,     None],
                 [    Rla_c_q_dot,     Rla_c_u_dot, None,     None, Rla_c_la_c,     None],
-                [          g_S_q,            None, None,     None,       None,     None],
+                [     dt * g_S_q,            None, None,     None,       None,     None],
             ],
             format="csc",
         )
@@ -275,8 +275,8 @@ class BackwardEulerFixedPoint:
 
         tn, dt, qn, un = self.tn, self.dt, self.qn, self.un
         tn1 = tn + dt
-        qn1 = qn + q_dotn1
-        un1 = un + u_dotn1
+        qn1 = qn + q_dotn1 * dt
+        un1 = un + u_dotn1 * dt
 
         mu = self.system.mu
         prox_r_N = self.prox_r_N
@@ -335,6 +335,18 @@ class BackwardEulerFixedPoint:
             # perform a solver step
             tn1 = self.tn + self.dt
 
+            # xn1, converged, error, n_iter, _ = fsolve(
+            #     self.R_x,
+            #     self.xn,
+            #     jac=self.J_x,
+            #     fun_args=(self.yn,),
+            #     jac_args=(self.yn,),
+            #     atol=self.atol,
+            #     max_iter=self.max_iter,
+            # )
+
+            # yn1 = self.yn.copy()
+
             ########################
             # fixed-point iterations
             ########################
@@ -356,10 +368,10 @@ class BackwardEulerFixedPoint:
                 error_newton = np.max(np.absolute(R_newton))
                 converged_newton = error_newton < self.atol
 
-                # compute new Jacobian if requested
-                if i_newton > NEWTON_MAXITER and not converged:
-                    lu = splu(self.J_x(x0, y0))
-                    n_lu += 1
+                # # compute new Jacobian if requested
+                # if i_newton > NEWTON_MAXITER and not converged:
+                #     lu = splu(self.J_x(x0, y0))
+                #     n_lu += 1
 
                 # Newton loop with inexact Jacobian
                 i_newton = 0
@@ -369,6 +381,15 @@ class BackwardEulerFixedPoint:
                     R_newton = self.R_x(xn1, yn1)
                     error_newton = np.max(np.absolute(R_newton))
                     converged_newton = error_newton < self.atol
+                    # compute new Jacobian if requested
+                    if i_newton > NEWTON_MAXITER and not converged:
+                        # xn1 = x0.copy()
+                        # yn1 = y0.copy()
+                        R_newton = self.R_x(xn1, yn1)
+                        lu = splu(self.J_x(xn1, yn1))
+                        n_lu += 1
+                        i_newton = 0
+                        print(f"numnber of lu decompositions: {n_lu}")
 
                 assert converged_newton
 
@@ -412,8 +433,8 @@ class BackwardEulerFixedPoint:
                 la_Nn1,
                 la_Fn1,
             ) = np.array_split(yn1, self.split_y)
-            qn1 = self.qn + q_dotn1
-            un1 = self.un + u_dotn1
+            qn1 = self.qn + q_dotn1 * self.dt
+            un1 = self.un + u_dotn1 * self.dt
 
             # modify converged quantities
             qn1, un1 = self.system.step_callback(tn1, qn1, un1)
