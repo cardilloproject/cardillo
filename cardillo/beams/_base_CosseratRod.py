@@ -427,7 +427,7 @@ class CosseratRod(RodExportBase, ABC):
         for node in range(self.nnodes_psi):
             nodalDOF = self.nodalDOF_psi[node]
             nodalDOF_S = self.nodalDOF_la_S[node]
-            coo[nodalDOF, nodalDOF] = 2 * mu * np.eye(4)
+            coo[nodalDOF, nodalDOF] = 2 * mu[node] * np.eye(4)
         return coo
 
     #########################################
@@ -456,7 +456,7 @@ class CosseratRod(RodExportBase, ABC):
         coo = CooMatrix((self.nq, self.nu))
 
         # trivial kinematic equation for centerline
-        coo[range(self.nq_r), range(self.nu_r)] = np.ones(self.nq_r)
+        coo[range(self.nq_r), range(self.nu_r)] = np.eye(self.nq_r)
 
         # axis angle vector part
         for node in range(self.nnodes_psi):

@@ -5,7 +5,7 @@ from cardillo.beams import (
     animate_beam,
 )
 
-from cardillo.beams.cosseratRodPG import (
+from cardillo.beams.cosseratRod import (
     make_CosseratRod_SE3,
     make_CosseratRod_R12,
     make_CosseratRod_Quat,

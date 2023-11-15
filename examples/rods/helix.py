@@ -7,7 +7,7 @@ from cardillo.beams import (
 from cardillo.discrete import Frame
 from cardillo.constraints import RigidConnection
 from cardillo.beams import animate_beam
-from cardillo.beams.cosseratRodPG import (
+from cardillo.beams.cosseratRod import (
     make_CosseratRod_R12,
     make_CosseratRod_Quat,
     make_CosseratRod_SE3,
@@ -170,8 +170,8 @@ if __name__ == "__main__":
     # helix(Rod=make_CosseratRod_Quat(mixed=False), nelements=10, polynomial_degree=2, n_load_steps = 500, reduced_integration=True)
     
     # R12 interpolation:
-    # helix(Rod=make_CosseratRod_R12(mixed=True), nelements=10, polynomial_degree=2, n_load_steps = 2, reduced_integration=False)
-    helix(Rod=make_CosseratRod_R12(mixed=False), nelements=10, polynomial_degree=2, n_load_steps = 500, reduced_integration=True)
+    helix(Rod=make_CosseratRod_R12(mixed=True), nelements=10, polynomial_degree=2, n_load_steps = 2, reduced_integration=False)
+    # helix(Rod=make_CosseratRod_R12(mixed=False), nelements=10, polynomial_degree=2, n_load_steps = 500, reduced_integration=True)
 
     
 
