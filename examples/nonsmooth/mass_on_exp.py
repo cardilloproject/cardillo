@@ -10,8 +10,7 @@ from cardillo import System
 
 from cardillo.solver import (
     convergence_analysis,
-    MoreauClassical,
-    MoreauShifted,
+    Moreau,
     Rattle,
     NPIRK,
     NonsmoothGeneralizedAlpha,

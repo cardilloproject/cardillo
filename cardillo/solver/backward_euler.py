@@ -3,6 +3,7 @@ from scipy.sparse import csc_array, csr_array, eye, bmat
 from scipy.sparse.linalg import splu
 from tqdm import tqdm
 
+from cardillo.solver import SolverOptions
 from cardillo.math import fsolve, prox_R0_nm, prox_sphere
 from cardillo.solver import Solution
 
@@ -16,14 +17,16 @@ class BackwardEuler:
         system,
         t1,
         dt,
-        rtol=1e-6,
-        atol=1e-8,
-        max_iter=10,
-        max_iter_fixed_point=int(1e3),
-        reuse_lu_decomposition=True,
+        # rtol=1e-6,
+        # atol=1e-8,
+        # max_iter=10,
+        # max_iter_fixed_point=int(1e3),
+        # reuse_lu_decomposition=True,
+        options=SolverOptions(),
     ):
+        self.options = options
         self.system = system
-        self.reuse_lu_decomposition = reuse_lu_decomposition
+        # self.reuse_lu_decomposition = reuse_lu_decomposition
 
         #######################################################################
         # integration time
@@ -34,13 +37,13 @@ class BackwardEuler:
         )
         self.dt = dt
 
-        #######################################################################
-        # newton settings
-        #######################################################################
-        self.rtol = rtol
-        self.atol = atol
-        self.max_iter = max_iter
-        self.max_iter_fixed_point = max_iter_fixed_point
+        # #######################################################################
+        # # newton settings
+        # #######################################################################
+        # self.rtol = rtol
+        # self.atol = atol
+        # self.max_iter = max_iter
+        # self.max_iter_fixed_point = max_iter_fixed_point
 
         #######################################################################
         # dimensions
@@ -324,7 +327,7 @@ class BackwardEuler:
         n_lu = 0
 
         # initial Jacobian
-        if self.reuse_lu_decomposition:
+        if self.options.reuse_lu_decomposition:
             i_newton = 0
             lu = splu(self.J_x(self.xn.copy(), self.yn.copy()))
             n_lu += 1

@@ -9,7 +9,7 @@ from cardillo import System
 from cardillo.discrete import Frame, PointMass
 from cardillo.constraints import FixedDistance
 from cardillo.forces import Force
-from cardillo.solver import ScipyIVP, MoreauClassical, BackwardEuler
+from cardillo.solver import ScipyIVP, Moreau, BackwardEuler
 
 
 class Mathematical_pendulum3D_excited:
@@ -66,7 +66,7 @@ class Mathematical_pendulum3D_excited:
 
 solvers_and_kwargs = [
     (ScipyIVP, {}),
-    (MoreauClassical, {}),
+    (Moreau, {}),
     (BackwardEuler, {}),
 ]
 
@@ -228,5 +228,5 @@ def test_fixed_distance(Solver, kwargs, show=False):
 
 if __name__ == "__main__":
     test_fixed_distance(ScipyIVP, {}, show=True)
-    test_fixed_distance(MoreauClassical, {}, show=True)
+    test_fixed_distance(Moreau, {}, show=True)
     test_fixed_distance(BackwardEuler, {}, show=True)

@@ -5,7 +5,7 @@ from scipy.integrate import solve_ivp
 import pytest
 
 from cardillo import System
-from cardillo.solver import ScipyIVP, MoreauClassical, BackwardEuler
+from cardillo.solver import ScipyIVP, Moreau, BackwardEuler
 from cardillo.constraints import RigidConnection, Cylindrical, Prismatic
 from cardillo.discrete import Frame, RigidBody
 from cardillo.forces import Force, ScalarForceTranslational, LinearSpring, LinearDamper
@@ -364,7 +364,7 @@ def run(
 
 solver_and_kwargs = [
     (ScipyIVP, {}),
-    (MoreauClassical, {}),
+    (Moreau, {}),
     # (BackwardEuler, {}), # TODO: Fix singular Jacobian
 ]
 
@@ -394,12 +394,12 @@ if __name__ == "__main__":
     # Cylindrical
     #############
     run("Cylindrical", RigidBody, ScipyIVP, show=True)
-    run("Cylindrical", RigidBody, MoreauClassical, show=True)
+    run("Cylindrical", RigidBody, Moreau, show=True)
     # run("Cylindrical", RigidBody, BackwardEuler, show=True)
 
     ###########
     # Prismatic
     ###########
     run("Prismatic", RigidBody, ScipyIVP, show=True)
-    run("Prismatic", RigidBody, MoreauClassical, show=True)
+    run("Prismatic", RigidBody, Moreau, show=True)
     # run("Prismatic", RigidBody, BackwardEuler, show=True)

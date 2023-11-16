@@ -9,7 +9,7 @@ from cardillo import System
 from cardillo.solver import (
     MoreauShifted,
     Rattle,
-    MoreauClassical,
+    Moreau,
     NPIRK,
 )
 from cardillo.solver._butcher_tableaus import RadauIIATableau
@@ -1122,7 +1122,7 @@ def run_DAE(export=True):
     #     "MoreauShifted",
     # )
     sol2, label2 = (
-        MoreauClassical(system, t_final, dt2, max_iter=500).solve(),
+        Moreau(system, t_final, dt2, max_iter=500).solve(),
         "MoreauClassical",
     )
     # sol2, label2 = (
