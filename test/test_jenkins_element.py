@@ -7,7 +7,7 @@ from cardillo.math import prox_sphere, prox_sphere_x, fsolve
 from cardillo.discrete import PointMass
 from cardillo.forces import MaxwellElement as MaxwellElementFL  # TODO: This is unused!
 from cardillo.forces import Force
-from cardillo.solver import ScipyIVP, MoreauClassical, BackwardEuler
+from cardillo.solver import ScipyIVP, Moreau, BackwardEuler
 
 
 class JenkinsElement:

@@ -8,8 +8,7 @@ from ..utility.convergence_analysis import convergence_analysis
 # dynamic solvers
 from .scipy_ivp import ScipyIVP
 from .moreau import (
-    MoreauShifted,
-    MoreauClassical,
+    Moreau,
 )
 from .backward_euler import BackwardEuler
 from .generalized_alpha_first_order import GeneralizedAlphaFirstOrder

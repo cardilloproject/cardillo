@@ -9,9 +9,7 @@ from cardillo.math import axis_angle2quat, Exp_SO3_quat, cross3
 from cardillo.forces import Force
 from cardillo.contacts import Sphere2PlaneCoulombContensouMoeller
 from cardillo.solver import (
-    MoreauShifted,
-    MoreauClassical,
-    MoreauShiftedNew,
+    Moreau,
     Rattle,
     NonsmoothGeneralizedAlpha,
 )
@@ -141,7 +139,7 @@ def run(export=True):
     )
 
     sol2, label2 = (
-        MoreauClassical(system, t_final, dt2, atol=1e-12).solve(),
+        Moreau(system, t_final, dt2, atol=1e-12).solve(),
         "Moreau",
     )
 
@@ -541,7 +539,7 @@ def convergence(export=True):
     for i, dt in enumerate(dts):
         print(f"i: {i}, dt: {dt:1.1e}")
 
-        sol = MoreauClassical(system, t1, dt, atol=tol).solve()
+        sol = Moreau(system, t1, dt, atol=tol).solve()
         (
             q_errors_transient[0, i],
             u_errors_transient[0, i],

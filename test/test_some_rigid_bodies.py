@@ -3,7 +3,7 @@ from pathlib import Path
 from cardillo.discrete import RigidBody
 from cardillo.discrete.shapes import Cuboid, Ball, Cylinder, FromSTL, Tetrahedron
 from cardillo import System
-from cardillo.solver import MoreauClassical
+from cardillo.solver import Moreau
 from cardillo.visualization import Export
 
 
@@ -66,7 +66,7 @@ def test_some_rigid_bodies():
     system.add(ball, box, cylinder, stl_box, tetrahedron)
     system.assemble()
 
-    sol = MoreauClassical(system, 10, 1e-2).solve()
+    sol = Moreau(system, 10, 1e-2).solve()
 
     e = Export(
         path=path.parent, 
