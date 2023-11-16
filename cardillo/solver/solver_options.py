@@ -13,5 +13,5 @@ class SolverOptions:
     newton_rtol: float = 1e-8
     newton_reuse_lu_decomposition: bool = True
     error_function: callable = lambda x: max(abs(x))
-    prox_scaling: float = 1.0
+    prox_scaling: float = 1.0  # TODO: Discuss using 0.5 for safety
     continue_with_unconverged: bool = True
