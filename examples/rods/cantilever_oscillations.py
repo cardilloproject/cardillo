@@ -11,7 +11,7 @@ from cardillo.beams.cosseratRod import (
 )
 
 from cardillo.constraints import RigidConnection
-from cardillo.solver import Newton, BackwardEuler, BackwardEulerFixedPoint
+from cardillo.solver import Newton, BackwardEuler
 from cardillo.forces import Force, K_Moment, Moment, K_Force
 
 from cardillo.math import e1, e2, e3
@@ -130,12 +130,11 @@ def cantilever(
     # dt = 1e-2
     dt = 5e-3
     # dt = 1e-3
-    # solver = BackwardEuler(
-    solver = BackwardEulerFixedPoint(
+    solver = BackwardEuler(
         system,
         t1=1,
         dt=dt,
-        atol=1e-6,
+        # atol=1e-6,
     )
 
     sol = solver.solve()

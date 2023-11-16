@@ -234,8 +234,16 @@ if __name__ == "__main__":
     # cantilever(Rod=make_CosseratRod_R12(mixed=False), nelements=10, polynomial_degree=2, n_load_steps = 3, rod_hypothesis_penalty="inextensible_shear_rigid", constitutive_law=Harsch2021)
 
     # For shear-rigid rods Harsch2021 and Simo1986 coincide. For Simo1986 also more robust mixed formulations are available
-    cantilever(Rod=make_CosseratRod_R12(mixed=False, constraints=[1, 2]), nelements=10, polynomial_degree=2, n_load_steps = 3, rod_hypothesis_penalty="shear_rigid", mixed=False, reduced_integration=True,
-               constitutive_law=Simo1986)
+    cantilever(
+        Rod=make_CosseratRod_R12(mixed=False, constraints=[1, 2]),
+        nelements=10,
+        polynomial_degree=2,
+        n_load_steps=3,
+        rod_hypothesis_penalty="shear_rigid",
+        mixed=False,
+        reduced_integration=True,
+        constitutive_law=Simo1986,
+    )
     # cantilever(
     #     Rod=make_CosseratRod_R12(mixed=True),
     #     nelements=10,

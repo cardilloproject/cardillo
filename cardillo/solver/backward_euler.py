@@ -1,15 +1,13 @@
 import numpy as np
-from scipy.sparse import csc_array, csr_array, eye, diags, bmat
-from scipy.sparse import csr_matrix
+from scipy.sparse import csc_array, csr_array, eye, bmat
 from scipy.sparse.linalg import splu
 from tqdm import tqdm
 
-from cardillo.math import fsolve, approx_fprime, prox_R0_nm, prox_sphere
+from cardillo.math import fsolve, prox_R0_nm, prox_sphere
 from cardillo.solver import Solution
-from cardillo.utility.coo_matrix import CooMatrix
 
 
-NEWTON_MAXITER = 4  # Maximum number of Newton iterations.
+NEWTON_MAXITER = 4  # maximum number of Newton iterations
 
 
 class BackwardEuler:
@@ -18,12 +16,14 @@ class BackwardEuler:
         system,
         t1,
         dt,
+        rtol=1e-6,
         atol=1e-8,
         max_iter=10,
         max_iter_fixed_point=int(1e3),
         reuse_lu_decomposition=True,
     ):
         self.system = system
+        self.reuse_lu_decomposition = reuse_lu_decomposition
 
         #######################################################################
         # integration time
@@ -37,6 +37,7 @@ class BackwardEuler:
         #######################################################################
         # newton settings
         #######################################################################
+        self.rtol = rtol
         self.atol = atol
         self.max_iter = max_iter
         self.max_iter_fixed_point = max_iter_fixed_point
@@ -98,7 +99,7 @@ class BackwardEuler:
         #######################################################################
         # initial values
         #######################################################################
-        self.zn = self.dt * np.concatenate(
+        self.xn = self.dt * np.concatenate(
             (
                 self.q_dotn,
                 self.u_dotn,
@@ -106,12 +107,14 @@ class BackwardEuler:
                 self.la_gamman,
                 self.la_cn,
                 self.mu_Sn,
+            )
+        )
+        self.yn = self.dt * np.concatenate(
+            (
                 self.la_Nn,
                 self.la_Fn,
             )
         )
-        self.xn = self.zn[: self.nx].copy()
-        self.yn = self.zn[self.nx :].copy()
 
     def R_x(self, xn1, yn1):
         (
@@ -179,8 +182,6 @@ class BackwardEuler:
         return R_x
 
     def J_x(self, xn1, yn1):
-        # return csc_array(approx_fprime(xn1, lambda x: self.R_x(x, yn1), method="2-point"))
-
         (
             q_dotn1,
             u_dotn1,
@@ -320,11 +321,13 @@ class BackwardEuler:
 
         n_iter_list = [0]
         errors = [0.0]
+        n_lu = 0
 
         # initial Jacobian
-        i_newton = 0
-        lu = splu(self.J_x(self.xn.copy(), self.yn.copy()))
-        n_lu = 1
+        if self.reuse_lu_decomposition:
+            i_newton = 0
+            lu = splu(self.J_x(self.xn.copy(), self.yn.copy()))
+            n_lu += 1
 
         pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
         for _ in pbar:
@@ -334,20 +337,6 @@ class BackwardEuler:
 
             # perform a solver step
             tn1 = self.tn + self.dt
-
-            # ###############
-            # # smooth Newton
-            # ###############
-            # xn1, converged, error, n_iter, _ = fsolve(
-            #     self.R_x,
-            #     self.xn,
-            #     jac=self.J_x,
-            #     fun_args=(self.yn.copy(),),
-            #     jac_args=(self.yn.copy(),),
-            #     atol=self.atol,
-            #     max_iter=self.max_iter,
-            # )
-            # yn1 = self.yn.copy()
 
             ########################
             # fixed-point iterations
@@ -359,33 +348,45 @@ class BackwardEuler:
             # fixed-point loop
             xn1 = x0.copy()
             yn1 = y0.copy()
-            # lu = splu(self.J_x(xn1, yn1))
-            # n_lu += 1
             converged = False
             n_state = self.nx - self.nla_g - self.nla_gamma
             for n_iter in range(self.max_iter_fixed_point):
                 # find proximal point
                 yn1 = self.prox(xn1, yn1)
 
-                # compute new residual and check convergence
-                R_newton = self.R_x(xn1, yn1)
-                error_newton = np.max(np.absolute(R_newton))
-                converged_newton = error_newton < self.atol
-
-                # Newton loop with inexact Jacobian
-                i_newton = 0
-                while (not converged_newton) and (i_newton < self.max_iter):
-                    i_newton += 1
-                    # compute new Jacobian if requested
-                    if i_newton >= NEWTON_MAXITER:
-                        lu = splu(self.J_x(xn1, yn1))
-                        n_lu += 1
-                        i_newton = 0
-
-                    xn1 -= lu.solve(R_newton)
+                if self.reuse_lu_decomposition:
+                    # compute new residual and check convergence
                     R_newton = self.R_x(xn1, yn1)
                     error_newton = np.max(np.absolute(R_newton))
                     converged_newton = error_newton < self.atol
+
+                    # Newton loop with inexact Jacobian
+                    if not converged_newton:
+                        i_newton = 0
+                    while (not converged_newton) and (i_newton < self.max_iter):
+                        i_newton += 1
+                        # compute new Jacobian if requested
+                        if i_newton >= NEWTON_MAXITER:
+                            lu = splu(self.J_x(xn1, yn1))
+                            n_lu += 1
+                            i_newton = 0
+
+                        xn1 -= lu.solve(R_newton)
+                        R_newton = self.R_x(xn1, yn1)
+                        error_newton = np.max(np.absolute(R_newton))
+                        converged_newton = error_newton < self.atol
+
+                else:
+                    xn1, converged_newton, error_newton, i_newton, _ = fsolve(
+                        self.R_x,
+                        self.xn,
+                        jac=self.J_x,
+                        fun_args=(yn1,),
+                        jac_args=(yn1,),
+                        atol=self.atol,
+                        max_iter=self.max_iter,
+                    )
+                    n_lu += i_newton
 
                 # # convergence percussions (note: only for reference, but
                 # # useless for redundant contacts)
@@ -394,9 +395,15 @@ class BackwardEuler:
                 # convergence in smooth state (without Lagrange multipliers)
                 diff = xn1[:n_state] - x0[:n_state]
 
-                error = np.max(np.absolute(diff))
+                # error measure, see Hairer1993, Section II.4
+                sc = (
+                    self.atol
+                    + np.maximum(np.abs(x0[:n_state]), np.abs(xn1[:n_state]))
+                    * self.rtol
+                )
+                error = np.linalg.norm(diff / sc) / sc.size**0.5
+                converged = error < 1.0 and converged_newton
 
-                converged = error < self.atol and converged_newton
                 if converged:
                     break
                 else:
@@ -404,14 +411,12 @@ class BackwardEuler:
                     x0 = xn1.copy()
                     y0 = yn1.copy()
 
-            zn1 = np.concatenate((xn1, yn1))
-
             n_iter_list.append(n_iter)
             errors.append(error)
 
             # update progress bar
             pbar.set_description(
-                f"t: {tn1:0.2e}s < {self.t1:0.2e}s; ||R||: {error:0.2e} ({n_iter}/{self.max_iter_fixed_point})"
+                f"t: {tn1:0.2e}s < {self.t1:0.2e}s; ||R||: {error:0.2e} ({n_iter}({i_newton})/{self.max_iter_fixed_point})"
             )
 
             # compute state
@@ -449,7 +454,6 @@ class BackwardEuler:
             # update local variables for accepted time step
             self.xn = xn1.copy()
             self.yn = yn1.copy()
-            self.zn = zn1.copy()
             self.tn = tn1
             self.qn = qn1
             self.un = un1
@@ -478,4 +482,3 @@ class BackwardEuler:
             mu_S=np.array(mu_S),
             niter=np.array(n_iter_list),
         )
-

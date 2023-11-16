@@ -11,7 +11,7 @@ from .moreau import (
     MoreauShifted,
     MoreauClassical,
 )
-from .backward_euler import BackwardEuler, BackwardEulerFixedPoint
+from .backward_euler import BackwardEuler
 from .generalized_alpha_first_order import GeneralizedAlphaFirstOrder
 from .nonsmooth_generalized_alpha import (
     NonsmoothGeneralizedAlpha,

@@ -11,7 +11,6 @@ from cardillo.solver import (
     Rattle,
     MoreauClassical,
     BackwardEuler,
-    BackwardEulerFixedPoint,
 )
 
 
@@ -148,8 +147,8 @@ def run(case, export=False):
     y_dot0 = 0
     # dt = 5e-4
     # dt = 1e-3
-    # dt = 5e-3
-    dt = 1e-2
+    dt = 5e-3
+    # dt = 1e-2
     # dt = 5e-2
 
     if case == 1:
@@ -220,11 +219,7 @@ def run(case, export=False):
     # solver1, label1 = MoreauShifted(system, t_final, dt), "MoreauShifted"
     # solver1, label1 = MoreauShiftedNew(system, t_final, dt), "MoreauShiftedNew"
     # solver1, label1 = MoreauClassical(system, t_final, dt), "MoreauClassical"
-    # solver1, label1 = BackwardEuler(system, t_final, dt), "Backward Euler"
-    solver1, label1 = (
-        BackwardEulerFixedPoint(system, t_final, dt),
-        "BackwardEulerFixedPoint",
-    )
+    solver1, label1 = BackwardEuler(system, t_final, dt), "Backward BackwardEuler"
 
     sol1 = solver1.solve()
     t1 = sol1.t
