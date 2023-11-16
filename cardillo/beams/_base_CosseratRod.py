@@ -1949,6 +1949,15 @@ def make_CosseratRodConstrained(mixed=False, constraints=[1, 2]):
                 mixed=mixed,
             )
 
+            self.constraints = np.array(constraints)
+            self.constraints_gamma = self.constraints[(self.constraints<=3)]
+            self.nconstraints_gamma = len(self.constraints_gamma)
+            
+            self.constraints_kappa = self.constraints[(self.constraints>=3)]
+            self.nconstraints_kappa = len(self.constraints_kappa)
+
+
+
             #######################################################
             # discretization parameters internal forces and moments
             #######################################################
@@ -1959,11 +1968,11 @@ def make_CosseratRodConstrained(mixed=False, constraints=[1, 2]):
             self.mesh_la_g = Mesh1D(
                 self.knot_vector_la_g,
                 nquadrature,
-                dim_q=6,
+                dim_q=len(self.constraints),
                 derivative_order=0,
                 basis="Lagrange_Disc",
                 quadrature="Gauss",
-                dim_u=6,
+                dim_u=len(self.constraints),
             )
 
             # total number of nodes
@@ -2024,7 +2033,7 @@ def make_CosseratRodConstrained(mixed=False, constraints=[1, 2]):
                                         (K_Kappa_bar - J * K_Kappa0) * qwi])
 
                 for node in range(self.nnodes_element_la_g):
-                    g_el[self.nodalDOF_element_la_g[node]] -= self.N_la_g[el, i, node] * delta_strains
+                    g_el[self.nodalDOF_element_la_g[node]] -= self.N_la_g[el, i, node] * delta_strains[self.constraints]
 
             return g_el
 
@@ -2061,7 +2070,7 @@ def make_CosseratRodConstrained(mixed=False, constraints=[1, 2]):
 
                 for node in range(self.nnodes_element_la_g):
                     nodalDOF_la_g = self.nodalDOF_element_la_g[node]
-                    g_q_el[nodalDOF_la_g, :] -= self.N_la_g[el, i, node] * delta_strains_qe * qwi
+                    g_q_el[nodalDOF_la_g, :] -= self.N_la_g[el, i, node] * delta_strains_qe[self.constraints, :] * qwi
 
             return g_q_el
 
@@ -2094,8 +2103,8 @@ def make_CosseratRodConstrained(mixed=False, constraints=[1, 2]):
                     N_r_xi = self.N_r_xi[el, i, node_r]
                     for node_la_g in range(self.nnodes_element_la_g):
                         nodalDOF_la_g = self.nodalDOF_element_la_g[node_la_g]
-                        W_g_el[nodalDOF_r[:, None], nodalDOF_la_g[:3]] -= (
-                            N_r_xi * A_IK * self.N_la_g[el, i, node_la_g] * qwi
+                        W_g_el[nodalDOF_r[:, None], nodalDOF_la_g[self._nconstraints_gamma]] -= (
+                            N_r_xi * A_IK[:, self.constraints_gamma] * self.N_la_g[el, i, node_la_g] * qwi
                         )
 
                 for node_psi in range(self.nnodes_element_psi):
