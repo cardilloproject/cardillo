@@ -11,6 +11,7 @@ from cardillo.solver import (
     Rattle,
     MoreauClassical,
     BackwardEuler,
+    BackwardEulerFixedPoint,
 )
 
 
@@ -18,7 +19,8 @@ class RotatingBouncingBall:
     def __init__(self, mass, radius, gravity, e_N, e_F, mu, q0, u0):
         self.mass = mass
         self.radius = radius
-        theta = 2 / 5 * mass * radius**2
+        self.Theta_S = 2 / 5 * mass * radius**2
+        self.gravity = gravity
 
         self.nq = 3
         self.nu = 3
@@ -33,9 +35,6 @@ class RotatingBouncingBall:
         self.mu = np.atleast_1d(mu)
         self.e_N = np.atleast_1d(e_N)
         self.e_F = np.atleast_1d(e_F)
-
-        self._M = np.diag([mass, mass, theta])
-        self._h = np.array([0, -gravity * mass, 0])
 
     #####################
     # kinematic equations
@@ -53,10 +52,10 @@ class RotatingBouncingBall:
     # equations of motion
     #####################
     def M(self, t, q):
-        return self._M
+        return np.diag([self.mass, self.mass, self.Theta_S])
 
     def h(self, t, q, u):
-        return self._h
+        return np.array([0, -self.gravity * self.mass, 0])
 
     #################
     # normal contacts
@@ -102,15 +101,36 @@ class RotatingBouncingBall:
     def Wla_F_q(self, t, q, la_F):
         return np.zeros((self.nu, self.nq))
 
+    ###############
     # visualization
-    def boundary(self, t, q, n=100):
-        raise NotImplementedError
-        phi = np.linspace(0, 2 * np.pi, n, endpoint=True)
-        K_r_SP = self.radius * np.vstack([np.sin(phi), np.cos(phi), np.zeros(n)])
-        return np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ K_r_SP
+    ###############
+    def boundary(self, t, q, num=100):
+        x, y, phi = q
+        # fmt: off
+        A_IK = np.array([
+            [np.cos(phi), -np.sin(phi)], 
+            [np.sin(phi),  np.cos(phi)]
+        ])
+        # fmt: on
+
+        def A_IK(theta):
+            # fmt: off
+            return np.array([
+                [np.cos(phi + theta), -np.sin(phi + theta)], 
+                [np.sin(phi + theta),  np.cos(phi + theta)]
+            ])
+            # fmt: on
+
+        phis = np.linspace(0, 2 * np.pi, num=num, endpoint=True)
+
+        r_OS = np.array([x, y])
+        r_OPs = np.array(
+            [r_OS + A_IK(phi) @ np.array([self.radius, 0]) for phi in phis]
+        ).T
+        return np.concatenate((r_OS[:, None], r_OPs), axis=-1)
 
 
-def run(case, export=True):
+def run(case, export=False):
     """Example 10.1 of Capobianco2021.
 
     Three different cases are implemented:
@@ -161,23 +181,25 @@ def run(case, export=True):
     else:
         raise AssertionError("Case not found!")
 
-    # q0 = np.array([x0, y0, 0], dtype=float)
-    # u0 = np.array([x_dot0, y_dot0, omega], dtype=float)
+    q0 = np.array([x0, y0, 0], dtype=float)
+    u0 = np.array([x_dot0, y_dot0, omega], dtype=float)
 
-    # TODO: Remove this
-    q0 = np.array([x0, 0.1, 0], dtype=float)
-    x_dot0 = 0.1
-    omega = -1
-    u0 = np.array([x_dot0, 0, omega], dtype=float)
+    # # TODO: Remove this
+    # q0 = np.array([x0, 0.1, 0], dtype=float)
+    # # x_dot0 = 0.1
+    # # omega = -1
+    # x_dot0 = 1
+    # omega = 0
+    # u0 = np.array([x_dot0, 0, omega], dtype=float)
 
     mass = 1.0
     radius = 0.1
     gravity = 9.81
 
-    RB = RotatingBouncingBall(mass, radius, gravity, e_N, e_F, mu, q0, u0)
+    ball = RotatingBouncingBall(mass, radius, gravity, e_N, e_F, mu, q0, u0)
 
     system = System()
-    system.add(RB)
+    system.add(ball)
 
     system.assemble()
 
@@ -198,7 +220,11 @@ def run(case, export=True):
     # solver1, label1 = MoreauShifted(system, t_final, dt), "MoreauShifted"
     # solver1, label1 = MoreauShiftedNew(system, t_final, dt), "MoreauShiftedNew"
     # solver1, label1 = MoreauClassical(system, t_final, dt), "MoreauClassical"
-    solver1, label1 = BackwardEuler(system, t_final, dt), "Backward Euler"
+    # solver1, label1 = BackwardEuler(system, t_final, dt), "Backward Euler"
+    solver1, label1 = (
+        BackwardEulerFixedPoint(system, t_final, dt),
+        "BackwardEulerFixedPoint",
+    )
 
     sol1 = solver1.solve()
     t1 = sol1.t
@@ -368,21 +394,21 @@ def run(case, export=True):
 
     plt.tight_layout()
 
-    plt.show()
-    exit()
-
+    ###########
+    # animation
+    ###########
     t = t1
     q = q1
 
-    # animate configurations
     fig = plt.figure()
     ax = fig.add_subplot(111)
 
     ax.set_xlabel("x [m]")
     ax.set_ylabel("y [m]")
     ax.axis("equal")
-    ax.set_xlim(-2 * y0, 2 * y0)
-    ax.set_ylim(-2 * y0, 2 * y0)
+    width = 1.5
+    ax.set_xlim(-width, width)
+    ax.set_ylim(-width, width)
 
     # prepare data for animation
     frames = len(t)
@@ -396,33 +422,23 @@ def run(case, export=True):
     q = q[::frac]
 
     # horizontal plane
-    ax.plot([-2 * y0, 2 * y0], [0, 0], "-k")
+    ax.plot([-2 * width, 2 * width], [0, 0], "-k")
 
     def create(t, q):
-        x_S, y_S, _ = RB.r_OP(t, q)
-
-        A_IK = RB.A_IK(t, q)
-        d1 = A_IK[:, 0] * radius
-        d2 = A_IK[:, 1] * radius
-        # d3 = A_IK[:, 2] * r
-
-        (COM,) = ax.plot([x_S], [y_S], "ok")
+        (COM,) = ax.plot([], [], "ok")
         (bdry,) = ax.plot([], [], "-k")
-        (d1_,) = ax.plot([x_S, x_S + d1[0]], [y_S, y_S + d1[1]], "-r")
-        (d2_,) = ax.plot([x_S, x_S + d2[0]], [y_S, y_S + d2[1]], "-g")
+        (d1_,) = ax.plot([], [], "-r")
+        (d2_,) = ax.plot([], [], "-g")
         return COM, bdry, d1_, d2_
 
     COM, bdry, d1_, d2_ = create(0, q[0])
 
     def update(t, q, COM, bdry, d1_, d2_):
-        x_S, y_S, _ = RB.r_OP(t, q)
+        x_S, y_S, phi = q
+        d1 = np.array([np.cos(phi), np.sin(phi), 0]) * radius
+        d2 = np.array([-np.sin(phi), np.cos(phi), 0]) * radius
 
-        x_bdry, y_bdry, _ = RB.boundary(t, q)
-
-        A_IK = RB.A_IK(t, q)
-        d1 = A_IK[:, 0] * radius
-        d2 = A_IK[:, 1] * radius
-        # d3 = A_IK[:, 2] * r
+        x_bdry, y_bdry = ball.boundary(t, q)
 
         COM.set_data([x_S], [y_S])
         bdry.set_data(x_bdry, y_bdry)

@@ -321,6 +321,67 @@ def Cylinder(Base):
     return _Cylinder
 
 
+def Tetrahedron(Base):
+    class _Tetrahedron(Base):
+        def __init__(self, **kwargs):
+            """Generate a tetrahedron shaped object with Base chosen on generation. Inertia K_Theta_S if needed by Base is computed.
+
+            Args:
+                edge:       length of each edge
+                mass:       mass of Tetrahedron; either mass or density must be set
+                density:    density of Cuboid; either mass or density must be set
+                **kwargs:   further arguments needed by Base
+            """
+            self.edge = kwargs.pop("edge")
+            mass = kwargs.pop("mass", None)
+            density = kwargs.pop("density", None)
+
+            # see https://de.wikipedia.org/wiki/Tetraeder
+            h_D = self.edge * np.sqrt(3) / 2
+            h_P = self.edge * np.sqrt(2 / 3)
+            r_OS = np.array([0, h_D / 3, h_P / 4])
+            p1 = np.array([-self.edge / 2, 0, 0]) - r_OS
+            p2 = np.array([+self.edge / 2, 0, 0]) - r_OS
+            p3 = np.array([0, h_D, 0]) - r_OS
+            p4 = np.array([0, h_D / 3, h_P]) - r_OS
+            self.points = np.vstack((p1, p2, p3, p4))
+
+            # see https://de.wikipedia.org/wiki/Liste_von_Tr%C3%A4gheitstensoren#Platonische_K%C3%B6rper
+            if density is not None:
+                mass = density * self.edge**3 * np.sqrt(2) / 12
+            elif mass is None:
+                raise TypeError("mass and density cannot both have type None")
+
+            K_Theta_S = self.edge**2 * (mass / 20) * np.eye(3)
+
+            kwargs.update({"mass": mass, "K_Theta_S": K_Theta_S})
+
+            super().__init__(**kwargs)
+
+        def export(self, sol_i, base_export=False, **kwargs):
+            if base_export:
+                return super().export(sol_i, **kwargs)
+            else:
+                points, vel = [], []
+                for point in self.points:
+                    points.append(self.r_OP(sol_i.t, sol_i.q[self.qDOF], K_r_SP=point))
+
+                    vel.append(
+                        self.v_P(
+                            sol_i.t,
+                            sol_i.q[self.qDOF],
+                            sol_i.u[self.uDOF],
+                            K_r_SP=point,
+                        )
+                    )
+
+                cells = [("tetra", [[0, 1, 2, 3]])]
+                point_data = dict(v=vel)
+            return points, cells, point_data, None
+
+    return _Tetrahedron
+
+
 def FromSTL(Base):
     class _FromSTL(Base):
         def __init__(self, path, K_r_SP, scale: float = 1.0, **kwargs):

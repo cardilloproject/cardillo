@@ -5,10 +5,10 @@ from cardillo.beams import (
     animate_beam,
 )
 
-from cardillo.beams.cosseratRodPGMixed import (
-    CosseratRodPG_R12Mixed,
-    CosseratRodPG_QuatMixed,
-    CosseratRodPG_SE3Mixed,
+from cardillo.beams.cosseratRod import (
+    make_CosseratRod_SE3,
+    make_CosseratRod_R12,
+    make_CosseratRod_Quat,
 )
 
 from cardillo.constraints import RigidConnection
@@ -36,7 +36,7 @@ https://doi.org/10.1177/10812865211000790
 
 
 def cantilever(
-    Rod=CosseratRodPG_R12Mixed,
+    Rod,
     nelements=10,
     polynomial_degree=2,
     n_load_steps=10,
@@ -229,26 +229,42 @@ if __name__ == "__main__":
     ################################################
 
     # R12 interpolation:
-    # cantilever(Rod=CosseratRodPG_R12Mixed, nelements=10, polynomial_degree=2, n_load_steps = 3, constitutive_law=Harsch2021)
-    # cantilever(Rod=CosseratRodPG_R12Mixed, nelements=10, polynomial_degree=2, n_load_steps = 14, rod_hypothesis_penalty="shear_rigid", constitutive_law=Harsch2021)
-    # cantilever(Rod=CosseratRodPG_R12Mixed, nelements=10, polynomial_degree=2, n_load_steps = 3, rod_hypothesis_penalty="inextensible_shear_rigid", constitutive_law=Harsch2021)
+    # cantilever(Rod=make_CosseratRod_R12(mixed=False), nelements=10, polynomial_degree=2, n_load_steps = 3, constitutive_law=Harsch2021)
+    # cantilever(Rod=make_CosseratRod_R12(mixed=False), nelements=10, polynomial_degree=2, n_load_steps = 14, rod_hypothesis_penalty="shear_rigid", constitutive_law=Harsch2021)
+    # cantilever(Rod=make_CosseratRod_R12(mixed=False), nelements=10, polynomial_degree=2, n_load_steps = 3, rod_hypothesis_penalty="inextensible_shear_rigid", constitutive_law=Harsch2021)
 
     # For shear-rigid rods Harsch2021 and Simo1986 coincide. For Simo1986 also more robust mixed formulations are available
-    # cantilever(Rod=CosseratRodPG_R12Mixed, nelements=10, polynomial_degree=2, n_load_steps = 3, rod_hypothesis_penalty="shear_rigid", mixed=True, reduced_integration=False,
-    #            constitutive_law=Simo1986)
-    # cantilever(Rod=CosseratRodPG_R12Mixed, nelements=10, polynomial_degree=2, n_load_steps = 3, rod_hypothesis_penalty="inextensible_shear_rigid", mixed=True, reduced_integration=False,
-    #    constitutive_law=Simo1986)
+    cantilever(Rod=make_CosseratRod_R12(mixed=False, constraints=[1, 2]), nelements=10, polynomial_degree=2, n_load_steps = 3, rod_hypothesis_penalty="shear_rigid", mixed=False, reduced_integration=True,
+               constitutive_law=Simo1986)
+    # cantilever(
+    #     Rod=make_CosseratRod_R12(mixed=True),
+    #     nelements=10,
+    #     polynomial_degree=2,
+    #     n_load_steps=3,
+    #     rod_hypothesis_penalty="inextensible_shear_rigid",
+    #     mixed=True,
+    #     reduced_integration=False,
+    #     constitutive_law=Simo1986,
+    # )
 
     # Quaternion interpolation:
-    # cantilever(Rod=CosseratRodPG_QuatMixed, nelements=10, polynomial_degree=2, n_load_steps = 3, constitutive_law=Harsch2021)
-    # cantilever(Rod=CosseratRodPG_QuatMixed, nelements=10, polynomial_degree=2, n_load_steps = 14, rod_hypothesis_penalty="shear_rigid", constitutive_law=Harsch2021)
-    # cantilever(Rod=CosseratRodPG_QuatMixed, nelements=10, polynomial_degree=2, n_load_steps = 3, rod_hypothesis_penalty="inextensible_shear_rigid", constitutive_law=Harsch2021)
+    # cantilever(Rod=make_CosseratRod_Quat(mixed=False), nelements=10, polynomial_degree=2, n_load_steps = 3, constitutive_law=Harsch2021)
+    # cantilever(Rod=make_CosseratRod_Quat(mixed=False), nelements=10, polynomial_degree=2, n_load_steps = 14, rod_hypothesis_penalty="shear_rigid", constitutive_law=Harsch2021)
+    # cantilever(Rod=make_CosseratRod_Quat(mixed=False), nelements=10, polynomial_degree=2, n_load_steps = 3, rod_hypothesis_penalty="inextensible_shear_rigid", constitutive_law=Harsch2021)
 
     # # For shear-rigid rods Harsch2021 and Simo1986 coincide. For Simo1986 also more robust mixed formulations are available
-    # cantilever(Rod=CosseratRodPG_QuatMixed, nelements=10, polynomial_degree=2, n_load_steps = 3, rod_hypothesis_penalty="shear_rigid", mixed=True, reduced_integration=False,
+    # cantilever(Rod=make_CosseratRod_Quat(mixed=True), nelements=10, polynomial_degree=2, n_load_steps = 3, rod_hypothesis_penalty="shear_rigid", mixed=True, reduced_integration=False,
     #            constitutive_law=Simo1986)
-    # cantilever(Rod=CosseratRodPG_QuatMixed, nelements=10, polynomial_degree=2, n_load_steps = 3, rod_hypothesis_penalty="inextensible_shear_rigid", mixed=True, reduced_integration=False,
-    #            constitutive_law=Simo1986)
+    # cantilever(
+    #     Rod=make_CosseratRod_Quat(mixed=True),
+    #     nelements=10,
+    #     polynomial_degree=2,
+    #     n_load_steps=4,
+    #     rod_hypothesis_penalty="inextensible_shear_rigid",
+    #     mixed=True,
+    #     reduced_integration=False,
+    #     constitutive_law=Simo1986,
+    # )
 
     # SE3 interpolation:
     # cantilever(
@@ -262,18 +278,18 @@ if __name__ == "__main__":
     # cantilever(Rod=CosseratRodPG_SE3Mixed, nelements=10, polynomial_degree=1, n_load_steps = 3, rod_hypothesis_penalty="inextensible_shear_rigid", constitutive_law=Harsch2021)
 
     # For shear-rigid rods Harsch2021 and Simo1986 coincide. For Simo1986 also more robust mixed formulations are available
-    cantilever(
-        Rod=CosseratRodPG_SE3Mixed,
-        nelements=10,
-        polynomial_degree=1,
-        n_load_steps=3,
-        rod_hypothesis_penalty="shear_rigid",
-        mixed=True,
-        reduced_integration=False,
-        constitutive_law=Simo1986,
-    )
     # cantilever(
-    #     Rod=CosseratRodPG_SE3Mixed,
+    #     Rod=make_CosseratRod_SE3(mixed=True),
+    #     nelements=10,
+    #     polynomial_degree=1,
+    #     n_load_steps=3,
+    #     rod_hypothesis_penalty="shear_rigid",
+    #     mixed=True,
+    #     reduced_integration=False,
+    #     constitutive_law=Simo1986,
+    # )
+    # cantilever(
+    #     Rod=make_CosseratRod_SE3(mixed=True),
     #     nelements=10,
     #     polynomial_degree=1,
     #     n_load_steps=3,

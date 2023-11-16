@@ -9,8 +9,10 @@ def consistent_initial_conditions(
     atol=1.0e-8,
     newton_atol=1e-10,
     newton_max_iter=10,
-    jac=None,
-    # jac="2-point",
+    fixed_point_atol=1e-8,
+    fixed_point_max_iter=int(1e3),
+    # jac=None,
+    jac="2-point",
     error_function=lambda x: np.max(np.absolute(x)),
     alpha=1,
 ):
@@ -44,14 +46,6 @@ def consistent_initial_conditions(
     gamma_F = system.gamma_F(t0, q0, u0)
     A_N = np.isclose(g_N, np.zeros(system.nla_N), rtol, atol)
     B_N = A_N * np.isclose(g_N_dot, np.zeros(system.nla_N), rtol, atol)
-    global C_N  # normal contact on acceleration level
-    C_N = np.zeros(system.nla_N, dtype=bool)
-    global slip_vel  # slip on velocity level
-    slip_vel = np.zeros(system.nla_N, dtype=bool)
-    global slip_acc  # slip on acceleration level
-    slip_acc = np.zeros(system.nla_N, dtype=bool)
-    global stick_acc  # stick on acceleration level
-    stick_acc = np.zeros(system.nla_N, dtype=bool)
 
     assert np.all(
         np.logical_or(g_N >= 0, A_N)
@@ -64,75 +58,45 @@ def consistent_initial_conditions(
     M = system.M(t0, q0, scipy_matrix=csr_array)
     h = system.h(t0, q0, u0)
     W_g = system.W_g(t0, q0, scipy_matrix=csr_array)
-    zeta_g = system.g_ddot(t0, q0, u0, np.zeros(system.nu))
+    g_dot_u = system.g_dot_u(t0, q0, u0, scipy_matrix=csr_array)
+    zeta_g = system.zeta_g(t0, q0, u0)
     W_gamma = system.W_gamma(t0, q0, scipy_matrix=csr_array)
-    zeta_gamma = system.gamma_dot(t0, q0, u0, np.zeros(system.nu))
+    gamma_u = system.gamma_u(t0, q0, u0, scipy_matrix=csr_array)
+    zeta_gamma = system.zeta_gamma(t0, q0, u0)
     W_c = system.W_c(t0, q0, scipy_matrix=csr_array)
     W_N = system.W_N(t0, q0, scipy_matrix=csr_array)
-    zeta_N = system.g_N_ddot(t0, q0, u0, np.zeros(system.nu))
     W_F = system.W_F(t0, q0, scipy_matrix=csr_array)
-    zeta_F = system.gamma_F_dot(t0, q0, u0, np.zeros(system.nu))
     I_N = np.isclose(g_N, np.zeros(system.nla_N), rtol, atol)
-    prox_r_N = prox_r(alpha, W_N[:, I_N], M)
     I_F = compute_I_F(I_N, system.NF_connectivity)
+    prox_r_N = prox_r(alpha, W_N[:, I_N], M)
     prox_r_F = prox_r(alpha, W_F[:, I_F], M)
     mu = system.mu
 
-    split = np.cumsum(
+    split_x = np.cumsum(
         [
             system.nu,
             system.nla_g,
             system.nla_gamma,
             system.nla_c,
-            system.nla_N,
         ]
-    )
+    )[:-1]
+    split_y = np.cumsum(
+        [
+            system.nla_N,
+            system.nla_F,
+        ]
+    )[:-1]
 
-    def _R_F(x):
-        u_dot, _, _, _, la_N, la_F = np.array_split(x, split)
-        gamma_F_dot = system.gamma_F_dot(t0, q0, u0, u_dot)
-        R_la_F = np.zeros_like(la_F)
+    def R_x(x, y):
+        u_dot, la_g, la_gamma, la_c = np.array_split(x, split_x)
+        la_N, la_F = np.array_split(y, split_y)
 
-        for i_N, i_F in enumerate(system.NF_connectivity):
-            i_F = np.array(i_F)
-            n_F = len(i_F)
-            if n_F > 0:
-                gamma_Fi = gamma_F[i_F]
-                norm_gamma_Fi = norm(gamma_Fi)
-                if norm_gamma_Fi > 0:
-                    # slip
-                    R_la_F[i_F] = la_F[i_F] + prox_sphere(
-                        prox_r_F[i_F] * gamma_Fi - la_F[i_F],
-                        mu[i_N] * la_N[i_N],
-                    )
-                else:
-                    # possibly stick
-                    R_la_F[i_F] = la_F[i_F] + prox_sphere(
-                        prox_r_F[i_F] * gamma_F_dot[i_F] - la_F[i_F],
-                        mu[i_N] * la_N[i_N],
-                    )
-
-                    # arg_F = prox_r_F[i_F] * gamma_F_dot[i_F] - la_F[i_F]
-                    # norm_arg_F = norm(arg_F)
-                    # radius = mu[i_N] * la_N[i_N]
-                    # if norm_arg_F < radius:
-                    #     R[split[3] + i_F] = gamma_F_dot[i_F]
-                    # else:
-                    #     if norm_arg_F > 0:
-                    #         R[split[3] + i_F] = la_F[i_F] + radius * arg_F / norm_arg_F
-                    #     else:
-                    #         R[split[3] + i_F] = la_F[i_F]
-        return R_la_F
-
-    def R(x, update_index=False):
-        u_dot, la_g, la_gamma, la_c, la_N, la_F = np.array_split(x, split)
-
-        R = np.zeros_like(x)
+        R_x = np.zeros_like(x)
 
         #####################
         # equations of motion
         #####################
-        R[: split[0]] = (
+        R_x[: split_x[0]] = (
             M @ u_dot
             - h
             - W_g @ la_g
@@ -145,35 +109,60 @@ def consistent_initial_conditions(
         #############################################
         # bilateral constraints on acceleration level
         #############################################
-        R[split[0] : split[1]] = W_g.T @ u_dot + zeta_g
-        R[split[1] : split[2]] = W_gamma.T @ u_dot + zeta_gamma
+        R_x[split_x[0] : split_x[1]] = g_dot_u @ u_dot + zeta_g
+        R_x[split_x[1] : split_x[2]] = gamma_u @ u_dot + zeta_gamma
 
         ############
         # compliance
         ############
-        R[split[2] : split[3]] = system.c(t0, q0, u0, la_c)
+        R_x[split_x[2] :] = system.c(t0, q0, u0, la_c)
 
-        #################################
-        # Signorini on acceleration level
-        #################################
-        g_N_ddot = W_N.T @ u_dot + zeta_N
+        return R_x
+
+    def J_x(x, y):
+        la_c = x[split_x[2] :]
+        # coo for fast bmat
+        c_la_c = system.c_la_c(t0, q0, u0, la_c, scipy_matrix=coo_array)
+
+        # assemble jacobian
+        # fmt: off
+        J = bmat(
+            [
+                [        M, -W_g, -W_gamma,   -W_c],
+                [  g_dot_u, None,     None,   None],
+                [  gamma_u, None,     None,   None],
+                [     None, None,     None, c_la_c],
+            ],
+            format="csc",
+        )
+        # fmt: on
+
+        return J
+
+        # from cardillo.math import approx_fprime
+        # J_num = csr_array(approx_fprime(x, lambda x: R_x(x, y)))
+        # diff = (J - J_num).toarray()
+        # error_fixed_point = np.linalg.norm(diff)
+        # print(f"error Jacobian: {error_fixed_point}")
+        # return J_num
+
+    def prox(x1, y0):
+        u_dot, _, _, _ = np.array_split(x1, split_x)
+        la_N, la_F = np.array_split(y0, split_y)
+
+        y1 = np.zeros_like(y0)
+
+        ##############################
+        # fixed-point update Signorini
+        ##############################
+        g_N_ddot = system.g_N_ddot(t0, q0, u0, u_dot)
         prox_arg = prox_r_N * g_N_ddot - la_N
-        global C_N
-        if update_index:
-            C_N = B_N * (prox_arg <= 0)
-        R[split[3] : split[4]] = np.where(C_N, g_N_ddot, la_N)
+        y1[: split_y[0]] = -prox_R0_nm(prox_arg)
 
-        ################################
-        # friction on acceleration level
-        ################################
-        # R[split[4] :] = la_F
-        gamma_F_dot = W_F.T @ u_dot + zeta_F
-
-        global D_N, E_N
-        D_N = np.zeros(system.nla_N, dtype=bool)
-        E_N = np.zeros(system.nla_N, dtype=bool)
-        # global D_N  # stick on acceleration level
-        # global E_N  # slip on velocity level
+        #############################
+        # fixed-point update friction
+        #############################
+        gamma_F_dot = system.gamma_F_dot(t0, q0, u0, u_dot)
         for i_N, i_F in enumerate(system.NF_connectivity):
             i_F = np.array(i_F)
             if len(i_F) > 0:
@@ -182,107 +171,66 @@ def consistent_initial_conditions(
                     if np.isclose(
                         norm_gamma_Fi, 0, rtol, atol
                     ):  # possible stick on acceleration level
-                        prox_arg = prox_r_F[i_F] * gamma_F_dot[i_F] - la_F[i_F]
-                        norm_prox_arg = norm(prox_arg)
-                        radius = mu[i_N] * la_N[i_N]
-                        if norm_prox_arg <= radius:  # stick on acceleration level
-                            stick_acc[i_N] = True
-                            R[split[4] + i_F] = gamma_F_dot[i_F]
-                        else:  # slip on acceleration level
-                            slip_acc[i_N] = True
-                            R[split[4] + i_F] = (
-                                la_F[i_F]
-                                + mu[i_N] * la_N[i_N] * prox_arg / norm_prox_arg
-                            )
+                        y1[split_y[0] + i_F] = prox_sphere(
+                            prox_r_F[i_F] * gamma_F_dot[i_F] - la_F[i_F],
+                            mu[i_N] * la_N[i_N],
+                        )
                     else:  # slip
-                        slip_vel[i_N] = True
-                        R[split[4] + i_F] = (
-                            la_F[i_F]
-                            + mu[i_N] * la_N[i_N] * gamma_F[i_F] / norm_gamma_Fi
+                        y1[split_y[0] + i_F] = (
+                            -mu[i_N] * la_N[i_N] * gamma_F[i_F] / norm_gamma_Fi
                         )
                 else:  # open normal contact
-                    R[split[4] + i_F] = la_F[i_F]
+                    y1[split_y[0] + i_F] = np.zeros_like(i_F)
 
-        return R
+        return y1
 
-    def J(x, *args, **kwargs):
-        # return csc_matrix(approx_fprime(x, R, method="3-point", eps=1.0e-6))
+    x0 = np.zeros(system.nu + system.nla_g + system.nla_gamma + system.nla_c)
+    y0 = np.zeros(system.nla_N + system.nla_F)
 
-        # Rla_F_u_dot, _, _, _, Rla_F_la_N, Rla_F_la_F = np.array_split(
-        #     approx_fprime(x, lambda x: _R_F(x)),
-        #     split,
-        #     axis=0
-        #     # approx_fprime(x, lambda x: _R_F(x)),
-        #     # split,
-        #     # axis=0,
-        # )
+    # fixed-point loop
+    x1 = x0.copy()
+    y1 = y0.copy()
+    converged_fixed_point = False
+    for i_fixed_point in range(fixed_point_max_iter):
+        # find proximal point
+        y1 = prox(x1, y1)
 
-        # coo for fast bmat
-        c_la_c = system.c_la_c(
-            t0, q0, u0, x[split[2] : split[3]], scipy_matrix=coo_array
+        # solve nonlinear system
+        x1, converged_newton, error_newton, i_newton, _ = fsolve(
+            R_x,
+            x1,
+            jac=J_x,
+            fun_args=(y1,),
+            jac_args=(y1,),
+            atol=newton_atol,
+            max_iter=newton_max_iter,
         )
+        assert (
+            converged_newton
+        ), f"Newton method in consistent_initial_conditions did not converge after {i_newton} iterations with error: {error_newton}"
 
-        global C_N
-        J_N_u_dot = csr_array((system.nla_N, system.nu))
-        J_N_u_dot[C_N] = W_N.T[C_N]
-        J_N_la_N = diags((~C_N).astype(float))
-        # eye_N = eye(system.nla_N, format="coo")
+        # convergence in accelerations
+        diff = x1[: system.nu] - x0[: system.nu]
 
-        eye_F = eye(system.nla_F, format="coo")
+        error_fixed_point = np.max(np.absolute(diff))
 
-        # assemble jacobian
-        # fmt: off
-        J = bmat(
-            [
-                [          M, -W_g, -W_gamma,   -W_c,     -W_N,  -W_F],
-                [      W_g.T, None,     None,   None,     None,  None],
-                [  W_gamma.T, None,     None,   None,     None,  None],
-                [       None, None,     None, c_la_c,     None,  None],
-                [  J_N_u_dot, None,     None,   None, J_N_la_N,  None],
-                [       None, None,     None,   None,     None, eye_F],
-                # [Rla_F_u_dot, None,     None,   None, Rla_F_la_N, Rla_F_la_F],
-            ],
-            format="csc",
-        )
-        # fmt: on
+        converged_fixed_point = error_fixed_point < fixed_point_atol
+        if converged_fixed_point:
+            break
+        else:
+            # update values
+            x0 = x1.copy()
+            y0 = y1.copy()
 
-        return J
-
-        J_num = csc_matrix(approx_fprime(x, R, method="3-point", eps=1.0e-6))
-        diff = (J - J_num).toarray()
-        error = np.linalg.norm(diff)
-        print(f"error Jacobian: {error}")
-        return J_num
-
-    x0 = np.zeros(
-        system.nu
-        + system.nla_g
-        + system.nla_gamma
-        + system.nla_c
-        + system.nla_N
-        + system.nla_F
-    )
-    if jac is None:
-        jac = J
-
-    x0, converged, error, i, _ = fsolve(
-        R,
-        x0,
-        atol=newton_atol,
-        max_iter=newton_max_iter,
-        jac=jac,
-        fun_args=(True,),
-        jac_args=(False,),
-        error_function=error_function,
-    )
     assert (
-        converged
-    ), "Solving for consistent initial conditions does not converge after {i} iterations with error {error}."
+        converged_fixed_point
+    ), f"Solving for consistent initial conditions does not converge after {i_fixed_point} iterations with error {error_fixed_point}."
     print(
-        f"consistent_initial_conditions converged after {i + 1} iterations with error: {error}"
+        f"consistent_initial_conditions converged after {i_fixed_point} iterations with error: {error_fixed_point}"
     )
 
-    u_dot0, la_g0, la_gamma0, la_c0, la_N0, la_F0 = np.array_split(x0, split)
+    u_dot0, la_g0, la_gamma0, la_c0 = np.array_split(x1, split_x)
+    la_N0, la_F0 = np.array_split(y1, split_y)
 
     # check if initial conditions satisfy constraints on position, velocity
     # and acceleration level
@@ -292,11 +240,6 @@ def consistent_initial_conditions(
     gamma0 = system.gamma(t0, q0, u0)
     gamma_dot0 = system.gamma_dot(t0, q0, u0, u_dot0)
     g_S0 = system.g_S(t0, q0)
-
-    # g_N_ddot = system.g_N_ddot(t0, q0, u0, u_dot0)
-    # assert np.all(g_N_ddot >= 0) or np.allclose(
-    #     B_N * g_N_ddot, np.zeros(system.nla_N), rtol, atol
-    # ), "Initial conditions do not fulfill g_N_ddot0!"
 
     assert np.allclose(
         g0, np.zeros(system.nla_g), rtol, atol
