@@ -3,9 +3,8 @@ from scipy.sparse import csc_array, csr_array, eye, bmat
 from scipy.sparse.linalg import splu
 from tqdm import tqdm
 
-from cardillo.solver import SolverOptions
+from cardillo.solver import SolverOptions, Solution
 from cardillo.math import fsolve, prox_R0_nm, prox_sphere
-from cardillo.solver import Solution
 
 
 NEWTON_MAXITER = 4  # maximum number of Newton iterations
@@ -327,7 +326,7 @@ class BackwardEuler:
         n_lu = 0
 
         # initial Jacobian
-        if self.options.reuse_lu_decomposition:
+        if self.options.newton_reuse_lu_decomposition:
             i_newton = 0
             lu = splu(self.J_x(self.xn.copy(), self.yn.copy()))
             n_lu += 1
@@ -353,20 +352,22 @@ class BackwardEuler:
             yn1 = y0.copy()
             converged = False
             n_state = self.nx - self.nla_g - self.nla_gamma
-            for n_iter in range(self.max_iter_fixed_point):
+            for n_iter in range(self.options.fixed_point_max_iter):
                 # find proximal point
                 yn1 = self.prox(xn1, yn1)
 
-                if self.reuse_lu_decomposition:
+                if self.options.newton_reuse_lu_decomposition:
                     # compute new residual and check convergence
                     R_newton = self.R_x(xn1, yn1)
                     error_newton = np.max(np.absolute(R_newton))
-                    converged_newton = error_newton < self.atol
+                    converged_newton = error_newton < self.options.newton_atol
 
                     # Newton loop with inexact Jacobian
                     if not converged_newton:
                         i_newton = 0
-                    while (not converged_newton) and (i_newton < self.max_iter):
+                    while (not converged_newton) and (
+                        i_newton < self.options.newton_max_iter
+                    ):
                         i_newton += 1
                         # compute new Jacobian if requested
                         if i_newton >= NEWTON_MAXITER:
@@ -377,7 +378,7 @@ class BackwardEuler:
                         xn1 -= lu.solve(R_newton)
                         R_newton = self.R_x(xn1, yn1)
                         error_newton = np.max(np.absolute(R_newton))
-                        converged_newton = error_newton < self.atol
+                        converged_newton = error_newton < self.options.newton_atol
 
                 else:
                     xn1, converged_newton, error_newton, i_newton, _ = fsolve(
@@ -400,9 +401,9 @@ class BackwardEuler:
 
                 # error measure, see Hairer1993, Section II.4
                 sc = (
-                    self.atol
+                    self.options.fixed_point_atol
                     + np.maximum(np.abs(x0[:n_state]), np.abs(xn1[:n_state]))
-                    * self.rtol
+                    * self.options.fixed_point_rtol
                 )
                 error = np.linalg.norm(diff / sc) / sc.size**0.5
                 converged = error < 1.0 and converged_newton
@@ -419,7 +420,7 @@ class BackwardEuler:
 
             # update progress bar
             pbar.set_description(
-                f"t: {tn1:0.2e}s < {self.t1:0.2e}s; ||R||: {error:0.2e} ({n_iter}({i_newton})/{self.max_iter_fixed_point})"
+                f"t: {tn1:0.2e}s < {self.t1:0.2e}s; ||R||: {error:0.2e} (fixed-point: {n_iter}/{self.options.fixed_point_max_iter}; newton: {i_newton}/{self.options.newton_max_iter})"
             )
 
             # compute state

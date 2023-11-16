@@ -11,6 +11,7 @@ class SolverOptions:
     newton_max_iter: int = 20
     newton_atol: float = 1e-8
     newton_rtol: float = 1e-8
+    newton_reuse_lu_decomposition: bool = True
     error_function: callable = lambda x: max(abs(x))
     prox_scaling: float = 1.0
     continue_with_unconverged: bool = True
