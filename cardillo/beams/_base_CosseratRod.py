@@ -1952,11 +1952,17 @@ def make_CosseratRodConstrained(mixed=False, constraints=[1, 2]):
             )
 
             self.constraints = np.array(constraints)
-            self.constraints_gamma = self.constraints[(self.constraints <= 3)]
+            self.constraints_gamma = self.constraints[(self.constraints < 3)]
             self.nconstraints_gamma = len(self.constraints_gamma)
+            self.K_n_la_g_sieve = np.zeros((3, self.nconstraints_gamma))
+            for i, gammai in enumerate(self.constraints_gamma):
+                self.K_n_la_g_sieve[gammai, i] = 1
 
-            self.constraints_kappa = self.constraints[(self.constraints >= 3)]
+            self.constraints_kappa = self.constraints[(self.constraints >= 3)] - 3
             self.nconstraints_kappa = len(self.constraints_kappa)
+            self.K_m_la_g_sieve = np.zeros((3, self.nconstraints_kappa))
+            for i, kappai in enumerate(self.constraints_kappa):
+                self.K_m_la_g_sieve[kappai, i] = 1
 
             #######################################################
             # discretization parameters internal forces and moments
@@ -2114,7 +2120,8 @@ def make_CosseratRodConstrained(mixed=False, constraints=[1, 2]):
                     for node_la_g in range(self.nnodes_element_la_g):
                         nodalDOF_la_g = self.nodalDOF_element_la_g[node_la_g]
                         W_g_el[
-                            nodalDOF_r[:, None], nodalDOF_la_g[self._nconstraints_gamma]
+                            nodalDOF_r[:, None],
+                            nodalDOF_la_g[: self.nconstraints_gamma],
                         ] -= (
                             N_r_xi
                             * A_IK[:, self.constraints_gamma]
@@ -2129,15 +2136,23 @@ def make_CosseratRodConstrained(mixed=False, constraints=[1, 2]):
 
                     for node_la_g in range(self.nnodes_element_la_g):
                         nodalDOF_la_g = self.nodalDOF_element_la_g[node_la_g]
-                        W_g_el[nodalDOF_psi[:, None], nodalDOF_la_g[3:]] -= (
-                            (N_psi_xi * np.eye(3) - N_psi * ax2skew(K_Kappa_bar))
+                        W_g_el[
+                            nodalDOF_psi[:, None],
+                            nodalDOF_la_g[self.nconstraints_gamma :],
+                        ] -= (
+                            (N_psi_xi * np.eye(3) - N_psi * ax2skew(K_Kappa_bar))[
+                                :, self.constraints_kappa
+                            ]
                             * self.N_la_g[el, i, node_la_g]
                             * qwi
                         )
 
-                        W_g_el[nodalDOF_psi[:, None], nodalDOF_la_g[:3]] += (
+                        W_g_el[
+                            nodalDOF_psi[:, None],
+                            nodalDOF_la_g[: self.nconstraints_gamma],
+                        ] += (
                             N_psi
-                            * ax2skew(K_Gamma_bar)
+                            * ax2skew(K_Gamma_bar)[:, self.constraints_gamma]
                             * self.N_la_g[el, i, node_la_g]
                             * qwi
                         )
@@ -2183,11 +2198,14 @@ def make_CosseratRodConstrained(mixed=False, constraints=[1, 2]):
                     la_g_node = la_ge[self.nodalDOF_element_la_g[node]]
                     la_g += self.N_la_g[el, i, node] * la_g_node
 
+                K_n = self.K_n_la_g_sieve @ la_g[: self.nconstraints_gamma]
+                K_m = self.K_m_la_g_sieve @ la_g[self.nconstraints_gamma :]
+
                 for node in range(self.nnodes_element_r):
                     Wla_g_q_el[self.nodalDOF_element_r_u[node], :] -= (
                         self.N_r_xi[el, i, node]
                         * qwi
-                        * (np.einsum("ikj,k->ij", A_IK_qe, la_g[:3]))
+                        * (np.einsum("ikj,k->ij", A_IK_qe, K_n))
                     )
 
                 for node in range(self.nnodes_element_psi):
@@ -2195,10 +2213,14 @@ def make_CosseratRodConstrained(mixed=False, constraints=[1, 2]):
                         self.N_psi[el, i, node]
                         * qwi
                         * (
-                            -ax2skew(la_g[:3]) @ K_Gamma_bar_qe
-                            - ax2skew(la_g[3:]) @ K_Kappa_bar_qe
+                            -ax2skew(K_n) @ K_Gamma_bar_qe
+                            - ax2skew(K_m) @ K_Kappa_bar_qe
                         )
                     )
+
+            # Wla_g_q_el_num = approx_fprime(qe, lambda qe: self.W_g_el(qe, el) @ la_ge, method="cs", eps=1e-6)
+            # error = np.linalg.norm(Wla_g_q_el - Wla_g_q_el_num)
+            # print(error)
 
             return Wla_g_q_el
 
