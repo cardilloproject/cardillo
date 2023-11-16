@@ -481,4 +481,3 @@ class BackwardEuler:
             mu_S=np.array(mu_S),
             niter=np.array(n_iter_list),
         )
-

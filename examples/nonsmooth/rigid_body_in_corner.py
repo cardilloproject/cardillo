@@ -11,12 +11,10 @@ from cardillo.forces import Force
 from cardillo.contacts import Sphere2Plane
 from cardillo.visualization import Export
 from cardillo.solver import (
-    MoreauShifted,
     Rattle,
     BackwardEuler,
     NPIRK,
-    MoreauShiftedNew,
-    MoreauClassical,
+    Moreau,
 )
 from cardillo.solver._butcher_tableaus import RadauIIATableau
 
@@ -46,7 +44,7 @@ Solver = {
     "Rattle": (Rattle, "Rattle", 1e-2, {}),
     "MoreauShifted": (MoreauShifted, "MoreauShifted", 2e-2, {"alpha": alpha}),
     "MoreauShiftedNew": (MoreauShiftedNew, "MoreauShiftedNew", 1e-2, {"alpha": alpha}),
-    "Moreau": (MoreauClassical, "MoreauClassical", 1e-2, {"alpha": alpha}),
+    "Moreau": (Moreau, "MoreauClassical", 1e-2, {"alpha": alpha}),
 }
 
 

@@ -4,7 +4,7 @@ from scipy.integrate import solve_ivp
 import pytest
 
 from cardillo import System
-from cardillo.solver import ScipyIVP, BackwardEuler, MoreauClassical
+from cardillo.solver import ScipyIVP, BackwardEuler, Moreau
 from cardillo.constraints import Revolute
 from cardillo.discrete import RigidBody
 from cardillo.forces import (
@@ -121,7 +121,7 @@ def run(Solver, **solver_kwargs):
 
 test_parameters = [
     (ScipyIVP, {}),
-    (MoreauClassical, {}),
+    (Moreau, {}),
     # (BackwardEuler, {}), # TODO: Fix error here
 ]
 
@@ -135,5 +135,5 @@ if __name__ == "__main__":
     show = True
 
     run(ScipyIVP)
-    run(MoreauClassical)
+    run(Moreau)
     run(BackwardEuler)
