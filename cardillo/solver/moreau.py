@@ -3,20 +3,12 @@ from scipy.sparse import csr_matrix, csc_matrix, bmat
 from scipy.sparse.linalg import splu
 from tqdm import tqdm
 
-from cardillo.solver import Solution, compute_I_F
+from cardillo.solver import Solution, compute_I_F, SolverOptions
 from cardillo.math import prox_R0_np, prox_sphere
 
+
 class Moreau:
-    def __init__(
-        self,
-        system,
-        t1,
-        dt,
-        atol=1e-8,
-        max_iter=1000,
-        error_function=lambda x: np.max(np.abs(x)),
-        continue_with_unconverged=True,
-    ):
+    def __init__(self, system, t1, dt, options=SolverOptions()):
         self.system = system
 
         # integration time
@@ -27,10 +19,7 @@ class Moreau:
         self.dt = dt
         self.t = np.arange(t0, self.t1 + self.dt, self.dt)
 
-        self.fix_point_error_function = error_function
-        self.atol = atol
-        self.max_iter = max_iter
-        self.continue_with_unconverged = continue_with_unconverged
+        self.options = options
 
         self.nq = self.system.nq
         self.nu = self.system.nu
@@ -179,7 +168,7 @@ class Moreau:
 
             mu = self.system.mu
             z0 = z = np.concatenate([self.P_Nn, self.P_Fn])
-            for j in range(self.max_iter):
+            for j in range(self.options.fixedpoint_max_iter):
                 z = self.p(
                     z0,
                     lu_A,
@@ -196,15 +185,12 @@ class Moreau:
                     mu,
                 )
 
-                # check for convergence of percussions
-                # error = self.fix_point_error_function(z - z0)
-
                 # check for convergence of velocities
-                error = self.fix_point_error_function(
+                error = self.options.error_function(
                     self.x[: self.nu] - self.x0[: self.nu]
                 )
 
-                converged = error < self.atol
+                converged = error < self.options.atol
                 if converged:
                     P_Nn1[I_N] = z[: self.nla_N][I_N]
                     P_Fn1[I_F] = z[self.nla_N :][I_F]
@@ -244,7 +230,7 @@ class Moreau:
                 f"t: {tn1:0.2e}; fixed-point iterations: {j+1}; error: {error:.3e}"
             )
             if not converged:
-                if self.continue_with_unconverged:
+                if self.options.continue_with_unconverged:
                     print(
                         f"fixed-point iteration not converged after {j+1} iterations with error: {error:.5e}"
                     )
