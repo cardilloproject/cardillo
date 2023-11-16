@@ -267,7 +267,6 @@ class System:
         self.e_N = np.array(e_N)
         self.e_F = np.array(e_F)
         self.mu = np.array(mu)
-        self._alpha = 1  # TODO: GC: What is alpha?
 
         # call assembler callback: call methods that require first an assembly of the system
         self.assembler_callback()
@@ -287,8 +286,6 @@ class System:
             self.la_N0,
             self.la_F0,
         ) = consistent_initial_conditions(self, **kwargs)
-
-        print("after consistent_initial_conditions")
 
     def assembler_callback(self):
         for contr in self.__assembler_callback_contr:
@@ -629,25 +626,11 @@ class System:
     #################
     # normal contacts
     #################
-    @property
-    def alpha(self):
-        return self._alpha
-
-    @alpha.setter
-    def alpha(self, alpha):
-        if 0 < alpha < 2:
-            self._alpha = alpha
-        else:
-            warnings.warn(
-                "Invalid value for alpha. alpha must be in (0,2). Value not changed.",
-                RuntimeWarning,
-            )
-
     """
     Estimation of relaxation parameter $\vr_N$ of prox function for normal contacts.
-    The parameter is calculated as follows, whereby $\alpha\in(0,2)$ is some scaling factor used for both normal and frictional contact.
+    The parameter is calculated as follows
     $$
-        \vr_N = (\alpha\vG_N)^{-1},
+        \vr_N = 1 / diag(\vG_N),
     $$
     where $\vG_N = \vW_N^T\vM^{-1}\vW_N$.
 
@@ -662,7 +645,7 @@ class System:
         M = self.M(t, q, csc_matrix)
         W_N = self.W_N(t, q, csc_matrix)
         try:
-            return self.alpha / csr_matrix(W_N.T @ spsolve(M, W_N)).diagonal()
+            return 1 / csr_matrix(W_N.T @ spsolve(M, W_N)).diagonal()
         except:
             return np.ones(self.nla_N, dtype=q.dtype)
 
@@ -722,6 +705,9 @@ class System:
         return self.g_N_dot(t, q, np.zeros(self.nu), dtype=q.dtype)
 
     def g_N_dot_u(self, t, q, scipy_matrix=coo_matrix):
+        warnings.warn(
+            "We assume g_N_dot_u(t, q) == W_N(t, q).T. This function will be deleted soon!"
+        )
         coo = CooMatrix((self.nla_N, self.nu))
         for contr in self.__g_N_contr:
             coo[contr.la_NDOF, contr.uDOF] = contr.g_N_dot_u(t, q[contr.qDOF])
@@ -756,9 +742,9 @@ class System:
     #################
     """
     Estimation of relaxation parameter $\vr_F$ of prox function for frictional contacts.
-    The parameter is calculated as follows, whereby $\alpha\in(0,2)$ is some scaling factor used for both normal and frictional contact.
+    The parameter is calculated as follows
     $$
-        \vr_F = (\alpha\vG_F)^{-1},
+        \vr_F = 1 / diag(\vG_F),
     $$
     where $\vG_F = \vW_F^T\vM^{-1}\vW_F$.
 
@@ -773,7 +759,7 @@ class System:
         M = self.M(t, q, csc_matrix)
         W_F = self.W_F(t, q, csc_matrix)
         try:
-            return self.alpha / csr_matrix(W_F.T @ spsolve(M, W_F)).diagonal()
+            return 1 / csr_matrix(W_F.T @ spsolve(M, W_F)).diagonal()
         except:
             return np.ones(self.nla_F, dtype=q.dtype)
 
@@ -823,6 +809,9 @@ class System:
         return coo.tosparse(scipy_matrix)
 
     def gamma_F_u(self, t, q, scipy_matrix=coo_matrix):
+        warnings.warn(
+            "We assume gamma_F_u(t, q) == W_F(t, q).T. This function will be deleted soon!"
+        )
         coo = CooMatrix((self.nla_F, self.nu))
         for contr in self.__gamma_F_contr:
             coo[contr.la_FDOF, contr.uDOF] = contr.gamma_F_u(t, q[contr.qDOF])
