@@ -1,5 +1,5 @@
 import numpy as np
-from cardillo.math import e1, e2, e3, norm, approx_fprime, gram_schmidt, cross3, ax2skew
+from cardillo.math import e1, e2, e3, norm, approx_fprime, cross3, ax2skew
 
 
 class Sphere2Sphere:
@@ -220,26 +220,6 @@ class Sphere2Sphere:
         t1 = np.array([cos_theta * cos_phi, cos_theta * sin_phi, -sin_theta])
         t2 = np.array([-sin_phi, cos_phi, 0])
         return n, t1, t2
-
-    # # TODO: Use generic approach of Lisa for sphere parametrization.
-    # def normal_and_tangents(self, t, q):
-    #     n = self.normal(t, q)
-    #     try:
-    #         A = np.vstack((n, e1, e2)).T
-    #         A = gram_schmidt(A)
-    #     except:
-    #         try:
-    #             A = np.vstack((n, e2, e3)).T
-    #             A = gram_schmidt(A)
-    #         except:
-    #             try:
-    #                 A = np.vstack((n, e3, e1)).T
-    #                 A = gram_schmidt(A)
-    #             except:
-    #                 raise RuntimeError("We should never end up here!")
-
-    #     n, t1, t2 = A.T
-    #     return n, t1, t2
 
     ################
     # normal contact

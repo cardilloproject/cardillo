@@ -11,12 +11,10 @@ from cardillo.forces import Force
 from cardillo.contacts import Sphere2Plane
 from cardillo.visualization import Export
 from cardillo.solver import (
-    Rattle,
-    BackwardEuler,
-    NPIRK,
+    SolverOptions,
     Moreau,
+    BackwardEuler,
 )
-from cardillo.solver._butcher_tableaus import RadauIIATableau
 
 m = 1.25
 r = 0.1
@@ -31,25 +29,23 @@ Shape = {
     "stl": (FromSTL, {"path": path, "K_r_SP": np.zeros(3), "K_Theta_S": None}),  # TODO
 }
 
-Parametrization = {
-    "quaternion": RigidBody,
-    "axis_angle": RigidBodyAxisAngle,
-    "euler": RigidBodyEuler,
-}
-alpha = 0.4
-
 Solver = {
-    "NPIRK": (NPIRK, "NPIRK", 5e-2, {"butcher_tableau": RadauIIATableau(2)}),
-    "BackwardEuler": (BackwardEuler, "Euler backward", 1e-2, {}),
-    "Rattle": (Rattle, "Rattle", 1e-2, {}),
-    "MoreauShifted": (MoreauShifted, "MoreauShifted", 2e-2, {"alpha": alpha}),
-    "MoreauShiftedNew": (MoreauShiftedNew, "MoreauShiftedNew", 1e-2, {"alpha": alpha}),
-    "Moreau": (Moreau, "MoreauClassical", 1e-2, {"alpha": alpha}),
+    "BackwardEuler": (
+        BackwardEuler,
+        "Euler backward",
+        1e-2,
+        {"options": SolverOptions(prox_scaling=0.125)},
+    ),
+    "Moreau": (
+        Moreau,
+        "MoreauClassical",
+        1e-2,
+        {"options": SolverOptions(prox_scaling=0.5)},
+    ),
 }
 
 
 def run(
-    parametrization: str,
     shape: str,
     solver1: str,
     solver2: str,
@@ -74,14 +70,11 @@ def run(
 
     r_OS0 = np.array([x0, y0, 0], dtype=float)
     vS0 = np.array([x_dot0, y_dot0, 0], dtype=float)
-    if parametrization == "quaternion":
-        p = axis_angle2quat(np.array((1, 0.5, 0)), phi0)
-        q0 = np.concatenate([r_OS0, p])
-    else:
-        q0 = np.concatenate([r_OS0, np.array([phi0, 0, 0], dtype=float)])
+    p = axis_angle2quat(np.array((1, 0.5, 0)), phi0)
+    q0 = np.concatenate([r_OS0, p])
     u0 = np.concatenate([vS0, np.array([0, 0, phi_dot0], dtype=float)])
     Shp, kwargs = Shape[shape]
-    RB = Shp(Parametrization[parametrization])(mass=m, q0=q0, u0=u0, **kwargs)
+    RB = Shp(RigidBody)(mass=m, q0=q0, u0=u0, **kwargs)
     F_G = Force(lambda t: np.array([0, -g * m, 0]), RB)
 
     ##############################################################
@@ -314,12 +307,10 @@ def run(
 
 
 if __name__ == "__main__":
-    parametrization = "quaternion"
-    # parametrization = "euler"
-    # parametrization = "axis_angle"
     # shape = "box"
-    # shape = "cube"
+    shape = "cube"
     # shape = "stl"
-    shape = "ball"
+    # shape = "ball"
     # shape = "cylinder"
-    run(parametrization, shape, "Moreau", "MoreauShiftedNew")
+    run(shape, "Moreau", "BackwardEuler")
+    # run(shape, "BackwardEuler", "Moreau")
