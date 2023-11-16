@@ -3,6 +3,7 @@ from scipy.sparse import csr_array, coo_array, bmat
 from cardillo.math import prox_R0_nm, prox_sphere, fsolve, norm
 
 
+# TODO: Add rtol atol error measure and use SolverOptions
 def consistent_initial_conditions(
     system,
     rtol=1.0e-5,
@@ -188,7 +189,7 @@ def consistent_initial_conditions(
         )
         assert (
             converged_newton
-        ), f"Newton method in consistent_initial_conditions did not converge after {i_newton} iterations with error: {error_newton}"
+        ), f"Newton method in consistent_initial_conditions did not converge after {i_newton} internal newton iterations with error: {error_newton}"
 
         # convergence in accelerations
         diff = x1[: system.nu] - x0[: system.nu]
@@ -205,9 +206,9 @@ def consistent_initial_conditions(
 
     assert (
         converged_fixed_point
-    ), f"Solving for consistent initial conditions does not converge after {i_fixed_point} iterations with error {error_fixed_point}."
+    ), f"Solving for consistent initial conditions does not converge after {i_fixed_point} fixed-point iterations with error {error_fixed_point}."
     print(
-        f"consistent_initial_conditions converged after {i_fixed_point} iterations with error: {error_fixed_point}"
+        f"consistent_initial_conditions converged after {i_fixed_point} fixed-point iterations with error: {error_fixed_point}"
     )
 
     u_dot0, la_g0, la_gamma0, la_c0 = np.array_split(x1, split_x)

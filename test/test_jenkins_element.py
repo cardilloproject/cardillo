@@ -4,12 +4,11 @@ from scipy.integrate import solve_ivp
 
 from cardillo import System
 from cardillo.math import prox_sphere, prox_sphere_x, fsolve
-from cardillo.discrete import PointMass
-from cardillo.forces import MaxwellElement as MaxwellElementFL  # TODO: This is unused!
 from cardillo.forces import Force
 from cardillo.solver import ScipyIVP, Moreau, BackwardEuler
 
 
+# TODO: Move this implementation with nonlinear c into the equations of motion!
 class JenkinsElement:
     """Pointmass connected with Jenkins element to origin."""
 
@@ -22,6 +21,7 @@ class JenkinsElement:
 
         self.nq = 1
         self.nu = 2
+        # self.nu = 3
         self.nla_c = 1
         self.q0 = q0
         self.u0 = u0
@@ -40,6 +40,10 @@ class JenkinsElement:
 
     def J_P(self, t, q, frame_ID=None, K_r_SP=None):
         return np.eye(2, self.nu, dtype=q.dtype)
+        # J_P = np.zeros((2, self.nu))
+        # J_P[0, 0] = 1
+        # J_P[1, 1] = 1
+        # return J_P
 
     def J_P_q(self, t, q, frame_ID=None, K_r_SP=None):
         return np.zeros((2, self.nu, self.nq))
@@ -185,7 +189,7 @@ if __name__ == "__main__":
     # sol = ScipyIVP(system, t1, dt, method="RK45").solve()
     # sol = ScipyIVP(system, t1, dt, method="RK23").solve()
     # sol = ScipyIVP(system, t1, dt, method="BDF").solve()
-    sol = BackwardEuler(system, t1, dt, debug=False).solve()
+    sol = BackwardEuler(system, t1, dt).solve()
 
     # - ref. solution
     # def eqm(t, z):
