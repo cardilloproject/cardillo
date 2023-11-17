@@ -11,7 +11,7 @@ from cardillo.beams.cosseratRod import (
 )
 
 from cardillo.constraints import RigidConnection
-from cardillo.solver import Newton, BackwardEuler
+from cardillo.solver import Newton, BackwardEuler, SolverOptions
 from cardillo.forces import Force, K_Moment, Moment, K_Force
 
 from cardillo.math import e1, e2, e3
@@ -127,14 +127,14 @@ def cantilever(
     system.remove(load)
     system.assemble()
 
-    # dt = 1e-2
-    dt = 5e-3
+    dt = 1e-2
+    # dt = 5e-3
     # dt = 1e-3
     solver = BackwardEuler(
         system,
         t1=1,
         dt=dt,
-        # atol=1e-6,
+        options=SolverOptions(newton_atol=1e-2),
     )
 
     sol = solver.solve()
@@ -192,7 +192,7 @@ def cantilever(
 if __name__ == "__main__":
     # SE3 interpolation:
     cantilever(
-        Rod=make_CosseratRod_SE3(mixed=False),
+        Rod=make_CosseratRod_SE3(mixed=True),
         nelements=5,
         polynomial_degree=1,
         n_load_steps=3,

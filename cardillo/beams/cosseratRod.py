@@ -56,7 +56,7 @@ def make_CosseratRod_SE3(mixed=False):
                 Q,
                 q0=q0,
                 u0=u0,
-                mixed=mixed,
+                mixed=None,
             )
 
         @staticmethod
