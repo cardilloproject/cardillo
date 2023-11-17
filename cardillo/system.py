@@ -308,12 +308,10 @@ class System:
             )
         return coo.tosparse(scipy_matrix)
 
-    def q_dot_u(self, t, q, u, scipy_matrix=coo_matrix):
+    def q_dot_u(self, t, q, scipy_matrix=coo_matrix):
         coo = CooMatrix((self.nq, self.nu))
         for contr in self.__q_dot_u_contr:
-            coo[contr.q_dotDOF, contr.uDOF] = contr.q_dot_u(
-                t, q[contr.qDOF], u[contr.uDOF]
-            )
+            coo[contr.q_dotDOF, contr.uDOF] = contr.q_dot_u(t, q[contr.qDOF])
         return coo.tosparse(scipy_matrix)
 
     def q_ddot(self, t, q, u, u_dot):
