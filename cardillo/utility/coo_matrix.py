@@ -96,7 +96,7 @@ class CooMatrix:
                 # self.data.fromlist(value.data.tolist())
                 # self.row.fromlist(rows[value.row].tolist())
                 # self.col.fromlist(cols[value.col].tolist())
-            elif isinstance(value, spmatrix) or isinstance(value, sparray):
+            elif isinstance(value, sparray):
                 assert value.shape == (len(rows), len(cols)), "inconsistent assignment"
 
                 # all scipy sparse matrices are converted to coo_array, their
@@ -109,6 +109,8 @@ class CooMatrix:
                 # self.data.fromlist(coo.data.tolist())
                 # self.row.fromlist(rows[coo.row].tolist())
                 # self.col.fromlist(cols[coo.col].tolist())
+            elif isinstance(value, spmatrix):
+                raise RuntimeError("Do not use sparse matrices, move to sparse array.")
             else:
                 # convert everything als to 2D numpy arrays
                 value = atleast_2d(value)
