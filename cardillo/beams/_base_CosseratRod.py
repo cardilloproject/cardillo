@@ -1626,6 +1626,9 @@ class CosseratRodMixed(CosseratRod, ABC):
     ##########################
     # compliance contributions
     ##########################
+    # TODO: implement me
+    def la_c(self, t, q, u):
+        raise NotImplementedError
 
     def c(self, t, q, u, la_c):
         c = np.zeros(self.nla_c, dtype=np.common_type(q, u, la_c))
