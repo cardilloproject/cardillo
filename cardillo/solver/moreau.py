@@ -1,9 +1,9 @@
 import numpy as np
-from scipy.sparse import csc_array, bmat
+from scipy.sparse import bmat
 from scipy.sparse.linalg import splu
 from tqdm import tqdm
 
-from cardillo.solver import Solution, compute_I_F, SolverOptions
+from cardillo.solver import SolverOptions, Solution, compute_I_F
 from cardillo.math import prox_R0_np, prox_sphere, estimate_prox_parameter
 
 
@@ -157,8 +157,8 @@ class Moreau:
         if np.any(I_N):
             # note: we use csc_array for efficient column slicing later,
             # see https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csc_array.html#scipy.sparse.csc_array
-            W_N = self.system.W_N(tn12, qn12, scipy_matrix=csc_array)
-            W_F = self.system.W_F(tn12, qn12, scipy_matrix=csc_array)
+            W_N = self.system.W_N(tn12, qn12, format="csc")
+            W_F = self.system.W_F(tn12, qn12, format="csc")
 
             # identify active tangent contacts based on active normal contacts and
             # NF-connectivity lists

@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.sparse import csc_array, csr_array, eye, bmat
+from scipy.sparse import csc_array, eye, bmat
 from scipy.sparse.linalg import splu
 from tqdm import tqdm
 
@@ -155,7 +155,7 @@ class BackwardEuler:
         ####################
         # kinematic equation
         ####################
-        g_S_q = self.system.g_S_q(tn1, qn1, scipy_matrix=csc_array)
+        g_S_q = self.system.g_S_q(tn1, qn1, format="csc")
         R_x[: self.split_x[0]] = (
             q_dotn1 - dt * self.system.q_dot(tn1, qn1, un1) - g_S_q.T @ mu_Sn1
         )
@@ -163,15 +163,15 @@ class BackwardEuler:
         ####################
         # equations of motion
         ####################
-        self.M = self.system.M(tn1, qn1, scipy_matrix=csr_array)
-        self.W_N = self.system.W_N(tn1, qn1, scipy_matrix=csr_array)
-        self.W_F = self.system.W_F(tn1, qn1, scipy_matrix=csr_array)
+        self.M = self.system.M(tn1, qn1, format="csr")
+        self.W_N = self.system.W_N(tn1, qn1, format="csr")
+        self.W_F = self.system.W_F(tn1, qn1, format="csr")
         R_x[self.split_x[0] : self.split_x[1]] = (
             self.M @ u_dotn1
             - dt * self.system.h(tn1, qn1, un1)
-            - self.system.W_g(tn1, qn1, scipy_matrix=csr_array) @ la_gn1
-            - self.system.W_gamma(tn1, qn1, scipy_matrix=csr_array) @ la_gamman1
-            - self.system.W_c(tn1, qn1, scipy_matrix=csr_array) @ la_cn1
+            - self.system.W_g(tn1, qn1, format="csr") @ la_gn1
+            - self.system.W_gamma(tn1, qn1, format="csr") @ la_gamman1
+            - self.system.W_c(tn1, qn1, format="csr") @ la_cn1
             - self.W_N @ la_Nn1
             - self.W_F @ la_Fn1
         )

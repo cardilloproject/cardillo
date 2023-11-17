@@ -3,7 +3,7 @@ from cardillo.solver.solution import Solution
 
 import numpy as np
 from scipy.sparse.linalg import spsolve
-from scipy.sparse import csr_array, csc_array, coo_array, bmat, lil_array
+from scipy.sparse import csc_array, lil_array, bmat
 from tqdm import tqdm
 
 
@@ -84,9 +84,9 @@ class Newton:
         # the jacobian
         # csr is used for efficient matrix vector multiplication, see
         # https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csr_array.html#scipy.sparse.csr_array
-        self.W_g = self.system.W_g(t, q, scipy_matrix=csr_array)
-        self.W_c = self.system.W_c(t, q, scipy_matrix=csr_array)
-        self.W_N = self.system.W_N(t, q, scipy_matrix=csr_array)
+        self.W_g = self.system.W_g(t, q, format="csr")
+        self.W_c = self.system.W_c(t, q, format="csr")
+        self.W_N = self.system.W_N(t, q, format="csr")
         self.g_N = self.system.g_N(t, q)
 
         # static equilibrium
@@ -110,19 +110,19 @@ class Newton:
         # evaluate additionally required quantites for computing the jacobian
         # coo is used for efficient bmat
         K = (
-            self.system.h_q(t, q, self.u0, scipy_matrix=coo_array)
-            + self.system.Wla_g_q(t, q, la_g, scipy_matrix=coo_array)
-            + self.system.Wla_c_q(t, q, la_c, scipy_matrix=coo_array)
-            + self.system.Wla_N_q(t, q, la_N, scipy_matrix=coo_array)
+            self.system.h_q(t, q, self.u0, format="coo")
+            + self.system.Wla_g_q(t, q, la_g, format="coo")
+            + self.system.Wla_c_q(t, q, la_c, format="coo")
+            + self.system.Wla_N_q(t, q, la_N, format="coo")
         )
-        g_q = self.system.g_q(t, q, scipy_matrix=coo_array)
-        g_S_q = self.system.g_S_q(t, q, scipy_matrix=coo_array)
-        c_q = self.system.c_q(t, q, self.u0, la_c, scipy_matrix=coo_array)
-        c_la_c = self.system.c_la_c(t, q, self.u0, la_c, scipy_matrix=coo_array)
+        g_q = self.system.g_q(t, q, format="coo")
+        g_S_q = self.system.g_S_q(t, q, format="coo")
+        c_q = self.system.c_q(t, q, self.u0, la_c, format="coo")
+        c_la_c = self.system.c_la_c(t, q, self.u0, la_c, format="coo")
 
         # note: csr_matrix is best for row slicing, see
         # https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csr_array.html#scipy.sparse.csr_array
-        g_N_q = self.system.g_N_q(t, q, scipy_matrix=csr_array)
+        g_N_q = self.system.g_N_q(t, q, format="csr")
 
         Rla_N_q = lil_array((self.nla_N, self.nq), dtype=float)
         Rla_N_la_N = lil_array((self.nla_N, self.nla_N), dtype=float)

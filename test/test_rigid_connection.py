@@ -110,8 +110,8 @@ def run(revolute_joint_used=False):
     t1 = 2
     dt = 1e-2
 
-    # solver = BackwardEuler(system, t1, dt)
-    solver = ScipyIVP(system, t1, dt)
+    solver = BackwardEuler(system, t1, dt)
+    # solver = ScipyIVP(system, t1, dt)
     # solver = Moreau(system, t1, dt)
 
     sol = solver.solve()

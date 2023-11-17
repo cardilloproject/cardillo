@@ -77,15 +77,15 @@ class ScipyIVP:
         return dx
 
     def la_g_la_gamma_la_c(self, t, q, u):
-        W_g = self.system.W_g(t, q, scipy_matrix=csc_array)
-        W_gamma = self.system.W_gamma(t, q, scipy_matrix=csc_array)
-        W_c = self.system.W_c(t, q, scipy_matrix=csc_array)
+        W_g = self.system.W_g(t, q, format="csc")
+        W_gamma = self.system.W_gamma(t, q, format="csc")
+        W_c = self.system.W_c(t, q, format="csc")
         g_dot_u = self.system.g_dot_u(t, q)
         gamma_u = self.system.gamma_u(t, q)
         la_c = self.system.la_c(t, q, u)
         zeta_g = self.system.zeta_g(t, q, u)
         zeta_gamma = self.system.zeta_gamma(t, q, u)
-        M = self.system.M(t, q, scipy_matrix=csc_array)
+        M = self.system.M(t, q, format="csc")
         h = self.system.h(t, q, u)
 
         if self.nla_g > 0:

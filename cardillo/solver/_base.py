@@ -1,11 +1,10 @@
 import numpy as np
-from scipy.sparse import csc_array, csr_array, coo_array, bmat
+from scipy.sparse import bmat
 from cardillo.math import (
     prox_sphere,
     prox_R0_nm,
     fsolve,
     norm,
-    approx_fprime,
     estimate_prox_parameter,
 )
 from .solver_options import SolverOptions
@@ -46,21 +45,21 @@ def consistent_initial_conditions(
     ), "Initial conditions do not fulfill g_N_dot0!"
 
     # csr for fast matrix vector product
-    M = system.M(t0, q0, scipy_matrix=csr_array)
+    M = system.M(t0, q0, format="csr")
     h = system.h(t0, q0, u0)
-    W_g = system.W_g(t0, q0, scipy_matrix=csr_array)
-    g_dot_u = system.g_dot_u(t0, q0, scipy_matrix=csr_array)
+    W_g = system.W_g(t0, q0, format="csr")
+    g_dot_u = system.g_dot_u(t0, q0, format="csr")
     zeta_g = system.zeta_g(t0, q0, u0)
-    W_gamma = system.W_gamma(t0, q0, scipy_matrix=csr_array)
-    gamma_u = system.gamma_u(t0, q0, scipy_matrix=csr_array)
+    W_gamma = system.W_gamma(t0, q0, format="csr")
+    gamma_u = system.gamma_u(t0, q0, format="csr")
     zeta_gamma = system.zeta_gamma(t0, q0, u0)
-    W_c = system.W_c(t0, q0, scipy_matrix=csr_array)
-    W_N = system.W_N(t0, q0, scipy_matrix=csr_array)
-    W_F = system.W_F(t0, q0, scipy_matrix=csr_array)
+    W_c = system.W_c(t0, q0, format="csr")
+    W_N = system.W_N(t0, q0, format="csr")
+    W_F = system.W_F(t0, q0, format="csr")
     I_N = np.isclose(g_N, np.zeros(system.nla_N), rtol, atol)
     I_F = compute_I_F(I_N, system.NF_connectivity)
-    prox_r_N = estimate_prox_parameter(options.prox_scaling, W_N, csc_array(M))
-    prox_r_F = estimate_prox_parameter(options.prox_scaling, W_F, csc_array(M))
+    prox_r_N = estimate_prox_parameter(options.prox_scaling, W_N, M)
+    prox_r_F = estimate_prox_parameter(options.prox_scaling, W_F, M)
     mu = system.mu
 
     split_x = np.cumsum(
@@ -113,7 +112,7 @@ def consistent_initial_conditions(
     def J_x(x, y):
         la_c = x[split_x[2] :]
         # coo for fast bmat
-        c_la_c = system.c_la_c(t0, q0, u0, la_c, scipy_matrix=coo_array)
+        c_la_c = system.c_la_c(t0, q0, u0, la_c, format="coo")
 
         # assemble jacobian
         # fmt: off
@@ -129,13 +128,6 @@ def consistent_initial_conditions(
         # fmt: on
 
         return J
-
-        # from cardillo.math import approx_fprime
-        # J_num = csr_array(approx_fprime(x, lambda x: R_x(x, y)))
-        # diff = (J - J_num).toarray()
-        # error_fixed_point = np.linalg.norm(diff)
-        # print(f"error Jacobian: {error_fixed_point}")
-        # return J_num
 
     def prox(x1, y0):
         u_dot, _, _, _ = np.array_split(x1, split_x)
