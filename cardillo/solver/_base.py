@@ -3,6 +3,7 @@ from scipy.sparse import csr_array, coo_array, lil_array, eye, diags, bmat
 from cardillo.math import prox_sphere, prox_R0_nm, fsolve, norm, approx_fprime, prox_r
 
 
+# TODO: Add rtol atol error measure and use SolverOptions
 def consistent_initial_conditions(
     system,
     rtol=1.0e-5,
@@ -11,10 +12,6 @@ def consistent_initial_conditions(
     newton_max_iter=10,
     fixed_point_atol=1e-8,
     fixed_point_max_iter=int(1e3),
-    # jac=None,
-    jac="2-point",
-    error_function=lambda x: np.max(np.absolute(x)),
-    alpha=1,
 ):
     t0 = system.t0
     q0 = system.q0
@@ -24,22 +21,6 @@ def consistent_initial_conditions(
     system.step_callback(t0, q0, u0)
 
     q_dot0 = system.q_dot(t0, q0, u0)
-
-    # import warnings
-
-    # warnings.warn("Wrong initial conditions are used!")
-    # return (
-    #     t0,
-    #     q0,
-    #     u0,
-    #     q_dot0,
-    #     np.zeros(system.nu),
-    #     np.zeros(system.nla_g),
-    #     np.zeros(system.nla_gamma),
-    #     np.zeros(system.nla_c),
-    #     np.zeros(system.nla_N),
-    #     np.zeros(system.nla_F),
-    # )
 
     g_N = system.g_N(t0, q0)
     g_N_dot = system.g_N_dot(t0, q0, u0)
@@ -157,7 +138,9 @@ def consistent_initial_conditions(
         ##############################
         g_N_ddot = system.g_N_ddot(t0, q0, u0, u_dot)
         prox_arg = prox_r_N * g_N_ddot - la_N
-        y1[: split_y[0]] = -prox_R0_nm(prox_arg)
+        # TODO: What do you prefer?
+        # y1[: split_y[0]] = np.where(B_N, -prox_R0_nm(prox_arg), np.zeros_like(la_N))
+        y1[: split_y[0]] = B_N * (-prox_R0_nm(prox_arg))
 
         #############################
         # fixed-point update friction
@@ -207,7 +190,7 @@ def consistent_initial_conditions(
         )
         assert (
             converged_newton
-        ), f"Newton method in consistent_initial_conditions did not converge after {i_newton} iterations with error: {error_newton}"
+        ), f"Newton method in consistent_initial_conditions did not converge after {i_newton} internal newton iterations with error: {error_newton}"
 
         # convergence in accelerations
         diff = x1[: system.nu] - x0[: system.nu]
@@ -224,9 +207,9 @@ def consistent_initial_conditions(
 
     assert (
         converged_fixed_point
-    ), f"Solving for consistent initial conditions does not converge after {i_fixed_point} iterations with error {error_fixed_point}."
+    ), f"Solving for consistent initial conditions does not converge after {i_fixed_point} fixed-point iterations with error {error_fixed_point}."
     print(
-        f"consistent_initial_conditions converged after {i_fixed_point} iterations with error: {error_fixed_point}"
+        f"consistent_initial_conditions converged after {i_fixed_point} fixed-point iterations with error: {error_fixed_point}"
     )
 
     u_dot0, la_g0, la_gamma0, la_c0 = np.array_split(x1, split_x)

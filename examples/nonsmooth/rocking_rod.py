@@ -3,8 +3,7 @@ import matplotlib.pyplot as plt
 
 from cardillo.math import approx_fprime
 from cardillo import System
-from cardillo.solver import MoreauShifted, Rattle, NPIRK
-from cardillo.solver._butcher_tableaus import RadauIIATableau
+from cardillo.solver import SolverOptions, Moreau, BackwardEuler
 
 
 class RockingRod:
@@ -52,8 +51,8 @@ class RockingRod:
     def q_ddot(self, t, q, u, u_dot):
         return u_dot
 
-    def B(self, t, q):
-        return np.ones(self.nq)
+    def q_dot_u(self, t, q):
+        return np.eye(self.nq)
 
     #####################
     # equations of motion
@@ -95,6 +94,9 @@ class RockingRod:
         W_N[2, 1] = (self.a - x) * cp - y * sp
         return W_N
 
+    def Wla_N_q(self, t, q, la_N):
+        return approx_fprime(q, lambda q: self.W_N(t, q) @ la_N)
+
     def zeta_N(self, t, q, u):
         x, y, phi = q
         x_dot, y_dot, phi_dot = u
@@ -126,6 +128,9 @@ class RockingRod:
         W_F[1, 1] = sp
         return W_F
 
+    def Wla_F_q(self, t, q, la_F):
+        return approx_fprime(q, lambda q: self.W_F(t, q) @ la_F)
+
     def gamma_F(self, t, q, u):
         return self.W_F(t, q).T @ u
 
@@ -147,15 +152,18 @@ class RockingRod:
         return self.W_F(t, q).T @ a + self.zeta_F(t, q, u)
 
 
-# Solver1, label1, dt1, kwargs1 = (
-#     NPIRK,
-#     "NPIRK",
-#     5e-3,
-#     {"butcher_tableau": RadauIIATableau(2)},
-# )
-# Solver1, label1, dt1, kwargs1 = Rattle, "Rattle", 5e-3, {}
-Solver1, label1, dt1, kwargs1 = MoreauShifted, "MoreauShifted", 5e-3, {}
-Solver2, label2, dt2, kwargs2 = MoreauShifted, "MoreauShifted", 5e-3, {}
+Solver1, label1, dt1, kwargs1 = (
+    BackwardEuler,
+    "BackwardEuler",
+    5e-3,
+    {"options": SolverOptions(prox_scaling=0.5)},
+)
+Solver2, label2, dt2, kwargs2 = (
+    Moreau,
+    "Moreau",
+    5e-3,
+    {"options": SolverOptions(prox_scaling=0.5)},
+)
 
 
 # This file implements the rocking rod system, see Section 5.2.2 in "Dynamik
@@ -170,13 +178,13 @@ if __name__ == "__main__":
 
     rods = []
 
-    # # case 1
-    # a = 0.2
-    # x0 = a * (np.cos(phi0) - 1)
-    # y0 = a * np.sin(phi0)
-    # q0 = np.array([x0, y0, phi0])
-    # u0 = np.array([0, 0, 0])
-    # rods.append(RockingRod(mass, a, l, eN, eF, mu, q0, u0))
+    # case 1
+    a = 0.2
+    x0 = a * (np.cos(phi0) - 1)
+    y0 = a * np.sin(phi0)
+    q0 = np.array([x0, y0, phi0])
+    u0 = np.array([0, 0, 0])
+    rods.append(RockingRod(mass, a, l, eN, eF, mu, q0, u0))
 
     # case 2
     a = 0.3
@@ -186,13 +194,13 @@ if __name__ == "__main__":
     u0 = np.array([0, 0, 0])
     rods.append(RockingRod(mass, a, l, eN, eF, mu, q0, u0))
 
-    # # case 3
-    # a = 0.6
-    # x0 = a * (np.cos(phi0) - 1)
-    # y0 = a * np.sin(phi0)
-    # q0 = np.array([x0, y0, phi0])
-    # u0 = np.array([0, 0, 0])
-    # rods.append(RockingRod(mass, a, l, eN, eF, mu, q0, u0))
+    # case 3
+    a = 0.6
+    x0 = a * (np.cos(phi0) - 1)
+    y0 = a * np.sin(phi0)
+    q0 = np.array([x0, y0, phi0])
+    u0 = np.array([0, 0, 0])
+    rods.append(RockingRod(mass, a, l, eN, eF, mu, q0, u0))
 
     t0 = 0  # initial simulation time
     t1 = 2  # end time

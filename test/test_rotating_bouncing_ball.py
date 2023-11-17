@@ -6,7 +6,6 @@ import matplotlib.animation as animation
 
 from cardillo import System
 from cardillo.solver import (
-    MoreauShifted,
     NonsmoothGeneralizedAlpha,
     Rattle,
     Moreau,
@@ -44,7 +43,7 @@ class RotatingBouncingBall:
     def q_ddot(self, t, q, u, u_dot):
         return u_dot
 
-    def q_dot_u(self, t, q, u):
+    def q_dot_u(self, t, q):
         return np.eye(self.nq)
 
     #####################
@@ -147,8 +146,8 @@ def run(case, export=False):
     y_dot0 = 0
     # dt = 5e-4
     # dt = 1e-3
-    # dt = 5e-3
-    dt = 1e-2
+    dt = 5e-3
+    # dt = 1e-2
     # dt = 5e-2
 
     if case == 1:
@@ -219,7 +218,7 @@ def run(case, export=False):
     # solver1, label1 = MoreauShifted(system, t_final, dt), "MoreauShifted"
     # solver1, label1 = MoreauShiftedNew(system, t_final, dt), "MoreauShiftedNew"
     # solver1, label1 = MoreauClassical(system, t_final, dt), "MoreauClassical"
-    solver1, label1 = BackwardEuler(system, t_final, dt), "Backward Euler"
+    solver1, label1 = BackwardEuler(system, t_final, dt), "BackwardEuler"
 
     sol1 = solver1.solve()
     t1 = sol1.t
@@ -240,6 +239,8 @@ def run(case, export=False):
     # solver2, label2 = BackwardEuler(system, t_final, dt), "Backward Euler"
     # solver2, label2 = Rattle(system, t_final, dt), "Rattle"
     sol2 = solver2.solve()
+    # sol2 = sol1
+    # label2 = label1
     t2 = sol2.t
     q2 = sol2.q
     u2 = sol2.u

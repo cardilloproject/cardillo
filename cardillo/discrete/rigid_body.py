@@ -1,4 +1,8 @@
 import numpy as np
+
+from cachetools import cachedmethod, LRUCache
+from cachetools.keys import hashkey
+
 from cardillo.math import (
     cross3,
     ax2skew,
@@ -40,7 +44,7 @@ class RigidBody:
         mass,
         K_Theta_S,
         q0=None,
-        u0=None,
+        u0=None
     ):
         self.nq = 7
         self.nu = 6
@@ -68,6 +72,8 @@ class RigidBody:
         self.__M[:3, :3] = self.mass * np.eye(3, dtype=float)
         self.__M[3:, 3:] = self.K_Theta_S
 
+        self.A_IK_cache = LRUCache(maxsize=1)
+
     #####################
     # kinematic equations
     #####################
@@ -84,7 +90,7 @@ class RigidBody:
         )
         return q_dot_q
 
-    def q_dot_u(self, t, q, u):
+    def q_dot_u(self, t, q):
         q_dot_u = np.zeros((self.nq, self.nu), dtype=q.dtype)
         q_dot_u[:3, :3] = np.eye(3, dtype=q.dtype)
         q_dot_u[3:, 3:] = T_SO3_inv_quat(q[3:], normalize=False)

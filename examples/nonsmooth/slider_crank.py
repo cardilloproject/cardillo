@@ -246,8 +246,8 @@ class SliderCrankFlores:
     def q_ddot(self, t, q, u, u_dot):
         return u_dot
 
-    def B(self, t, q):
-        return np.ones(3)
+    def q_dot_u(self, t, q):
+        return np.eye(3)
 
     #################
     # normal contacts
@@ -718,8 +718,8 @@ class SliderCrankDAE:
     def q_ddot(self, t, q, u, u_dot):
         return u_dot
 
-    def B(self, t, q):
-        return np.ones(self.nq)
+    def q_dot_u(self, t, q):
+        return np.eye(self.nq)
 
     #######################
     # bilateral constraints

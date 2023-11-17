@@ -273,7 +273,6 @@ class System:
         self.e_N = np.array(e_N)
         self.e_F = np.array(e_F)
         self.mu = np.array(mu)
-        self._alpha = 1  # TODO: GC: What is alpha?
 
         # call assembler callback: call methods that require first an assembly of the system
         self.assembler_callback()
@@ -307,8 +306,6 @@ class System:
             self.la_F0,
         ) = consistent_initial_conditions(self, **kwargs)
 
-        print("after consistent_initial_conditions")
-
     def assembler_callback(self):
         for contr in self.__assembler_callback_contr:
             contr.assembler_callback()
@@ -330,12 +327,10 @@ class System:
             )
         return coo.tosparse(scipy_matrix)
 
-    def q_dot_u(self, t, q, u, scipy_matrix=coo_matrix):
+    def q_dot_u(self, t, q, scipy_matrix=coo_matrix):
         coo = CooMatrix((self.nq, self.nu))
         for contr in self.__q_dot_u_contr:
-            coo[contr.q_dotDOF, contr.uDOF] = contr.q_dot_u(
-                t, q[contr.qDOF], u[contr.uDOF]
-            )
+            coo[contr.q_dotDOF, contr.uDOF] = contr.q_dot_u(t, q[contr.qDOF])
         return coo.tosparse(scipy_matrix)
 
     def q_ddot(self, t, q, u, u_dot):
@@ -707,6 +702,9 @@ class System:
         return self.g_N_dot(t, q, np.zeros(self.nu), dtype=q.dtype)
 
     def g_N_dot_u(self, t, q, scipy_matrix=coo_matrix):
+        warnings.warn(
+            "We assume g_N_dot_u(t, q) == W_N(t, q).T. This function will be deleted soon!"
+        )
         coo = CooMatrix((self.nla_N, self.nu))
         for contr in self.__g_N_contr:
             coo[contr.la_NDOF, contr.uDOF] = contr.g_N_dot_u(t, q[contr.qDOF])
@@ -739,7 +737,6 @@ class System:
     #################
     # friction
     #################
-
     def gamma_F(self, t, q, u):
         gamma_F = np.zeros(self.nla_F, dtype=np.common_type(q, u))
         for contr in self.__gamma_F_contr:
@@ -786,6 +783,9 @@ class System:
         return coo.tosparse(scipy_matrix)
 
     def gamma_F_u(self, t, q, scipy_matrix=coo_matrix):
+        warnings.warn(
+            "We assume gamma_F_u(t, q) == W_F(t, q).T. This function will be deleted soon!"
+        )
         coo = CooMatrix((self.nla_F, self.nu))
         for contr in self.__gamma_F_contr:
             coo[contr.la_FDOF, contr.uDOF] = contr.gamma_F_u(t, q[contr.qDOF])

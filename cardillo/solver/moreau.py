@@ -163,12 +163,12 @@ class Moreau:
             I_F = compute_I_F(I_N, self.system.NF_connectivity)
 
             # compute new estimates for prox parameters and get friction coefficient
-            prox_r_N = self.system.prox_r_N(tn12, qn12)
-            prox_r_F = self.system.prox_r_F(tn12, qn12)
+            prox_r_N = self.options.prox_scaling * self.system.prox_r_N(tn12, qn12)
+            prox_r_F = self.options.prox_scaling * self.system.prox_r_F(tn12, qn12)
 
             mu = self.system.mu
             z0 = z = np.concatenate([self.P_Nn, self.P_Fn])
-            for j in range(self.options.fixedpoint_max_iter):
+            for j in range(self.options.fixed_point_max_iter):
                 z = self.p(
                     z0,
                     lu_A,
@@ -186,11 +186,12 @@ class Moreau:
                 )
 
                 # check for convergence of velocities
+                # TODO: Add atol + rtol error measure!
                 error = self.options.error_function(
                     self.x[: self.nu] - self.x0[: self.nu]
                 )
 
-                converged = error < self.options.atol
+                converged = error < self.options.fixed_point_atol
                 if converged:
                     P_Nn1[I_N] = z[: self.nla_N][I_N]
                     P_Fn1[I_F] = z[self.nla_N :][I_F]

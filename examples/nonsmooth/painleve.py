@@ -6,12 +6,10 @@ import matplotlib.animation as animation
 
 from cardillo import System
 from cardillo.solver import (
-    MoreauShifted,
-    NonsmoothGeneralizedAlpha,
-    Rattle,
-    NPIRK,
+    SolverOptions,
+    Moreau,
+    BackwardEuler,
 )
-from cardillo.solver._butcher_tableaus import RadauIIATableau
 
 
 class Painleve_rod:
@@ -27,12 +25,6 @@ class Painleve_rod:
         self.mu = np.array([mu])
         self.e_N = np.array([0])
         self.e_F = np.array([0])
-        # dt = 1e-3, Moreau
-        self.prox_r_N = np.array([0.4])
-        self.prox_r_F = np.array([0.4])
-        # # dt = 1e-3, gen-alpha
-        # self.prox_r_N = np.array([0.1])
-        # self.prox_r_F = np.array([0.1])
 
         self.NF_connectivity = [[0]]
 
@@ -49,19 +41,17 @@ class Painleve_rod:
         self.u0 = np.array([x_dot0, y_dot0, phi_dot0]) if u0 is None else u0
         self.la_N0 = np.zeros(1)
         self.la_F0 = np.zeros(1)
-        # self.la_F0 = np.zeros(0)
 
         self.nq = 3
         self.nu = 3
         self.nla_N = 1
         self.nla_F = 1
-        # self.nla_F = 0
 
     #####################
     # equations of motion
     #####################
     def M(self, t, q):
-        return np.array([self.m, self.m, self.J_S])
+        return np.diag([self.m, self.m, self.J_S])
 
     def h(self, t, q, u):
         return np.array([0, -self.m * self.g, 0])
@@ -75,8 +65,8 @@ class Painleve_rod:
     def q_ddot(self, t, q, u, u_dot):
         return u_dot
 
-    def B(self, t, q):
-        return np.ones(3)
+    def q_dot_u(self, t, q):
+        return np.eye(3)
 
     #################
     # normal contacts
@@ -164,9 +154,9 @@ class Painleve_rod:
     def W_F(self, t, q):
         return self.gamma_F_u(t, q).T
 
-    def Wla_T_q(self, t, q, la_T):
+    def Wla_F_q(self, t, q, la_F):
         x, y, phi = q
-        return la_T[0] * np.array([[0, 0, 0], [0, 0, 0], [0, 0, -self.s * np.cos(phi)]])
+        return la_F[0] * np.array([[0, 0, 0], [0, 0, 0], [0, 0, -self.s * np.cos(phi)]])
 
     def gamma_F_dot(self, t, q, u, u_dot):
         x, y, phi = q
@@ -215,16 +205,12 @@ if __name__ == "__main__":
     dt2 = 5e-3
 
     sol1, label1 = (
-        NPIRK(system, t_final, dt1, RadauIIATableau(2)).solve(),
-        "NPIRK",
+        BackwardEuler(
+            system, t_final, dt1, options=SolverOptions(fixed_point_max_iter=int(1e4))
+        ).solve(),
+        "BackwardEuler",
     )
-
-    # sol1, label1 = Rattle(system, t_final, dt1, atol=1e-10).solve(), "Rattle"
-
-    sol2, label2 = (
-        MoreauShifted(system, t_final, dt2, fix_point_tol=1e-6).solve(),
-        "Moreau",
-    )
+    sol2, label2 = Moreau(system, t_final, dt2).solve(), "Moreau"
 
     t1 = sol1.t
     q1 = sol1.q

@@ -48,7 +48,7 @@ class MaxwellElement:
         q_dot_q[1, 1] = -ratio
         return q_dot_q
 
-    def q_dot_u(self, t, q, u):
+    def q_dot_u(self, t, q):
         q_dot_u = np.zeros((self.nq, self.nu))
         q_dot_u[0, 0] = 1
         return q_dot_u
@@ -57,7 +57,7 @@ class MaxwellElement:
     # equations of motion
     #####################
     def M(self, t, q):
-        return self.mass * np.ones(self.nu)
+        return self.mass * np.eye(self.nu)
 
     def h(self, t, q, u):
         x, x_D = q
@@ -107,7 +107,7 @@ class MaxwellElementCompliance:
         q_dot_q[1, 1] = -ratio
         return q_dot_q
 
-    def q_dot_u(self, t, q, u):
+    def q_dot_u(self, t, q):
         q_dot_u = np.zeros((self.nq, self.nu))
         q_dot_u[0, 0] = 1
         return q_dot_u
@@ -116,7 +116,7 @@ class MaxwellElementCompliance:
     # equations of motion
     #####################
     def M(self, t, q):
-        return self.mass * np.ones(self.nu)
+        return self.mass * np.eye(self.nu)
 
     ############
     # compliance
@@ -138,7 +138,7 @@ class MaxwellElementCompliance:
     def c_la_c(self, t, q, u, la_c):
         return np.diag([1 / self.stiffness])
 
-    def Wla_c_q(self, t, q, u, la_c):
+    def Wla_c_q(self, t, q, la_c):
         np.zeros((self.nu, self.nq))
 
 
@@ -159,6 +159,7 @@ class MaxwellElementForceElement:
         return self.system
 
 
+# TODO: Make this a parametrized test!
 if __name__ == "__main__":
     mass = 1e-3
     stiffness = 1e1
@@ -171,23 +172,23 @@ if __name__ == "__main__":
     u0 = np.array([x_dot0], dtype=float)
     la_c0 = np.array([-5], dtype=float)
 
-    # maxwell_element = MaxwellElement(mass, stiffness, damping, l0, q0, u0)
-    maxwell_element = MaxwellElementCompliance(
-        mass, stiffness, damping, l0, q0, u0, la_c0
-    )
+    maxwell_element = MaxwellElement(mass, stiffness, damping, l0, q0, u0)
+    # maxwell_element = MaxwellElementCompliance(
+    #     mass, stiffness, damping, l0, q0, u0, la_c0
+    # )
 
-    system = System()
-    system.add(maxwell_element)
-    system.assemble()
+    # system = System()
+    # system.add(maxwell_element)
+    # system.assemble()
 
-    # system = MaxwellElementForceElement(
-    #     mass, stiffness, damping, l0, x0, x_D0, x_dot0
-    # ).get_system()
+    system = MaxwellElementForceElement(
+        mass, stiffness, damping, l0, x0, x_D0, x_dot0
+    ).get_system()
 
     t0 = 0
     t1 = 2
-    dt = 5e-3
-    sol = BackwardEuler(system, t1, dt, debug=False).solve()
+    dt = 5e-4
+    sol = BackwardEuler(system, t1, dt).solve()
     # sol = ScipyIVP(system, t1, dt).solve()
 
     # - ref. solution

@@ -452,7 +452,7 @@ class CosseratRod(RodExportBase, ABC):
 
         return q_dot
 
-    def q_dot_u(self, t, q, u):
+    def q_dot_u(self, t, q):
         coo = CooMatrix((self.nq, self.nu))
 
         # trivial kinematic equation for centerline
@@ -1411,6 +1411,7 @@ class CosseratRod(RodExportBase, ABC):
     def distributed_force1D_q(self, t, q, force):
         return None
 
+
 class CosseratRodMixed(CosseratRod, ABC):
     def __init__(
         self,
@@ -1426,7 +1427,7 @@ class CosseratRodMixed(CosseratRod, ABC):
         Q,
         q0=None,
         u0=None,
-        mixed=False,
+        mixed=None,
     ):
         """Base class for Petrov-Galerkin Cosserat rod formulations that uses quaternions for the parametrization of the nodal orientations."""
 
@@ -1443,83 +1444,60 @@ class CosseratRodMixed(CosseratRod, ABC):
             Q,
             q0=None,
             u0=None,
-            mixed=False,
+            mixed=None,
         )
 
         #######################################################
         # discretization parameters internal forces and moments
         #######################################################
-        self.polynomial_degree_n = polynomial_degree - 1
-        self.polynomial_degree_m = polynomial_degree - 1
-        self.knot_vector_n = LagrangeKnotVector(self.polynomial_degree_n, nelement)
-        self.knot_vector_m = LagrangeKnotVector(self.polynomial_degree_m, nelement)
+        if mixed == None:
+            self.mixed = np.arange(6)
+
+        self.polynomial_degree_la_c = polynomial_degree - 1
+        self.knot_vector_la_c = LagrangeKnotVector(
+            self.polynomial_degree_la_c, nelement
+        )
 
         # build mesh objects
-        self.mesh_n = Mesh1D(
-            self.knot_vector_n,
+        self.mesh_la_c = Mesh1D(
+            self.knot_vector_la_c,
             nquadrature,
-            dim_q=3,
+            dim_q=len(self.mixed),
             derivative_order=0,
             basis="Lagrange_Disc",
             quadrature="Gauss",
-            dim_u=3,
-        )
-        self.mesh_m = Mesh1D(
-            self.knot_vector_m,
-            nquadrature,
-            dim_q=3,
-            derivative_order=0,
-            basis="Lagrange_Disc",
-            quadrature="Gauss",
-            dim_u=3,
+            dim_u=len(self.mixed),
         )
 
         # total number of nodes
-        self.nnodes_n = self.mesh_n.nnodes
-        self.nnodes_m = self.mesh_m.nnodes
+        self.nnodes_la_c = self.mesh_la_c.nnodes
 
         # number of nodes per element
-        self.nnodes_element_n = self.mesh_n.nnodes_per_element
-        self.nnodes_element_m = self.mesh_m.nnodes_per_element
+        self.nnodes_element_la_c = self.mesh_la_c.nnodes_per_element
 
         # total number of compliance coordiantes
-        self.nla_c_n = self.mesh_n.nq
-        self.nla_c_m = self.mesh_m.nq
-        self.nla_c = self.nla_c_n + self.nla_c_m
+        self.nla_c = self.mesh_la_c.nq
 
         # number of compliance coordinates per element
-        self.nla_c_element_n = self.mesh_n.nq_per_element
-        self.nla_c_element_m = self.mesh_m.nq_per_element
-        self.nla_c_element = self.nla_c_element_n + self.nla_c_element_m
+        self.nla_c_element = self.mesh_la_c.nq_per_element
 
         # global element connectivity for copliance coordinates
-        self.elDOF_n = self.mesh_n.elDOF
-        self.elDOF_m = self.mesh_m.elDOF + self.nla_c_n
+        self.elDOF_la_c = self.mesh_la_c.elDOF
 
         # global nodal connectivity
-        self.nodalDOF_n = self.mesh_n.nodalDOF + self.nq_r + self.nq_psi
-        self.nodalDOF_m = self.mesh_m.nodalDOF + self.nq_r + self.nq_psi + self.nla_c_n
+        self.nodalDOF_la_c = self.mesh_la_c.nodalDOF + self.nq_r + self.nq_psi
 
         # nodal connectivity on element level
-        self.nodalDOF_element_n = self.mesh_n.nodalDOF_element
-        self.nodalDOF_element_m = self.mesh_m.nodalDOF_element + self.nla_c_element_n
-
-        # build global elDOF connectivity matrix
-        self.elDOF_la_c = np.zeros((nelement, self.nla_c_element), dtype=int)
-        for el in range(nelement):
-            self.elDOF_la_c[el, : self.nla_c_element_n] = self.elDOF_n[el]
-            self.elDOF_la_c[el, self.nla_c_element_n :] = self.elDOF_m[el]
+        self.nodalDOF_element_la_c = self.mesh_la_c.nodalDOF_element
 
         # shape functions and their first derivatives
-        self.N_n = self.mesh_n.N
-        self.N_m = self.mesh_m.N
+        self.N_la_c = self.mesh_la_c.N
 
         # TODO: Dummy initial values for compliance
         self.la_c0 = np.zeros(self.nla_c, dtype=float)
 
         # evaluate shape functions at specific xi
-        self.basis_functions_n = self.mesh_n.eval_basis
-        self.basis_functions_m = self.mesh_m.eval_basis
+        self.basis_functions_la_c = self.mesh_la_c.eval_basis
 
     ###############################
     # potential and internal forces
@@ -1660,16 +1638,14 @@ class CosseratRodMixed(CosseratRod, ABC):
             # evaluate required quantities
             _, _, K_Gamma_bar, K_Kappa_bar = self._eval(qe, qpi)
 
+            la_c = np.zeros(6, dtype=la_ce.dtype)
             # interpolation of internal forces and moments
-            K_n = np.zeros(3, dtype=la_ce.dtype)
-            K_m = np.zeros(3, dtype=la_ce.dtype)
-            for node in range(self.nnodes_element_n):
-                n_node = la_ce[self.nodalDOF_element_n[node]]
-                K_n += self.N_n[el, i, node] * n_node
+            for node in range(self.nnodes_element_la_c):
+                la_c_node = la_ce[self.nodalDOF_element_la_c[node]]
+                la_c += self.N_la_c[el, i, node] * la_c_node
 
-            for node in range(self.nnodes_element_m):
-                m_node = la_ce[self.nodalDOF_element_m[node]]
-                K_m += self.N_m[el, i, node] * m_node
+            K_n = la_c[:3]
+            K_m = la_c[3:]
 
             # compute contact forces and couples from partial derivatives of
             # the strain energy function w.r.t. strain measures
@@ -1677,14 +1653,17 @@ class CosseratRodMixed(CosseratRod, ABC):
             C_m_inv = self.material_model.C_m_inv
 
             # TODO: Store K_Gamma_bar0 and K_Kappa_bar0
-            c_n = (J * C_n_inv @ K_n - (K_Gamma_bar - J * K_Gamma0)) * qwi
-            c_m = (J * C_m_inv @ K_m - (K_Kappa_bar - J * K_Kappa0)) * qwi
+            c_qp = np.concatenate(
+                (
+                    (J * C_n_inv @ K_n - (K_Gamma_bar - J * K_Gamma0)),
+                    (J * C_m_inv @ K_m - (K_Kappa_bar - J * K_Kappa0)),
+                )
+            )
 
-            for node in range(self.nnodes_element_n):
-                c_el[self.nodalDOF_element_n[node]] += self.N_n[el, i, node] * c_n
-
-            for node in range(self.nnodes_element_m):
-                c_el[self.nodalDOF_element_m[node]] += self.N_m[el, i, node] * c_m
+            for node in range(self.nnodes_element_la_c):
+                c_el[self.nodalDOF_element_la_c[node]] += (
+                    self.N_la_c[el, i, node] * c_qp * qwi
+                )
 
         return c_el
 
@@ -1706,27 +1685,18 @@ class CosseratRodMixed(CosseratRod, ABC):
 
             C_n_inv = self.material_model.C_n_inv
             C_m_inv = self.material_model.C_m_inv
+            C_inv = np.block(
+                [[C_n_inv, np.zeros_like(C_n_inv)], [np.zeros_like(C_m_inv), C_m_inv]]
+            )
 
-            for node_n1 in range(self.nnodes_element_n):
-                nodalDOF_n1 = self.nodalDOF_element_n[node_n1]
-                for node_n2 in range(self.nnodes_element_n):
-                    nodalDOF_n2 = self.nodalDOF_element_n[node_n2]
-                    c_la_c_el[nodalDOF_n1[:, None], nodalDOF_n2] += (
-                        self.N_n[el, i, node_n1]
-                        * C_n_inv
-                        * self.N_n[el, i, node_n2]
-                        * J
-                        * qwi
-                    )
-
-            for node_m1 in range(self.nnodes_element_m):
-                nodalDOF_m1 = self.nodalDOF_element_m[node_m1]
-                for node_m2 in range(self.nnodes_element_m):
-                    nodalDOF_m2 = self.nodalDOF_element_m[node_m2]
-                    c_la_c_el[nodalDOF_m1[:, None], nodalDOF_m2] += (
-                        self.N_m[el, i, node_m1]
-                        * C_m_inv
-                        * self.N_m[el, i, node_n2]
+            for node_la_c1 in range(self.nnodes_element_la_c):
+                nodalDOF_la_c1 = self.nodalDOF_element_la_c[node_la_c1]
+                for node_la_c2 in range(self.nnodes_element_la_c):
+                    nodalDOF_la_c2 = self.nodalDOF_element_la_c[node_la_c2]
+                    c_la_c_el[nodalDOF_la_c1[:, None], nodalDOF_la_c2] += (
+                        self.N_la_c[el, i, node_la_c1]
+                        * C_inv
+                        * self.N_la_c[el, i, node_la_c2]
                         * J
                         * qwi
                     )
@@ -1763,13 +1733,13 @@ class CosseratRodMixed(CosseratRod, ABC):
                 K_Kappa_bar_qe,
             ) = self._deval(qe, qpi)
 
-            for node in range(self.nnodes_element_n):
-                nodalDOF_n = self.nodalDOF_element_n[node]
-                c_q_el[nodalDOF_n, :] -= self.N_n[el, i, node] * K_Gamma_bar_qe * qwi
+            delta_strains_qe = np.vstack((K_Gamma_bar_qe, K_Kappa_bar_qe))
 
-            for node in range(self.nnodes_element_m):
-                nodalDOF_m = self.nodalDOF_element_m[node]
-                c_q_el[nodalDOF_m, :] -= self.N_m[el, i, node] * K_Kappa_bar_qe * qwi
+            for node in range(self.nnodes_element_la_c):
+                nodalDOF_la_c = self.nodalDOF_element_la_c[node]
+                c_q_el[nodalDOF_la_c, :] -= (
+                    self.N_la_c[el, i, node] * delta_strains_qe * qwi
+                )
 
         return c_q_el
 
@@ -1799,10 +1769,10 @@ class CosseratRodMixed(CosseratRod, ABC):
             for node_r in range(self.nnodes_element_r):
                 nodalDOF_r = self.nodalDOF_element_r_u[node_r]
                 N_r_xi = self.N_r_xi[el, i, node_r]
-                for node_n in range(self.nnodes_element_n):
-                    nodalDOF_n = self.nodalDOF_element_n[node_n]
-                    W_c_el[nodalDOF_r[:, None], nodalDOF_n] -= (
-                        N_r_xi * A_IK * self.N_n[el, i, node_n] * qwi
+                for node_la_c in range(self.nnodes_element_la_c):
+                    nodalDOF_la_c = self.nodalDOF_element_la_c[node_la_c]
+                    W_c_el[nodalDOF_r[:, None], nodalDOF_la_c[:3]] -= (
+                        N_r_xi * A_IK * self.N_la_c[el, i, node_la_c] * qwi
                     )
 
             for node_psi in range(self.nnodes_element_psi):
@@ -1810,18 +1780,19 @@ class CosseratRodMixed(CosseratRod, ABC):
                 N_psi = self.N_psi[el, i, node_psi]
                 N_psi_xi = self.N_psi_xi[el, i, node_psi]
 
-                for node_m in range(self.nnodes_element_m):
-                    nodalDOF_m = self.nodalDOF_element_m[node_m]
-                    W_c_el[nodalDOF_psi[:, None], nodalDOF_m] -= (
+                for node_la_c in range(self.nnodes_element_la_c):
+                    nodalDOF_la_c = self.nodalDOF_element_la_c[node_la_c]
+                    W_c_el[nodalDOF_psi[:, None], nodalDOF_la_c[3:]] -= (
                         (N_psi_xi * np.eye(3) - N_psi * ax2skew(K_Kappa_bar))
-                        * self.N_m[el, i, node_m]
+                        * self.N_la_c[el, i, node_la_c]
                         * qwi
                     )
 
-                for node_n in range(self.nnodes_element_n):
-                    nodalDOF_n = self.nodalDOF_element_n[node_n]
-                    W_c_el[nodalDOF_psi[:, None], nodalDOF_n] += (
-                        N_psi * ax2skew(K_Gamma_bar) * self.N_n[el, i, node_n] * qwi
+                    W_c_el[nodalDOF_psi[:, None], nodalDOF_la_c[:3]] += (
+                        N_psi
+                        * ax2skew(K_Gamma_bar)
+                        * self.N_la_c[el, i, node_la_c]
+                        * qwi
                     )
 
         return W_c_el
@@ -1859,16 +1830,14 @@ class CosseratRodMixed(CosseratRod, ABC):
             ) = self._deval(qe, qpi)
 
             # interpolation of the n and m
-            K_n = np.zeros(3, dtype=qe.dtype)
-            K_m = np.zeros(3, dtype=qe.dtype)
+            la_c = np.zeros(self.mesh_la_c.dim_q, dtype=qe.dtype)
 
-            for node in range(self.nnodes_element_n):
-                n_node = la_ce[self.nodalDOF_element_n[node]]
-                K_n += self.N_n[el, i, node] * n_node
+            for node in range(self.nnodes_element_la_c):
+                la_c_node = la_ce[self.nodalDOF_element_la_c[node]]
+                la_c += self.N_la_c[el, i, node] * la_c_node
 
-            for node in range(self.nnodes_element_m):
-                m_node = la_ce[self.nodalDOF_element_m[node]]
-                K_m += self.N_m[el, i, node] * m_node
+            K_n = la_c[:3]
+            K_m = la_c[3:]
 
             for node in range(self.nnodes_element_r):
                 Wla_c_q_el[self.nodalDOF_element_r_u[node], :] -= (
@@ -1910,6 +1879,7 @@ class CosseratRodMixed(CosseratRod, ABC):
             coo[elDOF_u, elDOF_u] = -self.f_gyr_u_el(t, q[elDOF], u[elDOF_u], el)
         return coo
 
+
 def make_CosseratRodConstrained(mixed=False, constraints=[1, 2]):
     if mixed == True:
         CosseratRodBase = CosseratRodMixed
@@ -1950,19 +1920,25 @@ def make_CosseratRodConstrained(mixed=False, constraints=[1, 2]):
             )
 
             self.constraints = np.array(constraints)
-            self.constraints_gamma = self.constraints[(self.constraints<=3)]
+            self.constraints_gamma = self.constraints[(self.constraints < 3)]
             self.nconstraints_gamma = len(self.constraints_gamma)
-            
-            self.constraints_kappa = self.constraints[(self.constraints>=3)]
+            self.K_n_la_g_sieve = np.zeros((3, self.nconstraints_gamma))
+            for i, gammai in enumerate(self.constraints_gamma):
+                self.K_n_la_g_sieve[gammai, i] = 1
+
+            self.constraints_kappa = self.constraints[(self.constraints >= 3)] - 3
             self.nconstraints_kappa = len(self.constraints_kappa)
-
-
+            self.K_m_la_g_sieve = np.zeros((3, self.nconstraints_kappa))
+            for i, kappai in enumerate(self.constraints_kappa):
+                self.K_m_la_g_sieve[kappai, i] = 1
 
             #######################################################
             # discretization parameters internal forces and moments
             #######################################################
             self.polynomial_degree_la_g = polynomial_degree - 1
-            self.knot_vector_la_g = LagrangeKnotVector(self.polynomial_degree_la_g, nelement)
+            self.knot_vector_la_g = LagrangeKnotVector(
+                self.polynomial_degree_la_g, nelement
+            )
 
             # build mesh objects
             self.mesh_la_g = Mesh1D(
@@ -2015,6 +1991,7 @@ def make_CosseratRodConstrained(mixed=False, constraints=[1, 2]):
             return g
 
         def g_el(self, qe, el):
+            # TODO: check this after you have slept
             g_el = np.zeros(self.nla_g_element, dtype=qe.dtype)
 
             for i in range(self.nquadrature):
@@ -2029,11 +2006,17 @@ def make_CosseratRodConstrained(mixed=False, constraints=[1, 2]):
                 _, _, K_Gamma_bar, K_Kappa_bar = self._eval(qe, qpi)
 
                 # TODO: Store K_Gamma_bar0 and K_Kappa_bar0
-                delta_strains = np.concatenate([(K_Gamma_bar - J * K_Gamma0) * qwi, 
-                                        (K_Kappa_bar - J * K_Kappa0) * qwi])
+                delta_strains = np.concatenate(
+                    [
+                        (K_Gamma_bar - J * K_Gamma0) * qwi,
+                        (K_Kappa_bar - J * K_Kappa0) * qwi,
+                    ]
+                )
 
                 for node in range(self.nnodes_element_la_g):
-                    g_el[self.nodalDOF_element_la_g[node]] -= self.N_la_g[el, i, node] * delta_strains[self.constraints]
+                    g_el[self.nodalDOF_element_la_g[node]] -= (
+                        self.N_la_g[el, i, node] * delta_strains[self.constraints]
+                    )
 
             return g_el
 
@@ -2046,8 +2029,7 @@ def make_CosseratRodConstrained(mixed=False, constraints=[1, 2]):
             return coo
 
         def g_q_el(self, qe, el):
-            g_q_el = np.zeros(
-                (self.nla_g_element, self.nq_element), dtype=qe.dtype)
+            g_q_el = np.zeros((self.nla_g_element, self.nq_element), dtype=qe.dtype)
             for i in range(self.nquadrature):
                 # extract reference state variables
                 qpi = self.qp[el, i]
@@ -2070,7 +2052,11 @@ def make_CosseratRodConstrained(mixed=False, constraints=[1, 2]):
 
                 for node in range(self.nnodes_element_la_g):
                     nodalDOF_la_g = self.nodalDOF_element_la_g[node]
-                    g_q_el[nodalDOF_la_g, :] -= self.N_la_g[el, i, node] * delta_strains_qe[self.constraints, :] * qwi
+                    g_q_el[nodalDOF_la_g, :] -= (
+                        self.N_la_g[el, i, node]
+                        * delta_strains_qe[self.constraints, :]
+                        * qwi
+                    )
 
             return g_q_el
 
@@ -2082,7 +2068,6 @@ def make_CosseratRodConstrained(mixed=False, constraints=[1, 2]):
                 elDOF_la_g = self.elDOF_la_g[el]
                 coo[elDOF_u, elDOF_la_g] = self.W_g_el(q[elDOF], el)
             return coo
-        
 
         def W_g_el(self, qe, el):
             W_g_el = np.zeros((self.nu_element, self.nla_g_element), dtype=qe.dtype)
@@ -2103,8 +2088,14 @@ def make_CosseratRodConstrained(mixed=False, constraints=[1, 2]):
                     N_r_xi = self.N_r_xi[el, i, node_r]
                     for node_la_g in range(self.nnodes_element_la_g):
                         nodalDOF_la_g = self.nodalDOF_element_la_g[node_la_g]
-                        W_g_el[nodalDOF_r[:, None], nodalDOF_la_g[self._nconstraints_gamma]] -= (
-                            N_r_xi * A_IK[:, self.constraints_gamma] * self.N_la_g[el, i, node_la_g] * qwi
+                        W_g_el[
+                            nodalDOF_r[:, None],
+                            nodalDOF_la_g[: self.nconstraints_gamma],
+                        ] -= (
+                            N_r_xi
+                            * A_IK[:, self.constraints_gamma]
+                            * self.N_la_g[el, i, node_la_g]
+                            * qwi
                         )
 
                 for node_psi in range(self.nnodes_element_psi):
@@ -2114,14 +2105,25 @@ def make_CosseratRodConstrained(mixed=False, constraints=[1, 2]):
 
                     for node_la_g in range(self.nnodes_element_la_g):
                         nodalDOF_la_g = self.nodalDOF_element_la_g[node_la_g]
-                        W_g_el[nodalDOF_psi[:, None], nodalDOF_la_g[3:]] -= (
-                            (N_psi_xi * np.eye(3) - N_psi * ax2skew(K_Kappa_bar))
+                        W_g_el[
+                            nodalDOF_psi[:, None],
+                            nodalDOF_la_g[self.nconstraints_gamma :],
+                        ] -= (
+                            (N_psi_xi * np.eye(3) - N_psi * ax2skew(K_Kappa_bar))[
+                                :, self.constraints_kappa
+                            ]
                             * self.N_la_g[el, i, node_la_g]
                             * qwi
                         )
 
-                        W_g_el[nodalDOF_psi[:, None], nodalDOF_la_g[:3]] += (
-                            N_psi * ax2skew(K_Gamma_bar) * self.N_la_g[el, i, node_la_g] * qwi
+                        W_g_el[
+                            nodalDOF_psi[:, None],
+                            nodalDOF_la_g[: self.nconstraints_gamma],
+                        ] += (
+                            N_psi
+                            * ax2skew(K_Gamma_bar)[:, self.constraints_gamma]
+                            * self.N_la_g[el, i, node_la_g]
+                            * qwi
                         )
 
             return W_g_el
@@ -2165,26 +2167,36 @@ def make_CosseratRodConstrained(mixed=False, constraints=[1, 2]):
                     la_g_node = la_ge[self.nodalDOF_element_la_g[node]]
                     la_g += self.N_la_g[el, i, node] * la_g_node
 
+                K_n = self.K_n_la_g_sieve @ la_g[: self.nconstraints_gamma]
+                K_m = self.K_m_la_g_sieve @ la_g[self.nconstraints_gamma :]
+
                 for node in range(self.nnodes_element_r):
                     Wla_g_q_el[self.nodalDOF_element_r_u[node], :] -= (
                         self.N_r_xi[el, i, node]
                         * qwi
-                        * (np.einsum("ikj,k->ij", A_IK_qe, la_g[:3]))
+                        * (np.einsum("ikj,k->ij", A_IK_qe, K_n))
                     )
 
                 for node in range(self.nnodes_element_psi):
                     Wla_g_q_el[self.nodalDOF_element_psi_u[node], :] += (
                         self.N_psi[el, i, node]
                         * qwi
-                        * (-ax2skew(la_g[:3]) @ K_Gamma_bar_qe - ax2skew(la_g[3:]) @ K_Kappa_bar_qe)
+                        * (
+                            -ax2skew(K_n) @ K_Gamma_bar_qe
+                            - ax2skew(K_m) @ K_Kappa_bar_qe
+                        )
                     )
 
+            # Wla_g_q_el_num = approx_fprime(qe, lambda qe: self.W_g_el(qe, el) @ la_ge, method="cs", eps=1e-6)
+            # error = np.linalg.norm(Wla_g_q_el - Wla_g_q_el_num)
+            # print(error)
+
             return Wla_g_q_el
-        
+
         def g_dot(self, t, q, u):
             raise NotImplementedError
-            return self.W_g(t,q).toarray.T @ u
-        
+            return self.W_g(t, q).toarray.T @ u
+
         def g_dot_u(self, t, q, u):
             W_g = self.W_g(t, q)
             coo = CooMatrix((self.nla_g, self.nu))
@@ -2192,10 +2204,10 @@ def make_CosseratRodConstrained(mixed=False, constraints=[1, 2]):
             coo.col = W_g.row
             coo.data = W_g.data
             return coo
-        
+
         def g_dot_q(self, t, q, u):
             raise NotImplementedError
-        
+
         def g_ddot(self, t, q, u):
             raise NotImplementedError
 
