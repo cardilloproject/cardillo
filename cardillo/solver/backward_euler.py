@@ -17,7 +17,6 @@ from cardillo.math import fsolve, approx_fprime, prox_R0_nm, prox_sphere
 NEWTON_MAXITER = 4  # maximum number of Newton iterations
 
 
-# TODO: Move from la# to P#
 class BackwardEuler:
     def __init__(
         self,
@@ -131,22 +130,22 @@ class BackwardEuler:
 
     def R_x(self, xn1, yn1):
         (
-            q_dotn1,
-            u_dotn1,
-            la_gn1,
-            la_gamman1,
-            la_cn1,
-            mu_Sn1,
+            dqn1,
+            dun1,
+            dP_gn1,
+            dP_gamman1,
+            dP_cn1,
+            dmu_Sn1,
         ) = np.array_split(xn1, self.split_x)
         (
-            la_Nn1,
-            la_Fn1,
+            dP_Nn1,
+            dP_Fn1,
         ) = np.array_split(yn1, self.split_y)
 
         tn, dt, qn, un = self.tn, self.dt, self.qn, self.un
         tn1 = tn + dt
-        qn1 = qn + q_dotn1
-        un1 = un + u_dotn1
+        qn1 = qn + dqn1
+        un1 = un + dun1
 
         ###################
         # evaluate residual
@@ -158,7 +157,7 @@ class BackwardEuler:
         ####################
         g_S_q = self.system.g_S_q(tn1, qn1, format="csc")
         R_x[: self.split_x[0]] = (
-            q_dotn1 - dt * self.system.q_dot(tn1, qn1, un1) - g_S_q.T @ mu_Sn1
+            dqn1 - dt * self.system.q_dot(tn1, qn1, un1) - g_S_q.T @ dmu_Sn1
         )
 
         ####################
@@ -168,13 +167,13 @@ class BackwardEuler:
         self.W_N = self.system.W_N(tn1, qn1, format="csr")
         self.W_F = self.system.W_F(tn1, qn1, format="csr")
         R_x[self.split_x[0] : self.split_x[1]] = (
-            self.M @ u_dotn1
+            self.M @ dun1
             - dt * self.system.h(tn1, qn1, un1)
-            - self.system.W_g(tn1, qn1, format="csr") @ la_gn1
-            - self.system.W_gamma(tn1, qn1, format="csr") @ la_gamman1
-            - self.system.W_c(tn1, qn1, format="csr") @ la_cn1
-            - self.W_N @ la_Nn1
-            - self.W_F @ la_Fn1
+            - self.system.W_g(tn1, qn1, format="csr") @ dP_gn1
+            - self.system.W_gamma(tn1, qn1, format="csr") @ dP_gamman1
+            - self.system.W_c(tn1, qn1, format="csr") @ dP_cn1
+            - self.W_N @ dP_Nn1
+            - self.W_F @ dP_Fn1
         )
 
         #######################
@@ -187,7 +186,7 @@ class BackwardEuler:
         # compliance
         ############
         R_x[self.split_x[3] : self.split_x[4]] = self.system.c(
-            tn1, qn1, un1, la_cn1 / self.dt
+            tn1, qn1, un1, dP_cn1 / self.dt
         )
 
         ##########################
@@ -199,29 +198,29 @@ class BackwardEuler:
 
     def _J_x(self, xn1, yn1):
         (
-            q_dotn1,
-            u_dotn1,
-            la_gn1,
-            la_gamman1,
-            la_cn1,
-            mu_Sn1,
+            dqn1,
+            dun1,
+            dP_gn1,
+            dP_gamman1,
+            dP_cn1,
+            dmu_Sn1,
         ) = np.array_split(xn1, self.split_x)
         (
-            la_Nn1,
-            la_Fn1,
+            dP_Nn1,
+            dP_Fn1,
         ) = np.array_split(yn1, self.split_y)
 
         tn, dt, qn, un = self.tn, self.dt, self.qn, self.un
         tn1 = tn + dt
-        qn1 = qn + q_dotn1
-        un1 = un + u_dotn1
+        qn1 = qn + dqn1
+        un1 = un + dun1
 
         ####################
         # kinematic equation
         ####################
         Rq_dot_q_dot = eye(self.nq) - (
             dt * self.system.q_dot_q(tn1, qn1, un1)
-            + self.system.g_S_q_T_mu_q(tn1, qn1, mu_Sn1)
+            + self.system.g_S_q_T_mu_q(tn1, qn1, dmu_Sn1)
         )
         Rq_dot_u_dot = -dt * self.system.q_dot_u(tn1, qn1)
         g_S_q = self.system.g_S_q(tn1, qn1)
@@ -236,13 +235,13 @@ class BackwardEuler:
         W_c = self.system.W_c(tn1, qn1)
 
         Ru_dot_q_dot = (
-            self.system.Mu_q(tn1, qn1, u_dotn1)
+            self.system.Mu_q(tn1, qn1, dun1)
             - dt * self.system.h_q(tn1, qn1, un1)
-            - self.system.Wla_g_q(tn1, qn1, la_gn1)
-            - self.system.Wla_gamma_q(tn1, qn1, la_gamman1)
-            - self.system.Wla_c_q(tn1, qn1, la_cn1)
-            - self.system.Wla_N_q(tn1, qn1, la_Nn1)
-            - self.system.Wla_F_q(tn1, qn1, la_Fn1)
+            - self.system.Wla_g_q(tn1, qn1, dP_gn1)
+            - self.system.Wla_gamma_q(tn1, qn1, dP_gamman1)
+            - self.system.Wla_c_q(tn1, qn1, dP_cn1)
+            - self.system.Wla_N_q(tn1, qn1, dP_Nn1)
+            - self.system.Wla_F_q(tn1, qn1, dP_Fn1)
         )
         Ru_dot_u_dot = M - dt * self.system.h_u(tn1, qn1, un1)
 
@@ -256,8 +255,8 @@ class BackwardEuler:
         ############
         # compliance
         ############
-        Rla_c_q_dot = self.system.c_q(tn1, qn1, un1, la_cn1 / self.dt)
-        Rla_c_u_dot = self.system.c_u(tn1, qn1, un1, la_cn1 / self.dt)
+        Rla_c_q_dot = self.system.c_q(tn1, qn1, un1, dP_cn1 / self.dt)
+        Rla_c_u_dot = self.system.c_u(tn1, qn1, un1, dP_cn1 / self.dt)
         Rla_c_la_c = self.system.c_la_c() / self.dt
 
         # fmt: off
@@ -278,22 +277,22 @@ class BackwardEuler:
 
     def prox(self, x1, y0):
         (
-            q_dotn1,
-            u_dotn1,
+            dqn1,
+            dun1,
             _,
             _,
             _,
             _,
         ) = np.array_split(x1, self.split_x)
         (
-            la_Nn1,
-            la_Fn1,
+            dP_Nn1,
+            dP_Fn1,
         ) = np.array_split(y0, self.split_y)
 
         tn, dt, qn, un = self.tn, self.dt, self.qn, self.un
         tn1 = tn + dt
-        qn1 = qn + q_dotn1
-        un1 = un + u_dotn1
+        qn1 = qn + dqn1
+        un1 = un + dun1
 
         mu = self.system.mu
         prox_r_N = self.prox_r_N
@@ -305,7 +304,7 @@ class BackwardEuler:
         # fixed-point update Signorini
         ##############################
         g_N = self.system.g_N(tn1, qn1)
-        prox_arg = (prox_r_N / self.dt) * g_N - la_Nn1
+        prox_arg = (prox_r_N / self.dt) * g_N - dP_Nn1
         y1[: self.split_y[0]] = -prox_R0_nm(prox_arg)
 
         #############################
@@ -315,8 +314,8 @@ class BackwardEuler:
         for i_N, i_F in enumerate(self.system.NF_connectivity):
             if len(i_F):
                 y1[self.split_y[0] + np.array(i_F)] = -prox_sphere(
-                    prox_r_F[i_N] * gamma_F[i_F] - la_Fn1[i_F],
-                    mu[i_N] * la_Nn1[i_N],
+                    prox_r_F[i_N] * gamma_F[i_F] - dP_Fn1[i_F],
+                    mu[i_N] * dP_Nn1[i_N],
                 )
 
         return y1
@@ -326,14 +325,14 @@ class BackwardEuler:
         t = [self.tn]
         q = [self.qn]
         u = [self.un]
-        q_dot = [self.dt * self.q_dotn]
-        u_dot = [self.dt * self.u_dotn]
-        P_c = [self.dt * self.la_cn]
+        q_dot = [self.q_dotn]
+        u_dot = [self.u_dotn]
+        la_c = [self.la_cn]
         P_g = [self.dt * self.la_gn]
         P_gamma = [self.dt * self.la_gamman]
         P_N = [self.dt * self.la_Nn]
         P_F = [self.dt * self.la_Fn]
-        mu_S = [self.dt * self.mu_Sn]
+        mu_S = [self.mu_Sn]
 
         fixed_point_n_iter_list = []
         newton_n_iter_list = []
@@ -442,19 +441,19 @@ class BackwardEuler:
 
             # compute state
             (
-                q_dotn1,
-                u_dotn1,
-                la_gn1,
-                la_gamman1,
-                la_cn1,
-                mu_Sn1,
+                dqn1,
+                dun1,
+                dP_gn1,
+                dP_gamman1,
+                dP_cn1,
+                dmu_Sn1,
             ) = np.array_split(xn1, self.split_x)
             (
-                la_Nn1,
-                la_Fn1,
+                dP_Nn1,
+                dP_Fn1,
             ) = np.array_split(yn1, self.split_y)
-            qn1 = self.qn + q_dotn1
-            un1 = self.un + u_dotn1
+            qn1 = self.qn + dqn1
+            un1 = self.un + dun1
 
             # modify converged quantities
             qn1, un1 = self.system.step_callback(tn1, qn1, un1)
@@ -463,15 +462,14 @@ class BackwardEuler:
             t.append(tn1)
             q.append(qn1)
             u.append(un1)
-            # TODO: replace q_dotn1 with dqn1, la_gn1 with dPn1, etc.
-            q_dot.append(q_dotn1 / self.dt)
-            u_dot.append(u_dotn1 / self.dt)
-            P_g.append(la_gn1)
-            P_gamma.append(la_gamman1)
-            P_c.append(la_cn1)
-            P_N.append(la_Nn1)
-            P_F.append(la_Fn1)
-            mu_S.append(mu_Sn1)
+            q_dot.append(dqn1 / self.dt)
+            u_dot.append(dun1 / self.dt)
+            la_c.append(dP_cn1 / self.dt)
+            P_g.append(dP_gn1)
+            P_gamma.append(dP_gamman1)
+            P_N.append(dP_Nn1)
+            P_F.append(dP_Fn1)
+            mu_S.append(dmu_Sn1 / self.dt)
 
             # update local variables for accepted time step
             self.xn = xn1.copy()
@@ -502,6 +500,7 @@ class BackwardEuler:
             u=np.array(u),
             q_dot=np.array(q_dot),
             u_dot=np.array(u_dot),
+            la_c=np.array(la_c),
             P_g=np.array(P_g),
             P_gamma=np.array(P_gamma),
             P_N=np.array(P_N),
