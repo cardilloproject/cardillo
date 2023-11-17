@@ -515,6 +515,16 @@ connectivity = arange(125)[None]
 
 
 def vtk_sphere(radius):
+    """Create vtk sphere approximation using Bezier Hexahedron cell
+
+    Args:
+        radius (float): radius of sphere
+
+    Returns:
+        points:     coordinates of points used to approximate sphere
+        cell:       connectivity of Bezier Hexahedron cell
+        point_data: additional data needed for Bezier Hexahedron cell
+    """
     cell = ("VTK_BEZIER_HEXAHEDRON", connectivity)
     point_data = {"RationalWeights": weights}
     return radius * points, cell, point_data

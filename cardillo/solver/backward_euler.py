@@ -2,9 +2,13 @@ import numpy as np
 from scipy.sparse import csc_array, csr_array, eye, bmat
 from scipy.sparse.linalg import splu
 from tqdm import tqdm
+import warnings
+import matplotlib.pyplot as plt
 
-from cardillo.solver import SolverOptions, Solution
-from cardillo.math import fsolve, prox_R0_nm, prox_sphere
+from cardillo.math import fsolve, approx_fprime, prox_r, prox_R0_nm, prox_sphere
+from cardillo.solver import Solution, SolverOptions
+from cardillo.utility.coo_matrix import CooMatrix
+from ._base import compute_I_F
 
 
 NEWTON_MAXITER = 4  # maximum number of Newton iterations
@@ -329,11 +333,12 @@ class BackwardEuler:
         pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
         for _ in pbar:
             # only compute optimized proxparameters once per time step
-            self.prox_r_N = self.options.prox_scaling * self.system.prox_r_N(
-                self.tn, self.qn
+            M = self.system.M(self.tn, self.qn)
+            self.prox_r_N = prox_r(
+                self.options.prox_scaling, self.system.W_N(self.tn, self.qn), M
             )
-            self.prox_r_F = self.options.prox_scaling * self.system.prox_r_F(
-                self.tn, self.qn
+            self.prox_r_F = prox_r(
+                self.options.prox_scaling, self.system.W_F(self.tn, self.qn), M
             )
 
             # perform a solver step

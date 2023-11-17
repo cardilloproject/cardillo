@@ -297,7 +297,14 @@ def run(
         file_path = Path(__file__)
         path = Path(file_path.parents[2], "sim_data")
         folder = file_path.stem
-        e = Export(path, folder, overwrite=True, fps=30, solution=sol1)
+        e = Export(
+            path=path,
+            folder_name=folder,
+            overwrite=True,
+            fps=30,
+            solution=sol1,
+            system=system,
+        )
         e.export_contr(frame_left, file_name="PlaneLeft")
         e.export_contr(frame_right, file_name="PlaneRight")
         e.export_contr(RB, base_export=True, file_name=f"COM{shape}")

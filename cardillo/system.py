@@ -164,11 +164,17 @@ class System:
             name (_type_): class name or part of class name of contributions which are returned
         """
         ret = []
-        for contr in self.contributions:
-            contr_type = ".".join([type(contr).__module__, type(contr).__name__])
-            if contr_type.find(name) != -1:
-                ret.append(contr)
+        for n in name:
+            for contr in self.contributions:
+                contr_type = ".".join([type(contr).__module__, type(contr).__name__])
+                if contr_type.find(n) != -1:
+                    ret.append(contr)
         return ret
+
+    def reset(self):
+        for contr in self.contributions:
+            if hasattr(contr, "reset"):
+                contr.reset()
 
     def assemble(self, **kwargs):
         self.nq = 0
@@ -274,6 +280,19 @@ class System:
         # compute consisten initial conditions
         self.q0 = np.array(q0)
         self.u0 = np.array(u0)
+
+        # compute constant system parts
+        self.I_M = [
+            contr.variable_mass if hasattr(contr, "variable_mass") else False
+            for contr in self.__M_contr
+        ]
+        self.__M_contr = np.array(self.__M_contr)
+        coo = CooMatrix((self.nu, self.nu))
+        for contr in self.__M_contr:
+            coo[contr.uDOF, contr.uDOF] = contr.M(self.t0, self.q0[contr.qDOF])
+        self._M0 = coo.tosparse(coo_matrix)
+
+        # compute consistent initial conditions
         (
             self.t0,
             self.q0,
@@ -352,10 +371,13 @@ class System:
     # equations of motion
     #####################
     def M(self, t, q, scipy_matrix=coo_matrix):
-        coo = CooMatrix((self.nu, self.nu))
-        for contr in self.__M_contr:
-            coo[contr.uDOF, contr.uDOF] = contr.M(t, q[contr.qDOF])
-        return coo.tosparse(scipy_matrix)
+        if np.any(self.I_M):
+            coo = CooMatrix((self.nu, self.nu))
+            for contr in self.__M_contr[self.I_M]:  # only loop over variable mass parts
+                coo[contr.uDOF, contr.uDOF] = contr.M(t, q[contr.qDOF])
+            return coo.tosparse(scipy_matrix) + scipy_matrix(self._M0)
+        else:
+            return scipy_matrix(self._M0)
 
     def Mu_q(self, t, q, u, scipy_matrix=coo_matrix):
         coo = CooMatrix((self.nu, self.nq))
@@ -620,29 +642,6 @@ class System:
     #################
     # normal contacts
     #################
-    """
-    Estimation of relaxation parameter $\vr_N$ of prox function for normal contacts.
-    The parameter is calculated as follows
-    $$
-        \vr_N = 1 / diag(\vG_N),
-    $$
-    where $\vG_N = \vW_N^T\vM^{-1}\vW_N$.
-
-
-    References
-    ----------
-    Studer2008: https://doi.org/10.3929/ethz-a-005556821
-    Schweizer2015: https://doi.org/10.3929/ethz-a-010464319
-    """
-
-    def prox_r_N(self, t, q):
-        M = self.M(t, q, csc_matrix)
-        W_N = self.W_N(t, q, csc_matrix)
-        try:
-            return 1 / csr_matrix(W_N.T @ spsolve(M, W_N)).diagonal()
-        except:
-            return np.ones(self.nla_N, dtype=q.dtype)
-
     def g_N(self, t, q):
         g_N = np.zeros(self.nla_N, dtype=q.dtype)
         for contr in self.__g_N_contr:
@@ -734,29 +733,6 @@ class System:
     #################
     # friction
     #################
-    """
-    Estimation of relaxation parameter $\vr_F$ of prox function for frictional contacts.
-    The parameter is calculated as follows
-    $$
-        \vr_F = 1 / diag(\vG_F),
-    $$
-    where $\vG_F = \vW_F^T\vM^{-1}\vW_F$.
-
-
-    References
-    ----------
-    Studer2008: https://doi.org/10.3929/ethz-a-005556821
-    Schweizer2015: https://doi.org/10.3929/ethz-a-010464319
-    """
-
-    def prox_r_F(self, t, q):
-        M = self.M(t, q, csc_matrix)
-        W_F = self.W_F(t, q, csc_matrix)
-        try:
-            return 1 / csr_matrix(W_F.T @ spsolve(M, W_F)).diagonal()
-        except:
-            return np.ones(self.nla_F, dtype=q.dtype)
-
     def gamma_F(self, t, q, u):
         gamma_F = np.zeros(self.nla_F, dtype=np.common_type(q, u))
         for contr in self.__gamma_F_contr:

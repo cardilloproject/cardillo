@@ -43,7 +43,7 @@ if __name__ == "__main__":
         ]
     )
 
-    # create a convex body object
+    # create a cuboid body object
     m = 10
     r_OS = np.zeros(3)
     phi = np.pi / 6

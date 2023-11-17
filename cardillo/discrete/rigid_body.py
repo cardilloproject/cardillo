@@ -60,6 +60,7 @@ class RigidBody:
         assert self.u0.size == self.nu
         self.t = None
         self.q = np.empty(self.nq)
+        self.update = np.array(2 * [True])
         # self.u = np.empty(self.nu)
 
         self.la_S0 = np.zeros(self.nla_S, dtype=float)
@@ -161,25 +162,26 @@ class RigidBody:
     def local_uDOF_P(self, frame_ID=None):
         return np.arange(self.nu)
 
-    @cachedmethod(
-            lambda self: self.A_IK_cache,
-            key=lambda self, t, q, frame_ID=None: hashkey(t, tuple(q.tolist()))
-    )
+    def updated(self, t, q):
+        ret = not (t == self.t and np.allclose(q, self.q, atol=1e-15, rtol=1e-15))
+        if ret:
+            self.t = t
+            self.q = q
+            self.update.fill(True)
+        return ret
+
     def A_IK(self, t, q, frame_ID=None):
-        return Exp_SO3_quat(q[3:])
-    
-    # TODO: delete this old version of caching
-    # def A_IK(self, t, q, frame_ID=None):
-    #     if not (t == self.t and np.allclose(q, self.q, rtol=1e-12, atol=1e-12)):
-    #         self._A_IK = Exp_SO3_quat(q[3:])
-    #         self.t = t
-    #         self.q = q
-    #     return self._A_IK
+        if self.updated(t, q) or self.update[0]:
+            self._A_IK = Exp_SO3_quat(q[3:])
+            self.update[0] = False
+        return self._A_IK
 
     def A_IK_q(self, t, q, frame_ID=None):
-        A_IK_q = np.zeros((3, 3, self.nq), dtype=q.dtype)
-        A_IK_q[:, :, 3:] = Exp_SO3_quat_p(q[3:])
-        return A_IK_q
+        if self.updated(t, q) or self.update[1]:
+            self._A_IK_q = np.zeros((3, 3, self.nq), dtype=q.dtype)
+            self._A_IK_q[:, :, 3:] = Exp_SO3_quat_p(q[3:])
+            self.update[1] = False
+        return self._A_IK_q
 
     def r_OP(self, t, q, frame_ID=None, K_r_SP=np.zeros(3, dtype=float)):
         return q[:3] + self.A_IK(t, q) @ K_r_SP
