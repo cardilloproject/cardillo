@@ -34,7 +34,6 @@ class CosseratRod(RodExportBase, ABC):
         Q,
         q0=None,
         u0=None,
-        mixed=False,
     ):
         """Base class for Petrov-Galerkin Cosserat rod formulations that uses quaternions for the parametrization of the nodal orientations."""
 
@@ -1444,7 +1443,6 @@ class CosseratRodMixed(CosseratRod, ABC):
             Q,
             q0=None,
             u0=None,
-            mixed=None,
         )
 
         #######################################################
@@ -1704,7 +1702,7 @@ class CosseratRodMixed(CosseratRod, ABC):
             )
 
             C_inv_sliced = C_inv[self.idx_mixed[:, None], self.idx_mixed]
-#
+            #
             for node_la_c1 in range(self.nnodes_element_la_c):
                 nodalDOF_la_c1 = self.nodalDOF_element_la_c[node_la_c1]
                 for node_la_c2 in range(self.nnodes_element_la_c):
@@ -1787,8 +1785,11 @@ class CosseratRodMixed(CosseratRod, ABC):
                 N_r_xi = self.N_r_xi[el, i, node_r]
                 for node_la_c in range(self.nnodes_element_la_c):
                     nodalDOF_la_c = self.nodalDOF_element_la_c[node_la_c]
-                    W_c_el[nodalDOF_r[:, None], nodalDOF_la_c[:self.nmixed_n]] -= (
-                        N_r_xi * A_IK[:, self.idx_n] * self.N_la_c[el, i, node_la_c] * qwi
+                    W_c_el[nodalDOF_r[:, None], nodalDOF_la_c[: self.nmixed_n]] -= (
+                        N_r_xi
+                        * A_IK[:, self.idx_n]
+                        * self.N_la_c[el, i, node_la_c]
+                        * qwi
                     )
 
             for node_psi in range(self.nnodes_element_psi):
@@ -1798,13 +1799,15 @@ class CosseratRodMixed(CosseratRod, ABC):
 
                 for node_la_c in range(self.nnodes_element_la_c):
                     nodalDOF_la_c = self.nodalDOF_element_la_c[node_la_c]
-                    W_c_el[nodalDOF_psi[:, None], nodalDOF_la_c[self.nmixed_n:]] -= (
-                        (N_psi_xi * np.eye(3) - N_psi * ax2skew(K_Kappa_bar))[:,  self.idx_m]
+                    W_c_el[nodalDOF_psi[:, None], nodalDOF_la_c[self.nmixed_n :]] -= (
+                        (N_psi_xi * np.eye(3) - N_psi * ax2skew(K_Kappa_bar))[
+                            :, self.idx_m
+                        ]
                         * self.N_la_c[el, i, node_la_c]
                         * qwi
                     )
 
-                    W_c_el[nodalDOF_psi[:, None], nodalDOF_la_c[:self.nmixed_n]] += (
+                    W_c_el[nodalDOF_psi[:, None], nodalDOF_la_c[: self.nmixed_n]] += (
                         N_psi
                         * ax2skew(K_Gamma_bar)[:, self.idx_n]
                         * self.N_la_c[el, i, node_la_c]
@@ -1902,7 +1905,6 @@ def make_CosseratRodConstrained(mixed, constraints):
         idx = np.arange(6)
         idx_constraints = np.array(constraints)
         idx_mixed = idx[~np.isin(idx, idx_constraints)]
-
     else:
         CosseratRodBase = CosseratRod
 
@@ -1922,7 +1924,6 @@ def make_CosseratRodConstrained(mixed, constraints):
             q0=None,
             u0=None,
         ):
-            
             if mixed:
                 super().__init__(
                     cross_section,
@@ -1937,7 +1938,7 @@ def make_CosseratRodConstrained(mixed, constraints):
                     Q,
                     q0=q0,
                     u0=u0,
-                    idx_mixed=idx_mixed
+                    idx_mixed=idx_mixed,
                 )
             else:
                 super().__init__(
