@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.sparse import csr_matrix, csc_matrix
+from scipy.sparse import csc_array
 from scipy.sparse.linalg import spsolve
 import warnings
 
@@ -33,12 +33,13 @@ def prox_sphere_x(x, radius):
 
 
 """
-Estimation of relaxation parameter $\vr_N$ of prox function for normal contacts.
-The parameter is calculated as follows, whereby $\alpha\in(0,2)$ is some scaling factor used for both normal and frictional contact.
+Estimation of relaxation parameters $r_i$ of prox function for normal contacts 
+and friction. The parameters are calculated as follows, whereby $\alpha \in (0,2)$ 
+is some scaling factor used for both normal and frictional contact:
 $$
-    \vr = (\alpha\vG)^{-1},
+    r_i = \alpha / diag(\vG)_i,
 $$
-where $\vG = \vW^T\vM^{-1}\vW$.
+where $\vG = \vW^T \vM^{-1} \vW$.
 
 
 References
@@ -48,14 +49,14 @@ Schweizer2015: https://doi.org/10.3929/ethz-a-010464319
 """
 
 
-def prox_r(alpha, W, M):
+def estimate_prox_parameter(alpha, W, M):
     try:
-        return alpha / csr_matrix(W.T @ spsolve(M, csc_matrix(W))).diagonal()
+        return alpha / (W.T @ spsolve(csc_array(M), csc_array(W))).diagonal()
     except:
         return np.full(W.shape[1], alpha, dtype=W.dtype)
 
 
-def check_alpha(alpha):
+def validate_alpha(alpha):
     if not 0 < alpha < 2:
         warnings.warn(
             "Invalid value for alpha. alpha must be in (0,2). alpha set to 1.",

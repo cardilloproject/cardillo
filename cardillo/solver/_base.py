@@ -1,6 +1,13 @@
 import numpy as np
-from scipy.sparse import csc_array, csr_array, coo_array, lil_array, eye, diags, bmat
-from cardillo.math import prox_sphere, prox_R0_nm, fsolve, norm, approx_fprime, prox_r
+from scipy.sparse import csc_array, csr_array, coo_array, bmat
+from cardillo.math import (
+    prox_sphere,
+    prox_R0_nm,
+    fsolve,
+    norm,
+    approx_fprime,
+    estimate_prox_parameter,
+)
 from .solver_options import SolverOptions
 
 
@@ -52,8 +59,8 @@ def consistent_initial_conditions(
     W_F = system.W_F(t0, q0, scipy_matrix=csr_array)
     I_N = np.isclose(g_N, np.zeros(system.nla_N), rtol, atol)
     I_F = compute_I_F(I_N, system.NF_connectivity)
-    prox_r_N = prox_r(options.prox_scaling, W_N, csc_array(M))
-    prox_r_F = prox_r(options.prox_scaling, W_F, csc_array(M))
+    prox_r_N = estimate_prox_parameter(options.prox_scaling, W_N, csc_array(M))
+    prox_r_F = estimate_prox_parameter(options.prox_scaling, W_F, csc_array(M))
     mu = system.mu
 
     split_x = np.cumsum(

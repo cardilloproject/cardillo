@@ -4,7 +4,13 @@ from scipy.sparse.linalg import splu
 from tqdm import tqdm
 
 from cardillo.solver import SolverOptions, Solution
-from cardillo.math import fsolve, prox_R0_nm, prox_sphere, prox_r, approx_fprime
+from cardillo.math import (
+    fsolve,
+    prox_R0_nm,
+    prox_sphere,
+    estimate_prox_parameter,
+    approx_fprime,
+)
 from cardillo.math import fsolve, approx_fprime, prox_R0_nm, prox_sphere
 
 
@@ -117,6 +123,11 @@ class BackwardEuler:
             )
         )
 
+        # initial mass matrix and force directions for prox-parameter estimation
+        self.M = system.M(self.tn, self.qn)
+        self.W_N = system.W_N(self.tn, self.qn)
+        self.W_F = system.W_N(self.tn, self.qn)
+
     def R_x(self, xn1, yn1):
         (
             q_dotn1,
@@ -152,14 +163,17 @@ class BackwardEuler:
         ####################
         # equations of motion
         ####################
+        self.M = self.system.M(tn1, qn1, scipy_matrix=csr_array)
+        self.W_N = self.system.W_N(tn1, qn1, scipy_matrix=csr_array)
+        self.W_F = self.system.W_F(tn1, qn1, scipy_matrix=csr_array)
         R_x[self.split_x[0] : self.split_x[1]] = (
-            self.system.M(tn1, qn1, scipy_matrix=csr_array) @ u_dotn1
+            self.M @ u_dotn1
             - dt * self.system.h(tn1, qn1, un1)
             - self.system.W_g(tn1, qn1, scipy_matrix=csr_array) @ la_gn1
             - self.system.W_gamma(tn1, qn1, scipy_matrix=csr_array) @ la_gamman1
             - self.system.W_c(tn1, qn1, scipy_matrix=csr_array) @ la_cn1
-            - self.system.W_N(tn1, qn1, scipy_matrix=csr_array) @ la_Nn1
-            - self.system.W_F(tn1, qn1, scipy_matrix=csr_array) @ la_Fn1
+            - self.W_N @ la_Nn1
+            - self.W_F @ la_Fn1
         )
 
         #######################
@@ -334,13 +348,11 @@ class BackwardEuler:
         pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
         for _ in pbar:
             # only compute optimized prox-parameters once per time step
-            # TODO: Use self.M, self.W_N and self.W_F from previous time step.
-            M = self.system.M(self.tn, self.qn, scipy_matrix=csc_array)
-            self.prox_r_N = prox_r(
-                self.options.prox_scaling, self.system.W_N(self.tn, self.qn), M
+            self.prox_r_N = estimate_prox_parameter(
+                self.options.prox_scaling, self.W_N, self.M
             )
-            self.prox_r_F = prox_r(
-                self.options.prox_scaling, self.system.W_F(self.tn, self.qn), M
+            self.prox_r_F = estimate_prox_parameter(
+                self.options.prox_scaling, self.W_F, self.M
             )
 
             # perform a solver step

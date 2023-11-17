@@ -233,7 +233,7 @@ if __name__ == "__main__":
 
     # For shear-rigid rods Harsch2021 and Simo1986 coincide. For Simo1986 also more robust mixed formulations are available
     cantilever(
-        Rod=make_CosseratRod_R12(mixed=True, constraints=[1,2]),
+        Rod=make_CosseratRod_R12(mixed=True, constraints=[1, 2]),
         nelements=10,
         polynomial_degree=2,
         n_load_steps=3,

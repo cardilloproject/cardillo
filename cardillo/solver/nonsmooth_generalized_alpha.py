@@ -28,7 +28,7 @@ from cardillo.math import (
     prox_sphere,
     approx_fprime,
     fsolve,
-    prox_r,
+    estimate_prox_parameter,
 )
 from cardillo.solver import Solution, SolverOptions
 
@@ -1505,8 +1505,8 @@ class NonsmoothGeneralizedAlpha:
 
         # update index sets
         if update_index_set:
-            prox_r_N = prox_r(self.options.prox_scaling, W_Ni1, Mi1)
-            prox_r_F = prox_r(self.options.prox_scaling, W_Fi1, Mi1)
+            prox_r_N = estimate_prox_parameter(self.options.prox_scaling, W_Ni1, Mi1)
+            prox_r_F = estimate_prox_parameter(self.options.prox_scaling, W_Fi1, Mi1)
 
             # eqn. (130):
             self.Ai1 = prox_r_N * g_Ni1 - kappa_hatNi1 <= 0
@@ -1782,8 +1782,8 @@ class NonsmoothGeneralizedAlpha:
         )
 
         # evaluate prox parameters
-        prox_r_N = prox_r(self.options.prox_scaling, W_Ni1, Mi1)
-        prox_r_F = prox_r(self.options.prox_scaling, W_Fi1, Mi1)
+        prox_r_N = estimate_prox_parameter(self.options.prox_scaling, W_Ni1, Mi1)
+        prox_r_F = estimate_prox_parameter(self.options.prox_scaling, W_Fi1, Mi1)
 
         # -- prox normal direction --
         P_N_j1 = np.zeros(self.nla_N)
@@ -2607,10 +2607,10 @@ class SimplifiedNonsmoothGeneralizedAlpha:
         for _ in pbar:
             # only compute optimized proxparameters once per time step
             M = self.system.M(self.tn, self.qn)
-            self.prox_r_N = prox_r(
+            self.prox_r_N = estimate_prox_parameter(
                 self.prox_scaling, self.system.W_N(self.tn, self.qn), M
             )
-            self.prox_r_F = prox_r(
+            self.prox_r_F = estimate_prox_parameter(
                 self.prox_scaling, self.system.W_F(self.tn, self.qn), M
             )
             # print(f"self.prox_r_N: {self.prox_r_N}")
@@ -3045,10 +3045,10 @@ class SimplifiedNonsmoothGeneralizedAlphaFirstOrder:
         for _ in pbar:
             # only compute optimized proxparameters once per time step
             M = self.system.M(self.tn, self.qn)
-            self.prox_r_N = prox_r(
+            self.prox_r_N = estimate_prox_parameter(
                 self.prox_scaling, self.system.W_N(self.tn, self.qn), M
             )
-            self.prox_r_F = prox_r(
+            self.prox_r_F = estimate_prox_parameter(
                 self.prox_scaling, self.system.W_F(self.tn, self.qn), M
             )
             # print(f"self.prox_r_N: {self.prox_r_N}")

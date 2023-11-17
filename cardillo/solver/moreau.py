@@ -4,7 +4,7 @@ from scipy.sparse.linalg import splu
 from tqdm import tqdm
 
 from cardillo.solver import Solution, compute_I_F, SolverOptions
-from cardillo.math import prox_R0_np, prox_sphere, prox_r
+from cardillo.math import prox_R0_np, prox_sphere, estimate_prox_parameter
 
 
 class Moreau:
@@ -165,8 +165,8 @@ class Moreau:
             I_F = compute_I_F(I_N, self.system.NF_connectivity)
 
             # compute new estimates for prox parameters and get friction coefficient
-            prox_r_N = prox_r(self.options.prox_scaling, W_N, M)
-            prox_r_F = prox_r(self.options.prox_scaling, W_F, M)
+            prox_r_N = estimate_prox_parameter(self.options.prox_scaling, W_N, M)
+            prox_r_F = estimate_prox_parameter(self.options.prox_scaling, W_F, M)
 
             mu = self.system.mu
             z0 = z = np.concatenate([self.P_Nn, self.P_Fn])
