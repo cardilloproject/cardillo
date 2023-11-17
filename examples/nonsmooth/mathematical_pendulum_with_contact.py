@@ -4,12 +4,7 @@ import matplotlib.animation as animation
 
 from cardillo.math import e1, norm, approx_fprime
 from cardillo import System
-from cardillo.solver import (
-    MoreauShifted,
-    Rattle,
-    NonsmoothGeneralizedAlpha,
-    BackwardEuler,
-)
+from cardillo.solver import Moreau, BackwardEuler
 
 
 bilateral_constrained = True
@@ -18,14 +13,11 @@ bilateral_constrained = True
 quadratic_length = True
 # quadratic_length = False
 
-# with_contact = True
-with_contact = False
+with_contact = True
+# with_contact = False
 
-# Solver1, label1, dt1, kwargs1 = NonsmoothBackwardEuler, "Backward Euler", 1e-2, {}
-Solver1, label1, dt1, kwargs1 = Rattle, "Rattle", 1e-2, {}
-# Solver1, label1, dt1, kwargs1 = Rattle, "Rattle", 1e-2, {}NonsmoothBackwardEuler
-Solver2, label2, dt2, kwargs2 = MoreauShifted, "Moreau", 1e-2, {}
-# Solver2, label2, dt2, kwargs2 = NonsmoothGeneralizedAlpha, "Gen-alpha", 1e-2, {}
+Solver1, label1, dt1, kwargs1 = BackwardEuler, "BackwardEuler", 1e-2, {}
+Solver2, label2, dt2, kwargs2 = Moreau, "Moreau", 1e-2, {}
 
 
 class MathematicalPendulumCartesianContact:

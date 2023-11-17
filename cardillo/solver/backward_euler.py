@@ -235,7 +235,7 @@ class BackwardEuler:
         #######################
         Rla_g_q_dot = self.system.g_q(tn1, qn1)
         Rla_gamma_q_dot = self.system.gamma_q(tn1, qn1, un1)
-        Rla_gamma_u_dot = self.system.gamma_u(tn1, qn1, un1)
+        Rla_gamma_u_dot = self.system.gamma_u(tn1, qn1)
 
         ############
         # compliance
@@ -417,11 +417,12 @@ class BackwardEuler:
 
             fixed_point_n_iter_list.append(i_fixed_point)
             newton_n_iter_list.append(i_newton)
-            fixed_point_absolute_errors.append(np.max(np.abs(diff)))
+            absolute_error = np.max(np.abs(diff))
+            fixed_point_absolute_errors.append(absolute_error)
 
             # update progress bar
             pbar.set_description(
-                f"t: {tn1:0.2e}s < {self.t1:0.2e}s; ||R||: {error:0.2e} (fixed-point: {i_fixed_point}/{self.options.fixed_point_max_iter}; newton: {i_newton}/{self.options.newton_max_iter})"
+                f"t: {tn1:0.2e}s < {self.t1:0.2e}s; |x1 - x0|: {absolute_error:0.2e} (fixed-point: {i_fixed_point}/{self.options.fixed_point_max_iter}; newton: {i_newton}/{self.options.newton_max_iter})"
             )
 
             # compute state

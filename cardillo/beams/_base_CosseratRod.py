@@ -2197,7 +2197,7 @@ def make_CosseratRodConstrained(mixed=False, constraints=[1, 2]):
             raise NotImplementedError
             return self.W_g(t, q).toarray.T @ u
 
-        def g_dot_u(self, t, q, u):
+        def g_dot_u(self, t, q):
             W_g = self.W_g(t, q)
             coo = CooMatrix((self.nla_g, self.nu))
             coo.row = W_g.col

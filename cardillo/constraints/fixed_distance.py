@@ -70,7 +70,7 @@ class FixedDistance:
 
         return g_dot_q
 
-    def g_dot_u(self, t, q, u):
+    def g_dot_u(self, t, q):
         return self.W_g(t, q).T
 
     def g_ddot(self, t, q, u, u_dot):
