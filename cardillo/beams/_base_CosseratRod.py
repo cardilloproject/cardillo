@@ -1427,7 +1427,7 @@ class CosseratRodMixed(CosseratRod, ABC):
         Q,
         q0=None,
         u0=None,
-        mixed=None,
+        idx_mixed=np.arange(6),
     ):
         """Base class for Petrov-Galerkin Cosserat rod formulations that uses quaternions for the parametrization of the nodal orientations."""
 
@@ -1450,8 +1450,21 @@ class CosseratRodMixed(CosseratRod, ABC):
         #######################################################
         # discretization parameters internal forces and moments
         #######################################################
-        if mixed == None:
-            self.mixed = np.arange(6)
+        # idx_mixed = np.array([0,3,4,5])
+        # idx_mixed = np.arange(6)
+
+        self.idx_mixed = np.array(idx_mixed)
+        self.idx_n = self.idx_mixed[(self.idx_mixed < 3)]
+        self.nmixed_n = len(self.idx_n)
+        self.K_n_la_c_sieve = np.zeros((3, self.nmixed_n))
+        for i, ni in enumerate(self.idx_n):
+            self.K_n_la_c_sieve[ni, i] = 1
+
+        self.idx_m = self.idx_mixed[(self.idx_mixed >= 3)] - 3
+        self.nmixed_m = len(self.idx_m)
+        self.K_m_la_c_sieve = np.zeros((3, self.nmixed_m))
+        for i, mi in enumerate(self.idx_m):
+            self.K_m_la_c_sieve[mi, i] = 1
 
         self.polynomial_degree_la_c = polynomial_degree - 1
         self.knot_vector_la_c = LagrangeKnotVector(
@@ -1462,11 +1475,11 @@ class CosseratRodMixed(CosseratRod, ABC):
         self.mesh_la_c = Mesh1D(
             self.knot_vector_la_c,
             nquadrature,
-            dim_q=len(self.mixed),
+            dim_q=len(self.idx_mixed),
             derivative_order=0,
             basis="Lagrange_Disc",
             quadrature="Gauss",
-            dim_u=len(self.mixed),
+            dim_u=len(self.idx_mixed),
         )
 
         # total number of nodes
@@ -1638,14 +1651,14 @@ class CosseratRodMixed(CosseratRod, ABC):
             # evaluate required quantities
             _, _, K_Gamma_bar, K_Kappa_bar = self._eval(qe, qpi)
 
-            la_c = np.zeros(6, dtype=la_ce.dtype)
+            la_c = np.zeros(self.mesh_la_c.dim_q, dtype=la_ce.dtype)
             # interpolation of internal forces and moments
             for node in range(self.nnodes_element_la_c):
                 la_c_node = la_ce[self.nodalDOF_element_la_c[node]]
                 la_c += self.N_la_c[el, i, node] * la_c_node
 
-            K_n = la_c[:3]
-            K_m = la_c[3:]
+            K_n = self.K_n_la_c_sieve @ la_c[: self.nmixed_n]
+            K_m = self.K_m_la_c_sieve @ la_c[self.nmixed_n :]
 
             # compute contact forces and couples from partial derivatives of
             # the strain energy function w.r.t. strain measures
@@ -1662,7 +1675,7 @@ class CosseratRodMixed(CosseratRod, ABC):
 
             for node in range(self.nnodes_element_la_c):
                 c_el[self.nodalDOF_element_la_c[node]] += (
-                    self.N_la_c[el, i, node] * c_qp * qwi
+                    self.N_la_c[el, i, node] * c_qp[self.idx_mixed] * qwi
                 )
 
         return c_el
@@ -1672,12 +1685,12 @@ class CosseratRodMixed(CosseratRod, ABC):
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF_la_c = self.elDOF_la_c[el]
-            coo[elDOF_la_c, elDOF_la_c] = self.c_la_c_el(q[elDOF], la_c[elDOF_la_c], el)
+            coo[elDOF_la_c, elDOF_la_c] = self.c_la_c_el(q[elDOF], el)
         return coo
 
-    def c_la_c_el(self, qe, la_ce, el):
+    def c_la_c_el(self, qe, el):
         c_la_c_el = np.zeros(
-            (self.nla_c_element, self.nla_c_element), dtype=np.common_type(qe, la_ce)
+            (self.nla_c_element, self.nla_c_element), dtype=np.common_type(qe)
         )
         for i in range(self.nquadrature):
             qwi = self.qw[el, i]
@@ -1685,17 +1698,20 @@ class CosseratRodMixed(CosseratRod, ABC):
 
             C_n_inv = self.material_model.C_n_inv
             C_m_inv = self.material_model.C_m_inv
+
             C_inv = np.block(
                 [[C_n_inv, np.zeros_like(C_n_inv)], [np.zeros_like(C_m_inv), C_m_inv]]
             )
 
+            C_inv_sliced = C_inv[self.idx_mixed[:, None], self.idx_mixed]
+#
             for node_la_c1 in range(self.nnodes_element_la_c):
                 nodalDOF_la_c1 = self.nodalDOF_element_la_c[node_la_c1]
                 for node_la_c2 in range(self.nnodes_element_la_c):
                     nodalDOF_la_c2 = self.nodalDOF_element_la_c[node_la_c2]
                     c_la_c_el[nodalDOF_la_c1[:, None], nodalDOF_la_c2] += (
                         self.N_la_c[el, i, node_la_c1]
-                        * C_inv
+                        * C_inv_sliced
                         * self.N_la_c[el, i, node_la_c2]
                         * J
                         * qwi
@@ -1738,7 +1754,7 @@ class CosseratRodMixed(CosseratRod, ABC):
             for node in range(self.nnodes_element_la_c):
                 nodalDOF_la_c = self.nodalDOF_element_la_c[node]
                 c_q_el[nodalDOF_la_c, :] -= (
-                    self.N_la_c[el, i, node] * delta_strains_qe * qwi
+                    self.N_la_c[el, i, node] * delta_strains_qe[self.idx_mixed, :] * qwi
                 )
 
         return c_q_el
@@ -1771,8 +1787,8 @@ class CosseratRodMixed(CosseratRod, ABC):
                 N_r_xi = self.N_r_xi[el, i, node_r]
                 for node_la_c in range(self.nnodes_element_la_c):
                     nodalDOF_la_c = self.nodalDOF_element_la_c[node_la_c]
-                    W_c_el[nodalDOF_r[:, None], nodalDOF_la_c[:3]] -= (
-                        N_r_xi * A_IK * self.N_la_c[el, i, node_la_c] * qwi
+                    W_c_el[nodalDOF_r[:, None], nodalDOF_la_c[:self.nmixed_n]] -= (
+                        N_r_xi * A_IK[:, self.idx_n] * self.N_la_c[el, i, node_la_c] * qwi
                     )
 
             for node_psi in range(self.nnodes_element_psi):
@@ -1782,15 +1798,15 @@ class CosseratRodMixed(CosseratRod, ABC):
 
                 for node_la_c in range(self.nnodes_element_la_c):
                     nodalDOF_la_c = self.nodalDOF_element_la_c[node_la_c]
-                    W_c_el[nodalDOF_psi[:, None], nodalDOF_la_c[3:]] -= (
-                        (N_psi_xi * np.eye(3) - N_psi * ax2skew(K_Kappa_bar))
+                    W_c_el[nodalDOF_psi[:, None], nodalDOF_la_c[self.nmixed_n:]] -= (
+                        (N_psi_xi * np.eye(3) - N_psi * ax2skew(K_Kappa_bar))[:,  self.idx_m]
                         * self.N_la_c[el, i, node_la_c]
                         * qwi
                     )
 
-                    W_c_el[nodalDOF_psi[:, None], nodalDOF_la_c[:3]] += (
+                    W_c_el[nodalDOF_psi[:, None], nodalDOF_la_c[:self.nmixed_n]] += (
                         N_psi
-                        * ax2skew(K_Gamma_bar)
+                        * ax2skew(K_Gamma_bar)[:, self.idx_n]
                         * self.N_la_c[el, i, node_la_c]
                         * qwi
                     )
@@ -1836,8 +1852,8 @@ class CosseratRodMixed(CosseratRod, ABC):
                 la_c_node = la_ce[self.nodalDOF_element_la_c[node]]
                 la_c += self.N_la_c[el, i, node] * la_c_node
 
-            K_n = la_c[:3]
-            K_m = la_c[3:]
+            K_n = self.K_n_la_c_sieve @ la_c[: self.nmixed_n]
+            K_m = self.K_m_la_c_sieve @ la_c[self.nmixed_n :]
 
             for node in range(self.nnodes_element_r):
                 Wla_c_q_el[self.nodalDOF_element_r_u[node], :] -= (
@@ -1880,9 +1896,13 @@ class CosseratRodMixed(CosseratRod, ABC):
         return coo
 
 
-def make_CosseratRodConstrained(mixed=False, constraints=[1, 2]):
+def make_CosseratRodConstrained(mixed, constraints):
     if mixed == True:
         CosseratRodBase = CosseratRodMixed
+        idx = np.arange(6)
+        idx_constraints = np.array(constraints)
+        idx_mixed = idx[~np.isin(idx, idx_constraints)]
+
     else:
         CosseratRodBase = CosseratRod
 
@@ -1901,23 +1921,39 @@ def make_CosseratRodConstrained(mixed=False, constraints=[1, 2]):
             Q,
             q0=None,
             u0=None,
-            mixed=False,
         ):
-            super().__init__(
-                cross_section,
-                material_model,
-                A_rho0,
-                K_S_rho0,
-                K_I_rho0,
-                polynomial_degree,
-                nelement,
-                nquadrature,
-                nquadrature_dyn,
-                Q,
-                q0=q0,
-                u0=u0,
-                mixed=mixed,
-            )
+            
+            if mixed:
+                super().__init__(
+                    cross_section,
+                    material_model,
+                    A_rho0,
+                    K_S_rho0,
+                    K_I_rho0,
+                    polynomial_degree,
+                    nelement,
+                    nquadrature,
+                    nquadrature_dyn,
+                    Q,
+                    q0=q0,
+                    u0=u0,
+                    idx_mixed=idx_mixed
+                )
+            else:
+                super().__init__(
+                    cross_section,
+                    material_model,
+                    A_rho0,
+                    K_S_rho0,
+                    K_I_rho0,
+                    polynomial_degree,
+                    nelement,
+                    nquadrature,
+                    nquadrature_dyn,
+                    Q,
+                    q0=q0,
+                    u0=u0,
+                )
 
             self.constraints = np.array(constraints)
             self.constraints_gamma = self.constraints[(self.constraints < 3)]
