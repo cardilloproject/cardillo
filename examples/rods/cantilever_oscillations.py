@@ -14,7 +14,7 @@ from cardillo.constraints import RigidConnection
 from cardillo.solver import Newton, BackwardEuler, SolverOptions
 from cardillo.forces import Force, K_Moment, Moment, K_Force
 
-from cardillo.math import e1, e2, e3
+from cardillo.math import e1, e2, e3, smoothstep0
 
 from cardillo.visualization import Export
 
@@ -78,7 +78,6 @@ def cantilever(
         Q=q0,
         q0=q0,
         polynomial_degree=polynomial_degree,
-        mixed=False,
         reduced_integration=reduced_integration,
     )
 
@@ -99,7 +98,24 @@ def cantilever(
         n = 1
         P = lambda t: material_model.Fi[0] * t * 2 * pi * n / length
         F = lambda t: P(t) * e1
-        load = Moment(F, cantilever, (1,))
+        load = K_Moment(F, cantilever, (1,))
+
+    elif load_type == "force_torsion":
+        
+
+        # spatially fixed load at cantilever tip
+        P = lambda t: 5 * smoothstep0(t, 0, 0.5) * t * material_model.Fi[2] / length**2
+        F = lambda t: -P(t) * e2
+        load = Force(F, cantilever, (1,))
+
+        # n = 0
+        # P = lambda t: material_model.Fi[0] * smoothstep0(t, 0.8, 1) * t * 2 * pi * n / length
+        # F = lambda t: P(t) * e1
+        # load1 = K_Moment(F, cantilever, (1,))
+        # system.add(load1)
+
+
+        
 
     else:
         raise NotImplementedError("This load type has not been implemented")
@@ -125,16 +141,17 @@ def cantilever(
 
     system_ph1 = system.deepcopy(sol)
     system.remove(load)
+    # system.remove(load1)
     system.assemble()
 
-    dt = 1e-2
-    # dt = 5e-3
-    # dt = 1e-3
+    # dt = 1e-2
+    # dt = 1e-2
+    dt = 1e-3
     solver = BackwardEuler(
         system,
-        t1=1,
+        t1=0.2,
         dt=dt,
-        options=SolverOptions(newton_atol=1e-2),
+        options=SolverOptions(newton_atol=1e-8),
     )
 
     sol = solver.solve()
@@ -192,12 +209,12 @@ def cantilever(
 if __name__ == "__main__":
     # SE3 interpolation:
     cantilever(
-        Rod=make_CosseratRod_SE3(mixed=True),
+        Rod=make_CosseratRod_SE3(mixed=True, constraints=[1,2]),
         nelements=5,
         polynomial_degree=1,
-        n_load_steps=3,
-        load_type="force",
-        # load_type="torsion",
+        n_load_steps=10,
+        # load_type="force",
+        load_type="force_torsion",
         VTK_export=False,
     )
     # cantilever(
