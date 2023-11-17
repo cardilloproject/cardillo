@@ -149,7 +149,9 @@ class Moreau:
         j = 0
 
         # identify active contacts
-        I_N = self.system.g_N(tn12, qn12) <= 0
+        I_N = (
+            self.system.g_N(tn12, qn12) <= 0
+        )  # or np.allclose(g_N, np.zeros_like(P_Nn1))
 
         # only enter fixed-point loop if any contact is active
         if np.any(I_N):

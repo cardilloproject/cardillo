@@ -18,6 +18,12 @@ class JenkinsElement:
         # self.prox_r = 1 / self.stiffness
         self.prox_r = 1
 
+        # We regularize the problem here. Otherwise solving for consistent
+        # initial conditions requires a least square solver.
+        # Using pseudi inverse in consistent_initial_conditions also works
+        # without regulariztation.
+        self.regularization_mass_matrix = 1e-12
+
         self.nq = 1
         self.nu = 3
         self.q0 = q0
@@ -51,13 +57,7 @@ class JenkinsElement:
     # equations of motion
     #####################
     def M(self, t, q):
-        # return np.diag([self.mass, 1 / self.stiffness, 0])
-        # We regularize the problem here. Otherwise solving for consistent
-        # initial conditions requires a least square solver.
-        # Using pseudi inverse in consistent_initial_conditions also works
-        # without regulariztation.
-        EPS = 1e-12
-        return np.diag([self.mass, 1 / self.stiffness, EPS])
+        return np.diag([self.mass, 1 / self.stiffness, self.regularization_mass_matrix])
 
     def prox(self, x):
         if x > self.yieldstress:
@@ -130,6 +130,7 @@ if __name__ == "__main__":
     system = System()
     system.add(jenkins_element)
     system.assemble()
+    jenkins_element.regularization_mass_matrix = 0
 
     t0 = 0
     t1 = 10
@@ -139,7 +140,7 @@ if __name__ == "__main__":
         system,
         t1,
         dt,
-        options=SolverOptions(newton_reuse_lu_decomposition=False),
+        options=SolverOptions(reuse_lu_decomposition=False),
     ).solve()
 
     t, q, u, eps_p_dot = sol.t, sol.q, sol.u, sol.la_c

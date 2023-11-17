@@ -1,5 +1,4 @@
 import numpy as np
-
 from cachetools import cachedmethod, LRUCache
 from cachetools.keys import hashkey
 
@@ -39,13 +38,7 @@ class RigidBody:
     u0:         generalized velocities at t0
     """
 
-    def __init__(
-        self,
-        mass,
-        K_Theta_S,
-        q0=None,
-        u0=None
-    ):
+    def __init__(self, mass, K_Theta_S, q0=None, u0=None):
         self.nq = 7
         self.nu = 6
         self.nla_S = 1
@@ -162,12 +155,12 @@ class RigidBody:
         return np.arange(self.nu)
 
     @cachedmethod(
-            lambda self: self.A_IK_cache,
-            key=lambda self, t, q, frame_ID=None: hashkey(t, tuple(q.tolist()))
+        lambda self: self.A_IK_cache,
+        key=lambda self, t, q, frame_ID=None: hashkey(t, *q),
     )
     def A_IK(self, t, q, frame_ID=None):
         return Exp_SO3_quat(q[3:])
-    
+
     # TODO: delete this old version of caching
     # def A_IK(self, t, q, frame_ID=None):
     #     if not (t == self.t and np.allclose(q, self.q, rtol=1e-12, atol=1e-12)):

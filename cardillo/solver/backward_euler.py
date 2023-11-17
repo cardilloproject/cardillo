@@ -4,7 +4,7 @@ from scipy.sparse.linalg import splu
 from tqdm import tqdm
 
 from cardillo.solver import SolverOptions, Solution
-from cardillo.math import fsolve, prox_R0_nm, prox_sphere
+from cardillo.math import fsolve, prox_R0_nm, prox_sphere, approx_fprime
 
 
 NEWTON_MAXITER = 4  # maximum number of Newton iterations
@@ -18,8 +18,22 @@ class BackwardEuler:
         dt,
         options=SolverOptions(),
     ):
-        self.options = options
         self.system = system
+        self.options = options
+
+        if options.numerical_jacobian_method:
+            from scipy.sparse import csc_array
+
+            self.J_x = lambda x, y: csc_array(
+                approx_fprime(
+                    x,
+                    lambda x: self.R_x(x, y),
+                    method=options.numerical_jacobian_method,
+                    eps=options.numerical_jacobian_eps,
+                )
+            )
+        else:
+            self.J_x = self._J_x
 
         #######################################################################
         # integration time
@@ -29,14 +43,6 @@ class BackwardEuler:
             t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
         )
         self.dt = dt
-
-        # #######################################################################
-        # # newton settings
-        # #######################################################################
-        # self.rtol = rtol
-        # self.atol = atol
-        # self.max_iter = max_iter
-        # self.max_iter_fixed_point = max_iter_fixed_point
 
         #######################################################################
         # dimensions
@@ -177,7 +183,7 @@ class BackwardEuler:
 
         return R_x
 
-    def J_x(self, xn1, yn1):
+    def _J_x(self, xn1, yn1):
         (
             q_dotn1,
             u_dotn1,
@@ -321,7 +327,7 @@ class BackwardEuler:
         n_lu = 0
 
         # initial Jacobian
-        if self.options.newton_reuse_lu_decomposition:
+        if self.options.reuse_lu_decomposition:
             i_newton = 0
             lu = splu(self.J_x(self.xn.copy(), self.yn.copy()))
             n_lu += 1
@@ -355,7 +361,7 @@ class BackwardEuler:
                 # find proximal point
                 yn1 = self.prox(xn1, yn1)
 
-                if self.options.newton_reuse_lu_decomposition:
+                if self.options.reuse_lu_decomposition:
                     # compute new residual and check convergence
                     R_newton = self.R_x(xn1, yn1)
                     error_newton = np.max(np.absolute(R_newton))
