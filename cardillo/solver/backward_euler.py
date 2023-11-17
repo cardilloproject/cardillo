@@ -335,7 +335,7 @@ class BackwardEuler:
         for _ in pbar:
             # only compute optimized prox-parameters once per time step
             # TODO: Use self.M, self.W_N and self.W_F from previous time step.
-            M = self.system.M(self.tn, self.qn)
+            M = self.system.M(self.tn, self.qn, scipy_matrix=csc_array)
             self.prox_r_N = prox_r(
                 self.options.prox_scaling, self.system.W_N(self.tn, self.qn), M
             )
