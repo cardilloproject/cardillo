@@ -22,8 +22,15 @@ from scipy.sparse.linalg import spsolve
 from scipy.sparse import csr_matrix, bmat, eye, block_diag
 from tqdm import tqdm
 
-from cardillo.math import prox_R0_nm, prox_R0_np, prox_sphere, approx_fprime, fsolve
-from cardillo.solver import Solution
+from cardillo.math import (
+    prox_R0_nm,
+    prox_R0_np,
+    prox_sphere,
+    approx_fprime,
+    fsolve,
+    prox_r,
+)
+from cardillo.solver import Solution, SolverOptions
 
 
 # TODO: Refactor me!
@@ -1221,11 +1228,13 @@ class NonsmoothGeneralizedAlpha:
         dt,
         rho_inf=0.9,
         method="newton",
-        newton_tol=1e-6,
-        newton_max_iter=100,
-        error_function=lambda x: np.max(np.abs(x)),
-        fixed_point_tol=1e-6,
-        fixed_point_max_iter=1000,
+        options=SolverOptions(
+            newton_max_iter=100,
+            newton_atol=1e-6,
+            fixed_point_atol=1e-6,
+            fixed_point_max_iter=1000,
+            error_function=lambda x: np.max(np.abs(x)),
+        ),
     ):
         self.system = system
 
@@ -1243,15 +1252,10 @@ class NonsmoothGeneralizedAlpha:
         self.gamma = 0.5 + self.alpha_f - self.alpha_m
         self.beta = 0.25 * (0.5 + self.gamma) ** 2
 
-        # newton settings
-        self.newton_tol = newton_tol
-        self.newton_max_iter = newton_max_iter
-        self.newton_error_function = error_function
-
-        # fixed point settings
-        self.fixed_point_tol = fixed_point_tol
-        self.fixed_point_max_iter = fixed_point_max_iter
-        self.fixed_point_error_function = error_function
+        # options
+        self.options = options
+        self.newton_error_function = options.error_function
+        self.fixed_point_error_function = options.error_function
 
         # dimensions (nq = number of coordinates q, etc.)
         self.nq = system.nq
@@ -1345,10 +1349,10 @@ class NonsmoothGeneralizedAlpha:
 
         if method == "fixed-point":
             self.step = self.step_fixed_point
-            self.max_iter = self.fixed_point_max_iter
+            self.max_iter = self.options.fixed_point_max_iter
         elif method == "newton":
             self.step = self.step_newton
-            self.max_iter = self.newton_max_iter
+            self.max_iter = self.options.newton_max_iter
 
         # function called at the end of each time step. Can for example be
         # used to norm quaternions at the end of each time step.
@@ -1501,8 +1505,8 @@ class NonsmoothGeneralizedAlpha:
 
         # update index sets
         if update_index_set:
-            prox_r_N = self.system.prox_r_N(ti1, qi1)
-            prox_r_F = self.system.prox_r_F(ti1, qi1)
+            prox_r_N = prox_r(self.options.prox_scaling, W_Ni1, Mi1)
+            prox_r_F = prox_r(self.options.prox_scaling, W_Fi1, Mi1)
 
             # eqn. (130):
             self.Ai1 = prox_r_N * g_Ni1 - kappa_hatNi1 <= 0
@@ -1778,8 +1782,8 @@ class NonsmoothGeneralizedAlpha:
         )
 
         # evaluate prox parameters
-        prox_r_N = self.system.prox_r_N(ti1, qi1)
-        prox_r_F = self.system.prox_r_F(ti1, qi1)
+        prox_r_N = prox_r(self.options.prox_scaling, W_Ni1, Mi1)
+        prox_r_F = prox_r(self.options.prox_scaling, W_Fi1, Mi1)
 
         # -- prox normal direction --
         P_N_j1 = np.zeros(self.nla_N)
@@ -1892,11 +1896,11 @@ class NonsmoothGeneralizedAlpha:
         # initial residual and error
         R = self.R(x, update_index_set=True)
         error = self.newton_error_function(R)
-        converged = error < self.newton_tol
+        converged = error < self.options.newton_atol
         j = 0
         # iterate Newton update until converged or max_iter reached
         if not converged:
-            for j in range(self.newton_max_iter):
+            for j in range(self.options.newton_max_iter):
                 # jacobian
                 R_x = csc_matrix(approx_fprime(x, self.R, method="2-point", eps=1.0e-6))
 
@@ -1910,7 +1914,7 @@ class NonsmoothGeneralizedAlpha:
 
                 R = self.R(x, update_index_set=True)
                 error = self.newton_error_function(R)
-                converged = error < self.newton_tol
+                converged = error < self.options.newton_atol
                 if converged:
                     break
 
@@ -1987,12 +1991,12 @@ class NonsmoothGeneralizedAlpha:
         fixed_point_error = None
         fixed_point_converged = False
         j = 0
-        for j in range(self.fixed_point_max_iter):
+        for j in range(self.options.fixed_point_max_iter):
             R_s = self.R_s(y, z)
             newton_error = self.newton_error_function(R_s)
-            newton_converged = newton_error < self.newton_tol
+            newton_converged = newton_error < self.options.newton_atol
             if not newton_converged:
-                for _ in range(self.newton_max_iter):
+                for _ in range(self.options.newton_max_iter):
                     # jacobian
                     R_s_y = csc_matrix(
                         approx_fprime(
@@ -2005,7 +2009,7 @@ class NonsmoothGeneralizedAlpha:
 
                     R_s = self.R_s(y, z)
                     newton_error = self.newton_error_function(R_s)
-                    newton_converged = newton_error < self.newton_tol
+                    newton_converged = newton_error < self.options.newton_atol
                     if newton_converged:
                         break
                 if not newton_converged:
@@ -2016,7 +2020,7 @@ class NonsmoothGeneralizedAlpha:
             # eqn. (146): fixed point update
             z1 = self.p(y, z)
             fixed_point_error = self.fixed_point_error_function(z1 - z)
-            fixed_point_converged = fixed_point_error < self.fixed_point_tol
+            fixed_point_converged = fixed_point_error < self.options.fixed_point_atol
             z = z1.copy()
 
             if fixed_point_converged:
@@ -2279,13 +2283,7 @@ class SimplifiedNonsmoothGeneralizedAlpha:
     """
 
     def __init__(
-        self,
-        system,
-        t1,
-        h,
-        rho_inf=0.8,
-        atol=1e-6,
-        max_iter=10,
+        self, system, t1, h, rho_inf=0.8, atol=1e-6, max_iter=10, prox_scaling=1
     ):
         self.system = system
 
@@ -2608,8 +2606,13 @@ class SimplifiedNonsmoothGeneralizedAlpha:
         iter = []
         for _ in pbar:
             # only compute optimized proxparameters once per time step
-            self.prox_r_N = self.system.prox_r_N(self.tn, self.qn)
-            self.prox_r_F = self.system.prox_r_F(self.tn, self.qn)
+            M = self.system.M(self.tn, self.qn)
+            self.prox_r_N = prox_r(
+                self.prox_scaling, self.system.W_N(self.tn, self.qn), M
+            )
+            self.prox_r_F = prox_r(
+                self.prox_scaling, self.system.W_F(self.tn, self.qn), M
+            )
             # print(f"self.prox_r_N: {self.prox_r_N}")
             # print(f"self.prox_r_F: {self.prox_r_F}")
             # self.prox_r_N = np.ones(self.nla_N) * 0.2
@@ -2716,6 +2719,7 @@ class SimplifiedNonsmoothGeneralizedAlphaFirstOrder:
         rho_inf=0.8,
         atol=1e-6,
         max_iter=10,
+        prox_scaling=1,
     ):
         self.system = system
 
@@ -3040,8 +3044,13 @@ class SimplifiedNonsmoothGeneralizedAlphaFirstOrder:
         iter = []
         for _ in pbar:
             # only compute optimized proxparameters once per time step
-            self.prox_r_N = self.system.prox_r_N(self.tn, self.qn)
-            self.prox_r_F = self.system.prox_r_F(self.tn, self.qn)
+            M = self.system.M(self.tn, self.qn)
+            self.prox_r_N = prox_r(
+                self.prox_scaling, self.system.W_N(self.tn, self.qn), M
+            )
+            self.prox_r_F = prox_r(
+                self.prox_scaling, self.system.W_F(self.tn, self.qn), M
+            )
             # print(f"self.prox_r_N: {self.prox_r_N}")
             # print(f"self.prox_r_F: {self.prox_r_F}")
             # self.prox_r_N = np.ones(self.nla_N) * 0.2

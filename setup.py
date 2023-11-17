@@ -26,9 +26,8 @@ setup(
         "tqdm>=4.62.3",
         "meshio @ git+https://github.com/JonasHarsch/meshio.git@master#egg=meshio",  # may cause problems with "rich" -> quick fix it by installing "rich"
         # "meshio>=5.0.0", # beam export may not work with this!
-        "sparseqr>=1.2",  # TODO: Is this working on windows an mac?
         "pytest",
-        "dill",
+        "dill>=0.3.7",
     ],
     packages=find_packages(),
     python_requires=">=3.10",

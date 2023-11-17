@@ -8,16 +8,7 @@ from cardillo.math import approx_fprime
 
 from cardillo import System
 
-from cardillo.solver import (
-    convergence_analysis,
-    Moreau,
-    Rattle,
-    NPIRK,
-    NonsmoothGeneralizedAlpha,
-    SimplifiedNonsmoothGeneralizedAlpha,
-    LobattoIIIAB,
-)
-from cardillo.solver._butcher_tableaus import RadauIIATableau
+from cardillo.solver import convergence_analysis, SolverOptions, Moreau, BackwardEuler
 from cardillo.utility.export_txt import export_txt
 
 
@@ -142,7 +133,7 @@ class BallOnExp:
         return approx_fprime(q, lambda q: self.g_N(t, q)).reshape(self.nla_N, self.nq)
 
     def W_N(self, t, q):
-        return self.normal(q[0])[np.newaxis, :]
+        return self.normal(q[0])[:, np.newaxis]
 
     def Wla_N_q(self, t, q, la_N):
         return approx_fprime(
@@ -170,7 +161,7 @@ class BallOnExp:
         )
 
     def W_F(self, t, q):
-        return self.tangent(q[0])[np.newaxis, :]
+        return self.tangent(q[0])[:, np.newaxis]
 
     def Wla_F_q(self, t, q, la_F):
         return approx_fprime(
@@ -247,14 +238,7 @@ def state():
     # dt = 1e-3
 
     # solve problem
-    # solver1, label1 = MoreauClassical(model, t_final, dt), "Moreau classical"
-    solver1, label1 = Rattle(system, t_final, dt), "Rattle"
-    # solver1, label1 = NonsmoothGeneralizedAlpha(model, t_final, dt), "Gen-alpha"
-    # solver1, label1 = NPIRK(model, t_final, dt, RadauIIATableau(2)), "NPRIK"
-    # solver1, label1 = (
-    #     SimplifiedNonsmoothGeneralizedAlphaNoAcceleration(model, t_final, dt),
-    #     "Simplified gen-alpha",
-    # )
+    solver1, label1 = BackwardEuler(system, t_final, dt), "BackwardEuler"
 
     sol1 = solver1.solve()
     t1 = sol1.t
@@ -263,7 +247,7 @@ def state():
     P_N1 = sol1.P_N
     P_F1 = sol1.P_F
 
-    solver2, label2 = MoreauShifted(system, t_final, dt), "Moreau shifted"
+    solver2, label2 = Moreau(system, t_final, dt), "Moreau"
 
     sol2 = solver2.solve()
     t2 = sol2.t
@@ -380,19 +364,17 @@ def state():
 
 
 def convergence():
-    # get_solver = lambda t_final, dt, atol: MoreauClassical(
-    #     model, t_final, dt, atol=atol
+    # get_solver = lambda t_final, dt, atol: Moreau(
+    #     system,
+    #     t_final,
+    #     dt,
+    #     options=SolverOptions(newton_atol=atol, fixed_point_atol=atol),
     # )
-    # get_solver = lambda t_final, dt, atol: Rattle(model, t_final, dt, atol=atol)
-    # get_solver = lambda t_final, dt, atol: LobattoIIIAB(
-    #     model, t_final, dt, atol=atol, stages=3
-    # )
-    # get_solver = lambda t_final, dt, atol: NonsmoothGeneralizedAlpha(model, t_final, dt, newton_tol=atol)
-    # get_solver = lambda t_final, dt, atol: NPIRK(
-    #     model, t_final, dt, RadauIIATableau(2), atol=atol
-    # )
-    get_solver = lambda t_final, dt, atol: SimplifiedNonsmoothGeneralizedAlpha(
-        system, t_final, dt, atol=atol
+    get_solver = lambda t_final, dt, atol: BackwardEuler(
+        system,
+        t_final,
+        dt,
+        options=SolverOptions(newton_atol=atol, fixed_point_atol=atol),
     )
 
     errors = convergence_analysis(
@@ -405,10 +387,10 @@ def convergence():
         # final_power=11,
         # # final_power=7,
         # power_span=(1, 5),
-        # dt_ref=8e-4,
-        # final_power=12,
-        # # final_power=8,
-        # power_span=(1, 6),
+        dt_ref=8e-4,
+        final_power=12,
+        # final_power=8,
+        power_span=(1, 6),
         # dt_ref=4e-4,
         # final_power=13,
         # # final_power=9,
@@ -419,9 +401,9 @@ def convergence():
         # dt_ref=1e-4,
         # final_power=15,
         # power_span=(1, 9),
-        dt_ref=5e-5,
-        final_power=16,
-        power_span=(1, 10),
+        # dt_ref=5e-5,
+        # final_power=16,
+        # power_span=(1, 10),
         #
         # states=["q", "u"],
         # states=["q", "u", "P_N"],
@@ -435,5 +417,5 @@ def convergence():
 
 
 if __name__ == "__main__":
-    state()
-    # convergence()
+    # state()
+    convergence()

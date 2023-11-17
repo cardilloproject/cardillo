@@ -22,7 +22,8 @@ class ScalarForceTranslational:
         )
 
         if self.force_law_spring is not None:
-            self.E_pot = lambda t, q: self.force_law_spring.E_pot(t, self._g(t, q))
+            if hasattr(self.force_law_spring, "E_pot"):
+                self.E_pot = lambda t, q: self.force_law_spring.E_pot(t, self._g(t, q))
             if self.force_law_damper is not None:
                 self._h = lambda t, q, u: self.__f_spring(t, q) + self.__f_damper(
                     t, q, u
