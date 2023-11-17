@@ -333,11 +333,12 @@ class BackwardEuler:
         pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
         for _ in pbar:
             # only compute optimized proxparameters once per time step
-            self.prox_r_N = self.options.prox_scaling * self.system.prox_r_N(
-                self.tn, self.qn
+            M = self.system.M(self.tn, self.qn)
+            self.prox_r_N = prox_r(
+                self.options.prox_scaling, self.system.W_N(self.tn, self.qn), M
             )
-            self.prox_r_F = self.options.prox_scaling * self.system.prox_r_F(
-                self.tn, self.qn
+            self.prox_r_F = prox_r(
+                self.options.prox_scaling, self.system.W_F(self.tn, self.qn), M
             )
 
             # perform a solver step

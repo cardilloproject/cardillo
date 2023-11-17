@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.sparse import csr_matrix
+from scipy.sparse import csr_matrix, csc_matrix
 from scipy.sparse.linalg import spsolve
 import warnings
 
@@ -52,7 +52,7 @@ def prox_r(alpha, W, M):
     try:
         return alpha / csr_matrix(W.T @ spsolve(M, csc_matrix(W))).diagonal()
     except:
-        return np.ones(W.shape[1], dtype=W.dtype)
+        return np.full(W.shape[1], alpha, dtype=W.dtype)
 
 
 def check_alpha(alpha):

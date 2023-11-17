@@ -1,17 +1,20 @@
 import numpy as np
 from scipy.sparse import csr_array, coo_array, lil_array, eye, diags, bmat
 from cardillo.math import prox_sphere, prox_R0_nm, fsolve, norm, approx_fprime, prox_r
+from .solver_options import SolverOptions
 
 
-# TODO: Add rtol atol error measure and use SolverOptions
+# TODO: Add rtol atol error measure
 def consistent_initial_conditions(
     system,
     rtol=1.0e-5,
     atol=1.0e-8,
-    newton_atol=1e-10,
-    newton_max_iter=10,
-    fixed_point_atol=1e-8,
-    fixed_point_max_iter=int(1e3),
+    options=SolverOptions(
+        fixed_point_atol=1e-8,
+        fixed_point_max_iter=int(1e3),
+        newton_atol=1e-10,
+        newton_max_iter=10,
+    ),
 ):
     t0 = system.t0
     q0 = system.q0
@@ -49,8 +52,8 @@ def consistent_initial_conditions(
     W_F = system.W_F(t0, q0, scipy_matrix=csr_array)
     I_N = np.isclose(g_N, np.zeros(system.nla_N), rtol, atol)
     I_F = compute_I_F(I_N, system.NF_connectivity)
-    prox_r_N = prox_r(alpha, W_N[:, I_N], M)
-    prox_r_F = prox_r(alpha, W_F[:, I_F], M)
+    prox_r_N = prox_r(options.prox_scaling, W_N, M)
+    prox_r_F = prox_r(options.prox_scaling, W_F, M)
     mu = system.mu
 
     split_x = np.cumsum(
@@ -174,7 +177,7 @@ def consistent_initial_conditions(
     x1 = x0.copy()
     y1 = y0.copy()
     converged_fixed_point = False
-    for i_fixed_point in range(fixed_point_max_iter):
+    for i_fixed_point in range(options.fixed_point_max_iter):
         # find proximal point
         y1 = prox(x1, y1)
 
@@ -185,8 +188,8 @@ def consistent_initial_conditions(
             jac=J_x,
             fun_args=(y1,),
             jac_args=(y1,),
-            atol=newton_atol,
-            max_iter=newton_max_iter,
+            atol=options.newton_atol,
+            max_iter=options.newton_max_iter,
         )
         assert (
             converged_newton
@@ -197,7 +200,7 @@ def consistent_initial_conditions(
 
         error_fixed_point = np.max(np.absolute(diff))
 
-        converged_fixed_point = error_fixed_point < fixed_point_atol
+        converged_fixed_point = error_fixed_point < options.fixed_point_atol
         if converged_fixed_point:
             break
         else:
