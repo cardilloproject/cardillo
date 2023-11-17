@@ -452,7 +452,7 @@ class CosseratRod(RodExportBase, ABC):
 
         return q_dot
 
-    def q_dot_u(self, t, q, u):
+    def q_dot_u(self, t, q):
         coo = CooMatrix((self.nq, self.nu))
 
         # trivial kinematic equation for centerline

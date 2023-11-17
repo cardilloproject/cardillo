@@ -203,7 +203,7 @@ class BackwardEuler:
             dt * self.system.q_dot_q(tn1, qn1, un1)
             + self.system.g_S_q_T_mu_q(tn1, qn1, mu_Sn1)
         )
-        Rq_dot_u_dot = -dt * self.system.q_dot_u(tn1, qn1, un1)
+        Rq_dot_u_dot = -dt * self.system.q_dot_u(tn1, qn1)
         g_S_q = self.system.g_S_q(tn1, qn1)
         g_S_q_dot = g_S_q
 

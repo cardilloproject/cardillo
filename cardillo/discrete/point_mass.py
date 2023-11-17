@@ -28,7 +28,7 @@ class PointMass:
     def q_ddot(self, t, q, u, u_dot):
         return u_dot
 
-    def q_dot_u(self, t, q, u):
+    def q_dot_u(self, t, q):
         return np.eye(self.nq)
 
     #####################

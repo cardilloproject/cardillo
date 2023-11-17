@@ -83,7 +83,7 @@ class RigidBody:
         )
         return q_dot_q
 
-    def q_dot_u(self, t, q, u):
+    def q_dot_u(self, t, q):
         q_dot_u = np.zeros((self.nq, self.nu), dtype=q.dtype)
         q_dot_u[:3, :3] = np.eye(3, dtype=q.dtype)
         q_dot_u[3:, 3:] = T_SO3_inv_quat(q[3:], normalize=False)

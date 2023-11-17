@@ -205,7 +205,7 @@ class MaxwellElement:
         q_dot_q[-1] -= self.stiffness / self.viscosity
         return q_dot_q
 
-    def q_dot_u(self, t, q, u):
+    def q_dot_u(self, t, q):
         return np.zeros(self._nu)
 
     def q_ddot(self, t, q, u, u_dot):

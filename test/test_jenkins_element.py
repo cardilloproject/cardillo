@@ -42,7 +42,7 @@ class JenkinsElement:
         q_dot_q = np.zeros((self.nq, self.nq))
         return q_dot_q
 
-    def q_dot_u(self, t, q, u):
+    def q_dot_u(self, t, q):
         q_dot_u = np.zeros((self.nq, self.nu))
         q_dot_u[0, 0] = 1
         return q_dot_u
