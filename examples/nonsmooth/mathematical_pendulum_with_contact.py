@@ -90,14 +90,14 @@ class MathematicalPendulumCartesianContact:
     def q_dot_q(self, t, q, u):
         pass
 
-    def B(self, t, q):
-        return np.ones(self.nq)
+    def q_dot_u(self, t, q):
+        return np.eye(self.nq)
 
     def q_ddot(self, t, q, u, u_dot):
         return u_dot
 
     def M(self, t, q):
-        return np.ones(self.nu) * self.m
+        return np.eye(self.nu) * self.m
 
     def h(self, t, q, u):
         f_g = np.array([0, -self.m * self.grav], dtype=np.common_type(q, u))

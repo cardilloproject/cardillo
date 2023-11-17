@@ -57,7 +57,7 @@ class MaxwellElement:
     # equations of motion
     #####################
     def M(self, t, q):
-        return self.mass * np.ones(self.nu)
+        return self.mass * np.eye(self.nu)
 
     def h(self, t, q, u):
         x, x_D = q
@@ -116,7 +116,7 @@ class MaxwellElementCompliance:
     # equations of motion
     #####################
     def M(self, t, q):
-        return self.mass * np.ones(self.nu)
+        return self.mass * np.eye(self.nu)
 
     ############
     # compliance
