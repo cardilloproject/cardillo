@@ -10,6 +10,7 @@ from cardillo.math import prox_R0_np, prox_sphere, estimate_prox_parameter
 class Moreau:
     def __init__(self, system, t1, dt, options=SolverOptions()):
         self.system = system
+        self.options = options
 
         # integration time
         t0 = system.t0
@@ -18,8 +19,6 @@ class Moreau:
         )
         self.dt = dt
         self.t = np.arange(t0, self.t1 + self.dt, self.dt)
-
-        self.options = options
 
         self.nq = self.system.nq
         self.nu = self.system.nu
@@ -39,9 +38,9 @@ class Moreau:
         self.un = system.u0
         self.q_dotn = system.q_dot0
         self.u_dotn = system.u_dot0
+        self.la_c0 = system.la_c0
         la_g0 = system.la_g0
         la_gamma0 = system.la_gamma0
-        self.la_c0 = system.la_c0
         la_N0 = system.la_N0
         la_F0 = system.la_F0
 
@@ -67,25 +66,26 @@ class Moreau:
         )
         self.x0 = self.x.copy()
 
-    def p(self, z, lu_A, b, W_N, W_F, I_N, I_F, tn1, qn1, un, prox_r_N, prox_r_F, mu):
-        P_N = z[: self.nla_N]
-        P_F = z[self.nla_N :]
-
-        un1, _, _ = np.array_split(self.x, self.split_x)
-
-        # fixed-point update normal direction
-        P_N[I_N] = prox_R0_np(
-            P_N[I_N] - prox_r_N[I_N] * self.system.xi_N(tn1, qn1, un, un1)[I_N]
+    def prox(
+        self, un1, P_N, P_F
+    ):  # , lu_A, b, W_N, W_F, I_N, I_F, tn1, qn1, un, prox_r_N, prox_r_F, mu):
+        # projection for contacts
+        xi_N = self.W_N.T @ un1 + self.xi_N0
+        P_N[self.I_N] = prox_R0_np(
+            P_N[self.I_N] - self.prox_r_N[self.I_N] * xi_N[self.I_N]
         )
 
-        # fixed-point update friction (Gauss-Seidel)
-        xi_F = self.system.xi_F(tn1, qn1, un, un1)
+        # friction projection
+        xi_F = self.W_F.T @ un1 + self.xi_F0
+        mu = self.system.mu
         for i_N, i_F in enumerate(self.NF_connectivity):
-            if I_N[i_N] and len(i_F):
+            if self.I_N[i_N] and len(i_F):
                 P_F[i_F] = prox_sphere(
-                    P_F[i_F] - prox_r_F[i_N] * xi_F[i_F],
+                    P_F[i_F] - self.prox_r_F[i_N] * xi_F[i_F],
                     mu[i_N] * P_N[i_N],
                 )
+
+        return P_N, P_F
 
         # update rhs
         bb = b.copy()
@@ -102,10 +102,10 @@ class Moreau:
         dt = self.dt
         un = self.un
         tn1 = self.tn + dt
-        tn12 = self.tn + 0.5 * dt
+        self.tn12 = tn12 = self.tn + 0.5 * dt
 
         # explicit position update (midpoint) with projection
-        qn12 = self.qn + 0.5 * dt * self.system.q_dot(self.tn, self.qn, un)
+        self.qn12 = qn12 = self.qn + 0.5 * dt * self.system.q_dot(self.tn, self.qn, un)
 
         # get quantities from model
         M = self.system.M(tn12, qn12)
@@ -142,7 +142,8 @@ class Moreau:
 
         # solve for initial velocities and percussions of the bilateral
         # constraints for the fixed point iteration
-        self.x = lu_A.solve(b)
+        x0 = lu_A.solve(b)
+        u0 = x0[: self.nu]
 
         P_Nn1 = np.zeros(self.nla_N, dtype=float)
         P_Fn1 = np.zeros(self.nla_F, dtype=float)
@@ -152,58 +153,80 @@ class Moreau:
         j = 0
 
         # identify active contacts
-        I_N = (
-            self.system.g_N(tn12, qn12) <= 0
-        )  # or np.allclose(g_N, np.zeros_like(P_Nn1))
+        g_Nn12 = self.system.g_N(tn12, qn12)
+        # self.I_N = np.logical_or(g_Nn12 < 0, np.isclose(g_Nn12, np.zeros(self.system.nla_N)))
+        self.I_N = g_Nn12 <= 0
 
         # only enter fixed-point loop if any contact is active
-        if np.any(I_N):
+        if np.any(self.I_N):
             # note: we use csc_array for efficient column slicing later,
             # see https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csc_array.html#scipy.sparse.csc_array
-            W_N = self.system.W_N(tn12, qn12, format="csc")
-            W_F = self.system.W_F(tn12, qn12, format="csc")
+            self.W_N = self.system.W_N(tn12, qn12, format="csc")
+            self.W_F = self.system.W_F(tn12, qn12, format="csc")
+
+            # evaluate constant xi_N and xi_F parts
+            e_N = self.system.e_N
+            e_F = self.system.e_F
+            chi_N = self.system.g_N_dot(tn12, qn12, np.zeros_like(un))
+            chi_F = self.system.gamma_F(tn12, qn12, np.zeros_like(un))
+            self.xi_N0 = e_N * (self.W_N.T @ un) + (1 + e_N) * chi_N
+            self.xi_F0 = e_F * (self.W_F.T @ un) + (1 + e_F) * chi_F
 
             # identify active tangent contacts based on active normal contacts and
             # NF-connectivity lists
-            I_F = compute_I_F(I_N, self.system.NF_connectivity)
+            self.I_F = compute_I_F(self.I_N, self.system.NF_connectivity)
 
             # compute new estimates for prox parameters and get friction coefficient
-            prox_r_N = estimate_prox_parameter(self.options.prox_scaling, W_N, M)
-            prox_r_F = estimate_prox_parameter(self.options.prox_scaling, W_F, M)
+            self.prox_r_N = estimate_prox_parameter(
+                self.options.prox_scaling, self.W_N, M
+            )
+            self.prox_r_F = estimate_prox_parameter(
+                self.options.prox_scaling, self.W_F, M
+            )
 
-            mu = self.system.mu
-            z0 = z = np.concatenate([self.P_Nn, self.P_Fn])
+            # warm start
+            P_N = self.P_Nn.copy()
+            P_F = self.P_Fn.copy()
             for j in range(self.options.fixed_point_max_iter):
-                z = self.p(
-                    z0,
-                    lu_A,
-                    b,
-                    W_N,
-                    W_F,
-                    I_N,
-                    I_F,
-                    tn1,
-                    qn12,
-                    un,
-                    prox_r_N,
-                    prox_r_F,
-                    mu,
+                # project percussions
+                P_N, P_F = self.prox(u0, P_N, P_F)
+
+                # update rhs
+                bb = b.copy()
+                bb[: self.nu] += (
+                    self.W_N[:, self.I_N] @ P_N[self.I_N]
+                    + self.W_F[:, self.I_F] @ P_F[self.I_F]
                 )
 
-                # check for convergence of velocities
-                # TODO: Add atol + rtol error measure!
-                error = self.options.error_function(
-                    self.x[: self.nu] - self.x0[: self.nu]
-                )
+                # compute new velocities
+                x = lu_A.solve(bb)
+                u = x[: self.nu]
 
+                # convergence in velocities
+                diff = u - u0
+
+                # # error measure, see Hairer1993, Section II.4
+                # sc = (
+                #     self.options.fixed_point_atol
+                #     + np.maximum(np.abs(u), np.abs(u0))
+                #     * self.options.fixed_point_rtol
+                # )
+                # error = np.linalg.norm(diff / sc) / sc.size**0.5
+                # converged = error < 1.0
+
+                error = np.max(np.abs(diff))
                 converged = error < self.options.fixed_point_atol
-                if converged:
-                    P_Nn1[I_N] = z[: self.nla_N][I_N]
-                    P_Fn1[I_F] = z[self.nla_N :][I_F]
-                    break
-                z0 = z
 
-        un1, P_gn1, P_gamman1 = np.array_split(self.x, self.split_x)
+                if converged:
+                    P_Nn1[self.I_N] = P_N[self.I_N]
+                    P_Fn1[self.I_F] = P_F[self.I_F]
+                    break
+
+                u0 = u.copy()
+        else:
+            x = x0
+
+        un1, P_gn1, P_gamman1 = np.array_split(x, self.split_x)
 
         # second half step
         qn1 = qn12 + 0.5 * dt * self.system.q_dot(tn12, qn12, un1)

@@ -23,11 +23,16 @@ def prox_sphere(x, radius):
 def prox_sphere_x(x, radius):
     nx = np.linalg.norm(x)
     if nx > 0:
-        return (
+        if nx <= radius:
             np.ones_like(x)
-            if nx <= radius
-            else radius * (np.eye(len(x)) / nx - np.outer(x, x) / nx**3)
-        )
+        else:
+            d = x / nx
+            return radius * (np.eye(len(x)) - np.outer(d, d)) / nx
+        # return (
+        #     np.ones_like(x)
+        #     if nx <= radius
+        #     else radius * (np.eye(len(x)) / nx - np.outer(x, x) / nx**3)
+        # )
     else:
         return np.ones_like(x) if nx <= radius else radius
 

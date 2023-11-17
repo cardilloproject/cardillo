@@ -146,6 +146,9 @@ def consistent_initial_conditions(
         return y1
 
     x0 = np.zeros(system.nu + system.nla_g + system.nla_gamma)
+
+    # compute accelerations and constraints without contacts
+    x0 = lu.solve(b0)
     y0 = np.zeros(system.nla_N + system.nla_F)
 
     # fixed-point loop

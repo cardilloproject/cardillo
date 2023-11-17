@@ -191,9 +191,9 @@ if __name__ == "__main__":
     t0 = 0
     t1 = 1
     dt = 1e-3
-    sol = BackwardEuler(system, t1, dt).solve()
+    # sol = BackwardEuler(system, t1, dt).solve()
     # sol = ScipyIVP(system, t1, dt).solve()
-    # sol = Moreau(system, t1, dt).solve()
+    sol = Moreau(system, t1, dt).solve()
     t, q, u = sol.t, sol.q, sol.u
 
     # - ref. solution

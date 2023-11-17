@@ -375,6 +375,9 @@ class BackwardEuler:
                 # find proximal point
                 yn1 = self.prox(xn1, yn1)
 
+                if np.any(yn1 > 0):
+                    print(f"contact")
+
                 if self.options.reuse_lu_decomposition:
                     # compute new residual and check convergence
                     R_newton = self.R_x(xn1, yn1)

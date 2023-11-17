@@ -201,23 +201,7 @@ def run(case, export=False):
 
     system.assemble()
 
-    # solver1, label1 = LobattoIIIAB(system, t_final, dt, stages=3), "LobattoIIIAB"
-    # solver1, label1 = NPIRK(system, t_final, dt, RadauIIATableau(2)), "NPIRK"
-    # solver1, label1 = NPIRK(system, t_final, dt, AlexanderTableau(3)), "NPIRK"
-    # solver1, label1 = (
-    #     SimplifiedNonsmoothGeneralizedAlpha(system, t_final, dt),
-    #     "Gen-alpha simplified",
-    # )
-    # solver1, label1 = (
-    #     SimplifiedNonsmoothGeneralizedAlphaFirstOrder(system, t_final, dt),
-    #     "Gen-alpha simplified first order",
-    # )
-
-    # solver1, label1 = NonsmoothGeneralizedAlpha(system, t_final, dt, method="newton"), "Gen-alpha"
-    # solver1, label1 = Rattle(system, t_final, dt), "Rattle"
-    # solver1, label1 = MoreauShifted(system, t_final, dt), "MoreauShifted"
-    # solver1, label1 = MoreauShiftedNew(system, t_final, dt), "MoreauShiftedNew"
-    # solver1, label1 = MoreauClassical(system, t_final, dt), "MoreauClassical"
+    # solver1, label1 = Moreau(system, t_final, dt), "Moreau"
     solver1, label1 = BackwardEuler(system, t_final, dt), "BackwardEuler"
 
     sol1 = solver1.solve()
@@ -235,8 +219,8 @@ def run(case, export=False):
     #     NonsmoothGeneralizedAlpha(system, t_final, dt),
     #     "Gen-alpha",
     # )
-    solver2, label2 = Moreau(system, t_final, dt), "Moreau"
-    # solver2, label2 = BackwardEuler(system, t_final, dt), "Backward Euler"
+    # solver2, label2 = Moreau(system, t_final, dt), "Moreau"
+    solver2, label2 = BackwardEuler(system, t_final, dt), "BackwardEuler"
     # solver2, label2 = Rattle(system, t_final, dt), "Rattle"
     sol2 = solver2.solve()
     # sol2 = sol1
