@@ -1,6 +1,6 @@
 import numpy as np
 from warnings import warn
-from scipy.sparse import csc_matrix
+from scipy.sparse import csc_array
 from scipy.sparse.linalg import spsolve
 from scipy.linalg import qr, solve_triangular, svd
 from cardillo.math import approx_fprime
@@ -145,7 +145,7 @@ def fsolve(
 
     # compute Jacobian matrix using finite differences
     if jac in ["2-point", "3-point", "cs"]:
-        jacobian = lambda x, *args: csc_matrix(
+        jacobian = lambda x, *args: csc_array(
             approx_fprime(x, lambda y: fun(y, *args), method=jac, eps=eps)
         )
     else:

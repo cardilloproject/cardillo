@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.sparse import csr_matrix, csc_matrix, bmat
+from scipy.sparse import csc_array, bmat
 from scipy.sparse.linalg import splu
 from tqdm import tqdm
 
@@ -155,10 +155,10 @@ class Moreau:
 
         # only enter fixed-point loop if any contact is active
         if np.any(I_N):
-            # note: we use csc_matrix for efficient column slicing later,
+            # note: we use csc_array for efficient column slicing later,
             # see https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csc_array.html#scipy.sparse.csc_array
-            W_N = self.system.W_N(tn12, qn12, scipy_matrix=csc_matrix)
-            W_F = self.system.W_F(tn12, qn12, scipy_matrix=csc_matrix)
+            W_N = self.system.W_N(tn12, qn12, scipy_matrix=csc_array)
+            W_F = self.system.W_F(tn12, qn12, scipy_matrix=csc_array)
 
             # identify active tangent contacts based on active normal contacts and
             # NF-connectivity lists

@@ -122,7 +122,7 @@ class Newton:
 
         # note: csr_matrix is best for row slicing, see
         # https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csr_array.html#scipy.sparse.csr_array
-        g_N_q = self.system.g_N_q(t, q, scipy_matrix=coo_array)
+        g_N_q = self.system.g_N_q(t, q, scipy_matrix=csr_array)
 
         Rla_N_q = lil_array((self.nla_N, self.nq), dtype=float)
         Rla_N_la_N = lil_array((self.nla_N, self.nla_N), dtype=float)

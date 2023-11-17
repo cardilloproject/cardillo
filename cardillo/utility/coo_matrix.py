@@ -99,7 +99,7 @@ class CooMatrix:
             elif isinstance(value, spmatrix) or isinstance(value, sparray):
                 assert value.shape == (len(rows), len(cols)), "inconsistent assignment"
 
-                # all scipy sparse matrices are converted to coo_matrix, their
+                # all scipy sparse matrices are converted to coo_array, their
                 # data, row and column lists are subsequently appended
                 coo = value.tocoo()
                 self.data.extend(coo.data)

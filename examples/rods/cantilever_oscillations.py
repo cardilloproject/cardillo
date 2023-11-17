@@ -101,10 +101,14 @@ def cantilever(
         load = K_Moment(F, cantilever, (1,))
 
     elif load_type == "force_torsion":
-        
-
         # spatially fixed load at cantilever tip
-        P = lambda t: 5 * smoothstep0(t, 0, 0.5) * t * material_model.Fi[2] / length**2
+        P = (
+            lambda t: 5
+            * smoothstep0(t, 0, 0.5)
+            * t
+            * material_model.Fi[2]
+            / length**2
+        )
         F = lambda t: -P(t) * e2
         load = Force(F, cantilever, (1,))
 
@@ -113,9 +117,6 @@ def cantilever(
         # F = lambda t: P(t) * e1
         # load1 = K_Moment(F, cantilever, (1,))
         # system.add(load1)
-
-
-        
 
     else:
         raise NotImplementedError("This load type has not been implemented")
@@ -209,7 +210,7 @@ def cantilever(
 if __name__ == "__main__":
     # SE3 interpolation:
     cantilever(
-        Rod=make_CosseratRod_SE3(mixed=True, constraints=[1,2]),
+        Rod=make_CosseratRod_SE3(mixed=True, constraints=[1, 2]),
         nelements=5,
         polynomial_degree=1,
         n_load_steps=10,
