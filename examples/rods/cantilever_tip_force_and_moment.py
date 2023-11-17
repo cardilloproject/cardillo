@@ -42,7 +42,6 @@ def cantilever(
     n_load_steps=10,
     rod_hypothesis_penalty="shear_deformable",
     VTK_export=False,
-    mixed=False,
     reduced_integration=True,
     constitutive_law=Harsch2021,
 ):
@@ -89,7 +88,6 @@ def cantilever(
         Q=q0,
         q0=q0,
         polynomial_degree=polynomial_degree,
-        mixed=mixed,
         reduced_integration=reduced_integration,
     )
 
@@ -235,11 +233,10 @@ if __name__ == "__main__":
 
     # For shear-rigid rods Harsch2021 and Simo1986 coincide. For Simo1986 also more robust mixed formulations are available
     cantilever(
-        Rod=make_CosseratRod_R12(mixed=True),
+        Rod=make_CosseratRod_R12(mixed=True, constraints=[1,2]),
         nelements=10,
         polynomial_degree=2,
         n_load_steps=3,
-        rod_hypothesis_penalty="shear_rigid",
         reduced_integration=True,
         constitutive_law=Simo1986,
     )

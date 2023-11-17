@@ -4,7 +4,8 @@ from scipy.sparse.linalg import splu
 from tqdm import tqdm
 
 from cardillo.solver import SolverOptions, Solution
-from cardillo.math import fsolve, prox_R0_nm, prox_sphere, approx_fprime
+from cardillo.math import fsolve, prox_R0_nm, prox_sphere, prox_r, approx_fprime
+from cardillo.math import fsolve, approx_fprime, prox_R0_nm, prox_sphere
 
 
 NEWTON_MAXITER = 4  # maximum number of Newton iterations
@@ -22,8 +23,6 @@ class BackwardEuler:
         self.options = options
 
         if options.numerical_jacobian_method:
-            from scipy.sparse import csc_array
-
             self.J_x = lambda x, y: csc_array(
                 approx_fprime(
                     x,
@@ -334,12 +333,14 @@ class BackwardEuler:
 
         pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
         for _ in pbar:
-            # only compute optimized proxparameters once per time step
-            self.prox_r_N = self.options.prox_scaling * self.system.prox_r_N(
-                self.tn, self.qn
+            # only compute optimized prox-parameters once per time step
+            # TODO: Use self.M, self.W_N and self.W_F from previous time step.
+            M = self.system.M(self.tn, self.qn)
+            self.prox_r_N = prox_r(
+                self.options.prox_scaling, self.system.W_N(self.tn, self.qn), M
             )
-            self.prox_r_F = self.options.prox_scaling * self.system.prox_r_F(
-                self.tn, self.qn
+            self.prox_r_F = prox_r(
+                self.options.prox_scaling, self.system.W_F(self.tn, self.qn), M
             )
 
             # perform a solver step
@@ -418,12 +419,12 @@ class BackwardEuler:
 
             fixed_point_n_iter_list.append(i_fixed_point)
             newton_n_iter_list.append(i_newton)
-            absolute_error = np.max(np.abs(diff))
-            fixed_point_absolute_errors.append(absolute_error)
+            fixed_point_absolute_error = np.max(np.abs(diff))
+            fixed_point_absolute_errors.append(fixed_point_absolute_error)
 
             # update progress bar
             pbar.set_description(
-                f"t: {tn1:0.2e}s < {self.t1:0.2e}s; |x1 - x0|: {absolute_error:0.2e} (fixed-point: {i_fixed_point}/{self.options.fixed_point_max_iter}; newton: {i_newton}/{self.options.newton_max_iter})"
+                f"t: {tn1:0.2e}s < {self.t1:0.2e}s; |x1 - x0|: {fixed_point_absolute_error:0.2e} (fixed-point: {i_fixed_point}/{self.options.fixed_point_max_iter}; newton: {i_newton}/{self.options.newton_max_iter})"
             )
 
             # compute state
@@ -449,6 +450,7 @@ class BackwardEuler:
             t.append(tn1)
             q.append(qn1)
             u.append(un1)
+            # TODO: replace q_dotn1 with dqn1, la_gn1 with dPn1, etc.
             q_dot.append(q_dotn1 / self.dt)
             u_dot.append(u_dotn1 / self.dt)
             P_g.append(la_gn1)

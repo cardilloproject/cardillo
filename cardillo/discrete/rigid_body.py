@@ -49,13 +49,9 @@ class RigidBody:
             else np.asarray(q0)
         )
         self.u0 = np.zeros(self.nu, dtype=float) if u0 is None else np.asarray(u0)
+        self.la_S0 = np.zeros(self.nla_S, dtype=float)
         assert self.q0.size == self.nq
         assert self.u0.size == self.nu
-        self.t = None
-        self.q = np.empty(self.nq)
-        # self.u = np.empty(self.nu)
-
-        self.la_S0 = np.zeros(self.nla_S, dtype=float)
         assert self.la_S0.size == self.nla_S
 
         self.mass = mass
@@ -65,6 +61,7 @@ class RigidBody:
         self.__M[3:, 3:] = self.K_Theta_S
 
         self.A_IK_cache = LRUCache(maxsize=1)
+        self.A_IK_q_cache = LRUCache(maxsize=1)
 
     #####################
     # kinematic equations
@@ -161,14 +158,10 @@ class RigidBody:
     def A_IK(self, t, q, frame_ID=None):
         return Exp_SO3_quat(q[3:])
 
-    # TODO: delete this old version of caching
-    # def A_IK(self, t, q, frame_ID=None):
-    #     if not (t == self.t and np.allclose(q, self.q, rtol=1e-12, atol=1e-12)):
-    #         self._A_IK = Exp_SO3_quat(q[3:])
-    #         self.t = t
-    #         self.q = q
-    #     return self._A_IK
-
+    @cachedmethod(
+        lambda self: self.A_IK_q_cache,
+        key=lambda self, t, q, frame_ID=None: hashkey(t, *q),
+    )
     def A_IK_q(self, t, q, frame_ID=None):
         A_IK_q = np.zeros((3, 3, self.nq), dtype=q.dtype)
         A_IK_q[:, :, 3:] = Exp_SO3_quat_p(q[3:])

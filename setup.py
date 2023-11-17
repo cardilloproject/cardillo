@@ -27,7 +27,7 @@ setup(
         "meshio @ git+https://github.com/JonasHarsch/meshio.git@master#egg=meshio",  # may cause problems with "rich" -> quick fix it by installing "rich"
         # "meshio>=5.0.0", # beam export may not work with this!
         "pytest",
-        "dill",
+        "dill>=0.3.7",
         "cachetools",
     ],
     packages=find_packages(),
