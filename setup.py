@@ -28,6 +28,7 @@ setup(
         # "meshio>=5.0.0", # beam export may not work with this!
         "pytest",
         "dill>=0.3.7",
+        "cachetools",
     ],
     packages=find_packages(),
     python_requires=">=3.10",
