@@ -1,4 +1,8 @@
 import numpy as np
+
+from cachetools import cachedmethod, LRUCache
+from cachetools.keys import hashkey
+
 from cardillo.math import (
     cross3,
     ax2skew,
@@ -40,7 +44,7 @@ class RigidBody:
         mass,
         K_Theta_S,
         q0=None,
-        u0=None,
+        u0=None
     ):
         self.nq = 7
         self.nu = 6
@@ -66,6 +70,8 @@ class RigidBody:
         self.__M = np.zeros((self.nu, self.nu), dtype=float)
         self.__M[:3, :3] = self.mass * np.eye(3, dtype=float)
         self.__M[3:, 3:] = self.K_Theta_S
+
+        self.A_IK_cache = LRUCache(maxsize=1)
 
     #####################
     # kinematic equations
@@ -155,12 +161,20 @@ class RigidBody:
     def local_uDOF_P(self, frame_ID=None):
         return np.arange(self.nu)
 
+    @cachedmethod(
+            lambda self: self.A_IK_cache,
+            key=lambda self, t, q, frame_ID=None: hashkey(t, tuple(q.tolist()))
+    )
     def A_IK(self, t, q, frame_ID=None):
-        if not (t == self.t and np.allclose(q, self.q, rtol=1e-12, atol=1e-12)):
-            self._A_IK = Exp_SO3_quat(q[3:])
-            self.t = t
-            self.q = q
-        return self._A_IK
+        return Exp_SO3_quat(q[3:])
+    
+    # TODO: delete this old version of caching
+    # def A_IK(self, t, q, frame_ID=None):
+    #     if not (t == self.t and np.allclose(q, self.q, rtol=1e-12, atol=1e-12)):
+    #         self._A_IK = Exp_SO3_quat(q[3:])
+    #         self.t = t
+    #         self.q = q
+    #     return self._A_IK
 
     def A_IK_q(self, t, q, frame_ID=None):
         A_IK_q = np.zeros((3, 3, self.nq), dtype=q.dtype)
