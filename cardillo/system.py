@@ -428,12 +428,10 @@ class System:
     def chi_g(self, t, q):
         return self.g_dot(t, q, np.zeros(self.nu))
 
-    def g_dot_u(self, t, q, u, scipy_matrix=coo_matrix):
+    def g_dot_u(self, t, q, scipy_matrix=coo_matrix):
         coo = CooMatrix((self.nla_g, self.nu))
         for contr in self.__g_contr:
-            coo[contr.la_gDOF, contr.uDOF] = contr.g_dot_u(
-                t, q[contr.qDOF], u[contr.uDOF]
-            )
+            coo[contr.la_gDOF, contr.uDOF] = contr.g_dot_u(t, q[contr.qDOF])
         return coo.tosparse(scipy_matrix)
 
     def g_dot_q(self, t, q, u, scipy_matrix=coo_matrix):
@@ -485,18 +483,6 @@ class System:
     def chi_gamma(self, t, q):
         return self.gamma(t, q, np.zeros(self.nu))
 
-    def gamma_dot(self, t, q, u, u_dot):
-        gamma_dot = np.zeros(self.nla_gamma, dtype=np.common_type(q, u, u_dot))
-        for contr in self.__gamma_contr:
-            gamma_dot[contr.la_gammaDOF] = contr.gamma_dot(
-                t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF]
-            )
-        return gamma_dot
-
-    # TODO: Assemble zeta_gamma for efficency
-    def zeta_gamma(self, t, q, u):
-        return self.gamma_dot(t, q, u, np.zeros(self.nu))
-
     def gamma_q(self, t, q, u, scipy_matrix=coo_matrix):
         coo = CooMatrix((self.nla_gamma, self.nq))
         for contr in self.__gamma_contr:
@@ -505,13 +491,19 @@ class System:
             )
         return coo.tosparse(scipy_matrix)
 
-    def gamma_u(self, t, q, u, scipy_matrix=coo_matrix):
+    def gamma_u(self, t, q, scipy_matrix=coo_matrix):
         coo = CooMatrix((self.nla_gamma, self.nu))
         for contr in self.__gamma_contr:
-            coo[contr.la_gammaDOF, contr.uDOF] = contr.gamma_u(
-                t, q[contr.qDOF], u[contr.uDOF]
-            )
+            coo[contr.la_gammaDOF, contr.uDOF] = contr.gamma_u(t, q[contr.qDOF])
         return coo.tosparse(scipy_matrix)
+
+    def gamma_dot(self, t, q, u, u_dot):
+        gamma_dot = np.zeros(self.nla_gamma, dtype=np.common_type(q, u, u_dot))
+        for contr in self.__gamma_contr:
+            gamma_dot[contr.la_gammaDOF] = contr.gamma_dot(
+                t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF]
+            )
+        return gamma_dot
 
     def gamma_dot_q(self, t, q, u, u_dot, scipy_matrix=coo_matrix):
         coo = CooMatrix((self.nla_gamma, self.nq))
@@ -528,6 +520,10 @@ class System:
                 t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF]
             )
         return coo.tosparse(scipy_matrix)
+
+    # TODO: Assemble zeta_gamma for efficency
+    def zeta_gamma(self, t, q, u):
+        return self.gamma_dot(t, q, u, np.zeros(self.nu))
 
     def W_gamma(self, t, q, scipy_matrix=coo_matrix):
         coo = CooMatrix((self.nu, self.nla_gamma))
