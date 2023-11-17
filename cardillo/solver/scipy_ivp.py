@@ -79,7 +79,7 @@ class ScipyIVP:
     def la_g_la_gamma_la_c(self, t, q, u):
         W_g = self.system.W_g(t, q, format="csc")
         W_gamma = self.system.W_gamma(t, q, format="csc")
-        W_c = self.system.W_c(t, q, format="csc")
+        W_c = self.system.W_c(t, q, format="csr")
         g_dot_u = self.system.g_dot_u(t, q)
         gamma_u = self.system.gamma_u(t, q)
         la_c = self.system.la_c(t, q, u)

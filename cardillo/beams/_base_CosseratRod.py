@@ -1678,18 +1678,16 @@ class CosseratRodMixed(CosseratRod, ABC):
 
         return c_el
 
-    def c_la_c(self, t, q, u, la_c):
+    def c_la_c(self):
         coo = CooMatrix((self.nla_c, self.nla_c))
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF_la_c = self.elDOF_la_c[el]
-            coo[elDOF_la_c, elDOF_la_c] = self.c_la_c_el(q[elDOF], el)
+            coo[elDOF_la_c, elDOF_la_c] = self.c_la_c_el(el)
         return coo
 
-    def c_la_c_el(self, qe, el):
-        c_la_c_el = np.zeros(
-            (self.nla_c_element, self.nla_c_element), dtype=np.common_type(qe)
-        )
+    def c_la_c_el(self, el):
+        c_la_c_el = np.zeros((self.nla_c_element, self.nla_c_element))
         for i in range(self.nquadrature):
             qwi = self.qw[el, i]
             J = self.J[el, i]

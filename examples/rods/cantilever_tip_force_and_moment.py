@@ -12,7 +12,7 @@ from cardillo.beams.cosseratRod import (
 )
 
 from cardillo.constraints import RigidConnection
-from cardillo.solver import Newton
+from cardillo.solver import Newton, SolverOptions
 from cardillo.forces import Force, K_Moment
 
 from cardillo.math import e2, e3
@@ -100,7 +100,7 @@ def cantilever(
     moment = K_Moment(M, cantilever, (1,))
     system.add(moment)
 
-    system.assemble()
+    system.assemble(options=SolverOptions(compute_consistent_initial_conditions=False))
 
     # add Newton solver
     solver = Newton(

@@ -17,6 +17,7 @@ from cardillo.math import fsolve, approx_fprime, prox_R0_nm, prox_sphere
 NEWTON_MAXITER = 4  # maximum number of Newton iterations
 
 
+# TODO: Move from la# to P#
 class BackwardEuler:
     def __init__(
         self,
@@ -257,7 +258,7 @@ class BackwardEuler:
         ############
         Rla_c_q_dot = self.system.c_q(tn1, qn1, un1, la_cn1 / self.dt)
         Rla_c_u_dot = self.system.c_u(tn1, qn1, un1, la_cn1 / self.dt)
-        Rla_c_la_c = self.system.c_la_c(tn1, qn1, un1, la_cn1 / self.dt) / self.dt
+        Rla_c_la_c = self.system.c_la_c() / self.dt
 
         # fmt: off
         J = bmat(

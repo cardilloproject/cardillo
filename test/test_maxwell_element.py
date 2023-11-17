@@ -121,6 +121,10 @@ class MaxwellElementCompliance:
     ############
     # compliance
     ############
+    def la_c(self, t, q, u):
+        x, x_D = q
+        return -self.stiffness * np.array([x - x_D - self.l0])
+
     def W_c(self, t, q):
         return np.ones((self.nu, self.nla_c))
 
@@ -135,7 +139,7 @@ class MaxwellElementCompliance:
         c_q[0, 1] = -1
         return c_q
 
-    def c_la_c(self, t, q, u, la_c):
+    def c_la_c(self):
         return np.diag([1 / self.stiffness])
 
     def Wla_c_q(self, t, q, la_c):
@@ -172,24 +176,25 @@ if __name__ == "__main__":
     u0 = np.array([x_dot0], dtype=float)
     la_c0 = np.array([-5], dtype=float)
 
-    maxwell_element = MaxwellElement(mass, stiffness, damping, l0, q0, u0)
-    # maxwell_element = MaxwellElementCompliance(
-    #     mass, stiffness, damping, l0, q0, u0, la_c0
-    # )
+    # maxwell_element = MaxwellElement(mass, stiffness, damping, l0, q0, u0)
+    maxwell_element = MaxwellElementCompliance(
+        mass, stiffness, damping, l0, q0, u0, la_c0
+    )
+    system = System()
+    system.add(maxwell_element)
+    system.assemble()
 
-    # system = System()
-    # system.add(maxwell_element)
-    # system.assemble()
-
-    system = MaxwellElementForceElement(
-        mass, stiffness, damping, l0, x0, x_D0, x_dot0
-    ).get_system()
+    # system = MaxwellElementForceElement(
+    #     mass, stiffness, damping, l0, x0, x_D0, x_dot0
+    # ).get_system()
 
     t0 = 0
-    t1 = 2
-    dt = 5e-4
+    t1 = 1
+    dt = 1e-3
     sol = BackwardEuler(system, t1, dt).solve()
     # sol = ScipyIVP(system, t1, dt).solve()
+    # sol = Moreau(system, t1, dt).solve()
+    t, q, u = sol.t, sol.q, sol.u
 
     # - ref. solution
     def eqm(t, z):
@@ -199,11 +204,9 @@ if __name__ == "__main__":
         du = -(stiffness / mass) * (x - x_d - l0)
         return np.array([dx, dx_d, du])
 
-    sol_ref = solve_ivp(eqm, [0, t1], np.array([x0, x_D0, x_dot0]))
+    sol_ref = solve_ivp(eqm, [t[0], t[-1]], np.array([x0, x_D0, x_dot0]), t_eval=t)
     t_ref = sol_ref.t
     z_ref = sol_ref.y
-
-    t, q, u = sol.t, sol.q, sol.u
 
     fig, ax = plt.subplots(1, 2)
     ax[0].plot(t, q[:, 0], "-b", label="x")
@@ -212,7 +215,7 @@ if __name__ == "__main__":
     ax[0].plot(t_ref, z_ref[1], "--r", label="x_D_ref")
     ax[0].grid()
     ax[0].legend()
-    ax[1].plot(t, u[:, 0], label="x_dot")
+    ax[1].plot(t, u[:, 0], "-b", label="x_dot")
     ax[1].plot(t_ref, z_ref[2], "-b", label="x_dot_ref")
     ax[1].grid()
 

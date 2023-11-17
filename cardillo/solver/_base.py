@@ -1,9 +1,9 @@
 import numpy as np
 from scipy.sparse import bmat
+from scipy.sparse.linalg import splu
 from cardillo.math import (
     prox_sphere,
     prox_R0_nm,
-    fsolve,
     norm,
     estimate_prox_parameter,
 )
@@ -13,23 +13,32 @@ from .solver_options import SolverOptions
 # TODO: Add rtol atol error measure
 def consistent_initial_conditions(
     system,
-    rtol=1.0e-5,
-    atol=1.0e-8,
-    options=SolverOptions(
-        fixed_point_atol=1e-8,
-        fixed_point_max_iter=int(1e3),
-        newton_atol=1e-10,
-        newton_max_iter=10,
-    ),
+    rtol=1.0e-5,  # TODO: Rename; can they be changed by the user?
+    atol=1.0e-8,  # TODO: Rename; can they be changed by the user?
+    options=SolverOptions(),
 ):
     t0 = system.t0
     q0 = system.q0
     u0 = system.u0
 
     # normalize quaternions etc.
-    system.step_callback(t0, q0, u0)
+    q0, u0 = system.step_callback(t0, q0, u0)
 
     q_dot0 = system.q_dot(t0, q0, u0)
+
+    if not options.compute_consistent_initial_conditions:
+        return (
+            t0,
+            q0,
+            u0,
+            q_dot0,
+            np.zeros(system.nu),
+            np.zeros(system.nla_g),
+            np.zeros(system.nla_gamma),
+            np.zeros(system.nla_c),
+            np.zeros(system.nla_N),
+            np.zeros(system.nla_F),
+        )
 
     g_N = system.g_N(t0, q0)
     g_N_dot = system.g_N_dot(t0, q0, u0)
@@ -45,19 +54,18 @@ def consistent_initial_conditions(
     ), "Initial conditions do not fulfill g_N_dot0!"
 
     # csr for fast matrix vector product
-    M = system.M(t0, q0, format="csr")
+    M = system.M(t0, q0)
     h = system.h(t0, q0, u0)
-    W_g = system.W_g(t0, q0, format="csr")
-    g_dot_u = system.g_dot_u(t0, q0, format="csr")
+    W_g = system.W_g(t0, q0)
+    g_dot_u = system.g_dot_u(t0, q0)
     zeta_g = system.zeta_g(t0, q0, u0)
-    W_gamma = system.W_gamma(t0, q0, format="csr")
-    gamma_u = system.gamma_u(t0, q0, format="csr")
+    W_gamma = system.W_gamma(t0, q0)
+    gamma_u = system.gamma_u(t0, q0)
     zeta_gamma = system.zeta_gamma(t0, q0, u0)
-    W_c = system.W_c(t0, q0, format="csr")
-    W_N = system.W_N(t0, q0, format="csr")
-    W_F = system.W_F(t0, q0, format="csr")
-    I_N = np.isclose(g_N, np.zeros(system.nla_N), rtol, atol)
-    I_F = compute_I_F(I_N, system.NF_connectivity)
+    W_c = system.W_c(t0, q0)
+    la_c0 = system.la_c(t0, q0, u0)
+    W_N = system.W_N(t0, q0)
+    W_F = system.W_F(t0, q0)
     prox_r_N = estimate_prox_parameter(options.prox_scaling, W_N, M)
     prox_r_F = estimate_prox_parameter(options.prox_scaling, W_F, M)
     mu = system.mu
@@ -67,7 +75,6 @@ def consistent_initial_conditions(
             system.nu,
             system.nla_g,
             system.nla_gamma,
-            system.nla_c,
         ]
     )[:-1]
     split_y = np.cumsum(
@@ -77,60 +84,29 @@ def consistent_initial_conditions(
         ]
     )[:-1]
 
-    def R_x(x, y):
-        u_dot, la_g, la_gamma, la_c = np.array_split(x, split_x)
-        la_N, la_F = np.array_split(y, split_y)
+    # fmt: off
+    A = bmat(
+        [
+            [      M, -W_g, -W_gamma],
+            [g_dot_u, None,     None],
+            [gamma_u, None,     None],
+        ],
+        format="csc",
+    )
+    # fmt: on
 
-        R_x = np.zeros_like(x)
+    lu = splu(A)
 
-        #####################
-        # equations of motion
-        #####################
-        R_x[: split_x[0]] = (
-            M @ u_dot
-            - h
-            - W_g @ la_g
-            - W_gamma @ la_gamma
-            - W_c @ la_c
-            - W_N @ la_N
-            - W_F @ la_F
-        )
-
-        #############################################
-        # bilateral constraints on acceleration level
-        #############################################
-        R_x[split_x[0] : split_x[1]] = g_dot_u @ u_dot + zeta_g
-        R_x[split_x[1] : split_x[2]] = gamma_u @ u_dot + zeta_gamma
-
-        ############
-        # compliance
-        ############
-        R_x[split_x[2] :] = system.c(t0, q0, u0, la_c)
-
-        return R_x
-
-    def J_x(x, y):
-        la_c = x[split_x[2] :]
-        # coo for fast bmat
-        c_la_c = system.c_la_c(t0, q0, u0, la_c, format="coo")
-
-        # assemble jacobian
-        # fmt: off
-        J = bmat(
-            [
-                [        M, -W_g, -W_gamma,   -W_c],
-                [  g_dot_u, None,     None,   None],
-                [  gamma_u, None,     None,   None],
-                [     None, None,     None, c_la_c],
-            ],
-            format="csc",
-        )
-        # fmt: on
-
-        return J
+    b0 = np.concatenate(
+        [
+            h + W_c @ la_c0,
+            -zeta_g,
+            -zeta_gamma,
+        ]
+    )
 
     def prox(x1, y0):
-        u_dot, _, _, _ = np.array_split(x1, split_x)
+        u_dot, _, _ = np.array_split(x1, split_x)
         la_N, la_F = np.array_split(y0, split_y)
 
         y1 = np.zeros_like(y0)
@@ -169,7 +145,7 @@ def consistent_initial_conditions(
 
         return y1
 
-    x0 = np.zeros(system.nu + system.nla_g + system.nla_gamma + system.nla_c)
+    x0 = np.zeros(system.nu + system.nla_g + system.nla_gamma)
     y0 = np.zeros(system.nla_N + system.nla_F)
 
     # fixed-point loop
@@ -180,19 +156,13 @@ def consistent_initial_conditions(
         # find proximal point
         y1 = prox(x1, y1)
 
-        # solve nonlinear system
-        x1, converged_newton, error_newton, i_newton, _ = fsolve(
-            R_x,
-            x1,
-            jac=J_x,
-            fun_args=(y1,),
-            jac_args=(y1,),
-            atol=options.newton_atol,
-            max_iter=options.newton_max_iter,
-        )
-        assert (
-            converged_newton
-        ), f"Newton method in consistent_initial_conditions did not converge after {i_newton} internal newton iterations with error: {error_newton}"
+        # compute new rhs
+        la_N, la_F = np.array_split(y1, split_y)
+        b = b0.copy()
+        b[: system.nu] += W_N @ la_N + W_F @ la_F
+
+        # solve linear system
+        x1 = lu.solve(b)
 
         # convergence in accelerations
         diff = x1[: system.nu] - x0[: system.nu]
@@ -214,7 +184,7 @@ def consistent_initial_conditions(
         f"consistent_initial_conditions converged after {i_fixed_point} fixed-point iterations with error: {error_fixed_point}"
     )
 
-    u_dot0, la_g0, la_gamma0, la_c0 = np.array_split(x1, split_x)
+    u_dot0, la_g0, la_gamma0 = np.array_split(x1, split_x)
     la_N0, la_F0 = np.array_split(y1, split_y)
 
     # check if initial conditions satisfy constraints on position, velocity

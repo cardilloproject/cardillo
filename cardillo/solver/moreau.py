@@ -41,6 +41,7 @@ class Moreau:
         self.u_dotn = system.u_dot0
         la_g0 = system.la_g0
         la_gamma0 = system.la_gamma0
+        self.la_c0 = system.la_c0
         la_N0 = system.la_N0
         la_F0 = system.la_F0
 
@@ -111,6 +112,8 @@ class Moreau:
         h = self.system.h(tn12, qn12, un)
         W_g = self.system.W_g(tn12, qn12)
         W_gamma = self.system.W_gamma(tn12, qn12)
+        W_c = self.system.W_c(tn12, qn12)
+        la_c = self.system.la_c(tn12, qn12, un)
         chi_g = self.system.g_dot(tn12, qn12, np.zeros_like(un))
         chi_gamma = self.system.gamma(tn12, qn12, np.zeros_like(un))
 
@@ -131,7 +134,7 @@ class Moreau:
         # initial right hand side without contact forces
         b = np.concatenate(
             (
-                M @ un + dt * h,
+                M @ un + dt * (h + W_c @ la_c),
                 chi_g,
                 chi_gamma,
             )
@@ -205,7 +208,17 @@ class Moreau:
         # second half step
         qn1 = qn12 + 0.5 * dt * self.system.q_dot(tn12, qn12, un1)
 
-        return (converged, j, error), tn1, qn1, un1, P_gn1, P_gamman1, P_Nn1, P_Fn1
+        return (
+            (converged, j, error),
+            tn1,
+            qn1,
+            un1,
+            P_gn1,
+            P_gamman1,
+            la_c,
+            P_Nn1,
+            P_Fn1,
+        )
 
     def solve(self):
         # lists storing output variables
@@ -213,6 +226,7 @@ class Moreau:
         u = [self.un]
         P_g = [self.P_gn]
         P_gamma = [self.P_gamman]
+        la_c = [self.la_c0]
         P_N = [self.P_Nn]
         P_F = [self.P_Fn]
 
@@ -226,6 +240,7 @@ class Moreau:
                 un1,
                 P_gn1,
                 P_gamman1,
+                la_cn1,
                 P_Nn1,
                 P_Fn1,
             ) = self.step()
@@ -248,6 +263,7 @@ class Moreau:
             u.append(un1)
             P_g.append(P_gn1)
             P_gamma.append(P_gamman1)
+            la_c.append(la_cn1)
             P_N.append(P_Nn1)
             P_F.append(P_Fn1)
 
@@ -269,6 +285,7 @@ class Moreau:
             u=np.array(u),
             la_g=np.array(P_g) / self.dt,
             la_gamma=np.array(P_gamma) / self.dt,
+            la_c=np.array(la_c),
             la_N=np.array(P_N) / self.dt,
             la_F=np.array(P_F) / self.dt,
             P_g=np.array(P_g),

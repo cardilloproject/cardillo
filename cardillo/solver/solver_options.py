@@ -17,6 +17,7 @@ class SolverOptions:
     continue_with_unconverged: bool = True
     numerical_jacobian_method: bool | str = False
     numerical_jacobian_eps: float = 1e-6
+    compute_consistent_initial_conditions: bool = True
 
     def __post_init__(self):
         assert self.fixed_point_atol > 0

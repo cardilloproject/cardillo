@@ -175,7 +175,7 @@ class System:
             if hasattr(contr, "reset"):
                 contr.reset()
 
-    def assemble(self, **kwargs):
+    def assemble(self, *args, **kwargs):
         self.nq = 0
         self.nu = 0
         self.nla_g = 0
@@ -281,6 +281,7 @@ class System:
         self.u0 = np.array(u0)
 
         # compute constant system parts
+        # - parts of the mass matrix
         self.I_M = [
             contr.variable_mass if hasattr(contr, "variable_mass") else False
             for contr in self.__M_contr
@@ -290,6 +291,12 @@ class System:
         for contr in self.__M_contr:
             coo[contr.uDOF, contr.uDOF] = contr.M(self.t0, self.q0[contr.qDOF])
         self._M0 = coo.tocoo()
+
+        # - compliance matrix
+        coo = CooMatrix((self.nla_c, self.nla_c))
+        for contr in self.__c_contr:
+            coo[contr.la_cDOF, contr.la_cDOF] = contr.c_la_c()
+        self._c_la_c0 = coo.tocoo()
 
         # compute consistent initial conditions
         (
@@ -303,7 +310,7 @@ class System:
             self.la_c0,
             self.la_N0,
             self.la_F0,
-        ) = consistent_initial_conditions(self, **kwargs)
+        ) = consistent_initial_conditions(self, *args, **kwargs)
 
     def assembler_callback(self):
         for contr in self.__assembler_callback_contr:
@@ -593,13 +600,8 @@ class System:
             )
         return coo.asformat(format)
 
-    def c_la_c(self, t, q, u, la_c, format="coo"):
-        coo = CooMatrix((self.nla_c, self.nla_c))
-        for contr in self.__c_contr:
-            coo[contr.la_cDOF, contr.la_cDOF] = contr.c_la_c(
-                t, q[contr.qDOF], u[contr.uDOF], la_c[contr.la_cDOF]
-            )
-        return coo.asformat(format)
+    def c_la_c(self, format="coo"):
+        return self._c_la_c0.asformat(format)
 
     def W_c(self, t, q, format="coo"):
         coo = CooMatrix((self.nu, self.nla_c))

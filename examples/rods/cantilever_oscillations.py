@@ -122,7 +122,7 @@ def cantilever(
         raise NotImplementedError("This load type has not been implemented")
 
     system.add(load)
-    system.assemble()
+    system.assemble(options=SolverOptions(compute_consistent_initial_conditions=False))
 
     # add Newton solver
     solver = Newton(
@@ -140,10 +140,12 @@ def cantilever(
     # nt = len(q)
     # t = sol.t[:nt]
 
-    system_ph1 = system.deepcopy(sol)
+    system_ph1 = system.deepcopy(
+        sol, options=SolverOptions(compute_consistent_initial_conditions=False)
+    )
     system.remove(load)
     # system.remove(load1)
-    system.assemble()
+    system.assemble(options=SolverOptions(compute_consistent_initial_conditions=False))
 
     # dt = 1e-2
     # dt = 1e-2

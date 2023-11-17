@@ -110,15 +110,15 @@ class Newton:
         # evaluate additionally required quantites for computing the jacobian
         # coo is used for efficient bmat
         K = (
-            self.system.h_q(t, q, self.u0, format="coo")
-            + self.system.Wla_g_q(t, q, la_g, format="coo")
-            + self.system.Wla_c_q(t, q, la_c, format="coo")
-            + self.system.Wla_N_q(t, q, la_N, format="coo")
+            self.system.h_q(t, q, self.u0)
+            + self.system.Wla_g_q(t, q, la_g)
+            + self.system.Wla_c_q(t, q, la_c)
+            + self.system.Wla_N_q(t, q, la_N)
         )
-        g_q = self.system.g_q(t, q, format="coo")
-        g_S_q = self.system.g_S_q(t, q, format="coo")
-        c_q = self.system.c_q(t, q, self.u0, la_c, format="coo")
-        c_la_c = self.system.c_la_c(t, q, self.u0, la_c, format="coo")
+        g_q = self.system.g_q(t, q)
+        g_S_q = self.system.g_S_q(t, q)
+        c_q = self.system.c_q(t, q, self.u0, la_c)
+        c_la_c = self.system.c_la_c()
 
         # note: csr_matrix is best for row slicing, see
         # https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csr_array.html#scipy.sparse.csr_array
