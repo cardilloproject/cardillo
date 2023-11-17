@@ -200,8 +200,7 @@ if __name__ == "__main__":
     system.add(rod)
     system.assemble()
 
-    # t_final = 1.5
-    t_final = 0.1
+    t_final = 1.5
     dt1 = 5e-3
     dt2 = 5e-3
 

@@ -219,8 +219,8 @@ def run(case, export=False):
     #     NonsmoothGeneralizedAlpha(system, t_final, dt),
     #     "Gen-alpha",
     # )
-    # solver2, label2 = Moreau(system, t_final, dt), "Moreau"
-    solver2, label2 = BackwardEuler(system, t_final, dt), "BackwardEuler"
+    solver2, label2 = Moreau(system, t_final, dt), "Moreau"
+    # solver2, label2 = BackwardEuler(system, t_final, dt), "BackwardEuler"
     # solver2, label2 = Rattle(system, t_final, dt), "Rattle"
     sol2 = solver2.solve()
     # sol2 = sol1

@@ -154,8 +154,10 @@ class Moreau:
 
         # identify active contacts
         g_Nn12 = self.system.g_N(tn12, qn12)
-        # self.I_N = np.logical_or(g_Nn12 < 0, np.isclose(g_Nn12, np.zeros(self.system.nla_N)))
-        self.I_N = g_Nn12 <= 0
+        self.I_N = np.logical_or(
+            g_Nn12 <= 0,
+            np.isclose(g_Nn12, np.zeros(self.system.nla_N), rtol=1e-8, atol=1e-8),
+        )
 
         # only enter fixed-point loop if any contact is active
         if np.any(self.I_N):
@@ -205,17 +207,13 @@ class Moreau:
                 # convergence in velocities
                 diff = u - u0
 
-                # # error measure, see Hairer1993, Section II.4
-                # sc = (
-                #     self.options.fixed_point_atol
-                #     + np.maximum(np.abs(u), np.abs(u0))
-                #     * self.options.fixed_point_rtol
-                # )
-                # error = np.linalg.norm(diff / sc) / sc.size**0.5
-                # converged = error < 1.0
-
-                error = np.max(np.abs(diff))
-                converged = error < self.options.fixed_point_atol
+                # error measure, see Hairer1993, Section II.4
+                sc = (
+                    self.options.fixed_point_atol
+                    + np.maximum(np.abs(u), np.abs(u0)) * self.options.fixed_point_rtol
+                )
+                error = np.linalg.norm(diff / sc) / sc.size**0.5
+                converged = error < 1.0
 
                 if converged:
                     P_Nn1[self.I_N] = P_N[self.I_N]
