@@ -56,7 +56,7 @@ Schweizer2015: https://doi.org/10.3929/ethz-a-010464319
 
 def estimate_prox_parameter(alpha, W, M):
     try:
-        return alpha / (W.T @ spsolve(csc_array(M), csc_array(W))).diagonal()
+        return alpha / csc_array(W.T @ spsolve(csc_array(M), csc_array(W))).diagonal()
     except:
         return np.full(W.shape[1], alpha, dtype=W.dtype)
 
