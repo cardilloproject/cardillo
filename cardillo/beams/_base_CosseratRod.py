@@ -34,7 +34,6 @@ class CosseratRod(RodExportBase, ABC):
         Q,
         q0=None,
         u0=None,
-        mixed=False,
     ):
         """Base class for Petrov-Galerkin Cosserat rod formulations that uses quaternions for the parametrization of the nodal orientations."""
 
@@ -1444,7 +1443,6 @@ class CosseratRodMixed(CosseratRod, ABC):
             Q,
             q0=None,
             u0=None,
-            mixed=None,
         )
 
         #######################################################
@@ -1907,7 +1905,6 @@ def make_CosseratRodConstrained(mixed, constraints):
         idx = np.arange(6)
         idx_constraints = np.array(constraints)
         idx_mixed = idx[~np.isin(idx, idx_constraints)]
-
     else:
         CosseratRodBase = CosseratRod
 

@@ -21,11 +21,21 @@ from cardillo.beams._base_CosseratRod import (
 )
 
 
-def make_CosseratRod_SE3(mixed=False):
+def make_CosseratRod_SE3(mixed=False, constraints=None):
     if mixed == True:
-        CosseratRodBase = CosseratRodMixed
+        if constraints == None:
+            CosseratRodBase = CosseratRodMixed
+        else:
+            CosseratRodBase = make_CosseratRodConstrained(
+                mixed=mixed, constraints=constraints
+            )
     else:
-        CosseratRodBase = CosseratRod
+        if constraints == None:
+            CosseratRodBase = CosseratRod
+        else:
+            CosseratRodBase = make_CosseratRodConstrained(
+                mixed=mixed, constraints=constraints
+            )
 
     class CosseratRod_SE3(CosseratRodBase):
         def __init__(
@@ -41,7 +51,6 @@ def make_CosseratRod_SE3(mixed=False):
             u0=None,
             polynomial_degree=1,
             reduced_integration=True,
-            mixed=False,
         ):
             super().__init__(
                 cross_section,
@@ -56,7 +65,6 @@ def make_CosseratRod_SE3(mixed=False):
                 Q,
                 q0=q0,
                 u0=u0,
-                mixed=None,
             )
 
         @staticmethod
@@ -491,11 +499,21 @@ def make_CosseratRod_R12(mixed=False, constraints=None):
     return CosseratRod_R12
 
 
-def make_CosseratRod_Quat(mixed=False):
+def make_CosseratRod_Quat(mixed=False, constraints=None):
     if mixed == True:
-        CosseratRodBase = CosseratRodMixed
+        if constraints == None:
+            CosseratRodBase = CosseratRodMixed
+        else:
+            CosseratRodBase = make_CosseratRodConstrained(
+                mixed=mixed, constraints=constraints
+            )
     else:
-        CosseratRodBase = CosseratRod
+        if constraints == None:
+            CosseratRodBase = CosseratRod
+        else:
+            CosseratRodBase = make_CosseratRodConstrained(
+                mixed=mixed, constraints=constraints
+            )
 
     class CosseratRod_Quat(CosseratRodBase):
         def __init__(
@@ -511,7 +529,6 @@ def make_CosseratRod_Quat(mixed=False):
             u0=None,
             polynomial_degree=1,
             reduced_integration=True,
-            mixed=False,
         ):
             nquadrature = polynomial_degree
             nquadrature_dyn = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
@@ -535,7 +552,6 @@ def make_CosseratRod_Quat(mixed=False):
                 Q,
                 q0=q0,
                 u0=u0,
-                mixed=mixed,
             )
 
         @staticmethod
