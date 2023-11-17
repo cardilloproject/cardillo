@@ -1,5 +1,4 @@
 import numpy as np
-
 from cachetools import cachedmethod, LRUCache
 from cachetools.keys import hashkey
 
@@ -39,13 +38,7 @@ class RigidBody:
     u0:         generalized velocities at t0
     """
 
-    def __init__(
-        self,
-        mass,
-        K_Theta_S,
-        q0=None,
-        u0=None
-    ):
+    def __init__(self, mass, K_Theta_S, q0=None, u0=None):
         self.nq = 7
         self.nu = 6
         self.nla_S = 1
@@ -56,14 +49,9 @@ class RigidBody:
             else np.asarray(q0)
         )
         self.u0 = np.zeros(self.nu, dtype=float) if u0 is None else np.asarray(u0)
+        self.la_S0 = np.zeros(self.nla_S, dtype=float)
         assert self.q0.size == self.nq
         assert self.u0.size == self.nu
-        self.t = None
-        self.q = np.empty(self.nq)
-        self.update = np.array(2 * [True])
-        # self.u = np.empty(self.nu)
-
-        self.la_S0 = np.zeros(self.nla_S, dtype=float)
         assert self.la_S0.size == self.nla_S
 
         self.mass = mass
@@ -73,6 +61,7 @@ class RigidBody:
         self.__M[3:, 3:] = self.K_Theta_S
 
         self.A_IK_cache = LRUCache(maxsize=1)
+        self.A_IK_q_cache = LRUCache(maxsize=1)
 
     #####################
     # kinematic equations
@@ -162,26 +151,21 @@ class RigidBody:
     def local_uDOF_P(self, frame_ID=None):
         return np.arange(self.nu)
 
-    def updated(self, t, q):
-        ret = not (t == self.t and np.allclose(q, self.q, atol=1e-15, rtol=1e-15))
-        if ret:
-            self.t = t
-            self.q = q
-            self.update.fill(True)
-        return ret
-
+    @cachedmethod(
+        lambda self: self.A_IK_cache,
+        key=lambda self, t, q, frame_ID=None: hashkey(t, *q),
+    )
     def A_IK(self, t, q, frame_ID=None):
-        if self.updated(t, q) or self.update[0]:
-            self._A_IK = Exp_SO3_quat(q[3:])
-            self.update[0] = False
-        return self._A_IK
+        return Exp_SO3_quat(q[3:])
 
+    @cachedmethod(
+        lambda self: self.A_IK_q_cache,
+        key=lambda self, t, q, frame_ID=None: hashkey(t, *q),
+    )
     def A_IK_q(self, t, q, frame_ID=None):
-        if self.updated(t, q) or self.update[1]:
-            self._A_IK_q = np.zeros((3, 3, self.nq), dtype=q.dtype)
-            self._A_IK_q[:, :, 3:] = Exp_SO3_quat_p(q[3:])
-            self.update[1] = False
-        return self._A_IK_q
+        A_IK_q = np.zeros((3, 3, self.nq), dtype=q.dtype)
+        A_IK_q[:, :, 3:] = Exp_SO3_quat_p(q[3:])
+        return A_IK_q
 
     def r_OP(self, t, q, frame_ID=None, K_r_SP=np.zeros(3, dtype=float)):
         return q[:3] + self.A_IK(t, q) @ K_r_SP
