@@ -289,7 +289,7 @@ def make_CosseratRod_R12(mixed=False, constraints=None):
             u0=None,
             polynomial_degree=1,
             reduced_integration=True,
-            mixed=False,
+            mixed=None,
         ):
             nquadrature = polynomial_degree
             nquadrature_dyn = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
@@ -313,7 +313,7 @@ def make_CosseratRod_R12(mixed=False, constraints=None):
                 Q,
                 q0=q0,
                 u0=u0,
-                mixed=mixed,
+                mixed=None,
             )
 
         # returns interpolated positions, orientations and strains at xi in [0,1]
