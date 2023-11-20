@@ -4,8 +4,8 @@ from scipy.sparse import bmat, eye, diags, csc_array
 from tqdm import tqdm
 
 from cardillo.math.prox import prox_R0_nm, prox_R0_np, prox_sphere
-from cardillo.math import fsolve, approx_fprime
-from cardillo.solver import Solution, SolverOptions
+from cardillo.math import fsolve, approx_fprime, estimate_prox_parameter
+from cardillo.solver import Solution, SolverOptions, SolverSummary
 
 
 class Rattle:
@@ -149,12 +149,9 @@ class Rattle:
         ###################################################
         # compute constant quantities for current time step
         ###################################################
-        self.Mn1 = system.M(self.tn, self.qn, format="csr")
-        self.W_gn1 = system.W_g(self.tn, self.qn, format="csr")
-        self.W_gamman1 = system.W_gamma(self.tn, self.qn, format="csr")
-        self.W_Nn1 = system.W_N(self.tn, self.qn, format="csr")
-        self.W_Fn1 = system.W_F(self.tn, self.qn, format="csr")
-        self.W_cn1 = system.W_c(self.tn, self.qn, format="csr")
+        self.Mn = system.M(self.tn, self.qn, format="csr")
+        self.W_Nn = system.W_N(self.tn, self.qn, format="csr")
+        self.W_Fn = system.W_F(self.tn, self.qn, format="csr")
 
     def R_x1(self, xn1, yn1):
         tn = self.tn
@@ -173,24 +170,23 @@ class Rattle:
         # kinematic equation
         ####################
         g_S_q = self.system.g_S_q(tn1, qn1, format="csc")
-        R[: self.split_y[0]] = (
+        R[: self.split_x1[0]] = (
             qn1
             - qn
             - 0.5
             * dt
             * (self.system.q_dot(tn, qn, un12) + self.system.q_dot(tn1, qn1, un12))
-            - g_S_q.T @ mu_S1
+            # - g_S_q.T @ mu_S1
         )
 
         ########################
         # euations of motion (1)
         ########################
-        R[self.split_y[0] : self.split_y[1]] = self.system.M(tn, qn, format="csr") @ (
+        R[self.split_x1[0] : self.split_x1[1]] = self.system.M(tn, qn, format="csr") @ (
             un12 - un
-        ) - 0.5 * dt * (
-            self.system.h(tn, qn, un12)
-            + dt * self.system.W_c(tn, qn) @ la_c1
-            + self.system.W_g(tn, qn) @ P_g1
+        ) - dt * (
+            0.5 * self.system.h(tn, qn, un12)
+            + self.system.W_c(tn, qn) @ la_c1) - (self.system.W_g(tn, qn) @ P_g1
             + self.system.W_gamma(tn, qn) @ P_gamma1
             + self.system.W_N(tn, qn) @ P_N1
             + self.system.W_F(tn, qn) @ P_F1
@@ -212,22 +208,22 @@ class Rattle:
         ############
         # compliance
         ############
-        R[self.split_y[1] : self.split_y[2]] = self.system.c(tn1, qn1, un12, la_c1)
+        R[self.split_x1[1] : self.split_x1[2]] = self.system.c(tn1, qn1, un12, la_c1)
 
         #######################
         # bilateral constraints
         #######################
-        R[self.split_y[2] : self.split_y[3]] = self.system.g(tn1, qn1)
-        R[self.split_y[3] : self.split_y[4]] = self.system.gamma(tn1, qn1, un12)
+        R[self.split_x1[2] : self.split_x1[3]] = self.system.g(tn1, qn1)
+        R[self.split_x1[3] : self.split_x1[4]] = self.system.gamma(tn1, qn1, un12)
 
         ##########################
         # quaternion stabilization
         ##########################
-        R[self.split_x[4] :] = self.system.g_S(tn1, qn1)
+        R[self.split_x1[4] :] = mu_S1 #self.system.g_S(tn1, qn1)
 
         return R
 
-    def _J_x(self, xn1, yn1):
+    def _J_x1(self, xn1, yn1):
         raise NotImplementedError
 
     def prox1(self, xn1, yn1):
@@ -272,375 +268,127 @@ class Rattle:
         return yn1p
 
     def solve(self):
-        solver_summary = So
+        solver_summary = SolverSummary()
         # lists storing output variables
+        t = [self.tn]
         q = [self.qn]
         u = [self.un]
-        P_g = [self.la_gn]
-        P_gamma = [self.la_gamman]
-        P_N = [self.dt * self.la_Nn]
-        P_F = [self.dt * self.la_Fn]
+        la_c = [self.la_cn]
+        P_g = [self.P_gn]
+        P_gamma = [self.P_gamman]
+        P_N = [self.P_Nn]
+        P_F = [self.P_Fn]
+        mu_S = [self.mu_Sn]
 
-        self.R_g2 = self.la_gn
-        self.R_gamma2 = self.la_gamman
 
-        pbar = tqdm(self.t[:-1])
-        # pbar = tqdm(self.t)
-        for n in pbar:
-            # # only compute optimized proxparameters once per time step
-            # self.prox_r_N = self.system.prox_r_N(self.tn, self.qn)
-            # self.prox_r_F = self.system.prox_r_F(self.tn, self.qn)
-            # print(f"prox_r_N: {self.prox_r_N}")
-            # print(f"prox_r_F: {self.prox_r_F}")
+        pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
+        for _ in pbar:
+            # only compute optimized prox-parameters once per time step
+            self.prox_r_N = estimate_prox_parameter(
+                self.options.prox_scaling, self.W_Nn, self.Mn
+            )
+            self.prox_r_F = estimate_prox_parameter(
+                self.options.prox_scaling, self.W_Fn, self.Mn
+            )
 
-            # TODO: We need a possibility to set prox parameters on system level!
-
-            # ########################
-            # # rotating bouncing ball
-            # ########################
-            # self.prox_r_N = np.ones(self.nla_N) * 0.5
-            # self.prox_r_F = np.ones(self.nla_F) * 0.5
-
-            ##########
-            # tippetop
-            ##########
-            # self.prox_r_N = np.ones(self.nla_N) * 0.001
-            # self.prox_r_F = np.ones(self.nla_F) * 0.001
-            self.prox_r_N = np.ones(self.nla_N) * 1
-            self.prox_r_F = np.ones(self.nla_F) * 1
-
-            # ##############
-            # # slider crank
-            # ##############
-            # self.prox_r_N = np.ones(self.nla_N) * 1
-            # self.prox_r_F = np.ones(self.nla_F) * 1
-
+            # perform a solver step
             tn1 = self.tn + self.dt
 
-            if self.method == "Newton_decoupled":
-                y1, converged1, error1, i1, _ = fsolve(
-                    self.R1,
-                    self.y1n,
-                    jac=self.J1,
-                    atol=self.atol,
-                    max_iter=self.max_iter,
-                    fun_args=(True,),
-                    jac_args=(False,),
-                )
+            #########
+            # Stage 1
+            #########
+            # fixed-point iterations
 
-                (
-                    self.qn1,
-                    self.un12,
-                    self.R_g1,
-                    self.R_gamma1,
-                    self.R_N1,
-                    self.R_F1,
-                ) = np.array_split(y1, self.split_y1)
+            # store old values
+            x1n = self.x1n.copy()
+            y1n = self.y1n.copy()
 
-                # compute constant quantities for next stage
-                self.Mn1 = self.system.M(tn1, self.qn1, scipy_matrix=csr_matrix)
-                self.W_gn1 = self.system.W_g(tn1, self.qn1, scipy_matrix=csr_matrix)
-                self.W_gamman1 = self.system.W_gamma(
-                    tn1, self.qn1, scipy_matrix=csr_matrix
-                )
-                self.W_Nn1 = self.system.W_N(tn1, self.qn1, scipy_matrix=csr_matrix)
-                self.W_Fn1 = self.system.W_F(tn1, self.qn1, scipy_matrix=csr_matrix)
+            # fixed-point loop
+            x1n1 = x1n.copy()
+            y1n1 = y1n.copy()
+            converged = False
+            n_state = self.nx1 - self.nla_g - self.nla_gamma
+            for i_fixed_point in range(self.options.fixed_point_max_iter):
+                # find proximal point
+                y1n1 = self.prox1(x1n1, y1n1)
 
-                y2, converged2, error2, i2, _ = fsolve(
-                    self.R2,
-                    self.y2n,
-                    jac=self.J2,
-                    atol=self.atol,
-                    max_iter=self.max_iter,
-                    fun_args=(True,),
-                    jac_args=(False,),
-                )
-
-                un1, R_g2, R_gamma2, R_N2, R_F2 = np.array_split(y2, self.split_y2)
-
-                converged = converged1 and converged2
-                error = error1 + error2
-                i = i1 + i2
-
-                P_gn1 = self.dt * 0.5 * (self.R_g1 + R_g2)
-                P_gamman1 = self.dt * 0.5 * (self.R_gamma1 + R_gamma2)
-                P_Nn1 = self.dt * 0.5 * (self.R_N1 + R_N2)
-                P_Fn1 = self.dt * 0.5 * (self.R_F1 + R_F2)
-
-                qn1, un1 = self.system.step_callback(tn1, self.qn1, un1)
-
-            elif self.method == "Newton_full":
-                y, converged, error, i, _ = fsolve(
-                    self.R,
-                    self.yn,
-                    # jac="2-point",
-                    jac="3-point",  # TODO: keep this, otherwise sinuglairites arise
-                    eps=1.0e-6,
-                    atol=self.atol,
-                    max_iter=self.max_iter,
-                    fun_args=(True,),
-                    jac_args=(False,),
-                )
-
-                (
-                    qn1,
-                    un12,
-                    un1,
-                    R_g1,
-                    R_g2,
-                    R_gamma1,
-                    R_gamma2,
-                    R_N1,
-                    R_N2,
-                    R_F1,
-                    R_F2,
-                ) = np.array_split(y, self.split_y)
-
-                P_gn1 = self.dt * 0.5 * (R_g1 + R_g2)
-                P_gamman1 = self.dt * 0.5 * (R_gamma1 + R_gamma2)
-                P_Nn1 = self.dt * 0.5 * (R_N1 + R_N2)
-                P_Fn1 = self.dt * 0.5 * (R_F1 + R_F2)
-
-                # P_gn1 = R_g2
-                # P_gamman1 = R_gamma2
-                # P_Nn1 = R_N2
-                # P_Fn1 = R_F2
-
-                # # P_gn1 = 0.5 * (R_g1 + R_g2)
-                # # P_gamman1 = 0.5 * (R_gamma1 + R_gamma2)
-                # # P_gn1 = self.dt * 0.5 * (R_g1 + R_g2)
-                # # P_gamman1 = self.dt * 0.5 * (R_gamma1 + R_gamma2)
-                # # P_gn1 = R_g1
-                # # P_gamman1 = R_gamma1
-                # P_gn1 = R_g2
-                # P_gamman1 = R_gamma2
-                # # P_gn1 = 0.5 * (R_g1 + self.R_g2)
-                # # P_gamman1 = 0.5 * (R_gamma1 + self.R_gamma2)
-
-                self.R_g2 = R_g2.copy()
-                self.R_gamma2 = R_gamma2.copy()
-
-                qn1, un1 = self.system.step_callback(tn1, qn1, un1)
-
-                i1, i2 = i, "-"
-                error1, error2 = error, np.nan
-
-            elif self.method == "fixed_point":
-                z10 = self.z1n.copy()
-                for i1 in range(self.fix_point_max_iter):
-                    z1 = self.p1(z10)
-
-                    # convergence percussions
-                    # error1 = self.fix_point_error_function(z1 - z10)
-
-                    # convergence positions and velocities
-                    error1 = self.fix_point_error_function(
-                        self.x1[: self.nq + self.nu] - self.x10[: self.nq + self.nu]
+                x1n1, converged_newton, error_newton, i_newton, _ = fsolve(
+                        self.R_x1,
+                        self.x1n,
+                        jac=self.J_x1,
+                        fun_args=(y1n1,),
+                        jac_args=(y1n1,),
+                        atol=self.options.newton_atol,
+                        max_iter=self.options.newton_max_iter,
                     )
+                solver_summary.add_lu(i_newton)
 
-                    converged1 = error1 < self.fix_point_tol
-                    if converged1:
-                        break
-                    z10 = z1
+                # convergence in smooth state (without Lagrange multipliers)
+                diff = x1n1[:n_state] - x1n[:n_state]
 
-                qn1, un12, R_g1, R_gamma1 = np.array_split(self.x1, self.split_x1)
-
-                #################
-                # second stage
-                #################
-
-                # get quantities from system
-                Mn = self.system.M(tn1, qn1)
-                h = self.system.h(tn1, qn1, un12)
-                W_g = self.system.W_g(tn1, qn1)
-                W_gamma = self.system.W_gamma(tn1, qn1)
-                chi_g = self.system.g_dot(tn1, qn1, np.zeros_like(un12))
-                chi_gamma = self.system.gamma(tn1, qn1, np.zeros_like(un12))
-                # note: we use csc_matrix for efficient column slicing later,
-                # see https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csc_array.html#scipy.sparse.csc_array
-                W_N = self.system.W_N(tn1, qn1, scipy_matrix=csc_matrix)
-                W_F = self.system.W_F(tn1, qn1, scipy_matrix=csc_matrix)
-
-                A = bmat(
-                    [
-                        [Mn, -0.5 * W_g, -0.5 * W_gamma],
-                        [-W_g.T, None, None],
-                        [-W_gamma.T, None, None],
-                    ],
-                    format="csc",
+                # error measure, see Hairer1993, Section II.4
+                sc = (
+                    self.options.fixed_point_atol
+                    + np.maximum(np.abs(x1n[:n_state]), np.abs(x1n1[:n_state]))
+                    * self.options.fixed_point_rtol
                 )
+                error = np.linalg.norm(diff / sc) / sc.size**0.5
+                converged = error < 1.0 and converged_newton
 
-                lu_A = splu(A)
-
-                # initial right hand side
-                b = np.concatenate(
-                    (
-                        Mn @ un12 + 0.5 * self.dt * h,
-                        chi_g,
-                        chi_gamma,
-                    )
-                )
-
-                z20 = self.z2n.copy()
-                for i2 in range(self.fix_point_max_iter):
-                    # z2 = self.p2(z1, z20)
-                    z2 = self.p2(z1, z20, lu_A, b, W_N, W_F)
-
-                    # convergence percussions
-                    # error2 = self.fix_point_error_function(z2 - z20)
-
-                    # convergence positions and velocities
-                    error2 = self.fix_point_error_function(
-                        self.x2[: self.nu] - self.x20[: self.nu]
-                    )
-
-                    converged2 = error2 < self.fix_point_tol
-                    if converged2:
-                        break
-                    z20 = z2
-
-                converged = converged1 and converged2
-                error = error1 + error2
-                i = i1 + i2
-                print(f"i: {i}, i1: {i1}, i2: {i2}")
-
-                (
-                    un1,
-                    R_g2,
-                    R_gamma2,
-                ) = np.array_split(self.x2, self.split_x2)
-
-                P_Nn1 = z2[: self.nla_N]
-                P_Fn1 = z2[self.nla_N :]
-
-                P_gn1 = 0.5 * (R_g1 + R_g2)
-                P_gamman1 = 0.5 * (R_gamma1 + R_gamma2)
-
-                qn1, un1 = self.system.step_callback(tn1, qn1, un1)
-
-            elif self.method == "fixed_point_nonlinear_full":
-                #######################
-                # fixed-point iteration
-                #######################
-                z0 = self.zn.copy()
-                for i2 in range(self.fix_point_max_iter):
-                    z = self.p(z0)
-
-                    # convergence percussions
-                    # error2 = self.fix_point_error_function(z - z0)
-
-                    # convergence positions and both velocities
-                    error2 = self.fix_point_error_function(
-                        self.x[: self.split_x[2]] - self.x0[: self.split_x[2]]
-                    )
-
-                    converged2 = error2 < self.fix_point_tol
-                    if converged2:
-                        break
-                    z0 = z
-
-                qn1, un12, un1, R_g1, R_g2, R_gamma1, R_gamma2 = np.array_split(
-                    self.x, self.split_x
-                )
-                _, P_Nn1, _, P_Fn1 = np.array_split(z, self.split_z)
-
-                P_gn1 = 0.5 * (R_g1 + R_g2)
-                P_gamman1 = 0.5 * (R_gamma1 + R_gamma2)
-
-                i1 = self.i1
-                error1 = self.error1
-                converged = self.converged1 and converged2
-                i = i1
-
-                ##########################
-                # constrained optimization
-                ##########################
-                from scipy.optimize import minimize, NonlinearConstraint
-
-                def fun(y):
-                    x = y[: self.nx]
-                    z = y[self.nx :]
-                    F = self.F(x, *np.array_split(z, self.split_z))
-                    return F @ F
-
-                def fun_c(y):
-                    x = y[: self.nx]
-                    z = y[self.nx :]
-                    return self.c(x, z)
-
-                lb = ub = np.zeros(2 * self.nla_N + 2 * self.nla_F)
-                constraints = NonlinearConstraint(fun_c, lb, ub)
-
-                y0 = self.yn
-                sol = minimize(fun, y0, method="SLSQP", constraints=[constraints])
-                converged = sol.success
-                y = sol.x
-                x = y[: self.nx]
-                z = y[self.nx :]
-                i1 = sol.nit
-                i2 = np.nan
-                error1 = sol.fun
-                error2 = np.nan
-            else:
-                raise NotImplementedError
-
-            pbar.set_description(
-                f"t: {tn1:0.2e}; iter: {i1},{i2}; error: {error1:.3e}, {error2:.3e}"
-            )
-            if not converged:
-                if self.continue_with_unconverged:
-                    print(
-                        f"step {n:.0f} is not converged after i1: {i1}, i2: {i2} iterations with error:  err1 = {error1:.3e}, err2 = {error2:.3e}"
-                    )
+                if converged:
+                    break
                 else:
-                    raise RuntimeError(
-                        f"step {n:.0f} is not converged after i1: {i1}, i2: {i2} iterations with error:  err1 = {error1:.3e}, err2 = {error2:.3e}"
-                    )
+                    # update values
+                    x1n = x1n1.copy()
+                    y1n = y1n1.copy()
+                
+            fixed_point_absolute_error = np.max(np.abs(diff))
+            solver_summary.add_fixed_point(i_fixed_point, fixed_point_absolute_error)
+            solver_summary.add_newton(i_newton)
 
-            # from cardillo.solver import constraint_forces
-            # u_dotn1, P_gn1, P_gamman1 = constraint_forces(self.system, tn1, qn1, un1)
+            if not converged:
+                raise ValueError('not converged')
 
-            # t.append(tn1)
+            # update progress bar
+            pbar.set_description(
+                f"t: {tn1:0.2e}s < {self.t1:0.2e}s; |x1 - x0|: {fixed_point_absolute_error:0.2e} (fixed-point: {i_fixed_point}/{self.options.fixed_point_max_iter}; newton: {i_newton}/{self.options.newton_max_iter})"
+            )
+
+            # compute state
+            (qn1, un12, la_c1, P_g1, P_gamma1, mu_S1) = np.array_split(x1n1, self.split_x1)
+            P_N1, P_F1 = np.array_split(y1n1, self.split_y)
+
+            un1 = un12
+            # modify converged quantities
+            qn1, un1 = self.system.step_callback(tn1, qn1, un1)
+
+            t.append(tn1)
             q.append(qn1)
             u.append(un1)
-            P_g.append(P_gn1)
-            P_gamma.append(P_gamman1)
-            P_N.append(P_Nn1)
-            P_F.append(P_Fn1)
-            # q.append(qn1.copy())
-            # u.append(un1.copy())
-            # P_g.append(P_gn1.copy())
-            # P_gamma.append(P_gamman1.copy())
-            # P_N.append(P_Nn1.copy())
-            # P_F.append(P_Fn1.copy())
+            la_c.append(la_c1)
+            P_g.append(P_g1)
+            P_gamma.append(P_gamma1)
+            P_N.append(P_N1)
+            P_F.append(P_F1)
+            mu_S.append(mu_S1)
 
             # update local variables for accepted time step
+            self.x1n = x1n1.copy()
+            self.y1n = y1n1.copy()
             self.tn = tn1
-            if self.method == "Newton_decoupled":
-                self.y1n = y1.copy()
-                self.y2n = y2.copy()
-                self.qn = qn1.copy()
-                self.un = un1.copy()
-            elif self.method == "Newton_full":
-                self.yn = y.copy()
-            elif self.method == "fixed_point":
-                self.z1n = z1.copy()
-                self.z2n = z2.copy()
-                self.qn = qn1.copy()
-                self.un = un1.copy()
-            elif self.method == "fixed_point_nonlinear_full":
-                self.zn = z.copy()
-                self.qn = qn1.copy()
-                self.un = un1.copy()
-            else:
-                raise NotImplementedError
+            self.qn = qn1
+            self.un = un1
 
+        solver_summary.print()
         return Solution(
-            t=np.array(self.t),
+            system=self.system,
+            t=np.array(t),
             q=np.array(q),
             u=np.array(u),
+            la_c=np.array(la_c),
             P_g=np.array(P_g),
             P_gamma=np.array(P_gamma),
             P_N=np.array(P_N),
             P_F=np.array(P_F),
+            mu_S=np.array(mu_S)
         )
