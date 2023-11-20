@@ -6,10 +6,9 @@ import matplotlib.animation as animation
 
 from cardillo import System
 from cardillo.solver import (
-    NonsmoothGeneralizedAlpha,
-    Rattle,
     Moreau,
     BackwardEuler,
+    NonsmoothGeneralizedAlpha,
 )
 
 
@@ -202,7 +201,11 @@ def run(case, export=False):
     system.assemble()
 
     # solver1, label1 = Moreau(system, t_final, dt), "Moreau"
-    solver1, label1 = BackwardEuler(system, t_final, dt), "BackwardEuler"
+    # solver1, label1 = BackwardEuler(system, t_final, dt), "BackwardEuler"
+    solver1, label1 = (
+        NonsmoothGeneralizedAlpha(system, t_final, dt),
+        "NonsmoothGeneralizedAlpha",
+    )
 
     sol1 = solver1.solve()
     t1 = sol1.t

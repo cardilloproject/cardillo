@@ -11,12 +11,7 @@ from ..utility.convergence_analysis import convergence_analysis
 from .scipy_ivp import ScipyIVP
 from .moreau import Moreau
 from .backward_euler import BackwardEuler
-from .generalized_alpha_first_order import GeneralizedAlphaFirstOrder
-from .nonsmooth_generalized_alpha import (
-    NonsmoothGeneralizedAlpha,
-    SimplifiedNonsmoothGeneralizedAlpha,
-    SimplifiedNonsmoothGeneralizedAlphaFirstOrder,
-)
+from .nonsmooth_generalized_alpha import NonsmoothGeneralizedAlpha
 from .rattle import Rattle
 
 # static solvers
