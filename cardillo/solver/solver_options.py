@@ -1,6 +1,6 @@
 from dataclasses import dataclass
-
 from numpy import max, abs
+from scipy.sparse.linalg import spsolve
 
 
 @dataclass
@@ -15,6 +15,7 @@ class SolverOptions:
     error_function: callable = lambda x: max(abs(x))
     prox_scaling: float = 1.0  # TODO: Discuss using 0.5 for safety
     continue_with_unconverged: bool = True
+    linear_solver: callable = spsolve
     numerical_jacobian_method: bool | str = False
     numerical_jacobian_eps: float = 1e-6
     compute_consistent_initial_conditions: bool = True
