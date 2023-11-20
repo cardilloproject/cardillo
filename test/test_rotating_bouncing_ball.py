@@ -9,6 +9,8 @@ from cardillo.solver import (
     Moreau,
     BackwardEuler,
     NonsmoothGeneralizedAlpha,
+    SolverOptions,
+    Rattle,
 )
 
 

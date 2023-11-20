@@ -5,7 +5,7 @@ from tqdm import tqdm
 
 from cardillo.math.prox import prox_R0_nm, prox_R0_np, prox_sphere
 from cardillo.math import fsolve, approx_fprime
-from cardillo.solver import Solution
+from cardillo.solver import Solution, SolverOptions
 
 
 class Rattle:
@@ -14,16 +14,7 @@ class Rattle:
         system,
         t1,
         dt,
-        atol=1e-8,
-        max_iter=50,
-        fix_point_tol=1e-6,
-        fix_point_max_iter=1000,
-        error_function=lambda x: np.max(np.abs(x)),
-        method="Newton_decoupled",
-        # method="Newton_full",
-        # method="fixed_point",
-        # method="fixed_point_nonlinear_full",
-        continue_with_unconverged=True,
+        options=SolverOptions(),
     ):
         """
         Nonsmooth extension of RATTLE.
@@ -35,222 +26,128 @@ class Rattle:
         Hante2019: https://doi.org/10.1016/j.cam.2019.112492
         """
         self.system = system
-        self.method = method
+        self.options = options
 
-        self.fix_point_error_function = error_function
-        self.fix_point_tol = fix_point_tol
-        self.fix_point_max_iter = fix_point_max_iter
-        self.continue_with_unconverged = continue_with_unconverged
+        if options.numerical_jacobian_method:
+            self.J_x = lambda x, y: csc_array(
+                approx_fprime(
+                    x,
+                    lambda x: self.R_x(x, y),
+                    method=options.numerical_jacobian_method,
+                    eps=options.numerical_jacobian_eps,
+                )
+            )
+        else:
+            self.J_x = self._J_x
 
+        #######################################################################
         # integration time
-        t0 = system.t0
+        #######################################################################
+        self.t0 = t0 = system.t0
         self.t1 = (
             t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
         )
         self.dt = dt
-        self.t = np.arange(t0, self.t1 + self.dt, self.dt)
 
-        self.error_function = error_function
-        self.atol = atol
-        self.max_iter = max_iter
-
+        #######################################################################
+        # dimensions
+        #######################################################################
         self.nq = system.nq
         self.nu = system.nu
         self.nla_g = system.nla_g
         self.nla_gamma = system.nla_gamma
+        self.nla_c = system.nla_c
         self.nla_N = system.nla_N
         self.nla_F = system.nla_F
+        self.nla_S = self.system.nla_S
 
-        # initial conditions
-        self.tn = system.t0
-        self.qn = system.q0
-        self.un = system.u0
-        self.q_dotn = system.q_dot0
-        self.u_dotn = system.u_dot0
-        self.la_gn = system.la_g0
-        self.la_gamman = system.la_gamma0
-        self.la_Nn = system.la_N0
-        self.la_Fn = system.la_F0
-
-        #####################
-        # full coupled Newton
-        #####################
-        self.ny = (
-            self.nq
-            + 2 * self.nu
-            + 2 * self.nla_g
-            + 2 * self.nla_gamma
-            + 2 * self.nla_N
-            + 2 * system.nla_F
+        self.nx1 = (
+            self.nq + self.nu + self.nla_g + self.nla_gamma + self.nla_c + self.nla_S
         )
-        self.yn = np.concatenate(
-            (
-                self.qn,
-                self.un,
-                self.un,
-                self.la_gn * 0.5 * dt,
-                self.la_gn * 0.5 * dt,
-                self.la_gamman * 0.5 * dt,
-                self.la_gamman * 0.5 * dt,
-                self.la_Nn * 0.5 * dt,
-                self.la_Nn * 0.5 * dt,
-                self.la_Fn * 0.5 * dt,
-                self.la_Fn * 0.5 * dt,
-            )
-        )
-        self.split_y = np.array(
-            [
-                self.nq,
-                self.nq + self.nu,
-                self.nq + 2 * self.nu,
-                self.nq + 2 * self.nu + self.nla_g,
-                self.nq + 2 * (self.nu + self.nla_g),
-                self.nq + 2 * (self.nu + self.nla_g) + self.nla_gamma,
-                self.nq + 2 * (self.nu + self.nla_g + self.nla_gamma),
-                self.nq + 2 * (self.nu + self.nla_g + self.nla_gamma) + self.nla_N,
-                self.nq + 2 * (self.nu + self.nla_g + self.nla_gamma + self.nla_N),
-                self.nq
-                + 2 * (self.nu + self.nla_g + self.nla_gamma + self.nla_N)
-                + self.nla_F,
-            ],
-            dtype=int,
-        )
+        self.nx2 = self.nu + self.nla_g + self.nla_gamma + self.nla_c
 
-        # # Solve for consistent initial conditions for the specific scheme
-        # # TODO: Generalize this to all other implementations
-        # self.prox_r_N = self.system.prox_r_N(self.tn, self.qn)
-        # self.prox_r_F = self.system.prox_r_F(self.tn, self.qn)
-        # y0, *_ = fsolve(self.R, self.yn, fun_args=(True,), jac_args=(False,))
+        self.ny = self.nla_N + self.nla_F
 
-        ############################
-        # nonlinear fixed-point full
-        ############################
-        self.split_x = np.cumsum(
+        
+
+        self.split_x1 = np.cumsum(
             np.array(
                 [
                     self.nq,
                     self.nu,
-                    self.nu,
-                    self.nla_g,
                     self.nla_g,
                     self.nla_gamma,
+                    self.nla_c,
+                    self.nla_S,
                 ],
                 dtype=int,
             )
-        )
-        self.x = np.concatenate(
-            (
-                self.qn,
-                self.un,
-                self.un,
-                self.la_gn * 0.5 * dt,
-                self.la_gn * 0.5 * dt,
-                self.la_gamman * 0.5 * dt,
-                self.la_gamman * 0.5 * dt,
-            )
-        )
-        self.nx = len(self.x)
-        self.x0 = self.x.copy()
-        self.split_z = np.cumsum(
+        )[:-1]
+
+        self.split_x2 = np.cumsum(
             np.array(
-                [self.nla_N, self.nla_N, self.nla_F],
+                [
+                    self.nu,
+                    self.nla_g,
+                    self.nla_gamma,
+                    self.nla_c,
+                ],
                 dtype=int,
             )
-        )
-        self.zn = np.concatenate(
-            (
-                self.la_Nn * 0.5 * dt,
-                self.la_Nn * 0.5 * dt,
-                self.la_Fn * 0.5 * dt,
-                self.la_Fn * 0.5 * dt,
-            )
-        )
+        )[:-1]
 
-        ##################
-        # decoupled Newton
-        ##################
-        self.ny1 = (
-            self.nq + self.nu + self.nla_g + self.nla_gamma + self.nla_N + system.nla_F
-        )
-        self.y1n = np.concatenate(
+        self.split_y = np.cumsum(
+            np.array(
+                [
+                    self.nla_N,
+                    self.nla_F,
+                ],
+                dtype=int,
+            )
+        )[:-1]
+
+        #######################################################################
+        # initial conditions
+        #######################################################################
+        self.tn = system.t0
+        self.qn = system.q0
+        self.un = system.u0
+        self.P_gn = dt * system.la_g0
+        self.P_gamman = dt * system.la_gamma0
+        self.P_cn = dt * system.la_c0
+        self.P_Nn = dt * system.la_N0
+        self.P_Fn = dt * system.la_F0
+        self.mu_Sn = np.zeros(self.nla_S)
+
+        #######################################################################
+        # initial values
+        #######################################################################
+        self.x1n = np.concatenate(
             (
                 self.qn,
                 self.un,
-                self.la_gn * 0.5 * dt,
-                self.la_gamman * 0.5 * dt,
-                self.la_Nn * 0.5 * dt,
-                self.la_Fn * 0.5 * dt,
+                self.P_gn,
+                self.P_gamman,
+                self.P_cn,
+                self.mu_Sn,
             )
         )
-        self.split_y1 = np.array(
-            [
-                self.nq,
-                self.nq + self.nu,
-                self.nq + self.nu + self.nla_g,
-                self.nq + self.nu + self.nla_g + self.nla_gamma,
-                self.nq + self.nu + self.nla_g + self.nla_gamma + self.nla_N,
-            ],
-            dtype=int,
-        )
-        self.ny2 = self.nu + self.nla_g + self.nla_gamma + self.nla_N + system.nla_F
-        self.y2n = np.concatenate(
+        self.x2n = np.concatenate(
             (
                 self.un,
-                self.la_gn * 0.5 * dt,
-                self.la_gamman * 0.5 * dt,
-                self.la_Nn * 0.5 * dt,
-                self.la_Fn * 0.5 * dt,
+                self.P_gn,
+                self.P_gamman,
+                self.P_cn,
             )
         )
-        self.split_y2 = np.array(
-            [
-                self.nu,
-                self.nu + self.nla_g,
-                self.nu + self.nla_g + self.nla_gamma,
-                self.nu + self.nla_g + self.nla_gamma + self.nla_N,
-            ],
-            dtype=int,
-        )
-
-        ################################
-        # decouple fixed point iteration
-        ################################
-        self.split_x1 = np.array(
-            [
-                self.nq,
-                self.nq + self.nu,
-                self.nq + self.nu + self.nla_g,
-            ],
-            dtype=int,
-        )
-        self.x1 = np.concatenate(
+        self.yn = np.concatenate(
             (
-                self.qn,
-                self.un,
-                self.la_gn * 0.5 * dt,
-                self.la_gamman * 0.5 * dt,
+                self.dt * self.la_Nn,
+                self.dt * self.la_Fn,
             )
         )
-        self.x10 = self.x1.copy()
-        self.z1n = np.concatenate((self.la_Nn * 0.5 * dt, self.la_Fn * 0.5 * dt))
 
-        self.split_x2 = np.array(
-            [
-                self.nu,
-                self.nu + self.nla_g,
-            ],
-            dtype=int,
-        )
-        self.x2 = np.concatenate(
-            (
-                self.un,
-                self.la_gn * 0.5 * dt,
-                self.la_gamman * 0.5 * dt,
-            )
-        )
-        self.x20 = self.x2.copy()
-        self.z2n = np.concatenate((self.la_Nn * dt, self.la_Fn * dt))
-
+        
         ###################################################
         # compute constant quantities for current time step
         ###################################################
@@ -284,7 +181,7 @@ class Rattle:
         # P_N = R_N2
         # P_F = R_F2
 
-        R = np.zeros(self.ny, dtype=y.dtype)
+        R = np.zeros(self.ny1, dtype=y.dtype)
 
         ####################
         # kinematic equation
