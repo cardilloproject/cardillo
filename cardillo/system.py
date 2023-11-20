@@ -263,10 +263,13 @@ class System:
                     Ncontr_connectivity.append(n_laN_contr)
                 n_laN_contr += 1
 
-        self.NF_connectivity = NF_connectivity
-        # self.NF_connectivity = np.array(
-        #     [np.array(con, dtype=int) for con in NF_connectivity], dtype=object
-        # )
+        # convert to numpy array if NF_connectivity is homogeneous, otherwise
+        # a dtype=object is chosen to get an slicable object
+        try:
+            self.NF_connectivity = np.array(NF_connectivity, dtype=int)
+        except:
+            self.NF_connectivity = np.array(NF_connectivity, dtype=object)
+
         self.N_has_friction = np.array(N_has_friction, dtype=bool)
         self.Ncontr_connectivity = np.array(Ncontr_connectivity, dtype=int)
         self.e_N = np.array(e_N)
@@ -675,20 +678,20 @@ class System:
             )
         return g_N_ddot
 
-    def xi_N(self, t, q, u_pre, u_post):
-        xi_N = np.zeros(self.nla_N, dtype=np.common_type(q, u_pre, u_post))
+    def xi_N(self, t_pre, t_post, q_pre, q_post, u_pre, u_post):
+        xi_N = np.zeros(self.nla_N, dtype=np.common_type(q_post, u_post))
         for contr in self.__g_N_contr:
             xi_N[contr.la_NDOF] = contr.g_N_dot(
-                t, q[contr.qDOF], u_post[contr.uDOF]
-            ) + contr.e_N * contr.g_N_dot(t, q[contr.qDOF], u_pre[contr.uDOF])
+                t_post, q_post[contr.qDOF], u_post[contr.uDOF]
+            ) + contr.e_N * contr.g_N_dot(t_pre, q_pre[contr.qDOF], u_pre[contr.uDOF])
         return xi_N
 
-    def xi_N_q(self, t, q, u_pre, u_post, format="coo"):
+    def xi_N_q(self, t_post, q_post, u_post, format="coo"):
         coo = CooMatrix((self.nla_N, self.nq))
         for contr in self.__g_N_contr:
             coo[contr.la_NDOF, contr.qDOF] = contr.g_N_dot_q(
-                t, q[contr.qDOF], u_post[contr.uDOF]
-            ) + diags(contr.e_N) @ contr.g_N_dot_q(t, q[contr.qDOF], u_pre[contr.uDOF])
+                t_post, q_post[contr.qDOF], u_post[contr.uDOF]
+            )
         return coo.asformat(format)
 
     # TODO: Assemble chi_N for efficency
@@ -745,23 +748,19 @@ class System:
             )
         return gamma_F_dot
 
-    def xi_F(self, t, q, u_pre, u_post):
-        xi_F = np.zeros(self.nla_F, dtype=np.common_type(q, u_pre, u_post))
+    def xi_F(self, t_pre, t_post, q_pre, q_post, u_pre, u_post):
+        xi_F = np.zeros(self.nla_F, dtype=np.common_type(q_post, u_post))
         for contr in self.__gamma_F_contr:
             xi_F[contr.la_FDOF] = contr.gamma_F(
-                t, q[contr.qDOF], u_post[contr.uDOF]
-            ) + self.e_F[contr.la_FDOF] * contr.gamma_F(
-                t, q[contr.qDOF], u_pre[contr.uDOF]
-            )
+                t_post, q_post[contr.qDOF], u_post[contr.uDOF]
+            ) + contr.e_F * contr.gamma_F(t_pre, q_pre[contr.qDOF], u_pre[contr.uDOF])
         return xi_F
 
-    def xi_F_q(self, t, q, u_pre, u_post, format="coo"):
+    def xi_F_q(self, t_post, q_post, u_post, format="coo"):
         coo = CooMatrix((self.nla_F, self.nq))
         for contr in self.__gamma_F_contr:
             coo[contr.la_FDOF, contr.qDOF] = contr.gamma_F_q(
-                t, q[contr.qDOF], u_post[contr.uDOF]
-            ) + diags(self.e_F[contr.la_FDOF]) @ contr.gamma_F_q(
-                t, q[contr.qDOF], u_pre[contr.uDOF]
+                t_post, q_post[contr.qDOF], u_post[contr.uDOF]
             )
         return coo.asformat(format)
 

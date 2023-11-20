@@ -55,12 +55,10 @@ Schweizer2015: https://doi.org/10.3929/ethz-a-010464319
 
 
 def estimate_prox_parameter(alpha, W, M):
-    return alpha / csc_array(W.T @ spsolve(csc_array(M), csc_array(W))).diagonal()
-    # TODO: Why do we use this try? This silently supresses errors...
-    # try:
-    #     return alpha / csc_array(W.T @ spsolve(csc_array(M), csc_array(W))).diagonal()
-    # except:
-    #     return np.full(W.shape[1], alpha, dtype=W.dtype)
+    if W.shape[1] > 0:
+        return alpha / csc_array(W.T @ spsolve(csc_array(M), csc_array(W))).diagonal()
+    else:
+        return np.full(W.shape[1], alpha, dtype=W.dtype)
 
 
 def validate_alpha(alpha):

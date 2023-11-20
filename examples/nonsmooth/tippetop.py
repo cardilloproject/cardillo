@@ -4,25 +4,18 @@ from scipy.spatial.transform import Rotation
 from pathlib import Path
 
 from cardillo import System
-from cardillo.discrete import RigidBody, RigidBodyEuler
-from cardillo.math import axis_angle2quat, cross3, ax2skew, approx_fprime
+from cardillo.discrete import RigidBody
+from cardillo.math import axis_angle2quat
 from cardillo.forces import Force
 from cardillo.solver import (
     convergence_analysis,
-    MoreauShifted,
     Moreau,
-    Rattle,
-    MoreauShiftedNew,
-    NPIRK,
-    NonsmoothGeneralizedAlpha,
+    BackwardEuler,
 )
-from cardillo.solver._butcher_tableaus import RadauIIATableau
-from cardillo.contacts import Sphere2Plane, Sphere2PlaneCoulombContensouMoeller
+from cardillo.contacts import Sphere2Plane  # , Sphere2PlaneCoulombContensouMoeller
 
 
-def make_system(RigidBodyBase):
-    assert RigidBodyBase in [RigidBody, RigidBodyEuler]
-
+def make_system():
     system = System()
 
     # Dynamics:
@@ -54,17 +47,10 @@ def make_system(RigidBodyBase):
 
     # initial coordinates
     # z0 = R1 - a1
-    if RigidBodyBase is RigidBody:
-        q0 = np.zeros(7, dtype=float)
-        q0[2] = z0
-        q0[3:] = axis_angle2quat(np.array([1, 0, 0]), theta0)
-        # q0[3] = 1
-    elif RigidBodyBase is RigidBodyEuler:
-        # axis = "zxz" # original
-        axis = "zxy"
-        q0 = np.zeros(6, dtype=float)
-        q0[2] = z0
-        q0[4] = theta0
+    q0 = np.zeros(7, dtype=float)
+    q0[2] = z0
+    q0[3:] = axis_angle2quat(np.array([1, 0, 0]), theta0)
+    # q0[3] = 1
 
     # # initial velocities
     # # gamma = 1e-0  # rad / s
@@ -93,10 +79,7 @@ def make_system(RigidBodyBase):
     u0[3:] = K_omega_IK
     # u0[5] = psi_dot0
 
-    if RigidBodyBase is RigidBody:
-        top = RigidBody(m, K_theta_S, q0=q0, u0=u0)
-    elif RigidBodyBase is RigidBodyEuler:
-        top = RigidBodyEuler(m, K_theta_S, axis=axis, q0=q0, u0=u0)
+    top = RigidBody(m, K_theta_S, q0=q0, u0=u0)
 
     # la_N0 = np.array([m * g], dtype=float)
     # R_bar = (3 * np.pi / 16) * R
@@ -106,23 +89,23 @@ def make_system(RigidBodyBase):
     # else:
     #     la_F0 = np.zeros(0, dtype=float)
 
-    # contact1 = Sphere2Plane(
-    contact1 = Sphere2PlaneCoulombContensouMoeller(
+    contact1 = Sphere2Plane(
+        # contact1 = Sphere2PlaneCoulombContensouMoeller(
         system.origin,
         top,
         R1,
-        R,
+        # R,
         mu,
         e_N,
         e_F,
         K_r_SP=K_r_SC1,
     )
-    # contact2 = Sphere2Plane(
-    contact2 = Sphere2PlaneCoulombContensouMoeller(
+    contact2 = Sphere2Plane(
+        # contact2 = Sphere2PlaneCoulombContensouMoeller(
         system.origin,
         top,
         R2,
-        R,
+        # R,
         mu,
         e_N,
         e_F,
@@ -131,9 +114,8 @@ def make_system(RigidBodyBase):
 
     gravity = Force(np.array([0, 0, -m * g]), top)
 
-    system.add(top, contact1, contact2, gravity)
-    # system.add(top, contact1, gravity)
-    # system.add(top, gravity)
+    # system.add(top, contact1, contact2, gravity)
+    system.add(top, contact2, contact1, gravity)
     system.assemble()
 
     return system, top, contact1, contact2
@@ -150,10 +132,10 @@ def run(export=True):
     Leine2003: https://doi.org/10.1016/S0997-7538(03)00025-1
     """
 
-    system, top, contact1, contact2 = make_system(RigidBody)
-    # system, top, contact1, contact2 = make_system(RigidBodyEuler)
+    system, top, contact1, contact2 = make_system()
 
-    t_final = 8
+    # t_final = 8
+    t_final = 0.1
     dt1 = 1e-3
     # dt2 = 1e-3
     # dt1 = 1e-4
@@ -161,28 +143,9 @@ def run(export=True):
     # dt1 = 5e-5
     dt2 = 5e-5
 
-    sol1, label1 = Rattle(system, t_final, dt1, atol=1e-8).solve(), "Rattle"
-    # sol1, label1 = (
-    #     MoreauShiftedNew(system, t_final, dt2, atol=1e-10).solve(),
-    #     "Moreau_new",
-    # )
-    # sol1, label1 = (
-    #     NPIRK(system, t_final, dt1, RadauIIATableau(2)).solve(),
-    #     "NPIRK",
-    # )
+    sol1, label1 = BackwardEuler(system, t_final, dt1).solve(), "BackwardEuler"
 
-    sol2, label2 = (
-        Moreau(system, t_final, dt2, atol=1e-8).solve(),
-        "Moreau",
-    )
-    # sol2, label2 = (
-    #     NonsmoothGeneralizedAlpha(system, t_final, dt2, newton_tol=1e-10).solve(),
-    #     "Gen-alpha",
-    # )
-    # sol2, label2 = (
-    #     NPIRK(system, t_final, dt2, RadauIIATableau(2)).solve(),
-    #     "NPIRK",
-    # )
+    sol2, label2 = Moreau(system, t_final, dt2).solve(), "Moreau"
 
     t1 = sol1.t
     q1 = sol1.q

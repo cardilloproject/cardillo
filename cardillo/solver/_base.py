@@ -7,10 +7,10 @@ from cardillo.math import (
     norm,
     estimate_prox_parameter,
 )
+
 from .solver_options import SolverOptions
 
 
-# TODO: Add rtol atol error measure
 def consistent_initial_conditions(
     system,
     rtol=1.0e-5,  # TODO: Rename; can they be changed by the user?
@@ -40,6 +40,22 @@ def consistent_initial_conditions(
             np.zeros(system.nla_F),
         )
 
+    # evaluate constant quantities
+    M = system.M(t0, q0)
+    h = system.h(t0, q0, u0)
+
+    W_g = system.W_g(t0, q0)
+    g_dot_u = system.g_dot_u(t0, q0)
+    zeta_g = system.zeta_g(t0, q0, u0)
+
+    W_gamma = system.W_gamma(t0, q0)
+    gamma_u = system.gamma_u(t0, q0)
+    zeta_gamma = system.zeta_gamma(t0, q0, u0)
+
+    W_c = system.W_c(t0, q0)
+    la_c0 = system.la_c(t0, q0, u0)
+
+    # compute constant contact quantities
     g_N = system.g_N(t0, q0)
     g_N_dot = system.g_N_dot(t0, q0, u0)
     gamma_F = system.gamma_F(t0, q0, u0)
@@ -53,34 +69,26 @@ def consistent_initial_conditions(
         np.logical_or(A_N * g_N_dot >= 0, B_N)
     ), "Initial conditions do not fulfill g_N_dot0!"
 
-    # csr for fast matrix vector product
-    M = system.M(t0, q0)
-    h = system.h(t0, q0, u0)
-    W_g = system.W_g(t0, q0)
-    g_dot_u = system.g_dot_u(t0, q0)
-    zeta_g = system.zeta_g(t0, q0, u0)
-    W_gamma = system.W_gamma(t0, q0)
-    gamma_u = system.gamma_u(t0, q0)
-    zeta_gamma = system.zeta_gamma(t0, q0, u0)
-    W_c = system.W_c(t0, q0)
-    la_c0 = system.la_c(t0, q0, u0)
-    W_N = system.W_N(t0, q0)
-    W_F = system.W_F(t0, q0)
+    # get set of active normal contacts
+    B_N = np.where(B_N)[0]
+
+    # identify active tangent contacts based on active normal contacts and
+    # NF-connectivity lists; compute local NF_connectivity
+    B_F, NF_connectivity_local = compute_I_F(B_N, system.NF_connectivity)
+
+    W_N = system.W_N(t0, q0, format="csc")[:, B_N]
+    W_F = system.W_F(t0, q0, format="csc")[:, B_F]
+    zeta_N = system.g_N_ddot(t0, q0, u0, np.zeros_like(u0))[B_N]
+    zeta_F = system.gamma_F_dot(t0, q0, u0, np.zeros_like(u0))[B_F]
     prox_r_N = estimate_prox_parameter(options.prox_scaling, W_N, M)
     prox_r_F = estimate_prox_parameter(options.prox_scaling, W_F, M)
-    mu = system.mu
+    mu = system.mu[B_N]
 
     split_x = np.cumsum(
         [
             system.nu,
             system.nla_g,
             system.nla_gamma,
-        ]
-    )[:-1]
-    split_y = np.cumsum(
-        [
-            system.nla_N,
-            system.nla_F,
         ]
     )[:-1]
 
@@ -105,90 +113,81 @@ def consistent_initial_conditions(
         ]
     )
 
-    def prox(x1, y0):
+    def prox(x1, la_N, la_F):
         u_dot, _, _ = np.array_split(x1, split_x)
-        la_N, la_F = np.array_split(y0, split_y)
-
-        y1 = np.zeros_like(y0)
 
         ##############################
         # fixed-point update Signorini
         ##############################
-        g_N_ddot = system.g_N_ddot(t0, q0, u0, u_dot)
+        g_N_ddot = W_N.T @ u_dot + zeta_N
         prox_arg = prox_r_N * g_N_ddot - la_N
-        # TODO: What do you prefer?
-        # y1[: split_y[0]] = np.where(B_N, -prox_R0_nm(prox_arg), np.zeros_like(la_N))
-        y1[: split_y[0]] = B_N * (-prox_R0_nm(prox_arg))
+        la_N = -prox_R0_nm(prox_arg)
 
         #############################
         # fixed-point update friction
         #############################
-        gamma_F_dot = system.gamma_F_dot(t0, q0, u0, u_dot)
-        for i_N, i_F in enumerate(system.NF_connectivity):
-            i_F = np.array(i_F)
-            if len(i_F) > 0:
-                if B_N[i_N]:  # active normal contact
-                    norm_gamma_Fi = norm(gamma_F[i_F])
-                    if np.isclose(
-                        norm_gamma_Fi, 0, rtol, atol
-                    ):  # possible stick on acceleration level
-                        y1[split_y[0] + i_F] = prox_sphere(
-                            prox_r_F[i_F] * gamma_F_dot[i_F] - la_F[i_F],
-                            mu[i_N] * la_N[i_N],
-                        )
-                    else:  # slip
-                        y1[split_y[0] + i_F] = (
-                            -mu[i_N] * la_N[i_N] * gamma_F[i_F] / norm_gamma_Fi
-                        )
-                else:  # open normal contact
-                    y1[split_y[0] + i_F] = np.zeros_like(i_F)
+        gamma_F_dot = W_F.T @ u_dot + zeta_F
+        for i_N, i_F in enumerate(NF_connectivity_local):
+            norm_gamma_Fi = norm(gamma_F[i_F])
+            if np.isclose(
+                norm_gamma_Fi, 0, rtol, atol
+            ):  # possible stick on acceleration level
+                la_F[i_F] = prox_sphere(
+                    prox_r_F[i_F] * gamma_F_dot[i_F] - la_F[i_F],
+                    mu[i_N] * la_N[i_N],
+                )
+            else:  # slip
+                la_F[i_F] = -mu[i_N] * la_N[i_N] * gamma_F[i_F] / norm_gamma_Fi
 
-        return y1
+        return la_N, la_F
 
     x0 = np.zeros(system.nu + system.nla_g + system.nla_gamma)
 
     # compute accelerations and constraints without contacts
     x0 = lu.solve(b0)
-    y0 = np.zeros(system.nla_N + system.nla_F)
 
-    # fixed-point loop
-    x1 = x0.copy()
-    y1 = y0.copy()
-    converged_fixed_point = False
-    for i_fixed_point in range(options.fixed_point_max_iter):
-        # find proximal point
-        y1 = prox(x1, y1)
+    # initialize zero contact forces
+    la_N0 = np.zeros(system.nla_N)
+    la_F0 = np.zeros(system.nla_F)
+    if len(B_N) > 0:
+        # fixed-point loop
+        x1 = x0.copy()
+        la_N1 = la_N0[B_N].copy()
+        la_F1 = la_F0[B_F].copy()
+        converged_fixed_point = False
+        for i_fixed_point in range(options.fixed_point_max_iter):
+            # find proximal point
+            la_N1, la_F1 = prox(x1, la_N1, la_F1)
 
-        # compute new rhs
-        la_N, la_F = np.array_split(y1, split_y)
-        b = b0.copy()
-        b[: system.nu] += W_N @ la_N + W_F @ la_F
+            # compute new rhs
+            b = b0.copy()
+            b[: system.nu] += W_N @ la_N1 + W_F @ la_F1
 
-        # solve linear system
-        x1 = lu.solve(b)
+            # solve linear system
+            x1 = lu.solve(b)
 
-        # convergence in accelerations
-        diff = x1[: system.nu] - x0[: system.nu]
+            # convergence in accelerations
+            diff = x1[: system.nu] - x0[: system.nu]
 
-        error_fixed_point = np.max(np.absolute(diff))
+            error_fixed_point = np.max(np.absolute(diff))
 
-        converged_fixed_point = error_fixed_point < options.fixed_point_atol
-        if converged_fixed_point:
-            break
-        else:
-            # update values
-            x0 = x1.copy()
-            y0 = y1.copy()
+            converged_fixed_point = error_fixed_point < options.fixed_point_atol
+            if converged_fixed_point:
+                la_N0[B_N] = la_N1
+                la_F0[B_F] = la_F1
+                break
+            else:
+                # update values
+                x0 = x1.copy()
 
-    assert (
-        converged_fixed_point
-    ), f"Solving for consistent initial conditions does not converge after {i_fixed_point} fixed-point iterations with error {error_fixed_point}."
-    print(
-        f"consistent_initial_conditions converged after {i_fixed_point} fixed-point iterations with error: {error_fixed_point}"
-    )
+        assert (
+            converged_fixed_point
+        ), f"Solving for consistent initial conditions does not converge after {i_fixed_point} fixed-point iterations with error {error_fixed_point}."
+        print(
+            f"consistent_initial_conditions converged after {i_fixed_point} fixed-point iterations with error: {error_fixed_point}"
+        )
 
-    u_dot0, la_g0, la_gamma0 = np.array_split(x1, split_x)
-    la_N0, la_F0 = np.array_split(y1, split_y)
+    u_dot0, la_g0, la_gamma0 = np.array_split(x0, split_x)
 
     # check if initial conditions satisfy constraints on position, velocity
     # and acceleration level
@@ -222,14 +221,22 @@ def consistent_initial_conditions(
 
 
 def compute_I_F(I_N, NF_connectivity):
-    """identify active tangent contacts based on active normal contacts and
-    NF-connectivity lists"""
-    if np.any(I_N):
-        I_F = np.array(
-            [c for i, I_N_i in enumerate(I_N) for c in NF_connectivity[i] if I_N_i],
-            dtype=int,
-        )
-    else:
-        I_F = np.array([], dtype=int)
+    """Compute set of active friction contacts based on active normal contacts
+    and NF-connectivity list."""
+    # compute set of active normal contacts if boolean array is given
+    if I_N.dtype == bool:
+        I_N = np.where(I_N)[0]
 
-    return I_F
+    # compute set of active friction contacts and local connectivity
+    I_F = []
+    NF_connectivity_local = []
+    nla_F = 0
+    for i_N in I_N:
+        i_F = NF_connectivity[i_N]
+        I_F.extend(i_F)
+
+        nla_Fi = len(i_F)
+        NF_connectivity_local.append(nla_F + np.arange(nla_Fi))
+        nla_F += nla_Fi
+
+    return np.array(I_F, dtype=int), NF_connectivity_local

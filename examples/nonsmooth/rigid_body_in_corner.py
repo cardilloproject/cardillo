@@ -34,13 +34,13 @@ Solver = {
         BackwardEuler,
         "Euler backward",
         1e-2,
-        {"options": SolverOptions(prox_scaling=0.125)},
+        {"options": SolverOptions(prox_scaling=0.1, fixed_point_max_iter=int(5e3))},
     ),
     "Moreau": (
         Moreau,
         "MoreauClassical",
         1e-2,
-        {"options": SolverOptions(prox_scaling=0.5)},
+        {"options": SolverOptions(prox_scaling=0.1, fixed_point_max_iter=int(1e5))},
     ),
 }
 
@@ -144,6 +144,7 @@ def run(
 
     Solver1, label1, dt1, kwargs1 = Solver[solver1]
     Solver2, label2, dt2, kwargs2 = Solver[solver2]
+    # Solver2, label2, dt2, kwargs2 = Solver[solver1]
 
     sol1 = Solver1(system, t_final, dt1, **kwargs1).solve()
     t = sol1.t
@@ -303,7 +304,6 @@ def run(
             overwrite=True,
             fps=30,
             solution=sol1,
-            system=system,
         )
         e.export_contr(frame_left, file_name="PlaneLeft")
         e.export_contr(frame_right, file_name="PlaneRight")
@@ -319,5 +319,5 @@ if __name__ == "__main__":
     # shape = "stl"
     # shape = "ball"
     # shape = "cylinder"
-    run(shape, "Moreau", "BackwardEuler")
-    # run(shape, "BackwardEuler", "Moreau")
+    # run(shape, "Moreau", "BackwardEuler")
+    run(shape, "BackwardEuler", "Moreau")
