@@ -72,7 +72,7 @@ class Moreau:
         xi_F = self.W_F.T @ un1 + self.xi_F0
         for i_N, i_F in enumerate(self.NF_connectivity_local):
             P_F[i_F] = prox_sphere(
-                P_F[i_F] - self.prox_r_F[i_N] * xi_F[i_F],
+                P_F[i_F] - self.prox_r_F[i_F] * xi_F[i_F],
                 self.mu[i_N] * P_N[i_N],
             )
 
@@ -140,7 +140,6 @@ class Moreau:
 
         # only enter fixed-point loop if any contact is active
         if len(self.I_N) > 0:
-            # if np.any(self.I_N):
             # slice friction coefficients
             self.mu = self.system.mu[self.I_N]
 
