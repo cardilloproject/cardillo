@@ -10,6 +10,7 @@ from cardillo.solver import (
     BackwardEuler,
     NonsmoothGeneralizedAlpha,
     SolverOptions,
+    SolverOptions,
     Rattle,
 )
 
@@ -203,11 +204,12 @@ def run(case, export=False):
     system.assemble()
 
     # solver1, label1 = Moreau(system, t_final, dt), "Moreau"
-    # solver1, label1 = BackwardEuler(system, t_final, dt), "BackwardEuler"
-    solver1, label1 = (
-        NonsmoothGeneralizedAlpha(system, t_final, dt),
-        "NonsmoothGeneralizedAlpha",
-    )
+    solver1, label1 = BackwardEuler(system, t_final, dt), "BackwardEuler"
+    # solver1, label1 = BackwardEuler(system, t_final, dt, options=SolverOptions(reuse_lu_decomposition=False)), "BackwardEuler"
+    # solver1, label1 = (
+    #     NonsmoothGeneralizedAlpha(system, t_final, dt),
+    #     "NonsmoothGeneralizedAlpha",
+    # )
 
     sol1 = solver1.solve()
     t1 = sol1.t
