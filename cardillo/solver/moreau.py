@@ -3,7 +3,7 @@ from scipy.sparse import bmat
 from scipy.sparse.linalg import splu
 from tqdm import tqdm
 
-from cardillo.solver import SolverOptions, Solution, compute_I_F, SolverSummary
+from cardillo.solver import SolverOptions, SolverSummary, Solution, compute_I_F
 from cardillo.math import prox_R0_np, prox_sphere, estimate_prox_parameter
 
 
@@ -232,6 +232,7 @@ class Moreau:
 
     def solve(self):
         solver_summary = SolverSummary()
+
         # lists storing output variables
         q = [self.qn]
         u = [self.un]

@@ -3,7 +3,7 @@ from scipy.sparse import csc_array, eye, bmat
 from scipy.sparse.linalg import splu
 from tqdm import tqdm
 
-from cardillo.solver import SolverOptions, Solution, SolverSummary
+from cardillo.solver import SolverOptions, SolverSummary, Solution
 from cardillo.math import (
     fsolve,
     prox_R0_nm,
@@ -27,7 +27,7 @@ class BackwardEuler:
     ):
         self.system = system
         self.options = options
-        
+
         if options.numerical_jacobian_method:
             self.J_x = lambda x, y: csc_array(
                 approx_fprime(
@@ -322,6 +322,7 @@ class BackwardEuler:
 
     def solve(self):
         solver_summary = SolverSummary()
+
         # lists storing output variables
         t = [self.tn]
         q = [self.qn]

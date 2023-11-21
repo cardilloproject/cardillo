@@ -25,7 +25,7 @@ from cardillo.math import (
     fsolve,
     estimate_prox_parameter,
 )
-from cardillo.solver import Solution, SolverOptions
+from cardillo.solver import SolverOptions, SolverSummary, Solution
 
 
 class NonsmoothGeneralizedAlpha:
@@ -42,6 +42,7 @@ class NonsmoothGeneralizedAlpha:
         options=SolverOptions(),
     ):
         self.system = system
+        self.method = method
 
         # initial time, final time, time step
         self.t0 = t0 = system.t0
@@ -59,8 +60,6 @@ class NonsmoothGeneralizedAlpha:
 
         # options
         self.options = options
-        self.newton_error_function = options.error_function
-        self.fixed_point_error_function = options.error_function
 
         # dimensions (nq = number of coordinates q, etc.)
         self.nq = system.nq
@@ -151,13 +150,6 @@ class NonsmoothGeneralizedAlpha:
             ],
             dtype=int,
         )
-
-        if method == "fixed-point":
-            self.step = self.step_fixed_point
-            self.max_iter = self.options.fixed_point_max_iter
-        elif method == "newton":
-            self.step = self.step_newton
-            self.max_iter = self.options.newton_max_iter
 
     def R(self, x, update_index_set=False):
         """Residual R=(R_s, R_c), see eqn. (127)"""
@@ -776,10 +768,9 @@ class NonsmoothGeneralizedAlpha:
         # eqn. (145): Newton iterations for update of non-contact variables
         fixed_point_error = None
         fixed_point_converged = False
-        j = 0
-        for j in range(self.options.fixed_point_max_iter):
+        for i_fixed_point in range(self.options.fixed_point_max_iter):
             # solve nonlinear system
-            y, newton_converged, newton_error, j, R_s = fsolve(
+            y, newton_converged, newton_error, i_newton, R_s = fsolve(
                 self.R_s,
                 y,
                 fun_args=(z,),
@@ -790,7 +781,7 @@ class NonsmoothGeneralizedAlpha:
 
             # eqn. (146): fixed point update
             z1 = self.p(y, z)
-            fixed_point_error = self.fixed_point_error_function(z1 - z)
+            fixed_point_error = self.options.error_function(z1 - z)
             fixed_point_converged = fixed_point_error < self.options.fixed_point_atol
             z = z1.copy()
 
@@ -811,7 +802,7 @@ class NonsmoothGeneralizedAlpha:
         kappa_Ni1, La_Ni1, la_Ni1, La_Fi1, la_Fi1 = np.array_split(z, self.split_z)
 
         return (
-            (fixed_point_converged, j, fixed_point_error),
+            (fixed_point_converged, i_fixed_point, fixed_point_error),
             ti1,
             ai1,
             Ui1,
@@ -830,6 +821,8 @@ class NonsmoothGeneralizedAlpha:
 
     def solve(self):
         """Method that runs the solver"""
+        solver_summary = SolverSummary()
+
         dt = self.dt
         dt2 = self.dt**2
 
@@ -856,12 +849,9 @@ class NonsmoothGeneralizedAlpha:
         # initialize progress bar
         pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
 
-        iter = []
-        fixpt_iter = []
         # for-loop over all time steps
         for _ in pbar:
-            # try to solve time step with user-defined method (method='newton' if unspecified)
-            try:
+            if self.method == "newton":
                 (
                     (converged, n_iter, error),
                     ti1,
@@ -879,18 +869,15 @@ class NonsmoothGeneralizedAlpha:
                     La_Fi1,
                     la_Fi1,
                 ) = self.step()
+                solver_summary.add_newton(n_iter)
                 pbar.set_description(
-                    f"t: {ti1:0.2e}s < {self.t1:0.2e}s; {n_iter}/{self.max_iter} iterations; error: {error:0.2e}"
+                    f"t: {ti1:0.2e}s < {self.t1:0.2e}s; {n_iter}/{self.options.newton_max_iter} iterations; error: {error:0.2e}"
                 )
                 if not converged:
                     raise RuntimeError(
                         f"step not converged after {n_iter} steps with error: {error:.5e}"
                     )
-                iter.append(n_iter + 1)
-            except (
-                RuntimeError
-            ):  # if method specified does not converge, use fixed-point iterations in time step.
-                print("\nSwitched to fixed-point step.\n")
+            else:
                 (
                     (converged, n_iter, error),
                     ti1,
@@ -908,14 +895,14 @@ class NonsmoothGeneralizedAlpha:
                     La_Fi1,
                     la_Fi1,
                 ) = self.step_fixed_point()
+                solver_summary.add_fixed_point(n_iter, error)
                 pbar.set_description(
-                    f"t: {ti1:0.2e}s < {self.t1:0.2e}s; {n_iter}/{self.max_iter} iterations; error: {error:0.2e}"
+                    f"t: {ti1:0.2e}s < {self.t1:0.2e}s; {n_iter}/{self.options.fixed_point_max_iter} iterations; error: {error:0.2e}"
                 )
                 if not converged:
                     raise RuntimeError(
                         f"fixed-point step not converged after {n_iter} steps with error: {error:.5e}"
                     )
-                fixpt_iter.append(n_iter + 1)
 
             # ----- compute variables for output -----
 
@@ -1018,19 +1005,8 @@ class NonsmoothGeneralizedAlpha:
             self.la_Nbari = la_Nbari1
             self.la_Fbari = la_Fbari1
 
-        # print statistics
-        print("-----------------")
-        print(
-            f"Iterations per time step: max = {max(iter)}, avg={sum(iter) / float(len(iter))}"
-        )
-        if len(fixpt_iter) > 0:
-            print("-----------------")
-            print("For the time steps, where primary method did not converge:")
-            print(f"Number of such time steps: {len(fixpt_iter)}")
-            print(
-                f"Fixed-point iterations: max = {max(fixpt_iter)}, avg={sum(fixpt_iter) / float(len(fixpt_iter))}"
-            )
-        print("-----------------")
+        solver_summary.print()
+
         return Solution(
             system=self.system,
             t=np.array(t),
