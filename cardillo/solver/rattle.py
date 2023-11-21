@@ -62,9 +62,9 @@ class Rattle:
         self.nla_S = self.system.nla_S
 
         self.nx1 = (
-            self.nq + self.nu + self.nla_g + self.nla_gamma + self.nla_c + self.nla_S
+            self.nq + self.nu + self.nla_c + self.nla_g + self.nla_gamma + self.nla_S
         )
-        self.nx2 = self.nu + self.nla_g + self.nla_gamma + self.nla_c
+        self.nx2 = self.nu + self.nla_c + self.nla_g + self.nla_gamma 
 
         self.ny = self.nla_N + self.nla_F
 
@@ -147,7 +147,7 @@ class Rattle:
         self.y2n = np.zeros_like(self.y1n)
 
         ###################################################
-        # compute constant quantities for current time step
+        # compute quantities for prox estimation
         ###################################################
         self.Mn = system.M(self.tn, self.qn, format="csr")
         self.W_Nn = system.W_N(self.tn, self.qn, format="csr")
@@ -176,7 +176,7 @@ class Rattle:
             - 0.5
             * dt
             * (self.system.q_dot(tn, qn, un12) + self.system.q_dot(tn1, qn1, un12))
-            # - g_S_q.T @ mu_S1
+            - g_S_q.T @ mu_S1
         )
 
         ########################
@@ -192,19 +192,6 @@ class Rattle:
             + self.system.W_F(tn, qn) @ P_F1
         )
 
-        # ########################
-        # # euations of motion (2)
-        # ########################
-        # R[self.split_y[1] : self.split_y[2]] = self.system.M(
-        #     tn1, qn1, scipy_matrix=csr_matrix
-        # ) @ (un1 - un12) - 0.5 * dt * (
-        #     self.system.h(tn1, qn1, un12)
-        #     + self.system.W_g(tn1, qn1) @ R_g2
-        #     + self.system.W_gamma(tn1, qn1) @ R_gamma2
-        #     + self.system.W_N(tn1, qn1) @ R_N2
-        #     + self.system.W_F(tn1, qn1) @ R_F2
-        # )
-
         ############
         # compliance
         ############
@@ -219,7 +206,7 @@ class Rattle:
         ##########################
         # quaternion stabilization
         ##########################
-        R[self.split_x1[4] :] = mu_S1 #self.system.g_S(tn1, qn1)
+        R[self.split_x1[4] :] = self.system.g_S(tn1, qn1)
 
         return R
 
@@ -375,9 +362,8 @@ class Rattle:
             # update local variables for accepted time step
             self.x1n = x1n1.copy()
             self.y1n = y1n1.copy()
+            self.x2n[: self.nu] = un1.copy()
             self.tn = tn1
-            self.qn = qn1
-            self.un = un1
 
         solver_summary.print()
         return Solution(
