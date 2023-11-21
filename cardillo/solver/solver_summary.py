@@ -1,5 +1,4 @@
-
-class SolverSummary():
+class SolverSummary:
     def __init__(self):
         self.fixed_point_n_iter_list = []
         self.fixed_point_abs_errors = []
@@ -33,11 +32,9 @@ class SolverSummary():
     def add_fixed_point(self, n_iterations, abs_error):
         self.fixed_point_n_iter_list.append(n_iterations)
         self.fixed_point_abs_errors.append(abs_error)
-    
+
     def add_newton(self, n_iterations):
         self.newton_n_iter_list.append(n_iterations)
 
     def add_lu(self, n):
         self.n_lu += n
-
-    

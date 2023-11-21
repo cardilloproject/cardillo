@@ -27,7 +27,7 @@ class BackwardEuler:
     ):
         self.system = system
         self.options = options
-        
+
         if options.numerical_jacobian_method:
             self.J_x = lambda x, y: csc_array(
                 approx_fprime(
@@ -397,7 +397,7 @@ class BackwardEuler:
                 else:
                     xn1, converged_newton, error_newton, i_newton, _ = fsolve(
                         self.R_x,
-                        self.xn,
+                        xn1,
                         jac=self.J_x,
                         fun_args=(yn1,),
                         jac_args=(yn1,),
