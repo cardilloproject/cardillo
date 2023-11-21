@@ -2,6 +2,7 @@
 from .solution import Solution, save_solution, load_solution
 
 from .solver_options import SolverOptions
+from .solver_summary import SolverSummary
 
 # common solver functionality
 from ._base import consistent_initial_conditions, compute_I_F

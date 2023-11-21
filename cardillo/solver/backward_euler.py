@@ -3,7 +3,7 @@ from scipy.sparse import csc_array, eye, bmat
 from scipy.sparse.linalg import splu
 from tqdm import tqdm
 
-from cardillo.solver import SolverOptions, Solution
+from cardillo.solver import SolverOptions, SolverSummary, Solution
 from cardillo.math import (
     fsolve,
     prox_R0_nm,
@@ -321,6 +321,8 @@ class BackwardEuler:
         return y1
 
     def solve(self):
+        solver_summary = SolverSummary()
+
         # lists storing output variables
         t = [self.tn]
         q = [self.qn]
@@ -334,16 +336,11 @@ class BackwardEuler:
         P_F = [self.dt * self.la_Fn]
         mu_S = [self.mu_Sn]
 
-        fixed_point_n_iter_list = []
-        newton_n_iter_list = []
-        fixed_point_absolute_errors = []
-        n_lu = 0
-
         # initial Jacobian
         if self.options.reuse_lu_decomposition:
             i_newton = 0
             lu = splu(self.J_x(self.xn.copy(), self.yn.copy()))
-            n_lu += 1
+            solver_summary.add_lu(1)
 
         pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
         for _ in pbar:
@@ -390,7 +387,7 @@ class BackwardEuler:
                         # compute new Jacobian if requested
                         if i_newton >= NEWTON_MAXITER:
                             lu = splu(self.J_x(xn1, yn1))
-                            n_lu += 1
+                            solver_summary.add_lu(1)
                             i_newton = 0
 
                         xn1 -= lu.solve(R_newton)
@@ -408,7 +405,7 @@ class BackwardEuler:
                         atol=self.options.newton_atol,
                         max_iter=self.options.newton_max_iter,
                     )
-                    n_lu += i_newton
+                    solver_summary.add_lu(i_newton)
 
                 # convergence in smooth state (without Lagrange multipliers)
                 diff = xn1[:n_state] - x0[:n_state]
@@ -429,10 +426,9 @@ class BackwardEuler:
                     x0 = xn1.copy()
                     y0 = yn1.copy()
 
-            fixed_point_n_iter_list.append(i_fixed_point)
-            newton_n_iter_list.append(i_newton)
             fixed_point_absolute_error = np.max(np.abs(diff))
-            fixed_point_absolute_errors.append(fixed_point_absolute_error)
+            solver_summary.add_fixed_point(i_fixed_point, fixed_point_absolute_error)
+            solver_summary.add_newton(i_newton)
 
             # update progress bar
             pbar.set_description(
@@ -478,19 +474,7 @@ class BackwardEuler:
             self.qn = qn1
             self.un = un1
 
-        print("-" * 80)
-        print("Solver summary:")
-        print(
-            f" - fixed-point iterations: max = {max(fixed_point_n_iter_list)}, avg={sum(fixed_point_n_iter_list) / float(len(fixed_point_n_iter_list))}"
-        )
-        print(
-            f" - fixed-point maximal absolute error: max = {max(fixed_point_absolute_errors)}, avg={sum(fixed_point_absolute_errors) / float(len(fixed_point_absolute_errors))}"
-        )
-        print(
-            f" - newton iterations: max = {max(newton_n_iter_list)}, avg={sum(newton_n_iter_list) / float(len(newton_n_iter_list))}"
-        )
-        print(f" - performed lu-decompositions: {n_lu}")
-        print("-" * 80)
+        solver_summary.print()
 
         # write solution
         return Solution(
@@ -506,5 +490,4 @@ class BackwardEuler:
             P_N=np.array(P_N),
             P_F=np.array(P_F),
             mu_S=np.array(mu_S),
-            niter=np.array(fixed_point_n_iter_list),
         )

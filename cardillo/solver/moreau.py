@@ -3,7 +3,7 @@ from scipy.sparse import bmat
 from scipy.sparse.linalg import splu
 from tqdm import tqdm
 
-from cardillo.solver import SolverOptions, Solution, compute_I_F
+from cardillo.solver import SolverOptions, SolverSummary, Solution, compute_I_F
 from cardillo.math import prox_R0_np, prox_sphere, estimate_prox_parameter
 
 
@@ -11,6 +11,9 @@ class Moreau:
     def __init__(self, system, t1, dt, options=SolverOptions()):
         self.system = system
         self.options = options
+
+        self.fixed_point_n_iter_list = []
+        self.fixed_point_absolute_errors = []
 
         # integration time
         t0 = system.t0
@@ -128,6 +131,7 @@ class Moreau:
 
         converged = True
         error = 0
+        abs_error = 0.0
         j = 0
 
         # identify active contacts
@@ -138,6 +142,8 @@ class Moreau:
         )
         self.I_N = np.where(self.I_N)[0]
 
+        self.fixed_point_n_iter_list.append(0)
+        self.fixed_point_absolute_errors.append(0.0)
         # only enter fixed-point loop if any contact is active
         if len(self.I_N) > 0:
             # slice friction coefficients
@@ -196,6 +202,8 @@ class Moreau:
                 error = np.linalg.norm(diff / sc) / sc.size**0.5
                 converged = error < 1.0
 
+                abs_error = np.max(np.abs(diff))
+
                 if converged:
                     P_Nn1[self.I_N] = P_N
                     P_Fn1[self.I_F] = P_F
@@ -211,7 +219,7 @@ class Moreau:
         qn1 = qn12 + 0.5 * dt * self.system.q_dot(tn12, qn12, un1)
 
         return (
-            (converged, j, error),
+            (converged, j, abs_error),
             tn1,
             qn1,
             un1,
@@ -223,6 +231,8 @@ class Moreau:
         )
 
     def solve(self):
+        solver_summary = SolverSummary()
+
         # lists storing output variables
         q = [self.qn]
         u = [self.un]
@@ -258,6 +268,7 @@ class Moreau:
                     raise RuntimeError(
                         f"fixed-point iteration not converged after {j+1} iterations with error: {error:.5e}"
                     )
+            solver_summary.add_fixed_point(j, error)
 
             qn1, un1 = self.system.step_callback(tn1, qn1, un1)
 
@@ -280,6 +291,7 @@ class Moreau:
                 self.P_Fn,
             ) = (tn1, qn1, un1, P_gn1, P_gamman1, P_Nn1, P_Fn1)
 
+        solver_summary.print()
         return Solution(
             self.system,
             t=np.array(self.t),
