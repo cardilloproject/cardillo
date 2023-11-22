@@ -30,6 +30,19 @@ class RotatingBouncingBall:
         self.nla_N = 1
         self.nla_F = 1
         self.NF_connectivity = [[0]]
+        from cardillo.math.prox import NegativeOrthant, Sphere, Hyperellipsoid
+
+        # fmt: off
+        self.NF_connectivity2 = [
+            ([0,], [0], Sphere()), # Coulomb
+            # ([0,], [1], Hypersphere()), # rolling
+        ]
+        # fmt: on
+        # self.NF_connectivity2 = [
+        #     ([], [4,], NegativeOrthant()), # some law without normal coupling
+        #     ([0,], [0, 1], Hypersphere()),  # isotropic Coulomb friction
+        #     ([0,], [2, 3], Hyperellipsoid(dimension=2, scaling=[1, 0.5])), # anisotropic Coulomb friction
+        # ]
         self.mu = np.atleast_1d(mu)
         self.e_N = np.atleast_1d(e_N)
         self.e_F = np.atleast_1d(e_F)
@@ -203,11 +216,16 @@ def run(case, export=False):
 
     # solver1, label1 = Moreau(system, t_final, dt), "Moreau"
     # solver1, label1 = BackwardEuler(system, t_final, dt), "BackwardEuler"
-    # solver1, label1 = BackwardEuler(system, t_final, dt, options=SolverOptions(reuse_lu_decomposition=False)), "BackwardEuler"
     solver1, label1 = (
-        NonsmoothGeneralizedAlpha(system, t_final, dt),
-        "NonsmoothGeneralizedAlpha",
+        BackwardEuler(
+            system, t_final, dt, options=SolverOptions(reuse_lu_decomposition=False)
+        ),
+        "BackwardEuler",
     )
+    # solver1, label1 = (
+    #     NonsmoothGeneralizedAlpha(system, t_final, dt),
+    #     "NonsmoothGeneralizedAlpha",
+    # )
 
     sol1 = solver1.solve()
     t1 = sol1.t

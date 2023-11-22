@@ -241,40 +241,41 @@ class System:
                 contr.la_SDOF = np.arange(0, contr.nla_S) + self.nla_S
                 self.nla_S += contr.nla_S
 
-            # if contribution has contacts address constraint coordinates
+            # if contribution has contact
             if hasattr(contr, "nla_N"):
                 # normal
                 contr.la_NDOF = np.arange(0, contr.nla_N) + self.nla_N
                 self.nla_N += contr.nla_N
                 e_N.extend(contr.e_N.tolist())
 
-                # tangential
+            # if contribution has friction
+            if hasattr(contr, "nla_N"):
                 contr.la_FDOF = np.arange(0, contr.nla_F) + self.nla_F
                 self.nla_F += contr.nla_F
                 e_F.extend(contr.e_F.tolist())
-                mu.extend(contr.mu.tolist())
-                for i in range(contr.nla_N):
-                    NF_connectivity.append(
-                        contr.la_FDOF[
-                            np.array(contr.NF_connectivity[i], dtype=int)
-                        ].tolist()
-                    )
-                    N_has_friction.append(True if contr.NF_connectivity[i] else False)
-                    Ncontr_connectivity.append(n_laN_contr)
-                n_laN_contr += 1
+                # mu.extend(contr.mu.tolist())
+                # for i in range(contr.nla_N):
+                #     NF_connectivity.append(
+                #         contr.la_FDOF[
+                #             np.array(contr.NF_connectivity[i], dtype=int)
+                #         ].tolist()
+                #     )
+                #     N_has_friction.append(True if contr.NF_connectivity[i] else False)
+                #     Ncontr_connectivity.append(n_laN_contr)
+                # n_laN_contr += 1
 
-        # convert to numpy array if NF_connectivity is homogeneous, otherwise
-        # a dtype=object is chosen to get an slicable object
-        try:
-            self.NF_connectivity = np.array(NF_connectivity, dtype=int)
-        except:
-            self.NF_connectivity = np.array(NF_connectivity, dtype=object)
+        # # convert to numpy array if NF_connectivity is homogeneous, otherwise
+        # # a dtype=object is chosen to get an slicable object
+        # try:
+        #     self.NF_connectivity = np.array(NF_connectivity, dtype=int)
+        # except:
+        #     self.NF_connectivity = np.array(NF_connectivity, dtype=object)
 
-        self.N_has_friction = np.array(N_has_friction, dtype=bool)
-        self.Ncontr_connectivity = np.array(Ncontr_connectivity, dtype=int)
         self.e_N = np.array(e_N)
         self.e_F = np.array(e_F)
-        self.mu = np.array(mu)
+        # self.mu = np.array(mu)
+        # self.N_has_friction = np.array(N_has_friction, dtype=bool)
+        # self.Ncontr_connectivity = np.array(Ncontr_connectivity, dtype=int)
 
         # call assembler callback: call methods that require first an assembly of the system
         self.assembler_callback()

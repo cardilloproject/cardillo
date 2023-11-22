@@ -126,7 +126,7 @@ class BackwardEuler:
         # initial mass matrix and force directions for prox-parameter estimation
         self.M = system.M(self.tn, self.qn)
         self.W_N = system.W_N(self.tn, self.qn)
-        self.W_F = system.W_N(self.tn, self.qn)
+        self.W_F = system.W_F(self.tn, self.qn)
 
     def R_x(self, xn1, yn1):
         (
@@ -294,7 +294,7 @@ class BackwardEuler:
         qn1 = qn + dqn1
         un1 = un + dun1
 
-        mu = self.system.mu
+        # mu = self.system.mu
         prox_r_N = self.prox_r_N
         prox_r_F = self.prox_r_F
 
@@ -310,13 +310,40 @@ class BackwardEuler:
         #############################
         # fixed-point update friction
         #############################
-        gamma_F = self.system.gamma_F(tn1, qn1, un1)
-        for i_N, i_F in enumerate(self.system.NF_connectivity):
-            if len(i_F):
-                y1[self.split_y[0] + np.array(i_F)] = -prox_sphere(
-                    prox_r_F[i_N] * gamma_F[i_F] - dP_Fn1[i_F],
-                    mu[i_N] * dP_Nn1[i_N],
-                )
+        # gamma_F = self.system.gamma_F(tn1, qn1, un1)
+        # for i_N, i_F in enumerate(self.system.NF_connectivity):
+        #     if len(i_F):
+        #         # y1[self.split_y[0] + np.array(i_F)] = -prox_sphere(
+        #         #     prox_r_F[i_N] * gamma_F[i_F] - dP_Fn1[i_F],
+        #         #     mu[i_N] * dP_Nn1[i_N],
+        #         # )
+        #         y1[self.split_y[0] + np.array(i_F)] = -hypersphere.prox(
+        #             prox_r_F[i_N] * gamma_F[i_F] - dP_Fn1[i_F],
+        #             mu[i_N] * dP_Nn1[i_N],
+        #         )
+
+        # TODO: Get gamma_f_contr without "private" atrribute
+        for contr in self.system._System__gamma_F_contr:
+            gamma_F_contr = contr.gamma_F(tn1, qn1[contr.qDOF], un1[contr.uDOF])
+            la_FDOF = contr.la_FDOF
+            dP_Fn1_contr = dP_Fn1[la_FDOF]
+            prox_r_F_contr = prox_r_F[la_FDOF]
+            for i_N, i_F, force_recervoir in contr.NF_connectivity2:
+                if i_F:
+                    arg = prox_r_F_contr[i_F] * gamma_F_contr[i_F] - dP_Fn1_contr[i_F]
+                    if i_N:
+                        dP_Nn1i = dP_Nn1[contr.la_NDOF[i_N]]
+                        y1[self.split_y[0] + la_FDOF[i_F]] = -force_recervoir.prox(
+                            arg, dP_Nn1i
+                        )
+                    else:
+                        # TODO: This "* dt" is ugly...
+                        y1[self.split_y[0] + la_FDOF[i_F]] = -force_recervoir.prox(
+                            arg, self.dt
+                        )
+                else:
+                    # no friction, this should not be the case in future
+                    raise RuntimeError("You should never be here!")
 
         return y1
 
