@@ -15,6 +15,7 @@ def consistent_initial_conditions(
     system,
     rtol=1.0e-5,  # TODO: Rename; can they be changed by the user?
     atol=1.0e-8,  # TODO: Rename; can they be changed by the user?
+    slice_active_contacts=True,
     options=SolverOptions(),
 ):
     t0 = system.t0
@@ -73,7 +74,7 @@ def consistent_initial_conditions(
 
     # identify active tangent contacts based on active normal contacts and
     # NF-connectivity lists; compute local NF_connectivity
-    B_F, active_gamma_F_contr = compute_I_F(B_N, system)
+    B_F, active_gamma_F_contr = compute_I_F(B_N, system, slice=slice_active_contacts)
 
     gamma_F = system.gamma_F(t0, q0, u0)[B_F]
     W_N = system.W_N(t0, q0, format="csc")[:, B_N]
@@ -127,18 +128,13 @@ def consistent_initial_conditions(
         #############################
         gamma_F_dot = W_F.T @ u_dot + zeta_F
         for contr, NF_connectivity in active_gamma_F_contr:
-            # la_FDOF = contr.la_FDOF
-            # gamma_F_contr = gamma_F[la_FDOF]
-
             for i_N, i_F, force_recervoir in NF_connectivity:
-                gamma_Fi = gamma_F[i_F]
-                # norm_gamma_Fi = norm(gamma_Fi)
-                # la_FDOFi = la_FDOF[i_F]
                 if len(i_N) > 0:
                     la_Ni = la_N[i_N]
                 else:
                     la_Ni = 1.0
 
+                gamma_Fi = gamma_F[i_F]
                 if np.isclose(
                     norm(gamma_Fi), 0, rtol, atol
                 ):  # possible stick on acceleration level
@@ -167,8 +163,6 @@ def consistent_initial_conditions(
         x1 = x0.copy()
         la_N1 = la_N0[B_N].copy()
         la_F1 = la_F0[B_F].copy()
-        # la_N1 = la_N0.copy()
-        # la_F1 = la_F0.copy()
         converged_fixed_point = False
         for i_fixed_point in range(options.fixed_point_max_iter):
             # find proximal point
@@ -190,8 +184,6 @@ def consistent_initial_conditions(
             if converged_fixed_point:
                 la_N0[B_N] = la_N1
                 la_F0[B_F] = la_F1
-                # la_N0 = la_N1
-                # la_F0 = la_F1
                 break
             else:
                 # update values
@@ -238,7 +230,7 @@ def consistent_initial_conditions(
 
 
 # def compute_I_F(I_N, NF_connectivity):
-def compute_I_F(I_N, system):
+def compute_I_F(I_N, system, slice=True):
     """Compute set of active friction contacts based on active normal contacts
     and NF-connectivity list."""
     # compute set of active normal contacts if boolean array is given
@@ -265,7 +257,7 @@ def compute_I_F(I_N, system):
             if i_N:  # normal force dependence
                 i_N_global = np.array(i_N, dtype=int) + nla_N
                 # only add friction if normal force is active
-                if len(I_N) > 0 and len(I_N[i_N_global]) > 0:
+                if not slice or len(I_N) > 0 and len(I_N[i_N_global]) > 0:
                     I_F.extend(i_F_global)
                     active_NF_connectivity.append(
                         (i_N_global, i_F_global, force_reservoir)
