@@ -25,7 +25,7 @@ class SolverSummary:
             print(
                 f" - newton iterations: max = {max(self.newton_n_iter_list)}, avg = {sum(self.newton_n_iter_list) / float(len(self.newton_n_iter_list)):.2f}"
             )
-        if self.n_lu > 0:
+        if self.n_lu:
             print(f" - performed lu-decompositions: {self.n_lu}")
         print("-" * 80)
 

@@ -37,10 +37,6 @@ if __name__ == "__main__":
     system.add(scalar_force_element)
     system.assemble()
 
-    # get contributions from system
-    contrs = system.get_contributions("force.Force")
-    print(contrs)
-
     t0 = 0
     t1 = 2
     dt = 1.0e-2

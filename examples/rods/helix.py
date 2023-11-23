@@ -15,7 +15,7 @@ from cardillo.beams.cosseratRod import (
 
 from cardillo.forces import K_Moment, Force
 from cardillo import System
-from cardillo.solver import Newton
+from cardillo.solver import Newton, SolverOptions
 from cardillo.visualization import Export
 
 import numpy as np
@@ -31,6 +31,8 @@ def helix(
     n_load_steps=10,
     reduced_integration=True,
     VTK_export=False,
+    slenderness=1.0e4,
+    atol=1.0e-13
 ):
     # geometry of the rod
     n = 2  # number of coils
@@ -43,19 +45,10 @@ def helix(
     alpha = lambda xi: 2 * pi * n * xi
     alpha_xi = 2 * pi * n
 
-    # cross section properties
-    # slenderness = 1.0e1
-    # atol = 1.0e-8
-    # slenderness = 1.0e2
-    # atol = 1.0e-9
-    # slenderness = 1.0e3
-    # atol = 1.0e-10
-    slenderness = 1.0e4
-    atol = 1.0e-12
-
     width = length / slenderness
+    radius = width / 2
     line_density = 1
-    cross_section = CircularCrossSection(line_density, width)
+    cross_section = CircularCrossSection(line_density, radius=radius)
     A_rho0 = line_density * cross_section.area
     K_S_rho0 = line_density * cross_section.first_moment
     K_I_rho0 = line_density * cross_section.second_moment
@@ -101,7 +94,6 @@ def helix(
         q0=q0,
         polynomial_degree=polynomial_degree,
         reduced_integration=reduced_integration,
-        mixed=False,
     )
 
     # clamping left
@@ -121,13 +113,13 @@ def helix(
     moment = K_Moment(M, cantilever, (1,))
     system.add(moment)
 
-    system.assemble()
+    system.assemble(options=SolverOptions(compute_consistent_initial_conditions=False))
 
     # add Newton solver
     solver = Newton(
         system,
         n_load_steps=n_load_steps,
-        max_iter=30,
+        max_iter=100,
         atol=atol,
     )
 
@@ -173,20 +165,71 @@ def helix(
 
 
 if __name__ == "__main__":
-    # SE3 interpolation:
-    # helix(Rod=make_CosseratRod_SE3(mixed=True), nelements=5, polynomial_degree=1, n_load_steps = 1, reduced_integration=False)
-    # helix(Rod=make_CosseratRod_SE3(mixed=False), nelements=10, polynomial_degree=1, n_load_steps = 499, reduced_integration=True)
+    helix(Rod=make_CosseratRod_SE3(mixed=True), nelements=5, polynomial_degree=1, n_load_steps = 2, reduced_integration=True, slenderness=1.0e4, atol=1.0e-12)
 
-    # Quaternion interpolation:
-    # helix(Rod=make_CosseratRod_Quat(mixed=True), nelements=10, polynomial_degree=2, n_load_steps = 2, reduced_integration=False)
-    # helix(Rod=make_CosseratRod_Quat(mixed=False), nelements=10, polynomial_degree=2, n_load_steps = 500, reduced_integration=True)
+    helix(Rod=make_CosseratRod_Quat(mixed=True), nelements=10, polynomial_degree=2, n_load_steps = 2, reduced_integration=True, slenderness=1.0e4, atol=1.0e-12)
 
-    # R12 interpolation:
-    helix(
-        Rod=make_CosseratRod_R12(mixed=True),
-        nelements=10,
-        polynomial_degree=2,
-        n_load_steps=2,
-        reduced_integration=False,
-    )
-    # helix(Rod=make_CosseratRod_R12(mixed=False), nelements=10, polynomial_degree=2, n_load_steps = 500, reduced_integration=True)
+    helix(Rod=make_CosseratRod_R12(mixed=True), nelements=10, polynomial_degree=2, n_load_steps = 2, reduced_integration=True, slenderness=1.0e4, atol=1.0e-12)
+
+
+    #####################################
+    # parameters from Paper Harsch2023a #
+    #####################################
+    # helix(Rod=make_CosseratRod_SE3(mixed=False), nelements=5, polynomial_degree=1, n_load_steps = 69, reduced_integration=True, slenderness=1.0e1, atol=1.0e-8)
+    # # crashes in load step 31
+
+    # helix(Rod=make_CosseratRod_SE3(mixed=False), nelements=5, polynomial_degree=1, n_load_steps = 99, reduced_integration=True, slenderness=1.0e2, atol=1.0e-9)
+    # # crashes in load step 77
+    
+    # helix(Rod=make_CosseratRod_SE3(mixed=False), nelements=5, polynomial_degree=1, n_load_steps = 199, reduced_integration=True, slenderness=1.0e3, atol=1.0e-10)
+    # # this works
+
+    # helix(Rod=make_CosseratRod_SE3(mixed=False), nelements=5, polynomial_degree=1, n_load_steps = 699, reduced_integration=True, slenderness=1.0e4, atol=1.0e-11)
+    # # crashes in load step 251
+
+    ##############################################
+    # paramters from Harsch2023a (archived code) #
+    ##############################################
+
+    # helix(Rod=make_CosseratRod_SE3(mixed=False), nelements=5, polynomial_degree=1, n_load_steps = 70, reduced_integration=True, slenderness=1.0e1, atol=1.0e-8)
+    # # crashes in load step 31
+
+    # helix(Rod=make_CosseratRod_SE3(mixed=False), nelements=5, polynomial_degree=1, n_load_steps = 100, reduced_integration=True, slenderness=1.0e2, atol=1.0e-10)
+    # # crashes in load step 78
+    
+    # helix(Rod=make_CosseratRod_SE3(mixed=False), nelements=5, polynomial_degree=1, n_load_steps = 200, reduced_integration=True, slenderness=1.0e3, atol=1.0e-12)
+    # # works
+
+    # helix(Rod=make_CosseratRod_SE3(mixed=False), nelements=5, polynomial_degree=1, n_load_steps = 500, reduced_integration=True, slenderness=1.0e4, atol=1.0e-14)
+    # # works
+
+    # #######################
+    # # paramters that work #
+    # #######################
+ 
+    # helix(Rod=make_CosseratRod_SE3(mixed=False), nelements=5, polynomial_degree=1, n_load_steps = 100, reduced_integration=True, slenderness=1.0e1, atol=1.0e-8)
+
+    # helix(Rod=make_CosseratRod_SE3(mixed=False), nelements=5, polynomial_degree=1, n_load_steps = 109, reduced_integration=True, slenderness=1.0e2, atol=1.0e-9)
+    # strangely: n_load_steps = 110 does not work anymore
+    
+    # helix(Rod=make_CosseratRod_SE3(mixed=False), nelements=5, polynomial_degree=1, n_load_steps = 200, reduced_integration=True, slenderness=1.0e3, atol=1.0e-12)
+
+    # helix(Rod=make_CosseratRod_SE3(mixed=False), nelements=5, polynomial_degree=1, n_load_steps = 700, reduced_integration=True, slenderness=1.0e4, atol=1.0e-14)
+
+    # Quaternion-interpolation:
+    # helix(Rod=make_CosseratRod_Quat(mixed=False), nelements=10, polynomial_degree=2, n_load_steps = 100, reduced_integration=True, slenderness=1.0e1, atol=1.0e-8)
+
+    # helix(Rod=make_CosseratRod_Quat(mixed=False), nelements=10, polynomial_degree=2, n_load_steps = 119, reduced_integration=True, slenderness=1.0e2, atol=1.0e-9)
+
+    # helix(Rod=make_CosseratRod_Quat(mixed=False), nelements=10, polynomial_degree=2, n_load_steps = 200, reduced_integration=True, slenderness=1.0e3, atol=1.0e-12)
+
+    # helix(Rod=make_CosseratRod_Quat(mixed=False), nelements=10, polynomial_degree=2, n_load_steps = 700, reduced_integration=True, slenderness=1.0e4, atol=1.0e-14)
+
+    # R12 interpolation
+    # helix(Rod=make_CosseratRod_R12(mixed=False), nelements=10, polynomial_degree=2, n_load_steps = 100, reduced_integration=True, slenderness=1.0e1, atol=1.0e-8)
+
+    # helix(Rod=make_CosseratRod_R12(mixed=False), nelements=10, polynomial_degree=2, n_load_steps = 129, reduced_integration=True, slenderness=1.0e2, atol=1.0e-9)
+
+    # helix(Rod=make_CosseratRod_R12(mixed=False), nelements=10, polynomial_degree=2, n_load_steps = 200, reduced_integration=True, slenderness=1.0e3, atol=1.0e-12)
+
+    # helix(Rod=make_CosseratRod_R12(mixed=False), nelements=10, polynomial_degree=2, n_load_steps = 700, reduced_integration=True, slenderness=1.0e4, atol=1.0e-14)

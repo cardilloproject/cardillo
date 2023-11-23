@@ -4,6 +4,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
+from cardillo.math.prox import Sphere
 from cardillo import System
 from cardillo.solver import (
     Moreau,
@@ -28,10 +29,12 @@ class RotatingBouncingBall:
         assert self.nq == len(q0)
         assert self.nu == len(u0)
 
+        # fmt: off
+        self.friction_laws = [
+            ([0], [0], Sphere(mu)), # Coulomb
+        ]
         self.nla_N = 1
         self.nla_F = 1
-        self.NF_connectivity = [[0]]
-        self.mu = np.atleast_1d(mu)
         self.e_N = np.atleast_1d(e_N)
         self.e_F = np.atleast_1d(e_F)
 
@@ -212,8 +215,12 @@ def run(case, export=False):
         ),
         "Rattle",
     )
-    # solver1, label1 = BackwardEuler(system, t_final, dt), "BackwardEuler"
-    # solver1, label1 = BackwardEuler(system, t_final, dt, options=SolverOptions(reuse_lu_decomposition=False)), "BackwardEuler"
+    # solver1, label1 = (
+    #     BackwardEuler(
+    #         system, t_final, dt, options=SolverOptions(reuse_lu_decomposition=True)
+    #     ),
+    #     "BackwardEuler",
+    # )
     # solver1, label1 = (
     #     NonsmoothGeneralizedAlpha(system, t_final, dt),
     #     "NonsmoothGeneralizedAlpha",
