@@ -1,3 +1,4 @@
+import warnings
 import numpy as np
 from scipy.sparse import csc_array, eye, bmat
 from scipy.sparse.linalg import splu
@@ -10,9 +11,6 @@ from cardillo.math import (
     estimate_prox_parameter,
     approx_fprime,
 )
-
-
-NEWTON_MAXITER = 4  # maximum number of Newton iterations
 
 
 class BackwardEuler:
@@ -369,69 +367,130 @@ class BackwardEuler:
             x0 = self.xn.copy()
             y0 = self.yn.copy()
 
-            # fixed-point loop
+            # solve nonlinear system with previous values
             xn1 = x0.copy()
             yn1 = y0.copy()
-            converged = False
-            n_state = self.nx - self.nla_g - self.nla_gamma
-            for i_fixed_point in range(self.options.fixed_point_max_iter):
-                # find proximal point
-                yn1 = self.prox(xn1, yn1)
 
-                if self.options.reuse_lu_decomposition:
-                    # compute new residual and check convergence
+            if self.options.reuse_lu_decomposition:
+                # compute new residual and check convergence
+                R_newton = self.R_x(xn1, yn1)
+                error_newton = np.max(np.absolute(R_newton))
+                converged_newton = error_newton < self.options.newton_atol
+
+                # Newton loop with inexact Jacobian
+                if not converged_newton:
+                    i_newton = 0
+                while (not converged_newton) and (
+                    i_newton < self.options.newton_max_iter
+                ):
+                    i_newton += 1
+                    # compute new Jacobian if requested
+                    if i_newton >= self.options.reuse_lu_max_iter:
+                        lu = splu(self.J_x(xn1, yn1))
+                        solver_summary.add_lu(1)
+                        i_newton = 0
+
+                    xn1 -= lu.solve(R_newton)
                     R_newton = self.R_x(xn1, yn1)
                     error_newton = np.max(np.absolute(R_newton))
                     converged_newton = error_newton < self.options.newton_atol
 
-                    # Newton loop with inexact Jacobian
-                    if not converged_newton:
-                        i_newton = 0
-                    while (not converged_newton) and (
-                        i_newton < self.options.newton_max_iter
-                    ):
-                        i_newton += 1
-                        # compute new Jacobian if requested
-                        if i_newton >= NEWTON_MAXITER:
-                            lu = splu(self.J_x(xn1, yn1))
-                            solver_summary.add_lu(1)
-                            i_newton = 0
-
-                        xn1 -= lu.solve(R_newton)
-                        R_newton = self.R_x(xn1, yn1)
-                        error_newton = np.max(np.absolute(R_newton))
-                        converged_newton = error_newton < self.options.newton_atol
-
-                else:
-                    xn1, converged_newton, error_newton, i_newton, _ = fsolve(
-                        self.R_x,
-                        self.xn,
-                        jac=self.J_x,
-                        fun_args=(yn1,),
-                        jac_args=(yn1,),
-                        atol=self.options.newton_atol,
-                        max_iter=self.options.newton_max_iter,
-                    )
-                    solver_summary.add_lu(i_newton)
-
-                # convergence in smooth state (without Lagrange multipliers)
-                diff = xn1[:n_state] - x0[:n_state]
-
-                # error measure, see Hairer1993, Section II.4
-                sc = (
-                    self.options.fixed_point_atol
-                    + np.maximum(np.abs(x0[:n_state]), np.abs(xn1[:n_state]))
-                    * self.options.fixed_point_rtol
+            else:
+                xn1, converged_newton, error_newton, i_newton, _ = fsolve(
+                    self.R_x,
+                    xn1,
+                    jac=self.J_x,
+                    fun_args=(yn1,),
+                    jac_args=(yn1,),
+                    atol=self.options.newton_atol,
+                    max_iter=self.options.newton_max_iter,
                 )
-                error = np.linalg.norm(diff / sc) / sc.size**0.5
-                converged = error < 1.0 and converged_newton
+                solver_summary.add_lu(i_newton)
 
-                if converged:
-                    break
+            # fixed-point loop
+            converged = False
+            n_state = self.nx - self.nla_g - self.nla_gamma
+            if self.nla_N + self.nla_F > 0:
+                for i_fixed_point in range(self.options.fixed_point_max_iter):
+                    # find proximal point
+                    yn1 = self.prox(xn1, yn1)
+
+                    if i_fixed_point > 0:
+                        # all other iterations convergence in smooth state (without Lagrange multipliers)
+                        f0 = x0[:n_state]
+                        f1 = xn1[:n_state]
+                    else:
+                        # first fixed-point iteration has to converge in percussions
+                        f0 = y0
+                        f1 = yn1
+
+                    # error measure, see Hairer1993, Section II.4
+                    diff = f1 - f0
+                    sc = (
+                        self.options.fixed_point_atol
+                        + np.maximum(np.abs(f0), np.abs(f1))
+                        * self.options.fixed_point_rtol
+                    )
+                    error = np.linalg.norm(diff / sc) / sc.size**0.5
+                    converged = error < 1.0 and converged_newton
+
+                    if converged:
+                        break
+                    else:
+                        # update values
+                        x0 = xn1.copy()
+                        y0 = yn1.copy()
+
+                        # solve nonlinear system again
+                        if self.options.reuse_lu_decomposition:
+                            # compute new residual and check convergence
+                            R_newton = self.R_x(xn1, yn1)
+                            error_newton = np.max(np.absolute(R_newton))
+                            converged_newton = error_newton < self.options.newton_atol
+
+                            # Newton loop with inexact Jacobian
+                            if not converged_newton:
+                                i_newton = 0
+                            while (not converged_newton) and (
+                                i_newton < self.options.newton_max_iter
+                            ):
+                                i_newton += 1
+                                # compute new Jacobian if requested
+                                if i_newton >= self.options.reuse_lu_max_iter:
+                                    lu = splu(self.J_x(xn1, yn1))
+                                    solver_summary.add_lu(1)
+                                    i_newton = 0
+
+                                xn1 -= lu.solve(R_newton)
+                                R_newton = self.R_x(xn1, yn1)
+                                error_newton = np.max(np.absolute(R_newton))
+                                converged_newton = (
+                                    error_newton < self.options.newton_atol
+                                )
+
+                        else:
+                            xn1, converged_newton, error_newton, i_newton, _ = fsolve(
+                                self.R_x,
+                                xn1,
+                                jac=self.J_x,
+                                fun_args=(yn1,),
+                                jac_args=(yn1,),
+                                atol=self.options.newton_atol,
+                                max_iter=self.options.newton_max_iter,
+                            )
+                            solver_summary.add_lu(i_newton)
+            else:
+                converged = True
+                i_fixed_point = 0
+                diff = 0.0
+
+            if not converged:
+                if self.options.continue_with_unconverged:
+                    warnings.warn(
+                        "fixed-point iteration is not converged but integration is continued"
+                    )
                 else:
-                    # update values
-                    x0 = xn1.copy()
-                    y0 = yn1.copy()
+                    raise RuntimeError("fixed-point iteration is not converged")
 
             fixed_point_absolute_error = np.max(np.abs(diff))
             solver_summary.add_fixed_point(i_fixed_point, fixed_point_absolute_error)

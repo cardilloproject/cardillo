@@ -5,7 +5,7 @@ from scipy.integrate import solve_ivp
 from cardillo import System
 from cardillo.discrete import PointMass
 from cardillo.forces import MaxwellElement as MaxwellElementFL
-from cardillo.solver import BackwardEuler, Moreau, ScipyIVP
+from cardillo.solver import BackwardEuler, Moreau, ScipyIVP, Rattle
 
 
 class MaxwellElement:
@@ -193,7 +193,8 @@ if __name__ == "__main__":
     dt = 1e-3
     # sol = BackwardEuler(system, t1, dt).solve()
     # sol = ScipyIVP(system, t1, dt).solve()
-    sol = Moreau(system, t1, dt).solve()
+    # sol = Moreau(system, t1, dt).solve()
+    sol = Rattle(system, t1, dt).solve()
     t, q, u = sol.t, sol.q, sol.u
 
     # - ref. solution
@@ -216,7 +217,7 @@ if __name__ == "__main__":
     ax[0].grid()
     ax[0].legend()
     ax[1].plot(t, u[:, 0], "-b", label="x_dot")
-    ax[1].plot(t_ref, z_ref[2], "-b", label="x_dot_ref")
+    ax[1].plot(t_ref, z_ref[2], "--b", label="x_dot_ref")
     ax[1].grid()
 
     ax[0].legend()

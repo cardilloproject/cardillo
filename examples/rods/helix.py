@@ -32,7 +32,7 @@ def helix(
     reduced_integration=True,
     VTK_export=False,
     slenderness=1.0e4,
-    atol=1.0e-13
+    atol=1.0e-13,
 ):
     # geometry of the rod
     n = 2  # number of coils
@@ -165,12 +165,35 @@ def helix(
 
 
 if __name__ == "__main__":
-    helix(Rod=make_CosseratRod_SE3(mixed=True), nelements=5, polynomial_degree=1, n_load_steps = 2, reduced_integration=True, slenderness=1.0e4, atol=1.0e-12)
+    helix(
+        Rod=make_CosseratRod_SE3(mixed=True),
+        nelements=5,
+        polynomial_degree=1,
+        n_load_steps=2,
+        reduced_integration=True,
+        slenderness=1.0e4,
+        atol=1.0e-12,
+    )
 
-    helix(Rod=make_CosseratRod_Quat(mixed=True), nelements=10, polynomial_degree=2, n_load_steps = 2, reduced_integration=True, slenderness=1.0e4, atol=1.0e-12)
+    helix(
+        Rod=make_CosseratRod_Quat(mixed=True),
+        nelements=10,
+        polynomial_degree=2,
+        n_load_steps=2,
+        reduced_integration=True,
+        slenderness=1.0e4,
+        atol=1.0e-12,
+    )
 
-    helix(Rod=make_CosseratRod_R12(mixed=True), nelements=10, polynomial_degree=2, n_load_steps = 2, reduced_integration=True, slenderness=1.0e4, atol=1.0e-12)
-
+    helix(
+        Rod=make_CosseratRod_R12(mixed=True),
+        nelements=10,
+        polynomial_degree=2,
+        n_load_steps=2,
+        reduced_integration=True,
+        slenderness=1.0e4,
+        atol=1.0e-12,
+    )
 
     #####################################
     # parameters from Paper Harsch2023a #
@@ -180,7 +203,7 @@ if __name__ == "__main__":
 
     # helix(Rod=make_CosseratRod_SE3(mixed=False), nelements=5, polynomial_degree=1, n_load_steps = 99, reduced_integration=True, slenderness=1.0e2, atol=1.0e-9)
     # # crashes in load step 77
-    
+
     # helix(Rod=make_CosseratRod_SE3(mixed=False), nelements=5, polynomial_degree=1, n_load_steps = 199, reduced_integration=True, slenderness=1.0e3, atol=1.0e-10)
     # # this works
 
@@ -196,7 +219,7 @@ if __name__ == "__main__":
 
     # helix(Rod=make_CosseratRod_SE3(mixed=False), nelements=5, polynomial_degree=1, n_load_steps = 100, reduced_integration=True, slenderness=1.0e2, atol=1.0e-10)
     # # crashes in load step 78
-    
+
     # helix(Rod=make_CosseratRod_SE3(mixed=False), nelements=5, polynomial_degree=1, n_load_steps = 200, reduced_integration=True, slenderness=1.0e3, atol=1.0e-12)
     # # works
 
@@ -206,12 +229,12 @@ if __name__ == "__main__":
     # #######################
     # # paramters that work #
     # #######################
- 
+
     # helix(Rod=make_CosseratRod_SE3(mixed=False), nelements=5, polynomial_degree=1, n_load_steps = 100, reduced_integration=True, slenderness=1.0e1, atol=1.0e-8)
 
     # helix(Rod=make_CosseratRod_SE3(mixed=False), nelements=5, polynomial_degree=1, n_load_steps = 109, reduced_integration=True, slenderness=1.0e2, atol=1.0e-9)
     # strangely: n_load_steps = 110 does not work anymore
-    
+
     # helix(Rod=make_CosseratRod_SE3(mixed=False), nelements=5, polynomial_degree=1, n_load_steps = 200, reduced_integration=True, slenderness=1.0e3, atol=1.0e-12)
 
     # helix(Rod=make_CosseratRod_SE3(mixed=False), nelements=5, polynomial_degree=1, n_load_steps = 700, reduced_integration=True, slenderness=1.0e4, atol=1.0e-14)

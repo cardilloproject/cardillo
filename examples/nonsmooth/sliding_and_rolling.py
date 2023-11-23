@@ -4,7 +4,7 @@ import matplotlib.animation as animation
 
 from cardillo.math.prox import Sphere
 from cardillo import System
-from cardillo.solver import Moreau, BackwardEuler
+from cardillo.solver import Moreau, BackwardEuler, Rattle
 
 
 class SlidingRollingSphereOnPlane:
@@ -24,8 +24,8 @@ class SlidingRollingSphereOnPlane:
         # fmt: off
         self.friction_laws = [
             ([0], [0], Sphere(mu_T)), # Coulomb
-            ([0], [1], Sphere(mu_R)), # rolling with normal force coupling
-            # ([], [1], Sphere(mu_R * mass * gravity)), # rolling with constant normal force
+            # ([0], [1], Sphere(mu_R)), # rolling with normal force coupling
+            ([], [1], Sphere(mu_R * mass * gravity)), # rolling with constant normal force
         ]
         # fmt: on
         self.nla_N = 1
@@ -178,9 +178,13 @@ if __name__ == "__main__":
     dt1 = 5e-2
     dt2 = 5e-2
 
+    # sol1, label1 = (
+    #     BackwardEuler(system, t_final, dt1).solve(),
+    #     "BackwardEuler",
+    # )
     sol1, label1 = (
-        BackwardEuler(system, t_final, dt1).solve(),
-        "BackwardEuler",
+        Rattle(system, t_final, dt1).solve(),
+        "Rattle",
     )
 
     sol2, label2 = (

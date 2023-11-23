@@ -11,6 +11,7 @@ from cardillo.solver import (
     BackwardEuler,
     NonsmoothGeneralizedAlpha,
     SolverOptions,
+    Rattle,
 )
 
 
@@ -205,10 +206,18 @@ def run(case, export=False):
     system.assemble()
 
     # solver1, label1 = Moreau(system, t_final, dt), "Moreau"
-    # solver1, label1 = BackwardEuler(system, t_final, dt), "BackwardEuler"
+    # solver1, label1 = (
+    #     Rattle(
+    #         system,
+    #         t_final,
+    #         dt,
+    #         options=SolverOptions(numerical_jacobian_method="2-point"),
+    #     ),
+    #     "Rattle",
+    # )
     solver1, label1 = (
         BackwardEuler(
-            system, t_final, dt, options=SolverOptions(reuse_lu_decomposition=False)
+            system, t_final, dt, options=SolverOptions(reuse_lu_decomposition=True)
         ),
         "BackwardEuler",
     )
@@ -453,6 +462,6 @@ def run(case, export=False):
 
 if __name__ == "__main__":
     # run(1)
-    run(2)
+    # run(2)
     # run(3)
-    # run(4)
+    run(4)
