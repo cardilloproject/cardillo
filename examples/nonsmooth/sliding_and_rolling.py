@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
+from cardillo.math.prox import Sphere
 from cardillo import System
 from cardillo.solver import Moreau, BackwardEuler
 
@@ -23,7 +24,6 @@ class SlidingRollingSphereOnPlane:
         self.nla_N = 1
         self.nla_F = 2
         self.NF_connectivity = [[0, 1]]
-        from cardillo.math.prox import Sphere
 
         # fmt: off
         self.NF_connectivity2 = [

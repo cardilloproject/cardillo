@@ -249,7 +249,7 @@ class System:
                 e_N.extend(contr.e_N.tolist())
 
             # if contribution has friction
-            if hasattr(contr, "nla_N"):
+            if hasattr(contr, "nla_F"):
                 contr.la_FDOF = np.arange(0, contr.nla_F) + self.nla_F
                 self.nla_F += contr.nla_F
                 e_F.extend(contr.e_F.tolist())

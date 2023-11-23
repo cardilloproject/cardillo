@@ -83,17 +83,18 @@ class Moreau:
         # friction projection
         xi_F = self.W_F.T @ un1 + self.xi_F0
         # for contr, NF_connectivity in self.active_gamma_F_contr:
-        for contr, NF_connectivity in self.active_gamma_F_contr:
-            for i_N, i_F, force_recervoir in NF_connectivity:
-                if len(i_N) > 0:
-                    P_Ni = P_N[i_N]
-                else:
-                    P_Ni = self.dt
+        # for contr, NF_connectivity in self.active_gamma_F_contr:
+        #     for i_N, i_F, force_recervoir in NF_connectivity:
+        for i_N, i_F, force_recervoir in self.global_active_NF_connectivity:
+            if len(i_N) > 0:
+                P_Ni = P_N[i_N]
+            else:
+                P_Ni = self.dt
 
-                P_F[i_F] = -force_recervoir.prox(
-                    self.prox_r_F[i_F] * xi_F[i_F] - P_F[i_F],
-                    P_Ni,
-                )
+            P_F[i_F] = -force_recervoir.prox(
+                self.prox_r_F[i_F] * xi_F[i_F] - P_F[i_F],
+                P_Ni,
+            )
 
         return P_N, P_F
 
@@ -170,7 +171,9 @@ class Moreau:
             # self.I_F, self.NF_connectivity_local = compute_I_F(
             #     self.I_N, self.system.NF_connectivity
             # )
-            self.I_F, self.active_gamma_F_contr = compute_I_F(self.I_N, self.system)
+            self.I_F, self.global_active_NF_connectivity = compute_I_F(
+                self.I_N, self.system
+            )
 
             # note: we use csc_array for efficient column slicing,
             # see https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csc_array.html#scipy.sparse.csc_array

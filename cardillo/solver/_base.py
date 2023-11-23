@@ -74,7 +74,9 @@ def consistent_initial_conditions(
 
     # identify active tangent contacts based on active normal contacts and
     # NF-connectivity lists; compute local NF_connectivity
-    B_F, active_gamma_F_contr = compute_I_F(B_N, system, slice=slice_active_contacts)
+    B_F, global_active_NF_connectivity = compute_I_F(
+        B_N, system, slice=slice_active_contacts
+    )
 
     gamma_F = system.gamma_F(t0, q0, u0)[B_F]
     W_N = system.W_N(t0, q0, format="csc")[:, B_N]
@@ -127,26 +129,25 @@ def consistent_initial_conditions(
         # fixed-point update friction
         #############################
         gamma_F_dot = W_F.T @ u_dot + zeta_F
-        for contr, NF_connectivity in active_gamma_F_contr:
-            for i_N, i_F, force_recervoir in NF_connectivity:
-                if len(i_N) > 0:
-                    la_Ni = la_N[i_N]
-                else:
-                    la_Ni = 1.0
+        for i_N, i_F, force_recervoir in global_active_NF_connectivity:
+            if len(i_N) > 0:
+                la_Ni = la_N[i_N]
+            else:
+                la_Ni = 1.0
 
-                gamma_Fi = gamma_F[i_F]
-                if np.isclose(
-                    norm(gamma_Fi), 0, rtol, atol
-                ):  # possible stick on acceleration level
-                    la_F[i_F] = -force_recervoir.prox(
-                        prox_r_F[i_F] * gamma_F_dot[i_F] - la_F[i_F],
-                        la_Ni,
-                    )
-                else:  # slip
-                    la_F[i_F] = -force_recervoir.prox(
-                        prox_r_F[i_F] * gamma_Fi - la_F[i_F],
-                        la_Ni,
-                    )
+            gamma_Fi = gamma_F[i_F]
+            if np.isclose(
+                norm(gamma_Fi), 0, rtol, atol
+            ):  # possible stick on acceleration level
+                la_F[i_F] = -force_recervoir.prox(
+                    prox_r_F[i_F] * gamma_F_dot[i_F] - la_F[i_F],
+                    la_Ni,
+                )
+            else:  # slip
+                la_F[i_F] = -force_recervoir.prox(
+                    prox_r_F[i_F] * gamma_Fi - la_F[i_F],
+                    la_Ni,
+                )
 
         return la_N, la_F
 
@@ -229,62 +230,40 @@ def consistent_initial_conditions(
     return t0, q0, u0, q_dot0, u_dot0, la_g0, la_gamma0, la_c0, la_N0, la_F0
 
 
-# def compute_I_F(I_N, NF_connectivity):
 def compute_I_F(I_N, system, slice=True):
     """Compute set of active friction contacts based on active normal contacts
     and NF-connectivity list."""
     # compute set of active normal contacts if boolean array is given
+    # TODO: This should not be required in future.
     if I_N.dtype == bool:
         I_N = np.where(I_N)[0]
 
-    # for contr in self.system._System__gamma_F_contr:
-    #     gamma_F_contr = contr.gamma_F(tn1, qn1[contr.qDOF], un1[contr.uDOF])
-    #     la_FDOF = contr.la_FDOF
-    #     dP_Fn1_contr = dP_Fn1[la_FDOF]
-    #     prox_r_F_contr = prox_r_F[la_FDOF]
-    #     for i_N, i_F, force_recervoir in contr.NF_connectivity2:
+    active_normal_contacts = len(I_N) > 0
 
     # compute set of active friction contacts and local connectivity
     I_F = []
-    active_gamma_F_contr = []
+    global_active_NF_connectivity = []
     nla_N = 0
     nla_F = 0
     for contr in system._System__gamma_F_contr:
-        active_NF_connectivity = []
         for i_N, i_F, force_reservoir in contr.NF_connectivity2:
             i_F_global = np.array(i_F, dtype=int) + nla_F
 
-            if i_N:  # normal force dependence
+            if len(i_N) > 0:  # normal force dependence
                 i_N_global = np.array(i_N, dtype=int) + nla_N
                 # only add friction if normal force is active
-                if not slice or len(I_N) > 0 and len(I_N[i_N_global]) > 0:
+                if not slice or (active_normal_contacts and len(I_N[i_N_global]) > 0):
                     I_F.extend(i_F_global)
-                    active_NF_connectivity.append(
+                    global_active_NF_connectivity.append(
                         (i_N_global, i_F_global, force_reservoir)
                     )
 
             else:  # no normal force dependence
-                i_N_global = i_N
                 I_F.extend(i_F_global)
-                active_NF_connectivity.append((i_N_global, i_F_global, force_reservoir))
+                global_active_NF_connectivity.append(([], i_F_global, force_reservoir))
 
         if hasattr(contr, "nla_N"):
             nla_N += contr.nla_N
         nla_F += contr.nla_F
-        if active_NF_connectivity:
-            active_gamma_F_contr.append((contr, active_NF_connectivity))
 
-    return np.array(I_F, dtype=int), active_gamma_F_contr
-
-    # I_F = []
-    # NF_connectivity_sliced = []
-    # nla_F = 0
-    # for i_N in I_N:
-    #     i_F = NF_connectivity[i_N]
-    #     I_F.extend(i_F)
-
-    #     nla_Fi = len(i_F)
-    #     NF_connectivity_sliced.append(nla_F + np.arange(nla_Fi))
-    #     nla_F += nla_Fi
-
-    # return np.array(I_F, dtype=int), NF_connectivity_sliced
+    return np.array(I_F, dtype=int), global_active_NF_connectivity
