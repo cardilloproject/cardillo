@@ -157,8 +157,8 @@ if __name__ == "__main__":
     plt.xlabel("$t$")
 
     ax[2].plot(t, u[:, 0], label="$\dot\epsilon$")
-    if eps_p_dot is not None:
-        ax[2].plot(t, eps_p_dot[:, 0], "-r", label="$\dot\epsilon_p$")
+    # if eps_p_dot is not None:
+    #     ax[2].plot(t, eps_p_dot[:, 0], "-r", label="$\dot\epsilon_p$")
     ax[2].grid()
     ax[2].legend()
     plt.xlabel("$t$")

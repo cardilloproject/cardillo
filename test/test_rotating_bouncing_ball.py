@@ -34,8 +34,7 @@ class RotatingBouncingBall:
 
         # fmt: off
         self.NF_connectivity2 = [
-            ([0,], [0], Sphere()), # Coulomb
-            # ([0,], [1], Hypersphere()), # rolling
+            ([0], [0], Sphere(mu)), # Coulomb
         ]
         # fmt: on
         # self.NF_connectivity2 = [
@@ -43,7 +42,7 @@ class RotatingBouncingBall:
         #     ([0,], [0, 1], Hypersphere()),  # isotropic Coulomb friction
         #     ([0,], [2, 3], Hyperellipsoid(dimension=2, scaling=[1, 0.5])), # anisotropic Coulomb friction
         # ]
-        self.mu = np.atleast_1d(mu)
+        # self.mu = np.atleast_1d(mu)
         self.e_N = np.atleast_1d(e_N)
         self.e_F = np.atleast_1d(e_F)
 
