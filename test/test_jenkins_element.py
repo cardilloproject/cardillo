@@ -86,8 +86,6 @@ class JenkinsElement:
         )
 
     def h_u(self, t, q, u):
-        # from cardillo.math import approx_fprime
-        # return approx_fprime(u, lambda u: self.h(t, q, u))
         _, sigma, la_c = u
         prox_der = self.prox_x(sigma - self.prox_r * la_c)
 
