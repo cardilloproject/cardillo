@@ -55,11 +55,8 @@ class BackwardEuler:
         self.nla_c = system.nla_c
         self.nla_N = system.nla_N
         self.nla_F = system.nla_F
-        self.nla_S = self.system.nla_S
 
-        self.nx = (
-            self.nq + self.nu + self.nla_g + self.nla_gamma + self.nla_c + self.nla_S
-        )
+        self.nx = self.nq + self.nu + self.nla_g + self.nla_gamma + self.nla_c
         self.ny = self.nla_N + self.nla_F
         self.split_x = np.cumsum(
             np.array(
@@ -69,7 +66,6 @@ class BackwardEuler:
                     self.nla_g,
                     self.nla_gamma,
                     self.nla_c,
-                    self.nla_S,
                 ],
                 dtype=int,
             )
@@ -97,7 +93,6 @@ class BackwardEuler:
         self.la_cn = system.la_c0
         self.la_Nn = system.la_N0
         self.la_Fn = system.la_F0
-        self.mu_Sn = np.zeros(self.nla_S)
 
         #######################################################################
         # initial values
@@ -109,7 +104,6 @@ class BackwardEuler:
                 self.la_gn,
                 self.la_gamman,
                 self.la_cn,
-                self.mu_Sn,
             )
         )
         self.yn = self.dt * np.concatenate(
@@ -131,7 +125,6 @@ class BackwardEuler:
             dP_gn1,
             dP_gamman1,
             dP_cn1,
-            dmu_Sn1,
         ) = np.array_split(xn1, self.split_x)
         (
             dP_Nn1,
@@ -151,10 +144,7 @@ class BackwardEuler:
         ####################
         # kinematic equation
         ####################
-        g_S_q = self.system.g_S_q(tn1, qn1, format="csc")
-        R_x[: self.split_x[0]] = (
-            dqn1 - dt * self.system.q_dot(tn1, qn1, un1) - g_S_q.T @ dmu_Sn1
-        )
+        R_x[: self.split_x[0]] = dqn1 - dt * self.system.q_dot(tn1, qn1, un1)
 
         ####################
         # equations of motion
@@ -181,14 +171,7 @@ class BackwardEuler:
         ############
         # compliance
         ############
-        R_x[self.split_x[3] : self.split_x[4]] = self.system.c(
-            tn1, qn1, un1, dP_cn1 / self.dt
-        )
-
-        ##########################
-        # quaternion stabilization
-        ##########################
-        R_x[self.split_x[4] :] = self.system.g_S(tn1, qn1)
+        R_x[self.split_x[3] :] = self.system.c(tn1, qn1, un1, dP_cn1 / self.dt)
 
         return R_x
 
@@ -199,7 +182,6 @@ class BackwardEuler:
             dP_gn1,
             dP_gamman1,
             dP_cn1,
-            dmu_Sn1,
         ) = np.array_split(xn1, self.split_x)
         (
             dP_Nn1,
@@ -214,13 +196,8 @@ class BackwardEuler:
         ####################
         # kinematic equation
         ####################
-        Rq_dot_q_dot = eye(self.nq) - (
-            dt * self.system.q_dot_q(tn1, qn1, un1)
-            + self.system.g_S_q_T_mu_q(tn1, qn1, dmu_Sn1)
-        )
+        Rq_dot_q_dot = eye(self.nq) - dt * self.system.q_dot_q(tn1, qn1, un1)
         Rq_dot_u_dot = -dt * self.system.q_dot_u(tn1, qn1)
-        g_S_q = self.system.g_S_q(tn1, qn1)
-        g_S_q_dot = g_S_q
 
         ########################
         # equations of motion (1)
@@ -258,12 +235,11 @@ class BackwardEuler:
         # fmt: off
         J = bmat(
             [
-                [   Rq_dot_q_dot,    Rq_dot_u_dot, None,     None,       None, -g_S_q.T],
-                [   Ru_dot_q_dot,    Ru_dot_u_dot, -W_g, -W_gamma,       -W_c,     None],
-                [    Rla_g_q_dot,            None, None,     None,       None,     None],
-                [Rla_gamma_q_dot, Rla_gamma_u_dot, None,     None,       None,     None],
-                [    Rla_c_q_dot,     Rla_c_u_dot, None,     None, Rla_c_la_c,     None],
-                [      g_S_q_dot,            None, None,     None,       None,     None],
+                [   Rq_dot_q_dot,    Rq_dot_u_dot, None,     None,       None],
+                [   Ru_dot_q_dot,    Ru_dot_u_dot, -W_g, -W_gamma,       -W_c],
+                [    Rla_g_q_dot,            None, None,     None,       None],
+                [Rla_gamma_q_dot, Rla_gamma_u_dot, None,     None,       None],
+                [    Rla_c_q_dot,     Rla_c_u_dot, None,     None, Rla_c_la_c],
             ],
             format="csc",
         )
@@ -275,7 +251,6 @@ class BackwardEuler:
         (
             dqn1,
             dun1,
-            _,
             _,
             _,
             _,
@@ -339,7 +314,6 @@ class BackwardEuler:
         P_gamma = [self.dt * self.la_gamman]
         P_N = [self.dt * self.la_Nn]
         P_F = [self.dt * self.la_Fn]
-        mu_S = [self.mu_Sn]
 
         # initial Jacobian
         if self.options.reuse_lu_decomposition:
@@ -508,7 +482,6 @@ class BackwardEuler:
                 dP_gn1,
                 dP_gamman1,
                 dP_cn1,
-                dmu_Sn1,
             ) = np.array_split(xn1, self.split_x)
             (
                 dP_Nn1,
@@ -531,7 +504,6 @@ class BackwardEuler:
             P_gamma.append(dP_gamman1)
             P_N.append(dP_Nn1)
             P_F.append(dP_Fn1)
-            mu_S.append(dmu_Sn1 / self.dt)
 
             # update local variables for accepted time step
             self.xn = xn1.copy()
@@ -555,5 +527,4 @@ class BackwardEuler:
             P_gamma=np.array(P_gamma),
             P_N=np.array(P_N),
             P_F=np.array(P_F),
-            mu_S=np.array(mu_S),
         )
