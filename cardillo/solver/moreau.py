@@ -4,7 +4,7 @@ from scipy.sparse.linalg import splu
 from tqdm import tqdm
 
 from cardillo.solver import SolverOptions, SolverSummary, Solution, compute_I_F
-from cardillo.math import prox_R0_np, prox_sphere, estimate_prox_parameter
+from cardillo.math import prox_R0_np, prox_R0_nm, prox_sphere, estimate_prox_parameter
 
 
 class Moreau:
@@ -69,15 +69,31 @@ class Moreau:
     def prox(self, un1, P_N, P_F):
         # projection for contacts
         xi_N = self.W_N.T @ un1 + self.xi_N0
-        P_N = prox_R0_np(P_N - self.prox_r_N * xi_N)
+        # P_N = prox_R0_np(P_N - self.prox_r_N * xi_N)
+        P_N = -prox_R0_nm(self.prox_r_N * xi_N - P_N)
+
+        # # friction projection
+        # xi_F = self.W_F.T @ un1 + self.xi_F0
+        # for i_N, i_F in enumerate(self.NF_connectivity_local):
+        #     P_F[i_F] = prox_sphere(
+        #         P_F[i_F] - self.prox_r_F[i_F] * xi_F[i_F],
+        #         self.mu[i_N] * P_N[i_N],
+        #     )
 
         # friction projection
         xi_F = self.W_F.T @ un1 + self.xi_F0
-        for i_N, i_F in enumerate(self.NF_connectivity_local):
-            P_F[i_F] = prox_sphere(
-                P_F[i_F] - self.prox_r_F[i_F] * xi_F[i_F],
-                self.mu[i_N] * P_N[i_N],
-            )
+        # for contr, NF_connectivity in self.active_gamma_F_contr:
+        for contr, NF_connectivity in self.active_gamma_F_contr:
+            for i_N, i_F, force_recervoir in NF_connectivity:
+                if i_N:
+                    P_Ni = P_N[i_N]
+                else:
+                    P_Ni = 1.0
+
+                P_F[i_F] = -force_recervoir.prox(
+                    self.prox_r_F[i_F] * xi_F[i_F] - P_F[i_F],
+                    P_Ni,
+                )
 
         return P_N, P_F
 
@@ -147,13 +163,14 @@ class Moreau:
         # only enter fixed-point loop if any contact is active
         if len(self.I_N) > 0:
             # slice friction coefficients
-            self.mu = self.system.mu[self.I_N]
+            # self.mu = self.system.mu[self.I_N]
 
             # identify active tangent contacts based on active normal contacts and
             # NF-connectivity lists; compute local NF_connectivity
-            self.I_F, self.NF_connectivity_local = compute_I_F(
-                self.I_N, self.system.NF_connectivity
-            )
+            # self.I_F, self.NF_connectivity_local = compute_I_F(
+            #     self.I_N, self.system.NF_connectivity
+            # )
+            self.I_F, self.active_gamma_F_contr = compute_I_F(self.I_N, self.system)
 
             # note: we use csc_array for efficient column slicing,
             # see https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csc_array.html#scipy.sparse.csc_array

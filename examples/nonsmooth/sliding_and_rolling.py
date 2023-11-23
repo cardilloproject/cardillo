@@ -29,8 +29,8 @@ class SlidingRollingSphereOnPlane:
         self.NF_connectivity2 = [
             # (i_N, i_F, radius, force_reservoir), # prototype
             ([0], [0], Sphere(mu_T)), # Coulomb
-            # ([0], [1], Hypersphere(mu_R)), # rolling with normal force coupling
-            ([], [1], Sphere(mu_R * mass * gravity)), # rolling with constant normal force
+            ([0], [1], Sphere(mu_R)), # rolling with normal force coupling
+            # ([], [1], Sphere(mu_R * mass * gravity)), # rolling with constant normal force
         ]
         # fmt: on
         # self.mu = np.array([mu_T, mu_R])

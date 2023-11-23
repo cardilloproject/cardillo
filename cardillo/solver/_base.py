@@ -58,7 +58,6 @@ def consistent_initial_conditions(
     # compute constant contact quantities
     g_N = system.g_N(t0, q0)
     g_N_dot = system.g_N_dot(t0, q0, u0)
-    gamma_F = system.gamma_F(t0, q0, u0)
     A_N = np.isclose(g_N, np.zeros(system.nla_N), rtol, atol)
     B_N = A_N * np.isclose(g_N_dot, np.zeros(system.nla_N), rtol, atol)
 
@@ -72,18 +71,17 @@ def consistent_initial_conditions(
     # get set of active normal contacts
     B_N = np.where(B_N)[0]
 
-    # # identify active tangent contacts based on active normal contacts and
-    # # NF-connectivity lists; compute local NF_connectivity
-    # # B_F, NF_connectivity_sliced = compute_I_F(B_N, system.NF_connectivity)
-    # B_F, active_I_F_contributions = compute_I_F(B_N, system)
+    # identify active tangent contacts based on active normal contacts and
+    # NF-connectivity lists; compute local NF_connectivity
+    B_F, active_gamma_F_contr = compute_I_F(B_N, system)
 
-    W_N = system.W_N(t0, q0, format="csc")  # [:, B_N]
-    W_F = system.W_F(t0, q0, format="csc")  # [:, B_F]
-    zeta_N = system.g_N_ddot(t0, q0, u0, np.zeros_like(u0))  # [B_N]
-    zeta_F = system.gamma_F_dot(t0, q0, u0, np.zeros_like(u0))  # [B_F]
+    gamma_F = system.gamma_F(t0, q0, u0)[B_F]
+    W_N = system.W_N(t0, q0, format="csc")[:, B_N]
+    W_F = system.W_F(t0, q0, format="csc")[:, B_F]
+    zeta_N = system.g_N_ddot(t0, q0, u0, np.zeros_like(u0))[B_N]
+    zeta_F = system.gamma_F_dot(t0, q0, u0, np.zeros_like(u0))[B_F]
     prox_r_N = estimate_prox_parameter(options.prox_scaling, W_N, M)
     prox_r_F = estimate_prox_parameter(options.prox_scaling, W_F, M)
-    # mu = system.mu[B_N]
 
     split_x = np.cumsum(
         [
@@ -128,65 +126,31 @@ def consistent_initial_conditions(
         # fixed-point update friction
         #############################
         gamma_F_dot = W_F.T @ u_dot + zeta_F
-        # TODO: Get gamma_f_contr without "private" atrribute
-        for contr in system._System__gamma_F_contr:
-            la_FDOF = contr.la_FDOF
-            gamma_F_contr = gamma_F[la_FDOF]
+        for contr, NF_connectivity in active_gamma_F_contr:
+            # la_FDOF = contr.la_FDOF
+            # gamma_F_contr = gamma_F[la_FDOF]
 
-            for i_N, i_F, force_recervoir in contr.NF_connectivity2:
-                # for i_N, i_F, force_recervoir in active_I_F_contributions:
-                gamma_Fi = gamma_F_contr[i_F]
-                norm_gamma_Fi = norm(gamma_Fi)
-                la_FDOFi = la_FDOF[i_F]
+            for i_N, i_F, force_recervoir in NF_connectivity:
+                gamma_Fi = gamma_F[i_F]
+                # norm_gamma_Fi = norm(gamma_Fi)
+                # la_FDOFi = la_FDOF[i_F]
                 if i_N:
-                    la_Ni = la_N[contr.la_NDOF[i_N]]
+                    la_Ni = la_N[i_N]
                 else:
                     la_Ni = 1.0
 
                 if np.isclose(
-                    norm_gamma_Fi, 0, rtol, atol
+                    norm(gamma_Fi), 0, rtol, atol
                 ):  # possible stick on acceleration level
-                    la_F[la_FDOFi] = -force_recervoir.prox(
-                        prox_r_F[i_F] * gamma_F_dot[la_FDOFi] - la_F[la_FDOFi],
+                    la_F[i_F] = -force_recervoir.prox(
+                        prox_r_F[i_F] * gamma_F_dot[i_F] - la_F[i_F],
                         la_Ni,
                     )
                 else:  # slip
-                    la_F[la_FDOFi] = -force_recervoir.prox(
-                        prox_r_F[i_F] * gamma_Fi - la_F[la_FDOFi],
+                    la_F[i_F] = -force_recervoir.prox(
+                        prox_r_F[i_F] * gamma_Fi - la_F[i_F],
                         la_Ni,
                     )
-
-            # la_F_contr = la_F[la_FDOF]
-            # prox_r_F_contr = prox_r_F[la_FDOF]
-            # for i_N, i_F, force_recervoir in contr.NF_connectivity2:
-            #     if i_F:
-            #         arg = prox_r_F_contr[i_F] * gamma_F_contr[i_F] - dP_Fn1_contr[i_F]
-            #         if i_N:
-            #             dP_Nn1i = dP_Nn1[contr.la_NDOF[i_N]]
-            #             y1[self.split_y[0] + la_FDOF[i_F]] = -force_recervoir.prox(
-            #                 arg, dP_Nn1i
-            #             )
-            #         else:
-            #             # TODO: This "* dt" is ugly...
-            #             y1[self.split_y[0] + la_FDOF[i_F]] = -force_recervoir.prox(
-            #                 arg, self.dt
-            #             )
-            #     else:
-            #         # no friction, this should not be the case in future
-            #         raise RuntimeError("You should never be here!")
-
-        # gamma_F_dot = W_F.T @ u_dot + zeta_F
-        # for i_N, i_F in enumerate(NF_connectivity_sliced):
-        #     norm_gamma_Fi = norm(gamma_F[i_F])
-        #     if np.isclose(
-        #         norm_gamma_Fi, 0, rtol, atol
-        #     ):  # possible stick on acceleration level
-        #         la_F[i_F] = prox_sphere(
-        #             prox_r_F[i_F] * gamma_F_dot[i_F] - la_F[i_F],
-        #             mu[i_N] * la_N[i_N],
-        #         )
-        #     else:  # slip
-        #         la_F[i_F] = -mu[i_N] * la_N[i_N] * gamma_F[i_F] / norm_gamma_Fi
 
         return la_N, la_F
 
@@ -201,10 +165,10 @@ def consistent_initial_conditions(
     if len(B_N) > 0:
         # fixed-point loop
         x1 = x0.copy()
-        # la_N1 = la_N0[B_N].copy()
-        # la_F1 = la_F0[B_F].copy()
-        la_N1 = la_N0.copy()
-        la_F1 = la_F0.copy()
+        la_N1 = la_N0[B_N].copy()
+        la_F1 = la_F0[B_F].copy()
+        # la_N1 = la_N0.copy()
+        # la_F1 = la_F0.copy()
         converged_fixed_point = False
         for i_fixed_point in range(options.fixed_point_max_iter):
             # find proximal point
@@ -224,10 +188,10 @@ def consistent_initial_conditions(
 
             converged_fixed_point = error_fixed_point < options.fixed_point_atol
             if converged_fixed_point:
-                # la_N0[B_N] = la_N1
-                # la_F0[B_F] = la_F1
-                la_N0 = la_N1
-                la_F0 = la_F1
+                la_N0[B_N] = la_N1
+                la_F0[B_F] = la_F1
+                # la_N0 = la_N1
+                # la_F0 = la_F1
                 break
             else:
                 # update values
@@ -290,20 +254,35 @@ def compute_I_F(I_N, system):
 
     # compute set of active friction contacts and local connectivity
     I_F = []
-    active_NF_connectivity = []
+    active_gamma_F_contr = []
+    nla_N = 0
+    nla_F = 0
     for contr in system._System__gamma_F_contr:
-        active = False
-        la_NDOF = contr.la_NDOF
-        la_FDOF = contr.la_FDOF
-        I_N_contr = I_N[la_NDOF]
+        active_NF_connectivity = []
         for i_N, i_F, force_reservoir in contr.NF_connectivity2:
-            if i_N and len(I_N_contr[i_N]) > 0:
-                I_F.extend(la_FDOF[i_F])
-                active = True
-        if active:
-            active_NF_connectivity.append(contr.NF_connectivity2)
+            i_F_global = np.array(i_F, dtype=int) + nla_F
 
-    return np.array(I_F, dtype=int), active_NF_connectivity
+            if i_N:  # normal force dependence
+                i_N_global = np.array(i_N, dtype=int) + nla_N
+                # only add friction if normal force is active
+                if len(I_N) > 0 and len(I_N[i_N_global]) > 0:
+                    I_F.extend(i_F_global)
+                    active_NF_connectivity.append(
+                        (i_N_global, i_F_global, force_reservoir)
+                    )
+
+            else:  # no normal force dependence
+                i_N_global = i_N
+                I_F.extend(i_F_global)
+                active_NF_connectivity.append((i_N_global, i_F_global, force_reservoir))
+
+        if hasattr(contr, "nla_N"):
+            nla_N += contr.nla_N
+        nla_F += contr.nla_F
+        if active_NF_connectivity:
+            active_gamma_F_contr.append((contr, active_NF_connectivity))
+
+    return np.array(I_F, dtype=int), active_gamma_F_contr
 
     # I_F = []
     # NF_connectivity_sliced = []
