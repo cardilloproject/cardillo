@@ -1,9 +1,8 @@
 import numpy as np
-from scipy.sparse.linalg import spsolve, splu
-from scipy.sparse import bmat, eye, diags, csc_array
+from scipy.sparse import csc_array
 from tqdm import tqdm
 
-from cardillo.math.prox import prox_R0_nm, prox_R0_np, prox_sphere
+from cardillo.math.prox import NegativeOrthant
 from cardillo.math import fsolve, approx_fprime, estimate_prox_parameter
 from cardillo.solver import Solution, SolverOptions, SolverSummary
 
@@ -14,7 +13,7 @@ class Rattle:
         system,
         t1,
         dt,
-        options=SolverOptions(numerical_jacobian_method='2-point'),
+        options=SolverOptions(numerical_jacobian_method="2-point"),
     ):
         """
         Nonsmooth extension of RATTLE.
@@ -217,7 +216,6 @@ class Rattle:
 
         P_N1, P_F1 = np.array_split(y1n1, self.split_y)
 
-        mu = self.system.mu
         prox_r_N = self.prox_r_N
         prox_r_F = self.prox_r_F
 
@@ -228,25 +226,30 @@ class Rattle:
         ##############################
         g_N = self.system.g_N(tn1, qn1)
         prox_arg = (prox_r_N / self.dt) * g_N - P_N1
-        y1n1p[: self.split_y[0]] = -prox_R0_nm(prox_arg)
+        y1n1p[: self.split_y[0]] = -NegativeOrthant.prox(prox_arg)
 
         #############################
         # fixed-point update friction
         #############################
-        gamma_F = self.system.gamma_F(tn1, qn1, un12)
-        for i_N, i_F in enumerate(self.system.NF_connectivity):
-            if len(i_F):
-                y1n1p[self.split_y[0] + np.array(i_F)] = -prox_sphere(
-                    prox_r_F[i_F] * gamma_F[i_F] - P_F1[i_F],
-                    mu[i_N] * P_N1[i_N],
+        for contr in self.system.get_contribution_list("gamma_F"):
+            gamma_F_contr = contr.gamma_F(tn1, qn1[contr.qDOF], un12[contr.uDOF])
+            la_FDOF = contr.la_FDOF
+            P_Fn1_contr = P_F1[la_FDOF]
+            prox_r_F_contr = prox_r_F[la_FDOF]
+            for i_N, i_F, force_recervoir in contr.friction_laws:
+                if len(i_N) > 0:
+                    P_Nn1i = P_N1[contr.la_NDOF[i_N]]
+                else:
+                    P_Nn1i = self.dt
+
+                y1n1p[self.split_y[0] + la_FDOF[i_F]] = -force_recervoir.prox(
+                    prox_r_F_contr[i_F] * gamma_F_contr[i_F] - P_Fn1_contr[i_F],
+                    P_Nn1i,
                 )
 
         return y1n1p
 
     def R_x2(self, x2n1, y2n1):
-        # R = np.zeros_like(x2n1)
-        # R[: self.split_x2[0]]
-
         dt = self.dt
         tn = self.tn
 
@@ -306,7 +309,6 @@ class Rattle:
 
         P_N, P_F = np.array_split(self.y1n + y2n1, self.split_y)
 
-        mu = self.system.mu
         prox_r_N = self.prox_r_N
         prox_r_F = self.prox_r_F
 
@@ -316,18 +318,28 @@ class Rattle:
         # fixed-point update Signorini
         ##############################
         xi_N = self.system.xi_N(tn, tn1, qn, qn1, un, un1)
-        prox_arg = prox_r_N * xi_N - P_N
-        y2n1p[: self.split_y[0]] = self.I_N * (-prox_R0_nm(prox_arg))
+        y2n1p[: self.split_y[0]] = self.I_N * (
+            -NegativeOrthant.prox(prox_r_N * xi_N - P_N)
+        )
 
         #############################
         # fixed-point update friction
         #############################
         xi_F = self.system.xi_F(tn, tn1, qn, qn1, un, un1)
-        for i_N, i_F in enumerate(self.system.NF_connectivity):
-            if len(i_F):
-                y2n1p[self.split_y[0] + np.array(i_F)] = -prox_sphere(
-                    prox_r_F[i_F] * xi_F[i_F] - P_F[i_F],
-                    mu[i_N] * P_N[i_N],
+        for contr in self.system.get_contribution_list("gamma_F"):
+            la_FDOF = contr.la_FDOF
+            xi_F_contr = xi_F[la_FDOF]
+            P_F_contr = P_F[la_FDOF]
+            prox_r_F_contr = prox_r_F[la_FDOF]
+            for i_N, i_F, force_recervoir in contr.friction_laws:
+                if len(i_N) > 0:
+                    P_Ni = P_N[contr.la_NDOF[i_N]]
+                else:
+                    P_Ni = self.dt
+
+                y2n1p[self.split_y[0] + la_FDOF[i_F]] = -force_recervoir.prox(
+                    prox_r_F_contr[i_F] * xi_F_contr[i_F] - P_F_contr[i_F],
+                    P_Ni,
                 )
 
         return y2n1p - self.y1n
@@ -419,7 +431,7 @@ class Rattle:
             self.x1n = x1n1.copy()
             self.y1n = y1n1.copy()
 
-            self.I_N = y1n1[: self.split_y[0]]>0
+            self.I_N = y1n1[: self.split_y[0]] > 0
 
             #########
             # Stage 2
