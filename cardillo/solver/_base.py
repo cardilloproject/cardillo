@@ -2,19 +2,17 @@ import numpy as np
 from scipy.sparse import bmat
 from scipy.sparse.linalg import splu
 from cardillo.math import (
-    prox_sphere,
-    prox_R0_nm,
+    NegativeOrthant,
     norm,
     estimate_prox_parameter,
 )
 
+from cardillo.definitions import IS_CLOSE_ATOL
 from .solver_options import SolverOptions
 
 
 def consistent_initial_conditions(
     system,
-    rtol=1.0e-5,  # TODO: Rename; can they be changed by the user?
-    atol=1.0e-8,  # TODO: Rename; can they be changed by the user?
     slice_active_contacts=True,
     options=SolverOptions(),
 ):
@@ -59,8 +57,8 @@ def consistent_initial_conditions(
     # compute constant contact quantities
     g_N = system.g_N(t0, q0)
     g_N_dot = system.g_N_dot(t0, q0, u0)
-    A_N = np.isclose(g_N, np.zeros(system.nla_N), rtol, atol)
-    B_N = A_N * np.isclose(g_N_dot, np.zeros(system.nla_N), rtol, atol)
+    A_N = np.isclose(g_N, np.zeros(system.nla_N), atol=IS_CLOSE_ATOL)
+    B_N = A_N * np.isclose(g_N_dot, np.zeros(system.nla_N), atol=IS_CLOSE_ATOL)
 
     assert np.all(
         np.logical_or(g_N >= 0, A_N)
@@ -74,7 +72,7 @@ def consistent_initial_conditions(
 
     # identify active tangent contacts based on active normal contacts and
     # NF-connectivity lists; compute local NF_connectivity
-    B_F, global_active_NF_connectivity = compute_I_F(
+    B_F, global_active_friction_laws = compute_I_F(
         B_N, system, slice=slice_active_contacts
     )
 
@@ -122,14 +120,13 @@ def consistent_initial_conditions(
         # fixed-point update Signorini
         ##############################
         g_N_ddot = W_N.T @ u_dot + zeta_N
-        prox_arg = prox_r_N * g_N_ddot - la_N
-        la_N = -prox_R0_nm(prox_arg)
+        la_N = -NegativeOrthant.prox(prox_r_N * g_N_ddot - la_N)
 
         #############################
         # fixed-point update friction
         #############################
         gamma_F_dot = W_F.T @ u_dot + zeta_F
-        for i_N, i_F, force_recervoir in global_active_NF_connectivity:
+        for i_N, i_F, force_recervoir in global_active_friction_laws:
             if len(i_N) > 0:
                 la_Ni = la_N[i_N]
             else:
@@ -137,7 +134,7 @@ def consistent_initial_conditions(
 
             gamma_Fi = gamma_F[i_F]
             if np.isclose(
-                norm(gamma_Fi), 0, rtol, atol
+                norm(gamma_Fi), 0, atol=IS_CLOSE_ATOL
             ):  # possible stick on acceleration level
                 la_F[i_F] = -force_recervoir.prox(
                     prox_r_F[i_F] * gamma_F_dot[i_F] - la_F[i_F],
@@ -209,22 +206,22 @@ def consistent_initial_conditions(
     g_S0 = system.g_S(t0, q0)
 
     assert np.allclose(
-        g0, np.zeros(system.nla_g), rtol, atol
+        g0, np.zeros(system.nla_g), atol=IS_CLOSE_ATOL
     ), "Initial conditions do not fulfill g0!"
     assert np.allclose(
-        g_dot0, np.zeros(system.nla_g), rtol, atol
+        g_dot0, np.zeros(system.nla_g), atol=IS_CLOSE_ATOL
     ), "Initial conditions do not fulfill g_dot0!"
     assert np.allclose(
-        g_ddot0, np.zeros(system.nla_g), rtol, atol
+        g_ddot0, np.zeros(system.nla_g), atol=IS_CLOSE_ATOL
     ), "Initial conditions do not fulfill g_ddot0!"
     assert np.allclose(
-        gamma0, np.zeros(system.nla_gamma), rtol, atol
+        gamma0, np.zeros(system.nla_gamma), atol=IS_CLOSE_ATOL
     ), "Initial conditions do not fulfill gamma0!"
     assert np.allclose(
-        gamma_dot0, np.zeros(system.nla_gamma), rtol, atol
+        gamma_dot0, np.zeros(system.nla_gamma), atol=IS_CLOSE_ATOL
     ), "Initial conditions do not fulfill gamma_dot0!"
     assert np.allclose(
-        g_S0, np.zeros(system.nla_S), rtol, atol
+        g_S0, np.zeros(system.nla_S), atol=IS_CLOSE_ATOL
     ), "Initial conditions do not fulfill g_S0!"
 
     return t0, q0, u0, q_dot0, u_dot0, la_g0, la_gamma0, la_c0, la_N0, la_F0
@@ -233,20 +230,16 @@ def consistent_initial_conditions(
 def compute_I_F(I_N, system, slice=True):
     """Compute set of active friction contacts based on active normal contacts
     and NF-connectivity list."""
-    # compute set of active normal contacts if boolean array is given
-    # TODO: This should not be required in future.
-    if I_N.dtype == bool:
-        I_N = np.where(I_N)[0]
 
     active_normal_contacts = len(I_N) > 0
 
     # compute set of active friction contacts and local connectivity
     I_F = []
-    global_active_NF_connectivity = []
+    global_active_friction_laws = []
     nla_N = 0
     nla_F = 0
-    for contr in system._System__gamma_F_contr:
-        for i_N, i_F, force_reservoir in contr.NF_connectivity2:
+    for contr in system.get_contribution_list("gamma_F"):
+        for i_N, i_F, force_reservoir in contr.friction_laws:
             i_F_global = np.array(i_F, dtype=int) + nla_F
 
             if len(i_N) > 0:  # normal force dependence
@@ -254,16 +247,16 @@ def compute_I_F(I_N, system, slice=True):
                 # only add friction if normal force is active
                 if not slice or (active_normal_contacts and len(I_N[i_N_global]) > 0):
                     I_F.extend(i_F_global)
-                    global_active_NF_connectivity.append(
+                    global_active_friction_laws.append(
                         (i_N_global, i_F_global, force_reservoir)
                     )
 
             else:  # no normal force dependence
                 I_F.extend(i_F_global)
-                global_active_NF_connectivity.append(([], i_F_global, force_reservoir))
+                global_active_friction_laws.append(([], i_F_global, force_reservoir))
 
         if hasattr(contr, "nla_N"):
             nla_N += contr.nla_N
         nla_F += contr.nla_F
 
-    return np.array(I_F, dtype=int), global_active_NF_connectivity
+    return np.array(I_F, dtype=int), global_active_friction_laws

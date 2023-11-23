@@ -4,6 +4,7 @@ from math import pi
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
+from cardillo.math.prox import Sphere
 from cardillo import System
 from cardillo.solver import (
     SolverOptions,
@@ -22,11 +23,15 @@ class Painleve_rod:
         self.g = 10
         self.nu = 0
 
-        self.mu = np.array([mu])
-        self.e_N = np.array([0])
-        self.e_F = np.array([0])
-
-        self.NF_connectivity = [[0]]
+        # fmt: off
+        self.friction_laws = [
+            ([0], [0], Sphere(mu)), # Coulomb
+        ]
+        # fmt: on
+        self.nla_N = 1
+        self.nla_F = 1
+        self.e_N = np.zeros(self.nla_N)
+        self.e_F = np.zeros(self.nla_F)
 
         x0 = 0
         phi0 = 31 / 180 * pi

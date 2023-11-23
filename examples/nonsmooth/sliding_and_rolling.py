@@ -21,21 +21,15 @@ class SlidingRollingSphereOnPlane:
         assert self.nq == len(q0)
         assert self.nu == len(u0)
 
-        self.nla_N = 1
-        self.nla_F = 2
-        self.NF_connectivity = [[0, 1]]
-
         # fmt: off
-        self.NF_connectivity2 = [
-            # (i_N, i_F, radius, force_reservoir), # prototype
+        self.friction_laws = [
             ([0], [0], Sphere(mu_T)), # Coulomb
             ([0], [1], Sphere(mu_R)), # rolling with normal force coupling
             # ([], [1], Sphere(mu_R * mass * gravity)), # rolling with constant normal force
         ]
         # fmt: on
-        # self.mu = np.array([mu_T, mu_R])
-        self.mu = np.array([mu_T, mu_R * mass * gravity])
-        self.my = np.ones(2)
+        self.nla_N = 1
+        self.nla_F = 2
         self.e_N = np.zeros(self.nla_N)
         self.e_F = np.zeros(self.nla_F)
 

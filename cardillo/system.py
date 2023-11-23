@@ -156,19 +156,8 @@ class System:
         self.assemble(**kwargs)
         return system_copy
 
-    def get_contributions(self, name):
-        """return contributions whose class name contains "name"
-
-        Args:
-            name (_type_): class name or part of class name of contributions which are returned
-        """
-        ret = []
-        for n in name:
-            for contr in self.contributions:
-                contr_type = ".".join([type(contr).__module__, type(contr).__name__])
-                if contr_type.find(n) != -1:
-                    ret.append(contr)
-        return ret
+    def get_contribution_list(self, contr):
+        return getattr(self, f"_{self.__class__.__name__}__{contr}_contr")
 
     def reset(self):
         for contr in self.contributions:
@@ -188,15 +177,10 @@ class System:
         u0 = []
         e_N = []
         e_F = []
-        mu = []
-        NF_connectivity = []
-        N_has_friction = []
-        Ncontr_connectivity = []
 
         for p in properties:
             setattr(self, f"_{self.__class__.__name__}__{p}_contr", [])
 
-        n_laN_contr = 0
         for contr in self.contributions:
             contr.t0 = self.t0
             for p in properties:
@@ -253,29 +237,9 @@ class System:
                 contr.la_FDOF = np.arange(0, contr.nla_F) + self.nla_F
                 self.nla_F += contr.nla_F
                 e_F.extend(contr.e_F.tolist())
-                # mu.extend(contr.mu.tolist())
-                # for i in range(contr.nla_N):
-                #     NF_connectivity.append(
-                #         contr.la_FDOF[
-                #             np.array(contr.NF_connectivity[i], dtype=int)
-                #         ].tolist()
-                #     )
-                #     N_has_friction.append(True if contr.NF_connectivity[i] else False)
-                #     Ncontr_connectivity.append(n_laN_contr)
-                # n_laN_contr += 1
-
-        # # convert to numpy array if NF_connectivity is homogeneous, otherwise
-        # # a dtype=object is chosen to get an slicable object
-        # try:
-        #     self.NF_connectivity = np.array(NF_connectivity, dtype=int)
-        # except:
-        #     self.NF_connectivity = np.array(NF_connectivity, dtype=object)
 
         self.e_N = np.array(e_N)
         self.e_F = np.array(e_F)
-        # self.mu = np.array(mu)
-        # self.N_has_friction = np.array(N_has_friction, dtype=bool)
-        # self.Ncontr_connectivity = np.array(Ncontr_connectivity, dtype=int)
 
         # call assembler callback: call methods that require first an assembly of the system
         self.assembler_callback()

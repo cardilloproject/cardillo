@@ -28,11 +28,6 @@ class NegativeOrthant:
     def prox(x):
         return np.minimum(x, np.zeros_like(x))
 
-    # gen = implicit_function(0, 1, 2)
-    # active_set = next(gen)
-    # residual = next(gen)
-    # Jx, Jy = next(gen)
-
     @staticmethod
     def implicit_function(x, y, rho):
         active_set = (rho * x - y) <= 0
@@ -63,7 +58,7 @@ class NegativeOrthant:
 
 class Sphere:
     """This class collects functions related to the set `C(z; r) = {y | ||y|| <= r * z}`,
-    a n-dimensional ball of radius `r*z`.
+    a n-dimensional ball of radius `r * z`.
 
     This includes
     - proximal point

@@ -4,6 +4,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
+from cardillo.math.prox import Sphere
 from cardillo import System
 from cardillo.solver import (
     Moreau,
@@ -27,22 +28,12 @@ class RotatingBouncingBall:
         assert self.nq == len(q0)
         assert self.nu == len(u0)
 
-        self.nla_N = 1
-        self.nla_F = 1
-        self.NF_connectivity = [[0]]
-        from cardillo.math.prox import NegativeOrthant, Sphere, Hyperellipsoid
-
         # fmt: off
-        self.NF_connectivity2 = [
+        self.friction_laws = [
             ([0], [0], Sphere(mu)), # Coulomb
         ]
-        # fmt: on
-        # self.NF_connectivity2 = [
-        #     ([], [4,], NegativeOrthant()), # some law without normal coupling
-        #     ([0,], [0, 1], Hypersphere()),  # isotropic Coulomb friction
-        #     ([0,], [2, 3], Hyperellipsoid(dimension=2, scaling=[1, 0.5])), # anisotropic Coulomb friction
-        # ]
-        # self.mu = np.atleast_1d(mu)
+        self.nla_N = 1
+        self.nla_F = 1
         self.e_N = np.atleast_1d(e_N)
         self.e_F = np.atleast_1d(e_F)
 

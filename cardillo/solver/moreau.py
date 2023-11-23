@@ -3,8 +3,9 @@ from scipy.sparse import bmat
 from scipy.sparse.linalg import splu
 from tqdm import tqdm
 
+from cardillo.definitions import IS_CLOSE_ATOL
 from cardillo.solver import SolverOptions, SolverSummary, Solution, compute_I_F
-from cardillo.math import prox_R0_np, prox_R0_nm, prox_sphere, estimate_prox_parameter
+from cardillo.math import estimate_prox_parameter, NegativeOrthant
 
 
 class Moreau:
@@ -69,23 +70,11 @@ class Moreau:
     def prox(self, un1, P_N, P_F):
         # projection for contacts
         xi_N = self.W_N.T @ un1 + self.xi_N0
-        # P_N = prox_R0_np(P_N - self.prox_r_N * xi_N)
-        P_N = -prox_R0_nm(self.prox_r_N * xi_N - P_N)
-
-        # # friction projection
-        # xi_F = self.W_F.T @ un1 + self.xi_F0
-        # for i_N, i_F in enumerate(self.NF_connectivity_local):
-        #     P_F[i_F] = prox_sphere(
-        #         P_F[i_F] - self.prox_r_F[i_F] * xi_F[i_F],
-        #         self.mu[i_N] * P_N[i_N],
-        #     )
+        P_N = -NegativeOrthant.prox(self.prox_r_N * xi_N - P_N)
 
         # friction projection
         xi_F = self.W_F.T @ un1 + self.xi_F0
-        # for contr, NF_connectivity in self.active_gamma_F_contr:
-        # for contr, NF_connectivity in self.active_gamma_F_contr:
-        #     for i_N, i_F, force_recervoir in NF_connectivity:
-        for i_N, i_F, force_recervoir in self.global_active_NF_connectivity:
+        for i_N, i_F, force_recervoir in self.global_active_friction_laws:
             if len(i_N) > 0:
                 P_Ni = P_N[i_N]
             else:
@@ -153,25 +142,20 @@ class Moreau:
 
         # identify active contacts
         g_Nn12 = self.system.g_N(tn12, qn12)
-        self.I_N = np.logical_or(
-            g_Nn12 <= 0,
-            np.isclose(g_Nn12, np.zeros(self.system.nla_N), rtol=1e-8, atol=1e-8),
-        )
-        self.I_N = np.where(self.I_N)[0]
+        self.I_N = np.where(
+            np.logical_or(
+                g_Nn12 <= 0,
+                np.isclose(g_Nn12, np.zeros(self.system.nla_N), atol=IS_CLOSE_ATOL),
+            )
+        )[0]
 
         self.fixed_point_n_iter_list.append(0)
         self.fixed_point_absolute_errors.append(0.0)
         # only enter fixed-point loop if any contact is active
         if len(self.I_N) > 0:
-            # slice friction coefficients
-            # self.mu = self.system.mu[self.I_N]
-
             # identify active tangent contacts based on active normal contacts and
             # NF-connectivity lists; compute local NF_connectivity
-            # self.I_F, self.NF_connectivity_local = compute_I_F(
-            #     self.I_N, self.system.NF_connectivity
-            # )
-            self.I_F, self.global_active_NF_connectivity = compute_I_F(
+            self.I_F, self.global_active_friction_laws = compute_I_F(
                 self.I_N, self.system
             )
 
@@ -189,11 +173,11 @@ class Moreau:
             self.xi_F0 = e_F * (self.W_F.T @ un) + (1 + e_F) * chi_F
 
             # compute new estimates for prox parameters and get friction coefficient
-            self.prox_r_N = estimate_prox_parameter(
-                self.options.prox_scaling, self.W_N, M
-            )
-            self.prox_r_F = estimate_prox_parameter(
-                self.options.prox_scaling, self.W_F, M
+            self.prox_r_N, self.prox_r_F = np.array_split(
+                estimate_prox_parameter(
+                    self.options.prox_scaling, bmat([[self.W_N, self.W_F]]), M
+                ),
+                [len(self.I_N)],
             )
 
             # warm start
