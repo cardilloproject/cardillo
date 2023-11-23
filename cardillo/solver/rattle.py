@@ -164,7 +164,6 @@ class Rattle:
         ####################
         # kinematic equation
         ####################
-        # TODO: precompute q_dot_u, beta for performance
         R[: self.split_x1[0]] = (
             qn1
             - qn
@@ -347,6 +346,7 @@ class Rattle:
 
     def solve(self):
         solver_summary = SolverSummary()
+
         # lists storing output variables
         _, _, la_c0, P_g0, P_gamma0 = np.array_split(self.x1n, self.split_x1)
         P_N0, P_F0 = np.array_split(self.y1n + self.y2n, self.split_y)
