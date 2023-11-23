@@ -1,3 +1,4 @@
+import warnings
 import numpy as np
 from scipy.sparse import bmat
 from scipy.sparse.linalg import splu
@@ -214,6 +215,14 @@ class Moreau:
                     break
 
                 u0 = u.copy()
+
+            if not converged:
+                if self.options.continue_with_unconverged:
+                    warnings.warn(
+                        "fixed-point iteration is not converged but integration is continued"
+                    )
+                else:
+                    raise RuntimeError("fixed-point iteration is not converged")
         else:
             x = x0
 

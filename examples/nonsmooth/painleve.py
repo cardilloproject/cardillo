@@ -10,6 +10,7 @@ from cardillo.solver import (
     SolverOptions,
     Moreau,
     BackwardEuler,
+    Rattle,
 )
 
 
@@ -215,6 +216,17 @@ if __name__ == "__main__":
         ).solve(),
         "BackwardEuler",
     )
+    # sol1, label1 = (
+    #     Rattle(
+    #         system,
+    #         t_final,
+    #         dt1,
+    #         options=SolverOptions(
+    #             fixed_point_max_iter=int(1e4), numerical_jacobian_method="2-point"
+    #         ),
+    #     ).solve(),
+    #     "Rattle",
+    # )
     sol2, label2 = Moreau(system, t_final, dt2).solve(), "Moreau"
 
     t1 = sol1.t

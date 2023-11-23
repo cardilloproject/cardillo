@@ -206,21 +206,21 @@ def run(case, export=False):
     system.assemble()
 
     # solver1, label1 = Moreau(system, t_final, dt), "Moreau"
-    solver1, label1 = (
-        Rattle(
-            system,
-            t_final,
-            dt,
-            options=SolverOptions(numerical_jacobian_method="2-point"),
-        ),
-        "Rattle",
-    )
     # solver1, label1 = (
-    #     BackwardEuler(
-    #         system, t_final, dt, options=SolverOptions(reuse_lu_decomposition=True)
+    #     Rattle(
+    #         system,
+    #         t_final,
+    #         dt,
+    #         options=SolverOptions(numerical_jacobian_method="2-point"),
     #     ),
-    #     "BackwardEuler",
+    #     "Rattle",
     # )
+    solver1, label1 = (
+        BackwardEuler(
+            system, t_final, dt, options=SolverOptions(reuse_lu_decomposition=True)
+        ),
+        "BackwardEuler",
+    )
     # solver1, label1 = (
     #     NonsmoothGeneralizedAlpha(system, t_final, dt),
     #     "NonsmoothGeneralizedAlpha",

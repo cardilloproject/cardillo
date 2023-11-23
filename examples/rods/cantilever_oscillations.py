@@ -216,8 +216,8 @@ if __name__ == "__main__":
         nelements=5,
         polynomial_degree=1,
         n_load_steps=10,
-        # load_type="force",
-        load_type="force_torsion",
+        load_type="force",
+        # load_type="force_torsion",
         VTK_export=False,
     )
     # cantilever(

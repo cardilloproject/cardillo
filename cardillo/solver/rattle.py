@@ -1,3 +1,4 @@
+import warnings
 import numpy as np
 from scipy.sparse import csc_array
 from tqdm import tqdm
@@ -425,7 +426,14 @@ class Rattle:
             solver_summary.add_newton(i_newton)
 
             if not converged:
-                raise ValueError("not converged")
+                if self.options.continue_with_unconverged:
+                    warnings.warn(
+                        "fixed-point iteration is not converged in stage 1 but integration is continued"
+                    )
+                else:
+                    raise RuntimeError(
+                        "fixed-point iteration is not converged in stage 1"
+                    )
 
             # save converged quantities of first stage. Required for R_x2
             self.x1n = x1n1.copy()
@@ -486,7 +494,14 @@ class Rattle:
             solver_summary.add_newton(i_newton)
 
             if not converged:
-                raise ValueError("not converged")
+                if self.options.continue_with_unconverged:
+                    warnings.warn(
+                        "fixed-point iteration is not converged in stage 2 but integration is continued"
+                    )
+                else:
+                    raise RuntimeError(
+                        "fixed-point iteration is not converged in stage 2"
+                    )
 
             # update progress bar
             pbar.set_description(
