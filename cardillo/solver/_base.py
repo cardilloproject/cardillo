@@ -134,7 +134,7 @@ def consistent_initial_conditions(
                 gamma_Fi = gamma_F[i_F]
                 # norm_gamma_Fi = norm(gamma_Fi)
                 # la_FDOFi = la_FDOF[i_F]
-                if i_N:
+                if len(i_N) > 0:
                     la_Ni = la_N[i_N]
                 else:
                     la_Ni = 1.0

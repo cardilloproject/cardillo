@@ -85,10 +85,10 @@ class Moreau:
         # for contr, NF_connectivity in self.active_gamma_F_contr:
         for contr, NF_connectivity in self.active_gamma_F_contr:
             for i_N, i_F, force_recervoir in NF_connectivity:
-                if i_N:
+                if len(i_N) > 0:
                     P_Ni = P_N[i_N]
                 else:
-                    P_Ni = 1.0
+                    P_Ni = self.dt
 
                 P_F[i_F] = -force_recervoir.prox(
                     self.prox_r_F[i_F] * xi_F[i_F] - P_F[i_F],

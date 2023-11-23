@@ -310,18 +310,6 @@ class BackwardEuler:
         #############################
         # fixed-point update friction
         #############################
-        # gamma_F = self.system.gamma_F(tn1, qn1, un1)
-        # for i_N, i_F in enumerate(self.system.NF_connectivity):
-        #     if len(i_F):
-        #         # y1[self.split_y[0] + np.array(i_F)] = -prox_sphere(
-        #         #     prox_r_F[i_N] * gamma_F[i_F] - dP_Fn1[i_F],
-        #         #     mu[i_N] * dP_Nn1[i_N],
-        #         # )
-        #         y1[self.split_y[0] + np.array(i_F)] = -hypersphere.prox(
-        #             prox_r_F[i_N] * gamma_F[i_F] - dP_Fn1[i_F],
-        #             mu[i_N] * dP_Nn1[i_N],
-        #         )
-
         # TODO: Get gamma_f_contr without "private" atrribute
         for contr in self.system._System__gamma_F_contr:
             gamma_F_contr = contr.gamma_F(tn1, qn1[contr.qDOF], un1[contr.uDOF])
@@ -329,21 +317,15 @@ class BackwardEuler:
             dP_Fn1_contr = dP_Fn1[la_FDOF]
             prox_r_F_contr = prox_r_F[la_FDOF]
             for i_N, i_F, force_recervoir in contr.NF_connectivity2:
-                if i_F:
-                    arg = prox_r_F_contr[i_F] * gamma_F_contr[i_F] - dP_Fn1_contr[i_F]
-                    if i_N:
-                        dP_Nn1i = dP_Nn1[contr.la_NDOF[i_N]]
-                        y1[self.split_y[0] + la_FDOF[i_F]] = -force_recervoir.prox(
-                            arg, dP_Nn1i
-                        )
-                    else:
-                        # TODO: This "* dt" is ugly...
-                        y1[self.split_y[0] + la_FDOF[i_F]] = -force_recervoir.prox(
-                            arg, self.dt
-                        )
+                if len(i_N) > 0:
+                    dP_Nn1i = dP_Nn1[contr.la_NDOF[i_N]]
                 else:
-                    # no friction, this should not be the case in future
-                    raise RuntimeError("You should never be here!")
+                    dP_Nn1i = self.dt
+
+                y1[self.split_y[0] + la_FDOF[i_F]] = -force_recervoir.prox(
+                    prox_r_F_contr[i_F] * gamma_F_contr[i_F] - dP_Fn1_contr[i_F],
+                    dP_Nn1i,
+                )
 
         return y1
 
