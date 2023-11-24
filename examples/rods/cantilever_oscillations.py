@@ -1,5 +1,6 @@
 from cardillo.rods import (
     RectangularCrossSection,
+    CrossSectionInertias,
     Simo1986,
     animate_beam,
 )
@@ -46,11 +47,10 @@ def cantilever(
     width = length / slenderness
     density = 80  # [kg / m^3]
     # cross_section = RectangularCrossSection(density, width, width)
-    cross_section = RectangularCrossSection(density, width, 3 * width)
+    cross_section = RectangularCrossSection(width, 3 * width)
+    cross_section_inertias = CrossSectionInertias(density, cross_section)
+    
     A = cross_section.area
-    A_rho0 = density * cross_section.area
-    K_S_rho0 = density * cross_section.first_moment
-    K_I_rho0 = density * cross_section.second_moment
     Ip, Iy, Iz = np.diagonal(cross_section.second_moment)
 
     E = 210.0e6
@@ -71,9 +71,6 @@ def cantilever(
     cantilever = Rod(
         cross_section,
         material_model,
-        A_rho0,
-        K_S_rho0,
-        K_I_rho0,
         nelements,
         Q=q0,
         q0=q0,
@@ -149,10 +146,10 @@ def cantilever(
 
     # dt = 1e-2
     # dt = 1e-2
-    dt = 1e-3
+    dt = 1e-2
     solver = BackwardEuler(
         system,
-        t1=0.2,
+        t1=2,
         dt=dt,
         options=SolverOptions(newton_atol=1e-8),
     )
@@ -220,6 +217,7 @@ if __name__ == "__main__":
         # load_type="force_torsion",
         VTK_export=False,
     )
+
     # cantilever(
     #     Rod=make_CosseratRod_SE3(mixed=False),
     #     nelements=5,
