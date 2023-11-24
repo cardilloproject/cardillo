@@ -526,8 +526,7 @@ class CosseratRod(RodExportBase, ABC):
 
     #     return E_pot_el
 
-    def eval_stresses(self, t, q, xi, mixed=False):
-        raise NotImplementedError
+    def eval_stresses(self, t, q, xi):
         el = self.element_number(xi)
         Qe = self.Q[self.elDOF[el]]
         qe = q[self.elDOF[el]]
@@ -540,63 +539,28 @@ class CosseratRod(RodExportBase, ABC):
 
         _, _, K_Gamma_bar, K_Kappa_bar = self._eval(qe, xi)
 
-        J = norm(K_Gamma_bar)
-        K_Gamma = K_Gamma_bar / J
-        K_Kappa = K_Kappa_bar / J
+        K_Gamma = K_Gamma_bar / J_0
+        K_Kappa = K_Kappa_bar / J_0
 
-        K_n_DB = self.material_model.K_n(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
-        K_m_DB = self.material_model.K_m(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
+        K_n = self.material_model.K_n(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
+        K_m = self.material_model.K_m(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
 
-        if mixed:
-            N_n = N_m = self.basis_functions_n(xi).flatten()
-            K_n = np.zeros(3, dtype=qe.dtype)
-            K_m = np.zeros(3, dtype=qe.dtype)
+        return K_n, K_m
 
-            for node in range(self.nnodes_element_n):
-                n_node = qe[self.nodalDOF_element_n[node]]
-                K_n += N_n[node] * n_node
-                m_node = qe[self.nodalDOF_element_m[node]]
-                K_m += N_m[node] * m_node
-
-            return K_n, K_m, K_n_DB, K_m_DB
-        else:
-            return K_n_DB, K_m_DB
-
-    def eval_strains(self, t, q, xi, mixed=False):
-        raise NotImplementedError
+    def eval_strains(self, t, q, xi):
         el = self.element_number(xi)
         Qe = self.Q[self.elDOF[el]]
         qe = q[self.elDOF[el]]
 
-        _, _, K_Gamma_bar0, K_Kappa_bar0 = self._eval(Qe, xi)
-
+        _, _, K_Gamma_bar0, _ = self._eval(Qe, xi)
         J_0 = norm(K_Gamma_bar0)
-        K_Gamma0 = K_Gamma_bar0 / J_0
-        K_Kappa0 = K_Kappa_bar0 / J_0
 
         _, _, K_Gamma_bar, K_Kappa_bar = self._eval(qe, xi)
 
-        J = norm(K_Gamma_bar)
-        K_Gamma_DB = K_Gamma_bar / J
-        K_Kappa_DB = K_Kappa_bar / J
+        K_Gamma = K_Gamma_bar / J_0
+        K_Kappa = K_Kappa_bar / J_0
 
-        if mixed:
-            N_n = N_m = self.basis_functions_n(xi).flatten()
-            K_n = np.zeros(3, dtype=qe.dtype)
-            K_m = np.zeros(3, dtype=qe.dtype)
-
-            for node in range(self.nnodes_element_n):
-                n_node = qe[self.nodalDOF_element_n[node]]
-                K_n += N_n[node] * n_node
-                m_node = qe[self.nodalDOF_element_m[node]]
-                K_m += N_m[node] * m_node
-
-            K_Gamma = self.material_model.K_gam_comp(K_n, K_Gamma0)
-            K_Kappa = self.material_model.K_kap_comp(K_m, K_Kappa0)
-
-            return K_Gamma, K_Kappa, K_Gamma_DB, K_Kappa_DB
-        else:
-            return K_Gamma_DB, K_Kappa_DB
+        return K_Gamma, K_Kappa
 
     #########################################
     # equations of motion
@@ -1480,41 +1444,32 @@ class CosseratRodMixed(CosseratRod):
 
     #     return E_pot_el
 
-    def eval_stresses(self, t, q, xi, mixed=False):
+    def eval_stresses(self, t, la_c, xi):
         raise NotImplementedError
         el = self.element_number(xi)
-        Qe = self.Q[self.elDOF[el]]
-        qe = q[self.elDOF[el]]
+        la_ce = la_c[self.elDOF_la_c[el]]
 
-        _, _, K_Gamma_bar0, K_Kappa_bar0 = self._eval(Qe, xi)
+        #TODO: evaluate shape functions for specific xi
+        # interpolation of internal forces and moments
+        for node in range(self.nnodes_element_la_c):
+            la_c_node = la_ce[self.nodalDOF_element_la_c[node]]
+            la_c += self.N_la_c[el, i, node] * la_c_node
 
-        J_0 = norm(K_Gamma_bar0)
-        K_Gamma0 = K_Gamma_bar0 / J_0
-        K_Kappa0 = K_Kappa_bar0 / J_0
+        K_n = self.K_n_la_c_sieve @ la_c[: self.nmixed_n]
+        K_m = self.K_m_la_c_sieve @ la_c[self.nmixed_n :]
+        
+        N_n = N_m = self.basis_functions_n(xi).flatten()
+        K_n = np.zeros(3, dtype=qe.dtype)
+        K_m = np.zeros(3, dtype=qe.dtype)
 
-        _, _, K_Gamma_bar, K_Kappa_bar = self._eval(qe, xi)
+        for node in range(self.nnodes_element_n):
+            n_node = qe[self.nodalDOF_element_n[node]]
+            K_n += N_n[node] * n_node
+            m_node = qe[self.nodalDOF_element_m[node]]
+            K_m += N_m[node] * m_node
 
-        J = norm(K_Gamma_bar)
-        K_Gamma = K_Gamma_bar / J
-        K_Kappa = K_Kappa_bar / J
+        return K_n, K_m
 
-        K_n_DB = self.material_model.K_n(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
-        K_m_DB = self.material_model.K_m(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
-
-        if mixed:
-            N_n = N_m = self.basis_functions_n(xi).flatten()
-            K_n = np.zeros(3, dtype=qe.dtype)
-            K_m = np.zeros(3, dtype=qe.dtype)
-
-            for node in range(self.nnodes_element_n):
-                n_node = qe[self.nodalDOF_element_n[node]]
-                K_n += N_n[node] * n_node
-                m_node = qe[self.nodalDOF_element_m[node]]
-                K_m += N_m[node] * m_node
-
-            return K_n, K_m, K_n_DB, K_m_DB
-        else:
-            return K_n_DB, K_m_DB
 
     def eval_strains(self, t, q, xi, mixed=False):
         raise NotImplementedError
