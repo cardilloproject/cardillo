@@ -261,15 +261,15 @@ class Riks:
         # - the constraints for displacement control have to be of the form
         #   g(t, q) = t * g(q)
         t = la_arc
-        h = self.model.h(t, q, self.u0)
-        g = self.model.g(t, q)
-        W_g = self.model.W_g(t, q)
+        h = self.system.h(t, q, self.u0)
+        g = self.system.g(t, q)
+        W_g = self.system.W_g(t, q)
 
         # build residual
         R = np.zeros(self.nx)
         R[:nu] = h + W_g @ la_g
         R[nu : nu + nla_g] = g
-        R[nu + nla_g : nu + nla_g + nla_S] = self.model.g_S(t, q)
+        R[nu + nla_g : nu + nla_g + nla_S] = self.system.g_S(t, q)
         R[-1] = self.a(x) - self.ds**2
 
         yield R
@@ -279,17 +279,18 @@ class Riks:
         #   F_ext(t, q) = t * F(q)
         # - the constraints for displacement control have to be of the form
         #   g(t, q) = t * g(q)
-        h_q = self.model.h_q(t, q, self.u0)
-        Wla_g_q = self.model.Wla_g_q(t, q, la_g)
+        h_q = self.system.h_q(t, q, self.u0)
+        Wla_g_q = self.system.Wla_g_q(t, q, la_g)
         Rq_q = h_q + Wla_g_q
-        g_q = self.model.g_q(t, q)
-        g_S_q = self.model.g_S_q(t, q)
+        g_q = self.system.g_q(t, q)
+        g_S_q = self.system.g_S_q(t, q)
 
         # TODO: this is a hack and can't be fixed without specifying the scaled equations
         # but it is only two addition evaluations of the h vector and the constraints
         eps = 1.0e-6
-        f_arc = (self.model.h(t + eps, q, self.u0) - h) / eps
-        g_arc = (self.model.g(t + eps, q) - g) / eps
+        # TODO: Add Wla_g_t here!
+        f_arc = (self.system.h(t + eps, q, self.u0) - h) / eps
+        g_arc = (self.system.g(t + eps, q) - g) / eps
 
         # derivative of the arc length equation
         a_q, a_la, a_la_arc = self.a_x(x)
@@ -318,7 +319,7 @@ class Riks:
     ):
         self.atol = atol
         self.max_iter = max_iter
-        self.model = system
+        self.system = system
         self.iter_goal = iter_goal
         self.la_arc0 = la_arc0
         self.la_arc_span = la_arc_span
@@ -335,15 +336,15 @@ class Riks:
         self.MAX_FACTOR = 1.5  # maximal scaling factor
 
         # dimensions
-        self.nq = self.model.nq
-        self.nu = self.model.nu
-        self.nla_g = self.model.nla_g
-        self.nla_S = self.model.nla_S
+        self.nq = self.system.nq
+        self.nu = self.system.nu
+        self.nla_g = self.system.nla_g
+        self.nla_S = self.system.nla_S
         self.nx = self.nq + self.nla_g + 1
 
         # initial
-        self.q0 = self.model.q0
-        self.la_g0 = self.model.la_g0
+        self.q0 = self.system.q0
+        self.la_g0 = self.system.la_g0
         self.la_arc0 = la_arc0
         self.u0 = np.zeros(system.nu)  # statics
 
@@ -504,4 +505,9 @@ class Riks:
             la_arc.append(xk1[-1].copy())
 
         # return solution object
-        return Solution(t=np.asarray(la_arc), q=np.asarray(q), la_g=np.asarray(la_g))
+        return Solution(
+            system=self.system,
+            t=np.asarray(la_arc),
+            q=np.asarray(q),
+            la_g=np.asarray(la_g),
+        )

@@ -4,11 +4,6 @@ from cardillo.math import pi
 
 class CrossSection:
     @property
-    def density(self):
-        """Density of the material."""
-        return self._density
-
-    @property
     def area(self):
         """Area of the cross section."""
         return self._area
@@ -25,16 +20,14 @@ class CrossSection:
 
 
 class UserDefinedCrossSection(CrossSection):
-    def __init__(self, density, area, first_moment, second_moment):
-        self._density = density
+    def __init__(self, area, first_moment, second_moment):
         self._area = area
         self._first_moment = first_moment
         self._second_moment = second_moment
 
 
 class CircularCrossSection(CrossSection):
-    def __init__(self, density, radius):
-        self._density = density
+    def __init__(self, radius):
         self._radius = radius
         self._area = pi * radius**2
         # see https://de.wikipedia.org/wiki/Fl%C3%A4chenmoment
@@ -56,8 +49,7 @@ class RectangularCrossSection(CrossSection):
     * height denotes the dimension in d3-direction
     """
 
-    def __init__(self, density, width, height):
-        self._density = density
+    def __init__(self, width, height):
         self._width = width
         self._height = height
         self._area = width * height
@@ -82,3 +74,15 @@ class RectangularCrossSection(CrossSection):
     @property
     def height(self):
         return self._height
+
+
+class CrossSectionInertias:
+    def __init__(
+        self, line_density=None, cross_section=None, A_rho0=1.0, K_I_rho0=np.eye(3)
+    ):
+        if line_density is None or cross_section is None:
+            self.A_rho0 = A_rho0
+            self.K_I_rho0 = K_I_rho0
+        else:
+            self.A_rho0 = line_density * cross_section.area
+            self.K_I_rho0 = line_density * cross_section.second_moment

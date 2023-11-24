@@ -1,13 +1,13 @@
 from cardillo.math import e1, e2, e3
-from cardillo.beams import (
+from cardillo.rods import (
     RectangularCrossSection,
     CircularCrossSection,
     Simo1986,
 )
 from cardillo.discrete import Frame
 from cardillo.constraints import RigidConnection
-from cardillo.beams import animate_beam
-from cardillo.beams.cosseratRod import (
+from cardillo.rods import animate_beam
+from cardillo.rods.cosseratRod import (
     make_CosseratRod_R12,
     make_CosseratRod_Quat,
     make_CosseratRod_SE3,
@@ -169,15 +169,15 @@ if __name__ == "__main__":
     # robust mixed formulations #
     #############################
 
-    # helix(
-    #     Rod=make_CosseratRod_SE3(mixed=True),
-    #     nelements=5,
-    #     polynomial_degree=1,
-    #     n_load_steps=2,
-    #     reduced_integration=True,
-    #     slenderness=1.0e4,
-    #     atol=1.0e-12,
-    # )
+    helix(
+        Rod=make_CosseratRod_SE3(mixed=True),
+        nelements=5,
+        polynomial_degree=1,
+        n_load_steps=2,
+        reduced_integration=True,
+        slenderness=1.0e4,
+        atol=1.0e-12,
+    )
 
     # helix(
     #     Rod=make_CosseratRod_Quat(mixed=True),

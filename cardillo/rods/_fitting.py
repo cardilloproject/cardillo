@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.optimize import least_squares
 from cardillo.math import SE3, SE3inv, Log_SE3, Log_SE3_H, Log_SO3_quat, Exp_SO3, norm
-from cardillo.beams._base_parametrization import QuaternionRotationParameterization
+from cardillo.rods._base_parametrization import QuaternionRotationParameterization
 
 
 # TODO: Add clamping for first and last node

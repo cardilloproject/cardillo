@@ -1,11 +1,11 @@
 from cardillo.math import A_IK_basic
-from cardillo.beams import (
+from cardillo.rods import (
     RectangularCrossSection,
     Simo1986,
 )
 from cardillo.constraints import RigidConnection, Revolute
 
-from cardillo.beams import K_R12_PetrovGalerkin_Quaternion as Rod
+from cardillo.rods import K_R12_PetrovGalerkin_Quaternion as Rod
 
 # from cardillo.beams import K_R12_PetrovGalerkin_AxisAngle as Rod
 
@@ -14,7 +14,7 @@ from cardillo import System
 from cardillo.forces import LinearSpring, PDRotational
 from cardillo.solver import Newton
 from cardillo.discrete import Frame
-from cardillo.beams._fitting import fit_configuration
+from cardillo.rods._fitting import fit_configuration
 
 from cardillo.utility import Export
 

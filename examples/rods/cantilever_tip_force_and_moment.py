@@ -1,11 +1,11 @@
-from cardillo.beams import (
+from cardillo.rods import (
     RectangularCrossSection,
     Simo1986,
     Harsch2021,
     animate_beam,
 )
 
-from cardillo.beams.cosseratRod import (
+from cardillo.rods.cosseratRod import (
     make_CosseratRod_SE3,
     make_CosseratRod_R12,
     make_CosseratRod_Quat,
@@ -50,13 +50,7 @@ def cantilever(
     # cross section properties for visualization purposes
     slenderness = 1.0e2
     width = length / slenderness
-    line_density = 1
-    cross_section = RectangularCrossSection(line_density, width, width)
-    A = cross_section.area
-    A_rho0 = line_density * cross_section.area
-    K_S_rho0 = line_density * cross_section.first_moment
-    K_I_rho0 = line_density * cross_section.second_moment
-
+    cross_section = RectangularCrossSection(width, width)
     Ei = np.array([5, 1, 1])
     Fi = np.array([0.5, 2, 2])
 
@@ -73,9 +67,6 @@ def cantilever(
     cantilever = Rod(
         cross_section,
         material_model,
-        A_rho0,
-        K_S_rho0,
-        K_I_rho0,
         nelements,
         Q=q0,
         q0=q0,

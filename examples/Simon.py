@@ -1,5 +1,5 @@
 from cardillo.math import e1, e2, e3, sqrt, pi
-from cardillo.beams import (
+from cardillo.rods import (
     CircularCrossSection,
     RectangularCrossSection,
     Simo1986,
@@ -16,7 +16,7 @@ from cardillo.constraints import (
     RigidConnection,
     SphericalJoint,
 )
-from cardillo.beams import (
+from cardillo.rods import (
     animate_beam,
     K_SE3_PetrovGalerkin_AxisAngle,
     DirectorAxisAngle,

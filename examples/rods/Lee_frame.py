@@ -1,11 +1,11 @@
-from cardillo.beams import (
+from cardillo.rods import (
     RectangularCrossSection,
     CircularCrossSection,
     Simo1986,
     animate_beam,
 )
 
-from cardillo.beams.cosseratRod import (
+from cardillo.rods.cosseratRod import (
     make_CosseratRod_SE3,
     make_CosseratRod_Quat,
     make_CosseratRod_R12,
@@ -279,6 +279,7 @@ def cantilever(
             num=3 * nelements,
             file_name="cantilever2_volume",
         )
+
 
 if __name__ == "__main__":
     cantilever(load_type="force", VTK_export=False)

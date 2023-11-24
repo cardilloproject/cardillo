@@ -14,11 +14,13 @@ from cardillo.math import (
     Exp_SO3_quat_p,
 )
 
-from cardillo.beams._base_CosseratRod import (
+from cardillo.rods._base_CosseratRod import (
     CosseratRod,
     CosseratRodMixed,
     make_CosseratRodConstrained,
 )
+from ._cross_section import CrossSectionInertias
+from cardillo.utility.warn import warn_extraneous
 
 
 def make_CosseratRod_SE3(mixed=False, constraints=None):
@@ -42,38 +44,34 @@ def make_CosseratRod_SE3(mixed=False, constraints=None):
             self,
             cross_section,
             material_model,
-            A_rho0,
-            K_S_rho0,
-            K_I_rho0,
             nelement,
             Q,
             q0=None,
             u0=None,
-            polynomial_degree=1,
             reduced_integration=True,
+            cross_section_inertias=CrossSectionInertias(),
+            **kwargs,
         ):
             super().__init__(
                 cross_section,
                 material_model,
-                A_rho0,
-                K_S_rho0,
-                K_I_rho0,
-                1,
                 nelement,
-                1 if reduced_integration else 2,
-                2,
-                Q,
+                polynomial_degree=1,
+                nquadrature=1 if reduced_integration else 2,
+                Q=Q,
                 q0=q0,
                 u0=u0,
+                nquadrature_dyn=2,
+                cross_section_inertias=cross_section_inertias,
             )
 
         @staticmethod
         def straight_configuration(
             nelement,
             L,
-            polynomial_degree=1,
             r_OP=np.zeros(3, dtype=float),
             A_IK=np.eye(3, dtype=float),
+            **kwargs,
         ):
             return CosseratRod.straight_configuration(nelement, L, 1, r_OP, A_IK)
 
@@ -85,6 +83,7 @@ def make_CosseratRod_SE3(mixed=False, constraints=None):
             A_IK=np.eye(3, dtype=float),
             v_P=np.zeros(3, dtype=float),
             K_omega_IK=np.zeros(3, dtype=float),
+            **kwargs,
         ):
             return CosseratRod.straight_initial_configuration(
                 1,
@@ -259,244 +258,9 @@ def make_CosseratRod_SE3(mixed=False, constraints=None):
             return self._eval(q, frame_ID[0])[1]
 
         def A_IK_q(self, t, q, frame_ID):
-            # from cardillo.math import approx_fprime
-            # return approx_fprime(q, lambda q_argument: self.A_IK(t, q_argument, frame_ID), method="3-point", eps=1e-6)
-
             return self._deval(q, frame_ID[0])[5]
 
     return CosseratRod_SE3
-
-
-def make_CosseratRod_R12(mixed=False, constraints=None):
-    if mixed == True:
-        if constraints == None:
-            CosseratRodBase = CosseratRodMixed
-        else:
-            CosseratRodBase = make_CosseratRodConstrained(
-                mixed=mixed, constraints=constraints
-            )
-    else:
-        if constraints == None:
-            CosseratRodBase = CosseratRod
-        else:
-            CosseratRodBase = make_CosseratRodConstrained(
-                mixed=mixed, constraints=constraints
-            )
-
-    class CosseratRod_R12(CosseratRodBase):
-        def __init__(
-            self,
-            cross_section,
-            material_model,
-            A_rho0,
-            K_S_rho0,
-            K_I_rho0,
-            nelement,
-            Q,
-            q0=None,
-            u0=None,
-            polynomial_degree=1,
-            reduced_integration=True,
-        ):
-            nquadrature = polynomial_degree
-            nquadrature_dyn = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
-
-            if not reduced_integration:
-                import warnings
-
-                warnings.warn("'R12_PetrovGalerkin': Full integration is used!")
-                nquadrature = nquadrature_dyn
-
-            super().__init__(
-                cross_section,
-                material_model,
-                A_rho0,
-                K_S_rho0,
-                K_I_rho0,
-                polynomial_degree,
-                nelement,
-                nquadrature,
-                nquadrature_dyn,
-                Q,
-                q0=q0,
-                u0=u0,
-            )
-
-        # returns interpolated positions, orientations and strains at xi in [0,1]
-        def _eval(self, qe, xi):
-            # evaluate shape functions
-            N_r, N_r_xi = self.basis_functions_r(xi)
-            N_psi, N_psi_xi = self.basis_functions_psi(xi)
-
-            # interpolate position and tangent vector
-            r_OP = np.zeros(3, dtype=qe.dtype)
-            r_OP_xi = np.zeros(3, dtype=qe.dtype)
-            for node in range(self.nnodes_element_r):
-                r_OP_node = qe[self.nodalDOF_element_r[node]]
-                r_OP += N_r[node] * r_OP_node
-                r_OP_xi += N_r_xi[node] * r_OP_node
-
-            # interpolate transformation matrix and its derivative
-            A_IK = np.zeros((3, 3), dtype=qe.dtype)
-            A_IK_xi = np.zeros((3, 3), dtype=qe.dtype)
-            for node in range(self.nnodes_element_psi):
-                A_IK_node = Exp_SO3_quat(qe[self.nodalDOF_element_psi[node]])
-                A_IK += N_psi[node] * A_IK_node
-                A_IK_xi += N_psi_xi[node] * A_IK_node
-
-            # axial and shear strains
-            K_Gamma_bar = A_IK.T @ r_OP_xi
-
-            # torsional and flexural strains
-            d1, d2, d3 = A_IK.T
-            d1_xi, d2_xi, d3_xi = A_IK_xi.T
-            K_Kappa_bar = np.array(
-                [
-                    0.5 * (d3 @ d2_xi - d2 @ d3_xi),
-                    0.5 * (d1 @ d3_xi - d3 @ d1_xi),
-                    0.5 * (d2 @ d1_xi - d1 @ d2_xi),
-                ]
-            )
-
-            return r_OP, A_IK, K_Gamma_bar, K_Kappa_bar
-
-        def _deval(self, qe, xi):
-            # evaluate shape functions
-            N_r, N_r_xi = self.basis_functions_r(xi)
-            N_psi, N_psi_xi = self.basis_functions_psi(xi)
-
-            # interpolate position and tangent vector + their derivatives
-            r_OP = np.zeros(3, dtype=qe.dtype)
-            r_OP_qe = np.zeros((3, self.nq_element), dtype=qe.dtype)
-            r_OP_xi = np.zeros(3, dtype=qe.dtype)
-            r_OP_xi_qe = np.zeros((3, self.nq_element), dtype=qe.dtype)
-            for node in range(self.nnodes_element_r):
-                nodalDOF_r = self.nodalDOF_element_r[node]
-                r_OP_node = qe[nodalDOF_r]
-
-                r_OP += N_r[node] * r_OP_node
-                r_OP_qe[:, nodalDOF_r] += N_r[node] * np.eye(3, dtype=float)
-
-                r_OP_xi += N_r_xi[node] * r_OP_node
-                r_OP_xi_qe[:, nodalDOF_r] += N_r_xi[node] * np.eye(3, dtype=float)
-
-            # interpolate transformation matrix and its derivative + their derivatives
-            A_IK = np.zeros((3, 3), dtype=qe.dtype)
-            A_IK_xi = np.zeros((3, 3), dtype=qe.dtype)
-            A_IK_qe = np.zeros((3, 3, self.nq_element), dtype=qe.dtype)
-            A_IK_xi_qe = np.zeros((3, 3, self.nq_element), dtype=qe.dtype)
-            for node in range(self.nnodes_element_psi):
-                nodalDOF_psi = self.nodalDOF_element_psi[node]
-                psi_node = qe[nodalDOF_psi]
-                A_IK_node = Exp_SO3_quat(psi_node)
-                A_IK_q_node = Exp_SO3_quat_p(psi_node)
-
-                A_IK += N_psi[node] * A_IK_node
-                A_IK_qe[:, :, nodalDOF_psi] += N_psi[node] * A_IK_q_node
-
-                A_IK_xi += N_psi_xi[node] * A_IK_node
-                A_IK_xi_qe[:, :, nodalDOF_psi] += N_psi_xi[node] * A_IK_q_node
-
-            # extract directors
-            d1, d2, d3 = A_IK.T
-            d1_xi, d2_xi, d3_xi = A_IK_xi.T
-            d1_qe, d2_qe, d3_qe = A_IK_qe.transpose(1, 0, 2)
-            d1_xi_qe, d2_xi_qe, d3_xi_qe = A_IK_xi_qe.transpose(1, 0, 2)
-
-            # axial and shear strains
-            K_Gamma_bar = A_IK.T @ r_OP_xi
-            K_Gamma_bar_qe = np.einsum("k,kij", r_OP_xi, A_IK_qe) + A_IK.T @ r_OP_xi_qe
-
-            # torsional and flexural strains
-            K_Kappa_bar = np.array(
-                [
-                    0.5 * (d3 @ d2_xi - d2 @ d3_xi),
-                    0.5 * (d1 @ d3_xi - d3 @ d1_xi),
-                    0.5 * (d2 @ d1_xi - d1 @ d2_xi),
-                ]
-            )
-            K_Kappa_bar_qe = np.array(
-                [
-                    0.5
-                    * (d3 @ d2_xi_qe + d2_xi @ d3_qe - d2 @ d3_xi_qe - d3_xi @ d2_qe),
-                    0.5
-                    * (d1 @ d3_xi_qe + d3_xi @ d1_qe - d3 @ d1_xi_qe - d1_xi @ d3_qe),
-                    0.5
-                    * (d2 @ d1_xi_qe + d1_xi @ d2_qe - d1 @ d2_xi_qe - d2_xi @ d1_qe),
-                ]
-            )
-
-            # from cardillo.math import approx_fprime
-
-            # r_OP_qe_num = approx_fprime(
-            #     qe,
-            #     lambda qe: self._eval(qe, xi)[0],
-            # )
-            # diff = r_OP_qe - r_OP_qe_num
-            # error = np.linalg.norm(diff)
-            # print(f"error r_OP_qe: {error}")
-
-            # A_IK_qe_num = approx_fprime(
-            #     qe,
-            #     lambda qe: self._eval(qe, xi)[1],
-            # )
-            # diff = A_IK_qe - A_IK_qe_num
-            # error = np.linalg.norm(diff)
-            # print(f"error A_IK_qe: {error}")
-
-            # K_Kappa_bar_qe_num = approx_fprime(
-            #     qe,
-            #     lambda qe: self._eval(qe, xi)[3],
-            # )
-            # diff = K_Kappa_bar_qe - K_Kappa_bar_qe_num
-            # error = np.linalg.norm(diff)
-            # print(f"error K_Kappa_bar_qe: {error}")
-
-            # K_Gamma_bar_qe_num = approx_fprime(
-            #     qe,
-            #     lambda qe: self._eval(qe, xi)[2],
-            # )
-            # diff = K_Gamma_bar_qe - K_Gamma_bar_qe_num
-            # error = np.linalg.norm(diff)
-            # print(f"error K_Gamma_bar_qe: {error}")
-
-            return (
-                r_OP,
-                A_IK,
-                K_Gamma_bar,
-                K_Kappa_bar,
-                r_OP_qe,
-                A_IK_qe,
-                K_Gamma_bar_qe,
-                K_Kappa_bar_qe,
-            )
-
-        def A_IK(self, t, q, frame_ID):
-            # evaluate shape functions
-            N_psi, _ = self.basis_functions_psi(frame_ID[0])
-
-            # interpolate orientation
-            A_IK = np.zeros((3, 3), dtype=q.dtype)
-            for node in range(self.nnodes_element_psi):
-                A_IK += N_psi[node] * Exp_SO3_quat(q[self.nodalDOF_element_psi[node]])
-
-            return A_IK
-
-        def A_IK_q(self, t, q, frame_ID):
-            # evaluate shape functions
-            N_psi, _ = self.basis_functions_psi(frame_ID[0])
-
-            # interpolate centerline position and orientation
-            A_IK_q = np.zeros((3, 3, self.nq_element), dtype=q.dtype)
-            for node in range(self.nnodes_element_psi):
-                nodalDOF_psi = self.nodalDOF_element_psi[node]
-                A_IK_q[:, :, nodalDOF_psi] += N_psi[node] * Exp_SO3_quat_p(
-                    q[nodalDOF_psi]
-                )
-
-            return A_IK_q
-
-    return CosseratRod_R12
 
 
 def make_CosseratRod_Quat(mixed=False, constraints=None):
@@ -520,15 +284,13 @@ def make_CosseratRod_Quat(mixed=False, constraints=None):
             self,
             cross_section,
             material_model,
-            A_rho0,
-            K_S_rho0,
-            K_I_rho0,
             nelement,
             Q,
             q0=None,
             u0=None,
-            polynomial_degree=1,
+            polynomial_degree=2,
             reduced_integration=True,
+            cross_section_inertias=CrossSectionInertias(),
         ):
             nquadrature = polynomial_degree
             nquadrature_dyn = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
@@ -542,16 +304,14 @@ def make_CosseratRod_Quat(mixed=False, constraints=None):
             super().__init__(
                 cross_section,
                 material_model,
-                A_rho0,
-                K_S_rho0,
-                K_I_rho0,
-                polynomial_degree,
                 nelement,
-                nquadrature,
-                nquadrature_dyn,
-                Q,
+                polynomial_degree=polynomial_degree,
+                nquadrature=nquadrature,
+                Q=Q,
                 q0=q0,
                 u0=u0,
+                nquadrature_dyn=nquadrature_dyn,
+                cross_section_inertias=cross_section_inertias,
             )
 
         @staticmethod
@@ -771,3 +531,231 @@ def make_CosseratRod_Quat(mixed=False, constraints=None):
             return self._deval(q, frame_ID[0])[5]
 
     return CosseratRod_Quat
+
+
+def make_CosseratRod_R12(mixed=False, constraints=None):
+    if mixed == True:
+        if constraints == None:
+            CosseratRodBase = CosseratRodMixed
+        else:
+            CosseratRodBase = make_CosseratRodConstrained(
+                mixed=mixed, constraints=constraints
+            )
+    else:
+        if constraints == None:
+            CosseratRodBase = CosseratRod
+        else:
+            CosseratRodBase = make_CosseratRodConstrained(
+                mixed=mixed, constraints=constraints
+            )
+
+    class CosseratRod_R12(CosseratRodBase):
+        def __init__(
+            self,
+            cross_section,
+            material_model,
+            nelement,
+            Q,
+            q0=None,
+            u0=None,
+            polynomial_degree=2,
+            reduced_integration=True,
+            cross_section_inertias=CrossSectionInertias(),
+        ):
+            nquadrature = polynomial_degree
+            nquadrature_dyn = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
+
+            if not reduced_integration:
+                import warnings
+
+                warnings.warn("'R12_PetrovGalerkin': Full integration is used!")
+                nquadrature = nquadrature_dyn
+
+            super().__init__(
+                cross_section,
+                material_model,
+                nelement,
+                polynomial_degree=polynomial_degree,
+                nquadrature=nquadrature,
+                Q=Q,
+                q0=q0,
+                u0=u0,
+                nquadrature_dyn=nquadrature_dyn,
+                cross_section_inertias=cross_section_inertias,
+            )
+
+        # returns interpolated positions, orientations and strains at xi in [0,1]
+        def _eval(self, qe, xi):
+            # evaluate shape functions
+            N_r, N_r_xi = self.basis_functions_r(xi)
+            N_psi, N_psi_xi = self.basis_functions_psi(xi)
+
+            # interpolate position and tangent vector
+            r_OP = np.zeros(3, dtype=qe.dtype)
+            r_OP_xi = np.zeros(3, dtype=qe.dtype)
+            for node in range(self.nnodes_element_r):
+                r_OP_node = qe[self.nodalDOF_element_r[node]]
+                r_OP += N_r[node] * r_OP_node
+                r_OP_xi += N_r_xi[node] * r_OP_node
+
+            # interpolate transformation matrix and its derivative
+            A_IK = np.zeros((3, 3), dtype=qe.dtype)
+            A_IK_xi = np.zeros((3, 3), dtype=qe.dtype)
+            for node in range(self.nnodes_element_psi):
+                A_IK_node = Exp_SO3_quat(qe[self.nodalDOF_element_psi[node]])
+                A_IK += N_psi[node] * A_IK_node
+                A_IK_xi += N_psi_xi[node] * A_IK_node
+
+            # axial and shear strains
+            K_Gamma_bar = A_IK.T @ r_OP_xi
+
+            # torsional and flexural strains
+            d1, d2, d3 = A_IK.T
+            d1_xi, d2_xi, d3_xi = A_IK_xi.T
+            K_Kappa_bar = np.array(
+                [
+                    0.5 * (d3 @ d2_xi - d2 @ d3_xi),
+                    0.5 * (d1 @ d3_xi - d3 @ d1_xi),
+                    0.5 * (d2 @ d1_xi - d1 @ d2_xi),
+                ]
+            )
+
+            return r_OP, A_IK, K_Gamma_bar, K_Kappa_bar
+
+        def _deval(self, qe, xi):
+            # evaluate shape functions
+            N_r, N_r_xi = self.basis_functions_r(xi)
+            N_psi, N_psi_xi = self.basis_functions_psi(xi)
+
+            # interpolate position and tangent vector + their derivatives
+            r_OP = np.zeros(3, dtype=qe.dtype)
+            r_OP_qe = np.zeros((3, self.nq_element), dtype=qe.dtype)
+            r_OP_xi = np.zeros(3, dtype=qe.dtype)
+            r_OP_xi_qe = np.zeros((3, self.nq_element), dtype=qe.dtype)
+            for node in range(self.nnodes_element_r):
+                nodalDOF_r = self.nodalDOF_element_r[node]
+                r_OP_node = qe[nodalDOF_r]
+
+                r_OP += N_r[node] * r_OP_node
+                r_OP_qe[:, nodalDOF_r] += N_r[node] * np.eye(3, dtype=float)
+
+                r_OP_xi += N_r_xi[node] * r_OP_node
+                r_OP_xi_qe[:, nodalDOF_r] += N_r_xi[node] * np.eye(3, dtype=float)
+
+            # interpolate transformation matrix and its derivative + their derivatives
+            A_IK = np.zeros((3, 3), dtype=qe.dtype)
+            A_IK_xi = np.zeros((3, 3), dtype=qe.dtype)
+            A_IK_qe = np.zeros((3, 3, self.nq_element), dtype=qe.dtype)
+            A_IK_xi_qe = np.zeros((3, 3, self.nq_element), dtype=qe.dtype)
+            for node in range(self.nnodes_element_psi):
+                nodalDOF_psi = self.nodalDOF_element_psi[node]
+                psi_node = qe[nodalDOF_psi]
+                A_IK_node = Exp_SO3_quat(psi_node)
+                A_IK_q_node = Exp_SO3_quat_p(psi_node)
+
+                A_IK += N_psi[node] * A_IK_node
+                A_IK_qe[:, :, nodalDOF_psi] += N_psi[node] * A_IK_q_node
+
+                A_IK_xi += N_psi_xi[node] * A_IK_node
+                A_IK_xi_qe[:, :, nodalDOF_psi] += N_psi_xi[node] * A_IK_q_node
+
+            # extract directors
+            d1, d2, d3 = A_IK.T
+            d1_xi, d2_xi, d3_xi = A_IK_xi.T
+            d1_qe, d2_qe, d3_qe = A_IK_qe.transpose(1, 0, 2)
+            d1_xi_qe, d2_xi_qe, d3_xi_qe = A_IK_xi_qe.transpose(1, 0, 2)
+
+            # axial and shear strains
+            K_Gamma_bar = A_IK.T @ r_OP_xi
+            K_Gamma_bar_qe = np.einsum("k,kij", r_OP_xi, A_IK_qe) + A_IK.T @ r_OP_xi_qe
+
+            # torsional and flexural strains
+            K_Kappa_bar = np.array(
+                [
+                    0.5 * (d3 @ d2_xi - d2 @ d3_xi),
+                    0.5 * (d1 @ d3_xi - d3 @ d1_xi),
+                    0.5 * (d2 @ d1_xi - d1 @ d2_xi),
+                ]
+            )
+            K_Kappa_bar_qe = np.array(
+                [
+                    0.5
+                    * (d3 @ d2_xi_qe + d2_xi @ d3_qe - d2 @ d3_xi_qe - d3_xi @ d2_qe),
+                    0.5
+                    * (d1 @ d3_xi_qe + d3_xi @ d1_qe - d3 @ d1_xi_qe - d1_xi @ d3_qe),
+                    0.5
+                    * (d2 @ d1_xi_qe + d1_xi @ d2_qe - d1 @ d2_xi_qe - d2_xi @ d1_qe),
+                ]
+            )
+
+            # from cardillo.math import approx_fprime
+
+            # r_OP_qe_num = approx_fprime(
+            #     qe,
+            #     lambda qe: self._eval(qe, xi)[0],
+            # )
+            # diff = r_OP_qe - r_OP_qe_num
+            # error = np.linalg.norm(diff)
+            # print(f"error r_OP_qe: {error}")
+
+            # A_IK_qe_num = approx_fprime(
+            #     qe,
+            #     lambda qe: self._eval(qe, xi)[1],
+            # )
+            # diff = A_IK_qe - A_IK_qe_num
+            # error = np.linalg.norm(diff)
+            # print(f"error A_IK_qe: {error}")
+
+            # K_Kappa_bar_qe_num = approx_fprime(
+            #     qe,
+            #     lambda qe: self._eval(qe, xi)[3],
+            # )
+            # diff = K_Kappa_bar_qe - K_Kappa_bar_qe_num
+            # error = np.linalg.norm(diff)
+            # print(f"error K_Kappa_bar_qe: {error}")
+
+            # K_Gamma_bar_qe_num = approx_fprime(
+            #     qe,
+            #     lambda qe: self._eval(qe, xi)[2],
+            # )
+            # diff = K_Gamma_bar_qe - K_Gamma_bar_qe_num
+            # error = np.linalg.norm(diff)
+            # print(f"error K_Gamma_bar_qe: {error}")
+
+            return (
+                r_OP,
+                A_IK,
+                K_Gamma_bar,
+                K_Kappa_bar,
+                r_OP_qe,
+                A_IK_qe,
+                K_Gamma_bar_qe,
+                K_Kappa_bar_qe,
+            )
+
+        def A_IK(self, t, q, frame_ID):
+            # evaluate shape functions
+            N_psi, _ = self.basis_functions_psi(frame_ID[0])
+
+            # interpolate orientation
+            A_IK = np.zeros((3, 3), dtype=q.dtype)
+            for node in range(self.nnodes_element_psi):
+                A_IK += N_psi[node] * Exp_SO3_quat(q[self.nodalDOF_element_psi[node]])
+
+            return A_IK
+
+        def A_IK_q(self, t, q, frame_ID):
+            # evaluate shape functions
+            N_psi, _ = self.basis_functions_psi(frame_ID[0])
+
+            # interpolate centerline position and orientation
+            A_IK_q = np.zeros((3, 3, self.nq_element), dtype=q.dtype)
+            for node in range(self.nnodes_element_psi):
+                nodalDOF_psi = self.nodalDOF_element_psi[node]
+                A_IK_q[:, :, nodalDOF_psi] += N_psi[node] * Exp_SO3_quat_p(
+                    q[nodalDOF_psi]
+                )
+
+            return A_IK_q
+
+    return CosseratRod_R12

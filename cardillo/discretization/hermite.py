@@ -251,7 +251,7 @@ def basic_usage_cubic():
 
 
 def knotvector_usage():
-    from cardillo.beams import DirectorAxisAngle
+    from cardillo.rods import DirectorAxisAngle
 
     polynomial_degree = 3
     nelement = 2

@@ -2,8 +2,8 @@ import numpy as np
 from abc import ABC, abstractmethod
 import warnings
 
-from cardillo.beams._base_export import RodExportBase
-
+from cardillo.rods._base_export import RodExportBase
+from ._cross_section import CrossSectionInertias
 from cardillo.math import (
     norm,
     cross3,
@@ -13,7 +13,6 @@ from cardillo.math import (
     T_SO3_inv_quat,
     T_SO3_inv_quat_P,
 )
-
 from cardillo.utility.coo_matrix import CooMatrix
 from cardillo.discretization.lagrange import LagrangeKnotVector
 from cardillo.discretization.mesh1D import Mesh1D
@@ -24,16 +23,15 @@ class CosseratRod(RodExportBase, ABC):
         self,
         cross_section,
         material_model,
-        A_rho0,
-        K_S_rho0,
-        K_I_rho0,
-        polynomial_degree,
         nelement,
+        polynomial_degree,
         nquadrature,
-        nquadrature_dyn,
         Q,
         q0=None,
         u0=None,
+        nquadrature_dyn=None,
+        cross_section_inertias=CrossSectionInertias(),
+        **kwargs,
     ):
         """Base class for Petrov-Galerkin Cosserat rod formulations that uses quaternions for the parametrization of the nodal orientations."""
 
@@ -41,22 +39,17 @@ class CosseratRod(RodExportBase, ABC):
 
         # beam properties
         self.material_model = material_model
-        self.A_rho0 = A_rho0
-        self.K_S_rho0 = K_S_rho0
-        self.K_I_rho0 = K_I_rho0
-
-        # can we use a constant mass matrix
-        if np.allclose(K_S_rho0, np.zeros_like(K_S_rho0)):
-            self.constant_mass_matrix = True
-        else:
-            self.constant_mass_matrix = False
+        self.cross_section_inertias = cross_section_inertias
 
         # distinguish between inertia quadrature and other parts
-        self.nquadrature_dyn = nquadrature_dyn
         self.nquadrature = nquadrature
-        self.nelement = nelement
+        if nquadrature_dyn is None:
+            self.nquadrature_dyn = nquadrature
+        else:
+            self.nquadrature_dyn = nquadrature_dyn
         print(f"nquadrature_dyn: {nquadrature_dyn}")
         print(f"nquadrature: {nquadrature}")
+        self.nelement = nelement
 
         ######################################################
         # discretization parameters centerline and orientation
@@ -609,10 +602,9 @@ class CosseratRod(RodExportBase, ABC):
     # equations of motion
     #########################################
     def assembler_callback(self):
-        if self.constant_mass_matrix:
-            self._M_coo()
+        self._M_coo()
 
-    def M_el_constant(self, el):
+    def M_el(self, el):
         M_el = np.zeros((self.nu_element, self.nu_element), dtype=float)
 
         for i in range(self.nquadrature_dyn):
@@ -621,7 +613,7 @@ class CosseratRod(RodExportBase, ABC):
             Ji = self.J_dyn[el, i]
 
             # delta_r A_rho0 r_ddot part
-            M_el_r_r = np.eye(3) * self.A_rho0 * Ji * qwi
+            M_el_r_r = np.eye(3) * self.cross_section_inertias.A_rho0 * Ji * qwi
             for node_a in range(self.nnodes_element_r):
                 nodalDOF_a = self.nodalDOF_element_r[node_a]
                 for node_b in range(self.nnodes_element_r):
@@ -631,65 +623,13 @@ class CosseratRod(RodExportBase, ABC):
                     )
 
             # first part delta_phi (I_rho0 omega_dot + omega_tilde I_rho0 omega)
-            M_el_psi_psi = self.K_I_rho0 * Ji * qwi
+            M_el_psi_psi = self.cross_section_inertias.K_I_rho0 * Ji * qwi
             for node_a in range(self.nnodes_element_psi):
                 nodalDOF_a = self.nodalDOF_element_psi_u[node_a]
                 for node_b in range(self.nnodes_element_psi):
                     nodalDOF_b = self.nodalDOF_element_psi_u[node_b]
                     M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psi_psi * (
                         self.N_psi_dyn[el, i, node_a] * self.N_psi_dyn[el, i, node_b]
-                    )
-
-        return M_el
-
-    def M_el(self, qe, el):
-        M_el = np.zeros((self.nu_element, self.nu_element), dtype=float)
-
-        for i in range(self.nquadrature_dyn):
-            # extract reference state variables
-            qwi = self.qw_dyn[el, i]
-            Ji = self.J_dyn[el, i]
-
-            # delta_r A_rho0 r_ddot part
-            M_el_r_r = np.eye(3) * self.A_rho0 * Ji * qwi
-            for node_a in range(self.nnodes_element_r):
-                nodalDOF_a = self.nodalDOF_element_r[node_a]
-                for node_b in range(self.nnodes_element_r):
-                    nodalDOF_b = self.nodalDOF_element_r[node_b]
-                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_r_r * (
-                        self.N_r_dyn[el, i, node_a] * self.N_r_dyn[el, i, node_b]
-                    )
-
-            # first part delta_phi (I_rho0 omega_dot + omega_tilde I_rho0 omega)
-            M_el_psi_psi = self.K_I_rho0 * Ji * qwi
-            for node_a in range(self.nnodes_element_psi):
-                nodalDOF_a = self.nodalDOF_element_psi_u[node_a]
-                for node_b in range(self.nnodes_element_psi):
-                    nodalDOF_b = self.nodalDOF_element_psi_u[node_b]
-                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psi_psi * (
-                        self.N_psi_dyn[el, i, node_a] * self.N_psi_dyn[el, i, node_b]
-                    )
-
-            # For non symmetric cross sections there are also other parts
-            # involved in the mass matrix. These parts are configuration
-            # dependent and lead to configuration dependent mass matrix.
-            _, A_IK, _, _ = self.eval(qe, self.qp_dyn[el, i])
-            M_el_r_psi = A_IK @ self.K_S_rho0 * Ji * qwi
-            M_el_psi_r = A_IK @ self.K_S_rho0 * Ji * qwi
-
-            for node_a in range(self.nnodes_element_r):
-                nodalDOF_a = self.nodalDOF_element_r[node_a]
-                for node_b in range(self.nnodes_element_psi):
-                    nodalDOF_b = self.nodalDOF_element_psi_u[node_b]
-                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_r_psi * (
-                        self.N_r_dyn[el, i, node_a] * self.N_psi_dyn[el, i, node_b]
-                    )
-            for node_a in range(self.nnodes_element_psi):
-                nodalDOF_a = self.nodalDOF_element_psi_u[node_a]
-                for node_b in range(self.nnodes_element_r):
-                    nodalDOF_b = self.nodalDOF_element_r[node_b]
-                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psi_r * (
-                        self.N_psi_dyn[el, i, node_a] * self.N_r_dyn[el, i, node_b]
                     )
 
         return M_el
@@ -701,25 +641,10 @@ class CosseratRod(RodExportBase, ABC):
             elDOF_u = self.elDOF_u[el]
 
             # sparse assemble element mass matrix
-            # self.__M[self.uDOF[elDOF_u], self.uDOF[elDOF_u]] = self.M_el_constant(
-            #     el
-            # )
-            self.__M[elDOF_u, elDOF_u] = self.M_el_constant(el)
+            self.__M[elDOF_u, elDOF_u] = self.M_el(el)
 
     def M(self, t, q):
-        if self.constant_mass_matrix:
-            return self.__M
-        else:
-            coo = CooMatrix((self.nu, self.nu))
-            for el in range(self.nelement):
-                # extract element degrees of freedom
-                elDOF = self.elDOF[el]
-                elDOF_u = self.elDOF_u[el]
-
-                # sparse assemble element mass matrix
-                coo[elDOF_u, elDOF_u] = self.M_el(q[elDOF], el)
-
-            return coo
+        return self.__M
 
     def E_kin(self, t, q, u):
         E_kin = 0.0
@@ -752,10 +677,17 @@ class CosseratRod(RodExportBase, ABC):
                 )
 
             # delta_r A_rho0 r_ddot part
-            E_kin_el += 0.5 * (v_P @ v_P) * self.A_rho0 * Ji * qwi
+            E_kin_el += (
+                0.5 * (v_P @ v_P) * self.cross_section_inertias.A_rho0 * Ji * qwi
+            )
 
             # first part delta_phi (I_rho0 omega_dot + omega_tilde I_rho0 omega)
-            E_kin_el += 0.5 * (K_omega_IK @ self.K_I_rho0 @ K_omega_IK) * Ji * qwi
+            E_kin_el += (
+                0.5
+                * (K_omega_IK @ self.cross_section_inertias.K_I_rho0 @ K_omega_IK)
+                * Ji
+                * qwi
+            )
 
         # E_kin_el = ue @ self.M_el_constant(el) @ ue
 
@@ -785,7 +717,7 @@ class CosseratRod(RodExportBase, ABC):
             for node in range(self.nnodes_element_r):
                 v_P += self.N_r_dyn[el, i, node] * ue[self.nodalDOF_element_r[node]]
 
-            linear_momentum_el += v_P * self.A_rho0 * Ji * qwi
+            linear_momentum_el += v_P * self.cross_section_inertias.A_rho0 * Ji * qwi
 
         return linear_momentum_el
 
@@ -825,7 +757,10 @@ class CosseratRod(RodExportBase, ABC):
             A_IK = self.A_IK(t, qe, (qpi,))
 
             angular_momentum_el += (
-                (cross3(r_OP, v_P) * self.A_rho0 + A_IK @ (self.K_I_rho0 @ K_omega_IK))
+                (
+                    cross3(r_OP, v_P) * self.cross_section_inertias.A_rho0
+                    + A_IK @ (self.cross_section_inertias.K_I_rho0 @ K_omega_IK)
+                )
                 * Ji
                 * qwi
             )
@@ -833,11 +768,6 @@ class CosseratRod(RodExportBase, ABC):
         return angular_momentum_el
 
     def f_gyr_el(self, t, qe, ue, el):
-        if not self.constant_mass_matrix:
-            raise NotImplementedError(
-                "Gyroscopic forces are not implemented for nonzero K_S_rho0."
-            )
-
         f_gyr_el = np.zeros(self.nu_element, dtype=np.common_type(qe, ue))
 
         for i in range(self.nquadrature_dyn):
@@ -850,7 +780,7 @@ class CosseratRod(RodExportBase, ABC):
 
             # vector of gyroscopic forces
             f_gyr_el_psi = (
-                cross3(K_Omega, self.K_I_rho0 @ K_Omega)
+                cross3(K_Omega, self.cross_section_inertias.K_I_rho0 @ K_Omega)
                 * self.J_dyn[el, i]
                 * self.qw_dyn[el, i]
             )
@@ -876,7 +806,12 @@ class CosseratRod(RodExportBase, ABC):
 
             # derivative of vector of gyroscopic forces
             f_gyr_u_el_psi = (
-                ((ax2skew(K_Omega) @ self.K_I_rho0 - ax2skew(self.K_I_rho0 @ K_Omega)))
+                (
+                    (
+                        ax2skew(K_Omega) @ self.cross_section_inertias.K_I_rho0
+                        - ax2skew(self.cross_section_inertias.K_I_rho0 @ K_Omega)
+                    )
+                )
                 * self.J_dyn[el, i]
                 * self.qw_dyn[el, i]
             )
@@ -1411,46 +1346,40 @@ class CosseratRod(RodExportBase, ABC):
         return None
 
 
-class CosseratRodMixed(CosseratRod, ABC):
+class CosseratRodMixed(CosseratRod):
     def __init__(
         self,
         cross_section,
         material_model,
-        A_rho0,
-        K_S_rho0,
-        K_I_rho0,
-        polynomial_degree,
         nelement,
+        polynomial_degree,
         nquadrature,
-        nquadrature_dyn,
         Q,
         q0=None,
         u0=None,
+        nquadrature_dyn=None,
+        cross_section_inertias=CrossSectionInertias(),
         idx_mixed=np.arange(6),
     ):
-        """Base class for Petrov-Galerkin Cosserat rod formulations that uses quaternions for the parametrization of the nodal orientations."""
+        """Base class for Petrov-Galerkin Cosserat rod formulations that uses
+        quaternions for the parametrization of the nodal orientations."""
 
         super().__init__(
             cross_section,
             material_model,
-            A_rho0,
-            K_S_rho0,
-            K_I_rho0,
-            polynomial_degree,
             nelement,
+            polynomial_degree,
             nquadrature,
-            nquadrature_dyn,
             Q,
-            q0=None,
-            u0=None,
+            q0=q0,
+            u0=u0,
+            nquadrature_dyn=nquadrature_dyn,
+            cross_section_inertias=cross_section_inertias,
         )
 
         #######################################################
         # discretization parameters internal forces and moments
         #######################################################
-        # idx_mixed = np.array([0,3,4,5])
-        # idx_mixed = np.arange(6)
-
         self.idx_mixed = np.array(idx_mixed)
         self.idx_n = self.idx_mixed[(self.idx_mixed < 3)]
         self.nmixed_n = len(self.idx_n)
@@ -1908,54 +1837,35 @@ def make_CosseratRodConstrained(mixed, constraints):
         idx_mixed = idx[~np.isin(idx, idx_constraints)]
     else:
         CosseratRodBase = CosseratRod
+        idx_mixed = None
 
-    class CosseratRodConstrained(CosseratRodBase, ABC):
+    class CosseratRodConstrained(CosseratRodBase):
         def __init__(
             self,
             cross_section,
             material_model,
-            A_rho0,
-            K_S_rho0,
-            K_I_rho0,
-            polynomial_degree,
             nelement,
+            polynomial_degree,
             nquadrature,
-            nquadrature_dyn,
             Q,
             q0=None,
             u0=None,
+            nquadrature_dyn=None,
+            cross_section_inertias=CrossSectionInertias(),
         ):
-            if mixed:
-                super().__init__(
-                    cross_section,
-                    material_model,
-                    A_rho0,
-                    K_S_rho0,
-                    K_I_rho0,
-                    polynomial_degree,
-                    nelement,
-                    nquadrature,
-                    nquadrature_dyn,
-                    Q,
-                    q0=q0,
-                    u0=u0,
-                    idx_mixed=idx_mixed,
-                )
-            else:
-                super().__init__(
-                    cross_section,
-                    material_model,
-                    A_rho0,
-                    K_S_rho0,
-                    K_I_rho0,
-                    polynomial_degree,
-                    nelement,
-                    nquadrature,
-                    nquadrature_dyn,
-                    Q,
-                    q0=q0,
-                    u0=u0,
-                )
+            super().__init__(
+                cross_section,
+                material_model,
+                nelement,
+                polynomial_degree,
+                nquadrature,
+                Q,
+                q0=q0,
+                u0=u0,
+                nquadrature_dyn=nquadrature_dyn,
+                cross_section_inertias=cross_section_inertias,
+                idx_mixed=idx_mixed,
+            )
 
             self.constraints = np.array(constraints)
             self.constraints_gamma = self.constraints[(self.constraints < 3)]

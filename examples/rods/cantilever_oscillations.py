@@ -1,10 +1,10 @@
-from cardillo.beams import (
+from cardillo.rods import (
     RectangularCrossSection,
     Simo1986,
     animate_beam,
 )
 
-from cardillo.beams.cosseratRod import (
+from cardillo.rods.cosseratRod import (
     make_CosseratRod_SE3,
     make_CosseratRod_R12,
     make_CosseratRod_Quat,
