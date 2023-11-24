@@ -47,11 +47,7 @@ def helix(
 
     width = length / slenderness
     radius = width / 2
-    line_density = 1
-    cross_section = CircularCrossSection(line_density, radius=radius)
-    A_rho0 = line_density * cross_section.area
-    K_S_rho0 = line_density * cross_section.first_moment
-    K_I_rho0 = line_density * cross_section.second_moment
+    cross_section = CircularCrossSection(radius=radius)
     A = cross_section.area
     Ip, I2, I3 = np.diag(cross_section.second_moment)
 
@@ -86,9 +82,6 @@ def helix(
     cantilever = Rod(
         cross_section,
         material_model,
-        A_rho0,
-        K_S_rho0,
-        K_I_rho0,
         nelements,
         Q=q0,
         q0=q0,
@@ -171,33 +164,33 @@ if __name__ == "__main__":
 
     helix(
         Rod=make_CosseratRod_SE3(mixed=True),
-        nelements=5,
+        nelements=10,
         polynomial_degree=1,
-        n_load_steps=2,
+        n_load_steps=1,
         reduced_integration=True,
         slenderness=1.0e4,
         atol=1.0e-12,
     )
 
-    # helix(
-    #     Rod=make_CosseratRod_Quat(mixed=True),
-    #     nelements=10,
-    #     polynomial_degree=2,
-    #     n_load_steps=2,
-    #     reduced_integration=True,
-    #     slenderness=1.0e4,
-    #     atol=1.0e-12,
-    # )
+    helix(
+        Rod=make_CosseratRod_Quat(mixed=True),
+        nelements=10,
+        polynomial_degree=2,
+        n_load_steps=1,
+        reduced_integration=True,
+        slenderness=1.0e4,
+        atol=1.0e-12,
+    )
 
-    # helix(
-    #     Rod=make_CosseratRod_R12(mixed=True),
-    #     nelements=10,
-    #     polynomial_degree=2,
-    #     n_load_steps=2,
-    #     reduced_integration=True,
-    #     slenderness=1.0e4,
-    #     atol=1.0e-12,
-    # )
+    helix(
+        Rod=make_CosseratRod_R12(mixed=True),
+        nelements=10,
+        polynomial_degree=2,
+        n_load_steps=2,
+        reduced_integration=True,
+        slenderness=1.0e4,
+        atol=1.0e-12,
+    )
 
     #####################################
     # parameters from Paper Harsch2023a #
@@ -237,7 +230,7 @@ if __name__ == "__main__":
     # helix(Rod=make_CosseratRod_SE3(mixed=False), nelements=5, polynomial_degree=1, n_load_steps = 100, reduced_integration=True, slenderness=1.0e1, atol=1.0e-8)
 
     # helix(Rod=make_CosseratRod_SE3(mixed=False), nelements=5, polynomial_degree=1, n_load_steps = 109, reduced_integration=True, slenderness=1.0e2, atol=1.0e-9)
-    # strangely: n_load_steps = 110 does not work anymore
+    # # strangely: n_load_steps = 110 does not work anymore
 
     # helix(Rod=make_CosseratRod_SE3(mixed=False), nelements=5, polynomial_degree=1, n_load_steps = 200, reduced_integration=True, slenderness=1.0e3, atol=1.0e-12)
 
