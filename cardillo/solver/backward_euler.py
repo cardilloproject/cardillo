@@ -5,13 +5,6 @@ from scipy.sparse.linalg import splu
 from tqdm import tqdm
 
 from cardillo.solver import SolverOptions, SolverSummary, Solution
-
-# from cardillo.math import (
-#     fsolve,
-#     NegativeOrthant,
-#     estimate_prox_parameter,
-#     approx_fprime,
-# )
 from cardillo.math.fsolve import fsolve
 from cardillo.math.approx_fprime import approx_fprime
 from cardillo.math.prox import estimate_prox_parameter, NegativeOrthant
@@ -380,8 +373,7 @@ class BackwardEuler:
                     jac=self.J_x,
                     fun_args=(yn1,),
                     jac_args=(yn1,),
-                    atol=self.options.newton_atol,
-                    max_iter=self.options.newton_max_iter,
+                    options=self.options,
                 )
                 solver_summary.add_lu(i_newton)
 
@@ -453,8 +445,7 @@ class BackwardEuler:
                                 jac=self.J_x,
                                 fun_args=(yn1,),
                                 jac_args=(yn1,),
-                                atol=self.options.newton_atol,
-                                max_iter=self.options.newton_max_iter,
+                                options=self.options,
                             )
                             solver_summary.add_lu(i_newton)
             else:

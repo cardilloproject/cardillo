@@ -4,7 +4,7 @@ from scipy.sparse.linalg import splu
 from tqdm import tqdm
 
 from cardillo.math import approx_fprime, fsolve
-from cardillo.solver import Solution
+from cardillo.solver import Solution, SolverOptions
 
 
 class GeneralizedAlphaFirstOrder:
@@ -275,8 +275,7 @@ class GeneralizedAlphaFirstOrder:
                 self.y,
                 jac=self.jac_method if self.jac_method is not None else self._J,
                 error_function=self.error_function,
-                atol=self.atol,
-                max_iter=self.max_iter,
+                options=SolverOptions(),
             )
             self.y, converged, error, n_iter = sol[:4]
             assert converged

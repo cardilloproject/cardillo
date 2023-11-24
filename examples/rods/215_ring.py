@@ -40,10 +40,13 @@ https://doi.org/10.1016/j.engstruct.2020.111755
 """
 
 
+# TODO:
+# - identify issue with mixed formulation
 def _215_ring(
     load_type="force", rod_hypothesis_penalty="shear_deformable", VTK_export=False
 ):
-    Rod = make_CosseratRod_SE3(mixed=True)
+    # Rod = make_CosseratRod_SE3(mixed=True)
+    Rod = make_CosseratRod_SE3(mixed=False)
     # Rod = CosseratRodPG_QuatMixed
     # Rod = CosseratRodPG_SE3Mixed
 
@@ -52,16 +55,10 @@ def _215_ring(
 
     # geometry of the rod
     width = 1.0
-    line_density = 1
-    cross_section = RectangularCrossSection(line_density, width, width)
+    cross_section = RectangularCrossSection(width, width)
 
     A = 2.29
     I = 1.0
-    A_rho0 = line_density * cross_section.area
-    K_S_rho0 = line_density * cross_section.first_moment
-    K_I_rho0 = line_density * cross_section.second_moment
-
-    atol = 1e-7
 
     EE = 1e6  # Young's modulus
     GG = EE / (2 * (1 + 0))  # shear modulus
@@ -115,9 +112,6 @@ def _215_ring(
     cantilever = Rod(
         cross_section,
         material_model,
-        A_rho0,
-        K_S_rho0,
-        K_I_rho0,
         nelements,
         Q=q0,
         q0=q0,
@@ -150,13 +144,18 @@ def _215_ring(
 
     system.assemble(options=SolverOptions(compute_consistent_initial_conditions=False))
 
-    solver = Newton(
+    atol = 1e-6
+    # solver = Newton(
+    #     system,
+    #     n_load_steps=10,
+    #     options=SolverOptions(newton_atol=atol),
+    # )
+    solver = Riks(
         system,
-        n_load_steps=10,
-        max_iter=30,
-        atol=atol,
+        la_arc0=1e-3,
+        la_arc_span=np.array([-3, 3]),
+        options=SolverOptions(newton_atol=atol),
     )
-    # solver = Riks(system, atol=atol, la_arc0=1e-1, la_arc_span=np.array([-0.1, 0.25]))
 
     sol = solver.solve()
     q = sol.q

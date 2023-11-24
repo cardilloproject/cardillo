@@ -698,8 +698,7 @@ class NonsmoothGeneralizedAlpha:
             x,
             fun_args=(True,),
             jac_args=(False,),
-            atol=self.options.newton_atol,
-            max_iter=self.options.newton_max_iter,
+            options=self.options,
         )
 
         # eqn. (126): unpack converged vector x
@@ -775,8 +774,7 @@ class NonsmoothGeneralizedAlpha:
                 y,
                 fun_args=(z,),
                 jac_args=(z,),
-                atol=self.options.newton_atol,
-                max_iter=self.options.newton_max_iter,
+                options=self.options,
             )
 
             # eqn. (146): fixed point update

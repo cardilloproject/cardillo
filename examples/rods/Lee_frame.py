@@ -163,7 +163,7 @@ def cantilever(
         system,
         iter_goal=4,
         la_arc0=5e-3,
-        la_arc_span=np.array([-0.5, 1]),
+        la_arc_span=np.array([-0.1, 0.25]),
         options=SolverOptions(),
     )
 
@@ -185,17 +185,15 @@ def cantilever(
         scale_di=0.05,
         show=False,
         n_frames=cantilever1.nelement + 1,
-        repeat=False,
+        repeat=True,
     )
 
     x_tip_displacement = np.zeros(len(t))
     y_tip_displacement = np.zeros(len(t))
 
-    element = 1 * nelements // 5
-
     frame_ID = (0.2,)
     qDOF_element_of_interest = cantilever2.qDOF[cantilever2.local_qDOF_P(frame_ID)]
-    r0 = cantilever2.r_OP(0, q[0, qDOF_element_of_interest], frame_ID=frame_ID)
+    r0 = cantilever2.r_OP(0, system.q0[qDOF_element_of_interest], frame_ID=frame_ID)
 
     # the plotted displacements depend on how the structure is modelled in the 3D space. In this case we have that the x
     for i, ti in enumerate(t):
