@@ -165,35 +165,39 @@ def helix(
 
 
 if __name__ == "__main__":
-    helix(
-        Rod=make_CosseratRod_SE3(mixed=True),
-        nelements=5,
-        polynomial_degree=1,
-        n_load_steps=2,
-        reduced_integration=True,
-        slenderness=1.0e4,
-        atol=1.0e-12,
-    )
+    #############################
+    # robust mixed formulations #
+    #############################
 
-    helix(
-        Rod=make_CosseratRod_Quat(mixed=True),
-        nelements=10,
-        polynomial_degree=2,
-        n_load_steps=2,
-        reduced_integration=True,
-        slenderness=1.0e4,
-        atol=1.0e-12,
-    )
+    # helix(
+    #     Rod=make_CosseratRod_SE3(mixed=True),
+    #     nelements=5,
+    #     polynomial_degree=1,
+    #     n_load_steps=2,
+    #     reduced_integration=True,
+    #     slenderness=1.0e4,
+    #     atol=1.0e-12,
+    # )
 
-    helix(
-        Rod=make_CosseratRod_R12(mixed=True),
-        nelements=10,
-        polynomial_degree=2,
-        n_load_steps=2,
-        reduced_integration=True,
-        slenderness=1.0e4,
-        atol=1.0e-12,
-    )
+    # helix(
+    #     Rod=make_CosseratRod_Quat(mixed=True),
+    #     nelements=10,
+    #     polynomial_degree=2,
+    #     n_load_steps=2,
+    #     reduced_integration=True,
+    #     slenderness=1.0e4,
+    #     atol=1.0e-12,
+    # )
+
+    # helix(
+    #     Rod=make_CosseratRod_R12(mixed=True),
+    #     nelements=10,
+    #     polynomial_degree=2,
+    #     n_load_steps=2,
+    #     reduced_integration=True,
+    #     slenderness=1.0e4,
+    #     atol=1.0e-12,
+    # )
 
     #####################################
     # parameters from Paper Harsch2023a #
