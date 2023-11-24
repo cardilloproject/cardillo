@@ -4,7 +4,8 @@ from cardillo.constraints._base import (
     concatenate_uDOF,
     auxiliary_functions,
 )
-from cardillo.math import approx_fprime, norm, cross3
+from cardillo.math.algebra import norm, cross3
+from cardillo.math.approx_fprime import approx_fprime
 import warnings
 
 

@@ -4,15 +4,9 @@ import warnings
 
 from cardillo.rods._base_export import RodExportBase
 from ._cross_section import CrossSectionInertias
-from cardillo.math import (
-    norm,
-    cross3,
-    ax2skew,
-    approx_fprime,
-    Log_SO3_quat,
-    T_SO3_inv_quat,
-    T_SO3_inv_quat_P,
-)
+from cardillo.math.algebra import norm, cross3, ax2skew
+from cardillo.math.rotations import Log_SO3_quat, T_SO3_inv_quat, T_SO3_inv_quat_P
+from cardillo.math.approx_fprime import approx_fprime
 from cardillo.utility.coo_matrix import CooMatrix
 from cardillo.discretization.lagrange import LagrangeKnotVector
 from cardillo.discretization.mesh1D import Mesh1D

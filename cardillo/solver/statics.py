@@ -1,10 +1,10 @@
-from cardillo.math import approx_fprime, fsolve
-from cardillo.solver.solution import Solution
-
 import numpy as np
-from scipy.sparse.linalg import spsolve
-from scipy.sparse import csc_array, lil_array, bmat
+from scipy.sparse import lil_array, bmat
 from tqdm import tqdm
+
+from cardillo.math.fsolve import fsolve
+from cardillo.solver.solver_options import SolverOptions
+from cardillo.solver.solution import Solution
 
 
 class Newton:
@@ -21,33 +21,17 @@ class Newton:
         self,
         system,
         n_load_steps=1,
-        atol=1e-8,
-        max_iter=50,
-        jac=None,
-        eps=1.0e-6,
         verbose=True,
-        error_function=lambda x: np.max(np.absolute(x)),
+        options=SolverOptions(),
     ):
         self.system = system
-        self.eps = eps
-        self.error_function = error_function
+        self.options = options
         self.verbose = verbose
-
-        # compute Jacobian matrix using finite differences
-        if jac in ["2-point", "3-point", "cs"]:
-            self.jac = lambda x, *args: csc_array(
-                approx_fprime(x, lambda y: self.fun(y, *args), method=jac, eps=eps)
-            )
-        else:
-            self.jac = self.__jac
-
-        self.atol = atol
-        self.max_iter = max_iter
         self.load_steps = np.linspace(0, 1, n_load_steps + 1)
         self.nt = len(self.load_steps)
 
         self.len_t = len(str(self.nt))
-        self.len_maxIter = len(str(self.max_iter))
+        self.len_maxIter = len(str(self.options.newton_max_iter))
 
         # other dimensions
         self.nq = system.nq
@@ -103,7 +87,7 @@ class Newton:
         F[self.split_f[3] :] = np.minimum(la_N, self.g_N)
         return F
 
-    def __jac(self, x, t):
+    def jac(self, x, t):
         # unpack unknowns
         q, la_g, la_c, la_N = np.array_split(x, self.split_x)
 
@@ -143,8 +127,8 @@ class Newton:
     def __pbar_text(self, force_iter, newton_iter, error):
         return (
             f" force iter {force_iter+1:>{self.len_t}d}/{self.nt};"
-            f" Newton steps {newton_iter+1:>{self.len_maxIter}d}/{self.max_iter};"
-            f" error {error:.4e}/{self.atol:.2e}"
+            f" Newton steps {newton_iter+1:>{self.len_maxIter}d}/{self.options.newton_max_iter};"
+            f" error {error:.4e}/{self.options.newton_atol:.2e}"
         )
 
     def solve(self):
@@ -158,13 +142,11 @@ class Newton:
                 jac=self.jac,
                 fun_args=(self.load_steps[i],),
                 jac_args=(self.load_steps[i],),
-                error_function=self.error_function,
-                atol=self.atol,
-                max_iter=self.max_iter,
+                options=self.options,
             )
             pbar.set_description(self.__pbar_text(i, k, error))
 
-            if not converged:
+            if not converged and not self.options.continue_with_unconverged:
                 # return solution up to this iteration
                 if self.verbose:
                     pbar.close()
@@ -173,10 +155,11 @@ class Newton:
                     f"up to iteration {i+1:>{self.len_t}d}/{self.nt}"
                 )
                 return Solution(
-                    t=self.load_steps,
-                    q=self.x[: i + 1, : self.nq],
-                    la_g=self.x[: i + 1, self.nq :],
-                    la_N=self.x[: i + 1, self.nq + self.nla_g :],
+                    system=self.system,
+                    t=self.load_steps[: i + 1],
+                    q=self.x[: i + 1, : self.split_x[0]],
+                    la_g=self.x[: i + 1, self.split_x[0] : self.split_x[1]],
+                    la_N=self.x[: i + 1, self.split_x[1] :],
                 )
 
             # solver step callback
@@ -202,20 +185,17 @@ class Newton:
         )
 
 
-# TODO: Understand predictor of Feng mentioned in Neto1999.
-# TODO: automatic increment cutting: Crisfield1991 section 9.5.1
-# TODO: read Crisfield1996 section 21 Branch switching and further advanced solution procedures
-# TODO: implement line searcher technique mentioned in Crisfield1991 and Crisfield1996
-# TODO: implement dense output
+# read https://doi.org/10.1016/j.engstruct.2020.111755
 class Riks:
     """Linear arc-length solver close to Riks method as dervied in Crisfield1991 
     section 9.3.2 p.273. A variable arc-length is chosen as shown by 
     Crisfield1981 or Crisfield 1983. For the first predictor a tangent predictor 
-    is used. For all other predictors a simple secant predictor is used. This 
-    enables the solver to 'run forward' instead of 'doubling back on its track'.
+    is used. For all other predictors a simple secant predictor is sufficient. 
+    This enables the solver to 'run forward' instead of 'doubling back on its track'.
 
     References
     ----------
+    - stackexchange : https://scicomp.stackexchange.com/a/28140 \\
     - Wempner1971: https://doi.org/10.1016/0020-7683(71)90038-2 \\
     - Riks1972: https://doi.org/10.1115/1.3422829 \\
     - Riks1979: https://doi.org/10.1016/0020-7683(79)90081-7 \\
@@ -225,115 +205,32 @@ class Riks:
     - Neto1999: https://doi.org/10.1016/S0045-7825(99)00042-0
     """
 
-    def a(self, x):
-        """The most simple arc length equation restricting the change of all
-        generalized coordinates w.r.t. the last converged Newton step."""
-        nq = self.nq
-        dq = x[:nq] - self.xk[:nq]
-        return dq @ dq
-
-    def a_x(self, x):
-        nq = self.nq
-        dq = x[:nq] - self.xk[:nq]
-        return 2 * dq, np.zeros(self.nla_g), 0
-
-    def R(self, x):
-        return next(self.gen_analytic(x))
-
-    def gen_numeric(self, x):
-        yield self.R(x)
-        yield approx_fprime(x, self.R, method="2-point")
-
-    def gen_analytic(self, x):
-        # extract generalized coordinates and Lagrange multipliers
-        nq = self.nq
-        nu = self.nu
-        nla_g = self.nla_g
-        nla_S = self.nla_S
-
-        q = x[:nq]
-        la_g = x[nq : nq + nla_g]
-        la_arc = x[-1]
-
-        # evaluate all functions with t = la_arc -> model does not change!
-        # - this requires the external force that should be scaled to be of the form
-        #   F_ext(t, q) = t * F(q)
-        # - the constraints for displacement control have to be of the form
-        #   g(t, q) = t * g(q)
-        t = la_arc
-        h = self.system.h(t, q, self.u0)
-        g = self.system.g(t, q)
-        W_g = self.system.W_g(t, q)
-
-        # build residual
-        R = np.zeros(self.nx)
-        R[:nu] = h + W_g @ la_g
-        R[nu : nu + nla_g] = g
-        R[nu + nla_g : nu + nla_g + nla_S] = self.system.g_S(t, q)
-        R[-1] = self.a(x) - self.ds**2
-
-        yield R
-
-        # evaluate all functions with t = la_arc -> model does not change!
-        # - this requires the external force that should be scaled to be of the form
-        #   F_ext(t, q) = t * F(q)
-        # - the constraints for displacement control have to be of the form
-        #   g(t, q) = t * g(q)
-        h_q = self.system.h_q(t, q, self.u0)
-        Wla_g_q = self.system.Wla_g_q(t, q, la_g)
-        Rq_q = h_q + Wla_g_q
-        g_q = self.system.g_q(t, q)
-        g_S_q = self.system.g_S_q(t, q)
-
-        # TODO: this is a hack and can't be fixed without specifying the scaled equations
-        # but it is only two addition evaluations of the h vector and the constraints
-        eps = 1.0e-6
-        # TODO: Add Wla_g_t here!
-        f_arc = (self.system.h(t + eps, q, self.u0) - h) / eps
-        g_arc = (self.system.g(t + eps, q) - g) / eps
-
-        # derivative of the arc length equation
-        a_q, a_la, a_la_arc = self.a_x(x)
-
-        yield bmat(
-            [
-                [Rq_q, W_g, f_arc[:, None]],
-                [g_q, None, g_arc[:, None]],
-                [g_S_q, None, None],
-                [a_q, a_la, a_la_arc],
-            ],
-            format="csr",
-        )
-
     def __init__(
         self,
         system,
-        atol=1e-8,
-        max_iter=50,
         iter_goal=4,
         la_arc0=1.0e-3,
         la_arc_span=np.array([0, 1], dtype=float),
-        numerical_jacobian=False,
         scale_exponent=0.5,
-        debug=0,
+        options=SolverOptions(),
     ):
-        self.atol = atol
-        self.max_iter = max_iter
         self.system = system
-        self.iter_goal = iter_goal
+        self.options = options
         self.la_arc0 = la_arc0
         self.la_arc_span = la_arc_span
 
-        self.newton_error_function = lambda R: np.absolute(R).max()
+        # initial arc-length parameter is not required in the first step and
+        # will be computed later
+        self.ds = 0
 
-        if numerical_jacobian:
-            self.gen = self.gen_numeric
-        else:
-            self.gen = self.gen_analytic
+        # step size of finite differences
+        self.eps = self.options.numerical_jacobian_eps
 
         # parameter for the step size scaling
+        self.iter_goal = iter_goal
         self.MIN_FACTOR = 0.25  # minimal scaling factor
         self.MAX_FACTOR = 1.5  # maximal scaling factor
+        self.scale_exponent = scale_exponent
 
         # dimensions
         self.nq = self.system.nq
@@ -342,6 +239,29 @@ class Riks:
         self.nla_S = self.system.nla_S
         self.nx = self.nq + self.nla_g + 1
 
+        # split vectors
+        self.split_unknowns = np.cumsum(
+            np.array(
+                [
+                    self.nq,
+                    self.nla_g,
+                    1,
+                ],
+                dtype=int,
+            )
+        )[:-1]
+        self.split_residual = np.cumsum(
+            np.array(
+                [
+                    self.nu,
+                    self.nla_g,
+                    self.nla_S,
+                    1,
+                ],
+                dtype=int,
+            )
+        )[:-1]
+
         # initial
         self.q0 = self.system.q0
         self.la_g0 = self.system.la_g0
@@ -349,9 +269,8 @@ class Riks:
         self.u0 = np.zeros(system.nu)  # statics
 
         # initial values for generalized coordinates, lagrange multipliers and force scaling
-        self.x0 = self.xk = np.concatenate(
-            (self.q0, self.la_g0, np.array([self.la_arc0]))
-        )
+        self.xk = np.concatenate((self.q0, self.la_g0, np.array([0])))
+        self.x0_bar = np.concatenate((self.q0, self.la_g0, np.array([la_arc0])))
 
         ####################################################################################################
         # Solve linearized system for fixed external force using Newtons method.
@@ -359,138 +278,147 @@ class Riks:
         # All other ds values will be modified according to the number of used Newton steps,
         # see https://scicomp.stackexchange.com/questions/28137/initialize-arc-length-control-in-riks-method
         ####################################################################################################
-        print(f"solve linear system using the initial arc length parameter")
-        self.ds = 0  # initial ds has to be zero!
-        xk1 = self.x0.copy()  # this copy is essential!
-        gen = self.gen(xk1)
-        R = next(gen)[:-1]
-        error = self.newton_error_function(R)
-        newton_iter = 0
-        print(f"   * iter = {newton_iter}, error = {error:2.4e}")
-        while error > self.atol:
-            newton_iter += 1
-            R_x = next(gen)[:-1, :-1]
-            xk1[:-1] -= spsolve(R_x, R)
-            gen = self.gen(xk1)
-            R = next(gen)[:-1]
-            error = self.newton_error_function(R)
-            print(f"   * iter = {newton_iter}, error = {error:2.4e}")
+        print(f"solve equilibrium for given initial la_arc0")
+
+        def fun(x):
+            x = np.concatenate((x, [la_arc0]))
+            return self.R(x)[:-1]
+
+        def jac(x):
+            x = np.concatenate((x, [la_arc0]))
+            return self.J(x)[:-1, :-1]
+
+        self.x0_bar, converged, _, _, _ = fsolve(
+            fun, self.x0_bar[:-1], jac=jac, options=options
+        )
+        assert (
+            converged
+        ), "solving for initial arc-length parameter 'ds' did not converge => chose another 'la_arc0'"
+        self.x0_bar = np.concatenate((self.x0_bar, [la_arc0]))
+        assert (
+            converged
+        ), "solving for initial arc-length parameter 'ds' did not converge => chose another 'la_arc0'"
 
         # compute initial ds from arc-length equation
-        self.ds = self.a(xk1) ** 0.5
-        if self.ds <= 0:
-            raise RuntimeError("ds <= 0")
-        print(
-            f" => Newton converged in {newton_iter} iterations with error {error:2.4e}; initial ds: {self.ds:2.4e}"
+        self.ds = self.a(self.x0_bar) ** 0.5
+        assert self.ds > 0, "initial ds is zero"
+        print(f"initial ds: {self.ds:2.4e}")
+
+    def a(self, x):
+        """The most primitive arc-length equation restricts the change of all
+        generalized coordinates q w.r.t. the last converged Newton step qk."""
+        qk, la_gk, tk = np.array_split(self.xk, self.split_unknowns)
+        q, la_g, t = np.array_split(x, self.split_unknowns)
+        dq = q - qk
+        return dq @ dq
+
+    def a_x(self, x):
+        qk, la_gk, tk = np.array_split(self.xk, self.split_unknowns)
+        q, la_g, t = np.array_split(x, self.split_unknowns)
+        dq = q - qk
+        return 2 * dq, np.zeros(self.nla_g), 0
+
+    def R(self, x):
+        # extract generalized coordinates, Lagrange multipliers and arc-length parameter
+        q, la_g, t = np.array_split(x, self.split_unknowns)
+        t = t[0]
+
+        # evaluate all functions with t = la_arc -> model does not change!
+        # - this requires the external force that should be scaled to be of the form
+        #   F_ext(t, q) = t * F(q)
+        # - the constraints for displacement control have to be of the form
+        #   g(t, q) = t * g(q)
+
+        # compute quantities required for Jacobian
+        self.W_g = self.system.W_g(t, q)
+        self.h = self.system.h(t, q, self.u0)
+        self.g = self.system.g(t, q)
+
+        # build residual
+        R = np.zeros(self.nx)
+        R = x.copy()
+        R[: self.split_residual[0]] = self.h + self.W_g @ la_g
+        R[self.split_residual[0] : self.split_residual[1]] = self.g
+        R[self.split_residual[1] : self.split_residual[2]] = self.system.g_S(t, q)
+        R[-1] = self.a(x) - self.ds**2
+
+        return R
+
+    def J(self, x):
+        # extract generalized coordinates, Lagrange multipliers and arc-length parameter
+        q, la_g, t = np.array_split(x, self.split_unknowns)
+        t = t[0]
+
+        h_q = self.system.h_q(t, q, self.u0)
+        Wla_g_q = self.system.Wla_g_q(t, q, la_g)
+        Ru_q = h_q + Wla_g_q
+        g_q = self.system.g_q(t, q)
+        g_S_q = self.system.g_S_q(t, q)
+
+        # note: We use finite differences to compute the derivatives w.r.t.
+        # to the arc-length parameter. Hence, we do not have to specify here
+        # how the arc-length parameter enters the vector of generalized forces h.
+        # For displacement based approaches, we simpyl add a corresponding
+        # bilateral constraint g(t, q).
+        eps = self.eps
+        Wla_g_t = (self.system.W_g(t + eps, q) @ la_g - self.W_g @ la_g) / eps
+        h_t = (self.system.h(t + eps, q, self.u0) - self.h) / eps
+        Ru_t = h_t + Wla_g_t
+        g_t = (self.system.g(t + eps, q) - self.g) / eps
+
+        # derivative of the arc length equation
+        a_q, a_la_g, a_la_arc = self.a_x(x)
+
+        # fmt: off
+        return bmat(
+            [
+                [ Ru_q, self.W_g, Ru_t[:, None]],
+                [  g_q,     None,  g_t[:, None]],
+                [g_S_q,     None,          None],
+                [  a_q,   a_la_g,      a_la_arc],
+            ],
+            format="csc",
         )
-
-        # chose scaling exponent, see https://scicomp.stackexchange.com/questions/28137/initialize-arc-length-control-in-riks-method
-        self.scale_ds = False
-        if scale_exponent is not None:
-            self.scale_ds = True
-            self.scale_exponent = scale_exponent
-
-        # debug information or not
-        self.debug = debug
+        # fmt: on
 
     def solve(self):
         # count number of force increments to get first increment with tangential predictor
         i = 0
 
-        # extract number of generalized coordinates and number of Lagrange multipliers
-        nq = self.nq
-        nla = self.nla_g
-
-        # initialize current generalized coordinates, Lagrange multipliers and force scaling
-        la_arc = [self.la_arc0]
+        # initialize current generalized coordinates, Lagrange multipliers and
+        # arc-length parameter
         q = [self.q0]
         la_g = [self.la_g0]
-        xk1 = np.concatenate((self.q0, self.la_g0, np.array([self.la_arc0])))
-
-        # compute initial residual and error
-        gen = self.gen(xk1)
-        R = next(gen)
-        error = self.newton_error_function(R)
+        la_arc = [self.la_arc0]
 
         # loop over ranges of force scaling
+        xk1 = self.x0_bar.copy()  # initialize such that Jacobian is regular!
         while xk1[-1] > self.la_arc_span[0] and xk1[-1] < self.la_arc_span[1]:
+            # increment number of steps
             i += 1
+
             # use secant predictor for all other force increments than the first one
             if i > 1:
                 # secand predictor for all but the first newton iteration
                 dx = self.xk - self.x0
                 xk1 += dx
 
-                # ###################################
-                # # prediction of Feng (see Neto1998)
-                # ##################################
-                # # secant predictor
-                # Dx = self.xk - self.x0
+            # solve nonlinear system
+            xk1, converged, error, newton_iter, R = fsolve(
+                self.R, xk1, jac=self.J, options=self.options
+            )
+            print(
+                f" - internal newton method at t: {xk1[-1]:2.4e} with error: {error:2.2e}"
+            )
+            # assert converged, f"internal newton method is not converged"
 
-                # # tangent predictor
-                # # gen = self.gen(xk1)
-                # # R = next(gen)
-                # R_x = next(gen)
-                # dx = spsolve(R_x, R)
-
-                # inner = dx @ Dx
-                # sign_inner = sign(inner)
-
-                # # update with correspinding sign
-                # xk1[:-1] += sign_inner * Dx[:-1]
-                # # xk1[:-1] -= sign_inner * dx[:-1]
-
-            else:
-                # TODO:
-                # find out why it is essential to solve for the generalized coordinates
-                # and Lagrange-multipliers but not for the external force scaling
-                R_x = next(gen)
-                dx = spsolve(R_x[:-1, :-1], R[:-1])
-                xk1[:-1] -= dx
-
-            # compute initial residual and error
-            gen = self.gen(xk1)
-            R = next(gen)
-            error = self.newton_error_function(R)
-
-            newton_iter = 0
-            if self.debug > 0:
-                print(f"   * iter = {newton_iter}, error = {error:2.4e}")
-            while (error > self.atol) and (newton_iter <= self.max_iter):
-                # solve linear system of equations
-                R_x = next(gen)
-                dx = spsolve(R_x, R)
-                xk1 -= dx
-                newton_iter += 1
-
-                # check for convergence
-                gen = self.gen(xk1)
-                R = next(gen)
-                error = self.newton_error_function(R)
-                if self.debug > 0:
-                    print(f"   * iter = {newton_iter}, error = {error:2.4e}")
-
-            if newton_iter >= self.max_iter:
-                print(
-                    f" - internal Newton not converged for lambda = {xk1[-1]:2.4e} with error {error:2.2e}."
-                )
-                print(f"error = {error}")
-                break
-            else:
-                print(
-                    f" - internal Newton converged for lambda = {xk1[-1]:2.4e} with error {error:2.2e} in {newton_iter} steps."
-                )
-
-            # scale ds such that iter goal is satisfied
-            # disable scaling if we have halfed the ds parameter before or after the first iteration which requires lots of iterations
-            # see Crisfield1991, section 9.5 (9.40) or (9.41) for the square root scaling
-            if self.scale_ds and newton_iter != 0 and i > 1:
+            # Scale ds such that iter goal is satisfied. Disable scaling if we
+            # have halved the ds parameter before or after the first iteration
+            # which requires lots of iterations see Crisfield1991, section 9.5
+            # (9.40) or (9.41) for the square root scaling.
+            if self.scale_exponent is not None and newton_iter > 0:
                 fac = (self.iter_goal / newton_iter) ** self.scale_exponent
-                if self.debug > 1:
-                    ds_old = self.ds
-                self.ds *= min(self.MAX_FACTOR, max(self.MIN_FACTOR, fac))
-                if self.debug > 1:
-                    print(f"   * ds: {ds_old} => {self.ds}")
+                self.ds *= max(self.MIN_FACTOR, min(fac, self.MAX_FACTOR))
 
             # store last converged newton step
             self.x0 = self.xk.copy()
@@ -499,10 +427,10 @@ class Riks:
             self.xk = xk1.copy()
 
             # append solutions to lists
-            # these copies are essential!
-            q.append(xk1[:nq].copy())
-            la_g.append(xk1[nq : nq + nla].copy())
-            la_arc.append(xk1[-1].copy())
+            q_, la_g_, la_arc_ = np.array_split(xk1, self.split_unknowns)
+            q.append(q_)
+            la_g.append(la_g_)
+            la_arc.append(la_arc_[0])
 
         # return solution object
         return Solution(

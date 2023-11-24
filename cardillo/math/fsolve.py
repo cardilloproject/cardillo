@@ -3,7 +3,9 @@ from warnings import warn
 from scipy.sparse import csc_array
 from scipy.sparse.linalg import spsolve
 from scipy.linalg import qr, solve_triangular, svd
-from cardillo.math import approx_fprime
+
+from cardillo.math.approx_fprime import approx_fprime
+from cardillo.solver import SolverOptions
 
 
 def lu_solve(A, b):
@@ -127,14 +129,10 @@ def pinv_solve(A, b, rcond=1e-14, *args):
 def fsolve(
     fun,
     x0,
-    jac="3-point",
+    jac=None,
     fun_args=(),
     jac_args=(),
-    error_function=lambda x: np.max(np.absolute(x)),
-    atol=1.0e-8,
-    eps=1.0e-6,
-    max_iter=20,
-    linear_solver=lu_solve,
+    options=SolverOptions(),
 ):
     if not isinstance(fun_args, tuple):
         fun_args = (fun_args,)
@@ -144,33 +142,34 @@ def fsolve(
         jac_args = (jac_args,)
 
     # compute Jacobian matrix using finite differences
-    if jac in ["2-point", "3-point", "cs"]:
+    if options.numerical_jacobian_method:
         jacobian = lambda x, *args: csc_array(
-            approx_fprime(x, lambda y: fun(y, *args), method=jac, eps=eps)
+            approx_fprime(
+                x,
+                lambda y: fun(y, *args),
+                method=options.numerical_jacobian_method,
+                eps=options.numerical_jacobian_eps,
+            )
         )
     else:
+        assert callable(jac), "user-defined jacobian must be callable"
         jacobian = jac
-    assert callable(
-        jacobian
-    ), "jacobian must be callable or in {'2-point', '3-point', 'cs'}."
 
     # prepare solution vector; make a copy since we modify the value
     x = np.atleast_1d(x0).copy()
 
-    # initial guess, error and convergence
+    # initial function value
     f = np.atleast_1d(fun(x, *fun_args))
-    error = error_function(f)
-    converged = error <= atol
 
     # Newton loop
-    i = 0
-    while (not converged) and (i < max_iter):
-        i += 1
+    for i in range(options.newton_max_iter):
+        error = options.error_function(f)
+        converged = error <= options.newton_atol
+        if converged:
+            break
         J = jacobian(x, *jac_args)
-        x -= linear_solver(J, f)
+        x -= options.linear_solver(J, f)
         f = np.atleast_1d(fun(x, *fun_args))
-        error = error_function(f)
-        converged = error <= atol
 
     if not converged:
         warn(f"fsolve is not converged after {i} iterations with error {error:2.3f}")

@@ -3,8 +3,9 @@ import numpy as np
 from scipy.sparse import csc_array
 from tqdm import tqdm
 
-from cardillo.math.prox import NegativeOrthant
-from cardillo.math import fsolve, approx_fprime, estimate_prox_parameter
+from cardillo.math.prox import NegativeOrthant, estimate_prox_parameter
+from cardillo.math.fsolve import fsolve
+from cardillo.math.approx_fprime import approx_fprime
 from cardillo.solver import Solution, SolverOptions, SolverSummary
 
 
@@ -397,8 +398,7 @@ class Rattle:
                     jac=self.J_x1,
                     fun_args=(y1n1,),
                     jac_args=(y1n1,),
-                    atol=self.options.newton_atol,
-                    max_iter=self.options.newton_max_iter,
+                    options=self.options,
                 )
                 solver_summary.add_lu(i_newton)
 
@@ -465,8 +465,7 @@ class Rattle:
                     jac=self.J_x2,
                     fun_args=(y2n1,),
                     jac_args=(y2n1,),
-                    atol=self.options.newton_atol,
-                    max_iter=self.options.newton_max_iter,
+                    options=self.options,
                 )
                 solver_summary.add_lu(i_newton)
 

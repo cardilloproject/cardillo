@@ -365,7 +365,7 @@ def run(
 solver_and_kwargs = [
     (ScipyIVP, {}),
     (Moreau, {}),
-    # (BackwardEuler, {}), # TODO: Fix singular Jacobian
+    (BackwardEuler, {}),
 ]
 
 rigid_bodies = [
@@ -393,13 +393,13 @@ if __name__ == "__main__":
     #############
     # Cylindrical
     #############
-    run("Cylindrical", RigidBody, ScipyIVP, show=True)
-    run("Cylindrical", RigidBody, Moreau, show=True)
+    # run("Cylindrical", RigidBody, ScipyIVP, show=True)
+    # run("Cylindrical", RigidBody, Moreau, show=True)
     # run("Cylindrical", RigidBody, BackwardEuler, show=True)
 
     ###########
     # Prismatic
     ###########
-    run("Prismatic", RigidBody, ScipyIVP, show=True)
-    run("Prismatic", RigidBody, Moreau, show=True)
-    # run("Prismatic", RigidBody, BackwardEuler, show=True)
+    # run("Prismatic", RigidBody, ScipyIVP, show=True)
+    # run("Prismatic", RigidBody, Moreau, show=True)
+    run("Prismatic", RigidBody, BackwardEuler, show=True)

@@ -1,7 +1,7 @@
 import numpy as np
 import warnings
 
-from cardillo.math import approx_fprime
+from cardillo.math.approx_fprime import approx_fprime
 from cardillo.math.algebra import cross3, ax2skew
 
 

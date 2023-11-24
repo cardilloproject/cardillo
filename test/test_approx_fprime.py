@@ -1,5 +1,5 @@
 import numpy as np
-from cardillo.math import approx_fprime
+from cardillo.math.approx_fprime import approx_fprime
 from scipy.optimize._numdiff import approx_derivative
 import matplotlib.pyplot as plt
 import pytest
