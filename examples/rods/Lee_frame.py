@@ -13,7 +13,7 @@ from cardillo.rods.cosseratRod import (
 
 from cardillo.discrete import Frame
 from cardillo.constraints import RigidConnection, Cylindrical, Revolute
-from cardillo.solver import Newton, Riks
+from cardillo.solver import Newton, Riks, SolverOptions
 from cardillo.forces import Force, K_Force, K_Moment
 
 from cardillo.math import e1, e2, e3, A_IK_basic
@@ -55,12 +55,7 @@ def cantilever(
     width = 1
 
     # cross section
-    line_density = 1
-    cross_section = RectangularCrossSection(line_density, width, width)
-    A = cross_section.area
-    A_rho0 = line_density * cross_section.area
-    K_S_rho0 = line_density * cross_section.first_moment
-    K_I_rho0 = line_density * cross_section.second_moment
+    cross_section = RectangularCrossSection(width, width)
 
     atol = 1e-7
 
@@ -97,9 +92,6 @@ def cantilever(
     cantilever1 = Rod(
         cross_section,
         material_model,
-        A_rho0,
-        K_S_rho0,
-        K_I_rho0,
         nelements,
         Q=q01,
         q0=q01,
@@ -117,9 +109,6 @@ def cantilever(
     cantilever2 = Rod(
         cross_section,
         material_model,
-        A_rho0,
-        K_S_rho0,
-        K_I_rho0,
         nelements,
         Q=q02,
         q0=q02,
@@ -172,11 +161,10 @@ def cantilever(
 
     solver = Riks(
         system,
-        atol=atol,
-        la_arc0=1e-2,
-        la_arc_span=np.array([-0.5, 1]),
         iter_goal=4,
-        # la_arc_span=np.array([0, 0.01])
+        la_arc0=5e-3,
+        la_arc_span=np.array([-0.5, 1]),
+        options=SolverOptions(),
     )
 
     # solve nonlinear static equilibrium equations

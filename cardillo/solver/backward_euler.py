@@ -5,12 +5,16 @@ from scipy.sparse.linalg import splu
 from tqdm import tqdm
 
 from cardillo.solver import SolverOptions, SolverSummary, Solution
-from cardillo.math import (
-    fsolve,
-    NegativeOrthant,
-    estimate_prox_parameter,
-    approx_fprime,
-)
+
+# from cardillo.math import (
+#     fsolve,
+#     NegativeOrthant,
+#     estimate_prox_parameter,
+#     approx_fprime,
+# )
+from cardillo.math.fsolve import fsolve
+from cardillo.math.approx_fprime import approx_fprime
+from cardillo.math.prox import estimate_prox_parameter, NegativeOrthant
 
 
 class BackwardEuler:

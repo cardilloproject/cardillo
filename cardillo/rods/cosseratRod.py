@@ -20,7 +20,6 @@ from cardillo.rods._base_CosseratRod import (
     make_CosseratRodConstrained,
 )
 from ._cross_section import CrossSectionInertias
-from cardillo.utility.warn import warn_extraneous
 
 
 def make_CosseratRod_SE3(mixed=False, constraints=None):

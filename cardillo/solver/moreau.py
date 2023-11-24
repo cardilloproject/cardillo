@@ -6,7 +6,7 @@ from tqdm import tqdm
 
 from cardillo.definitions import IS_CLOSE_ATOL
 from cardillo.solver import SolverOptions, SolverSummary, Solution, compute_I_F
-from cardillo.math import estimate_prox_parameter, NegativeOrthant
+from cardillo.math.prox import estimate_prox_parameter, NegativeOrthant
 
 
 class Moreau:

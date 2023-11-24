@@ -1,11 +1,14 @@
 import numpy as np
 from scipy.sparse import bmat
 from scipy.sparse.linalg import splu
-from cardillo.math import (
-    NegativeOrthant,
-    norm,
-    estimate_prox_parameter,
-)
+
+# from cardillo.math import (
+#     NegativeOrthant,
+#     norm,
+#     estimate_prox_parameter,
+# )
+from cardillo.math.prox import NegativeOrthant, estimate_prox_parameter
+from cardillo.math.algebra import norm
 
 from cardillo.definitions import IS_CLOSE_ATOL
 from .solver_options import SolverOptions

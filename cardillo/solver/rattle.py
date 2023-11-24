@@ -3,8 +3,11 @@ import numpy as np
 from scipy.sparse import csc_array
 from tqdm import tqdm
 
-from cardillo.math.prox import NegativeOrthant
-from cardillo.math import fsolve, approx_fprime, estimate_prox_parameter
+from cardillo.math.prox import NegativeOrthant, estimate_prox_parameter
+from cardillo.math.fsolve import fsolve
+from cardillo.math.approx_fprime import approx_fprime
+
+# from cardillo.math import fsolve, approx_fprime, estimate_prox_parameter
 from cardillo.solver import Solution, SolverOptions, SolverSummary
 
 

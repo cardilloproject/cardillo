@@ -1,5 +1,8 @@
 import numpy as np
-from cardillo.math import norm, approx_fprime
+
+# from cardillo.math import norm, approx_fprime
+from cardillo.math.algebra import norm
+from cardillo.math.approx_fprime import approx_fprime
 
 
 class ShearStiffQuadratic:

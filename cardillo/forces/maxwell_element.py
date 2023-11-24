@@ -1,6 +1,6 @@
 import numpy as np
 from numpy.linalg import norm
-from cardillo.math import approx_fprime
+from cardillo.math.approx_fprime import approx_fprime
 
 
 class MaxwellElement:
