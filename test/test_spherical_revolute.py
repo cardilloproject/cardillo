@@ -298,7 +298,7 @@ def run(joint, Solver, k=None, d=None, **solver_args):
 
         dx = np.zeros(4)
         dx[:2] = x[2:]
-        dx[2:] = np.linalg.inv(M) @ h
+        dx[2:] = np.linalg.solve(M, h)
         return dx
 
     def _eqm_pd_rotational(t, x):
@@ -327,7 +327,7 @@ def run(joint, Solver, k=None, d=None, **solver_args):
 
         dx = np.zeros(4)
         dx[:2] = x[2:]
-        dx[2:] = np.linalg.inv(M) @ h
+        dx[2:] = np.linalg.solve(M, h)
         return dx
 
     if use_pdrotational_joint:

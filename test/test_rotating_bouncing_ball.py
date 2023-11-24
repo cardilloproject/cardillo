@@ -9,7 +9,6 @@ from cardillo import System
 from cardillo.solver import (
     Moreau,
     BackwardEuler,
-    NonsmoothGeneralizedAlpha,
     SolverOptions,
     Rattle,
 )
@@ -221,10 +220,6 @@ def run(case, export=False):
         ),
         "BackwardEuler",
     )
-    # solver1, label1 = (
-    #     NonsmoothGeneralizedAlpha(system, t_final, dt),
-    #     "NonsmoothGeneralizedAlpha",
-    # )
 
     sol1 = solver1.solve()
     t1 = sol1.t
@@ -237,10 +232,6 @@ def run(case, export=False):
     P_N1 = sol1.P_N
     P_F1 = sol1.P_F
 
-    # solver2, label2 = (
-    #     NonsmoothGeneralizedAlpha(system, t_final, dt),
-    #     "Gen-alpha",
-    # )
     solver2, label2 = Moreau(system, t_final, dt), "Moreau"
     # solver2, label2 = BackwardEuler(system, t_final, dt), "BackwardEuler"
     # solver2, label2 = Rattle(system, t_final, dt), "Rattle"

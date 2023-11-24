@@ -316,11 +316,7 @@ class System:
         return q_ddot
 
     def step_callback(self, t, q, u):
-        for (
-            contr
-        ) in (
-            self.__step_callback_contr
-        ):  # TODO: GC: q_dotDOF or qDOF? (I would leave it like this.)
+        for contr in self.__step_callback_contr:
             q[contr.qDOF], u[contr.uDOF] = contr.step_callback(
                 t, q[contr.qDOF], u[contr.uDOF]
             )

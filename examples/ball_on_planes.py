@@ -9,15 +9,9 @@ from cardillo.discrete import RigidBodyEuler, PlaneFixed
 from cardillo.forces import Force
 from cardillo.contacts import Sphere2Plane
 from cardillo.solver import (
-    MoreauShifted,
-    NonsmoothGeneralizedAlpha,
-    Rattle,
     Moreau,
     BackwardEuler,
-    NPIRK,
-    SimplifiedNonsmoothGeneralizedAlpha,
-    SimplifiedNonsmoothGeneralizedAlphaFirstOrder,
-    LobattoIIIAB,
+    Rattle,
 )
 from cardillo.solver._butcher_tableaus import RadauIIATableau, AlexanderTableau
 

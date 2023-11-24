@@ -4,7 +4,7 @@ from cardillo.rods import (
     RectangularCrossSection,
     Simo1986,
 )
-from cardillo.math.algebra import ax2skew, norm, inv3D, cross3
+from cardillo.math.algebra import norm
 from cardillo.math.rotations import (
     Exp_SO3,
     Log_SO3,

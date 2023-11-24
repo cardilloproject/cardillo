@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from scipy.integrate import solve_ivp
 
-from cardillo.math import A_IK_basic, inv2D
+from cardillo.math import A_IK_basic
 from cardillo import System
 from cardillo.discrete import Frame, PointMass
 from cardillo.constraints import FixedDistance
@@ -60,7 +60,7 @@ class Mathematical_pendulum3D_excited:
         )
 
         dx[:2] = x[2:]
-        dx[2:] = inv2D(M) @ h
+        dx[2:] = np.linalg.solve(M, h)
         return dx
 
 

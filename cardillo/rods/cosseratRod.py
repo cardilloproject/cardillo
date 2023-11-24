@@ -1,7 +1,6 @@
 import numpy as np
 from cardillo.math import (
     ax2skew,
-    cross3,
     SE3,
     SE3inv,
     Exp_SE3,

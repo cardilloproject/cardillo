@@ -49,7 +49,7 @@ def cantilever(
     # cross_section = RectangularCrossSection(density, width, width)
     cross_section = RectangularCrossSection(width, 3 * width)
     cross_section_inertias = CrossSectionInertias(density, cross_section)
-    
+
     A = cross_section.area
     Ip, Iy, Iz = np.diagonal(cross_section.second_moment)
 

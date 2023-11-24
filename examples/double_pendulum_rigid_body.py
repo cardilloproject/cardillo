@@ -279,7 +279,7 @@ if __name__ == "__main__":
 
         dx = np.zeros(4)
         dx[:2] = x[2:]
-        dx[2:] = np.linalg.inv(M) @ h
+        dx[2:] = np.linalg.solve(M, h)
         return dx
 
     x0 = np.array([alpha0, alpha0 + beta0, alpha_dot0, alpha_dot0 + beta_dot0])

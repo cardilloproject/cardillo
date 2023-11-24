@@ -12,15 +12,10 @@ from cardillo.math.algebra import cross3
 from cardillo import System
 from cardillo.solver import (
     convergence_analysis,
-    EulerBackward,
-    GeneralizedAlphaFirstOrder,
-    GeneralizedAlphaSecondOrder,
+    BackwardEuler,
+    Moreau,
     Rattle,
-    NPIRK,
-    NonsmoothGeneralizedAlpha,
-    MoreauShifted,
 )
-from cardillo.solver._butcher_tableaus import RadauIIATableau
 
 
 class HeavyTopQuaternion(RigidBody):

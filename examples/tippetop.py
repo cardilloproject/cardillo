@@ -11,7 +11,7 @@ from cardillo.contacts import Sphere2PlaneCoulombContensouMoeller
 from cardillo.solver import (
     Moreau,
     Rattle,
-    NonsmoothGeneralizedAlpha,
+    BackwardEuler,
 )
 
 

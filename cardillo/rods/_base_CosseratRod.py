@@ -1443,7 +1443,7 @@ class CosseratRodMixed(CosseratRod):
         el = self.element_number(xi)
         la_ce = la_c[self.elDOF_la_c[el]]
 
-        #TODO: evaluate shape functions for specific xi
+        # TODO: evaluate shape functions for specific xi
         # interpolation of internal forces and moments
         for node in range(self.nnodes_element_la_c):
             la_c_node = la_ce[self.nodalDOF_element_la_c[node]]
@@ -1451,7 +1451,7 @@ class CosseratRodMixed(CosseratRod):
 
         K_n = self.K_n_la_c_sieve @ la_c[: self.nmixed_n]
         K_m = self.K_m_la_c_sieve @ la_c[self.nmixed_n :]
-        
+
         N_n = N_m = self.basis_functions_n(xi).flatten()
         K_n = np.zeros(3, dtype=qe.dtype)
         K_m = np.zeros(3, dtype=qe.dtype)
@@ -1463,7 +1463,6 @@ class CosseratRodMixed(CosseratRod):
             K_m += N_m[node] * m_node
 
         return K_n, K_m
-
 
     def eval_strains(self, t, q, xi, mixed=False):
         raise NotImplementedError

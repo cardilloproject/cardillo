@@ -1,6 +1,5 @@
 import numpy as np
-from math import sin, cos, tan, sqrt, atan2
-from cardillo.math import norm, cross3, ax2skew, trace3, ax2skew_a, ei, LeviCivita3
+from cardillo.math import norm, cross3, ax2skew, ax2skew_a, LeviCivita3
 
 # for small angles we use first order approximations of the equations since
 # most of the SO(3) and SE(3) equations get singular for psi -> 0.
@@ -98,7 +97,7 @@ def Exp_SO3_psi(psi: np.ndarray) -> np.ndarray:
 
 
 def Log_SO3(A: np.ndarray) -> np.ndarray:
-    ca = 0.5 * (trace3(A) - 1.0)
+    ca = 0.5 * (np.trace(A) - 1.0)
     ca = np.clip(ca, -1, 1)  # clip to [-1, 1] for arccos!
     angle = np.arccos(ca)
 
@@ -122,7 +121,7 @@ def Log_SO3_A(A: np.ndarray) -> np.ndarray:
     ===========
     Blanco-Claraco2010: https://doi.org/10.48550/arXiv.2103.15980
     """
-    ca = 0.5 * (trace3(A) - 1.0)
+    ca = 0.5 * (np.trace(A) - 1.0)
     ca = np.clip(ca, -1, 1)  # clip to [-1, 1] for arccos!
     angle = np.arccos(ca)
 
@@ -502,7 +501,7 @@ def quat2axis_angle(Q: np.ndarray) -> np.ndarray:
     q = norm(vq)
     if q > 0:
         axis = vq / q
-        angle = 2 * atan2(q, q0)
+        angle = 2 * np.arctan2(q, q0)
         return angle * axis
     else:
         return np.zeros(3)
