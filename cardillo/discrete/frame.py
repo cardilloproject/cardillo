@@ -12,6 +12,7 @@ class Frame:
         A_IK=np.eye(3),
         A_IK_t=None,
         A_IK_tt=None,
+        **kwargs,
     ):
         self.r_OP__, self.r_OP_t__, self.r_OP_tt__ = check_time_derivatives(
             r_OP, r_OP_t, r_OP_tt

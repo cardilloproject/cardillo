@@ -23,10 +23,11 @@ def Rectangle(Base):
             dimensions = kwargs.pop("dimensions", (1, 1))
             assert len(dimensions) == 2
 
-            self.rolled_axis = np.roll([0, 1, 2], axis)
+            self.rolled_axis = np.roll([0, 1, 2], axis + 1)
             self.dimensions = dimensions
 
             kwargs.update({"A_IK": kwargs.pop("A_IK", np.eye(3))[:, self.rolled_axis]})
+            # print(f"axis: {axis}; rolled_axis: {self.rolled_axis}; A_IK0:\n{kwargs['A_IK']}")
             super().__init__(**kwargs)
 
         def export(self, sol_i, base_export=False, **kwargs):
@@ -34,7 +35,7 @@ def Rectangle(Base):
                 return super().export(sol_i, **kwargs)
             else:
                 r_OP = self.r_OP(sol_i.t)
-                A_IK = self.A_IK(sol_i.t)
+                A_IK = self.A_IK(sol_i.t)[:, self.rolled_axis]
                 t1, t2, n = A_IK.T
                 points = [
                     r_OP + t1 * self.dimensions[0] + t2 * self.dimensions[1],
@@ -199,6 +200,7 @@ def Cylinder(Base):
                     ],
                     dtype=float,
                 )
+                raise RuntimeError("Check if this np.roll behaves as expected!")
                 K_Theta_S = np.diag(np.roll(diag, shift=self.axis))
 
             kwargs.update({"mass": mass, "K_Theta_S": K_Theta_S})
@@ -215,6 +217,7 @@ def Cylinder(Base):
                 r_OS = self.r_OP(sol_i.t, sol_i.q[self.qDOF])
                 A_IK = self.A_IK(sol_i.t, sol_i.q[self.qDOF])
 
+                raise RuntimeError("Check if this np.roll behaves as expected!")
                 rolled_axes = np.roll([0, 1, 2], -self.axis)
                 d1, d2, d3 = A_IK[:, rolled_axes].T
                 r_OP0 = r_OS - 0.5 * d1 * self.length

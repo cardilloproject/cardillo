@@ -1,5 +1,7 @@
 import numpy as np
-from cardillo.math import e1, e2, e3, norm, approx_fprime, cross3, ax2skew
+from cardillo.math import norm, cross3, ax2skew
+from cardillo.math.approx_fprime import approx_fprime
+from cardillo.math.prox import Sphere
 
 
 class Sphere2Sphere:
@@ -23,19 +25,33 @@ class Sphere2Sphere:
         self.radius2 = radius2
 
         self.nla_N = 1
-        self.mu = np.array([mu])
-
-        if mu == 0:
-            self.nla_F = 0
-            self.NF_connectivity = [[]]
-        else:
-            # raise NotImplementedError("Friction is not implemented yet!")
-            self.nla_F = 2
-            self.NF_connectivity = [[0, 1]]
-            self.gamma_F = self.__gamma_F
-
         self.e_N = np.zeros(self.nla_N) if e_N is None else e_N * np.ones(self.nla_N)
-        self.e_F = np.zeros(self.nla_F) if e_F is None else e_F * np.ones(self.nla_F)
+
+        if mu > 0:
+            self.nla_F = 2 * self.nla_N
+            self.gamma_F = self.__gamma_F
+            self.e_F = np.zeros(self.nla_F) if e_F is None else e_F * np.ones(self.nla_F)
+
+            # fmt: off
+            self.friction_laws = [
+                ([0], [0, 1], Sphere(mu)), # Coulomb
+            ]
+            # fmt: on
+
+        # self.nla_N = 1
+        # self.mu = np.array([mu])
+
+        # if mu == 0:
+        #     self.nla_F = 0
+        #     self.NF_connectivity = [[]]
+        # else:
+        #     # raise NotImplementedError("Friction is not implemented yet!")
+        #     self.nla_F = 2
+        #     self.NF_connectivity = [[0, 1]]
+        #     self.gamma_F = self.__gamma_F
+
+        # self.e_N = np.zeros(self.nla_N) if e_N is None else e_N * np.ones(self.nla_N)
+        # self.e_F = np.zeros(self.nla_F) if e_F is None else e_F * np.ones(self.nla_F)
 
     def assembler_callback(self):
         qDOF1 = self.subsystem1.local_qDOF_P(self.frame_ID1)

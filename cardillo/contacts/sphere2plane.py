@@ -1,6 +1,7 @@
 import numpy as np
-from cardillo.math import approx_fprime
+from cardillo.math.approx_fprime import approx_fprime
 from cardillo.math.algebra import cross3, ax2skew
+from cardillo.math.prox import Sphere
 
 
 class Sphere2Plane:
@@ -14,38 +15,31 @@ class Sphere2Plane:
         e_F=None,
         frame_ID=np.zeros(3),
         K_r_SP=np.zeros(3),
-        la_N0=None,
-        la_F0=None,
     ):
         self.frame = frame
         self.subsystem = subsystem
         self.r = r
-        self.mu = np.array([mu])
+
         self.nla_N = 1
-        assert (
-            self.nla_N == self.mu.size
-        ), "Friction coefficient must have the same dimension as normal contact dim."
-
-        if mu == 0:
-            self.nla_F = 0
-            self.NF_connectivity = [[]]
-        else:
-            self.nla_F = 2 * self.nla_N
-            self.NF_connectivity = [[0, 1]]
-            self.gamma_F = self.__gamma_F
-
         self.e_N = np.zeros(self.nla_N) if e_N is None else e_N * np.ones(self.nla_N)
-        self.e_F = np.zeros(self.nla_F) if e_F is None else e_F * np.ones(self.nla_F)
-        self.frame_ID = frame_ID
+
+        if mu > 0:
+            self.nla_F = 2 * self.nla_N
+            self.gamma_F = self.__gamma_F
+            self.e_F = np.zeros(self.nla_F) if e_F is None else e_F * np.ones(self.nla_F)
+
+            # fmt: off
+            self.friction_laws = [
+                ([0], [0, 1], Sphere(mu)), # Coulomb
+            ]
+            # fmt: on
 
         self.r_OQ = self.frame.r_OP(0)
         self.t1t2 = self.frame.A_IK(0).T[:2]
         self.n = self.frame.A_IK(0)[:, 2]
 
+        self.frame_ID = frame_ID
         self.K_r_SP = K_r_SP
-
-        self.la_N0 = np.zeros(self.nla_N) if la_N0 is None else la_N0
-        self.la_F0 = np.zeros(self.nla_F) if la_F0 is None else la_F0
 
     def assembler_callback(self):
         qDOF = self.subsystem.local_qDOF_P(self.frame_ID)
