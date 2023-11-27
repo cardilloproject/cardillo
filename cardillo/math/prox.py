@@ -1,7 +1,6 @@
 import numpy as np
 from scipy.sparse import csc_array, diags
 from scipy.sparse.linalg import spsolve
-import warnings
 
 
 class NegativeOrthant:
@@ -28,18 +27,18 @@ class NegativeOrthant:
     def prox(x):
         return np.minimum(x, np.zeros_like(x))
 
-    @staticmethod
-    def implicit_function(x, y, rho):
-        active_set = (rho * x - y) <= 0
-        yield active_set
+    # @staticmethod
+    # def implicit_function(x, y, rho):
+    #     active_set = (rho * x - y) <= 0
+    #     yield active_set
 
-        # residual
-        yield np.where(active_set, x, y)
+    #     # residual
+    #     yield np.where(active_set, x, y)
 
-        # Jacobian
-        Jx = diags(active_set.astype(float))
-        Jy = diags((~active_set).astype(float))
-        yield Jx, Jy
+    #     # Jacobian
+    #     Jx = diags(active_set.astype(float))
+    #     Jy = diags((~active_set).astype(float))
+    #     yield Jx, Jy
 
     @staticmethod
     def active_set(x, y, rho):
@@ -56,7 +55,6 @@ class NegativeOrthant:
         return Jg, Jh
 
 
-# write active set strategy
 class Sphere:
     """This class collects functions related to the set `C(z; r) = {y | ||y|| <= r * z}`,
     a n-dimensional ball of radius `r * z`.
@@ -88,105 +86,42 @@ class Sphere:
         else:
             return radius * x / norm_x
 
-    # def active_set(self, x, y, radius, rho):
-    #     assert len(x) == len(y)
+    def active_set(self, x, y, z, rho):
+        assert len(x) == len(y)
+        if np.linalg.norm(rho * x - y) <= max(0, self.r * z):
+            return True
+        else:
+            return False
 
-    #     inside = False
-    #     outside_and_positive = False
-    #     if radius > 0:
-    #         arg = rho * x - y
-    #         norm_arg = np.linalg.norm(arg)
+    def residual(self, x, y, z, rho, active_set):
+        if active_set:
+            return x
+        else:
+            radius = max(0, self.r * z)
+            arg = rho * x - y
+            return y + radius * arg / np.linalg.norm(arg)
 
-    #         if norm_arg <= radius:
-    #             inside = True
-    #         else:
-    #             if self.reformulation:
-    #                 if np.linalg.norm(x) > 0:
-    #                     outside_and_positive = True
-    #             else:
-    #                 if norm_arg > 0:
-    #                     outside_and_positive = True
+    def Jacobian(self, x, y, z, rho, active_set):
+        nx = len(x)
+        assert nx == len(y)
+        nr = len(z)
 
-    #     return inside, outside_and_positive
+        if active_set:
+            Jx = np.eye(nx)
+            Jy = np.zeros((nx, nx))
+            Jz = np.zeros((nx, nr))
+        else:
+            radius = max(0, self.r * z)
+            arg = rho * x - y
+            norm_arg = np.linalg.norm(arg)
+            direction = arg / norm_arg
+            factor = radius * (np.eye(nx) - np.outer(direction, direction)) / norm_arg
 
-    # @staticmethod
-    # def residual(g, h, r, rho, NF_connectivity, inside, outside_and_positive):
-    #     R = np.zeros_like(g, dtype=np.common_type(g, h, r))
+            Jx = factor @ np.diag(rho)
+            Jy = np.eye(nx) - factor
+            Jz = self.r * direction.reshape((nx, nr))
 
-    #     ########################
-    #     # non-vectorized version
-    #     ########################
-    #     for i, j in enumerate(NF_connectivity):
-    #         if len(j) > 0:
-    #             ri = r[i]
-    #             gj = g[j]
-
-    #             if inside[i]:
-    #                 R[j] = g[j]
-    #             elif outside_and_positive[i]:
-    #                 if ri < 0:
-    #                     # raise RuntimeError("This should never be the case.")
-    #                     ri = 0
-    #                 if use_friction_prox_reformulation:
-    #                     R[j] = h[j] + ri * gj / norm(gj)
-    #                 else:
-    #                     prox_argj = rho[j] * gj - h[j]
-    #                     R[j] = h[j] + ri * prox_argj / norm(prox_argj)
-    #             else:
-    #                 R[j] = h[j]
-
-    #     return R
-
-    # @staticmethod
-    # def Jacobian(g, h, r, rho, NF_connectivity, inside, outside_and_positive):
-    #     ng = len(g)
-    #     assert ng == len(h)
-    #     nr = len(r)
-    #     Jg = lil_matrix((ng, ng))
-    #     Jh = lil_matrix((ng, ng))
-    #     Jr = lil_matrix((ng, nr))
-
-    #     if not use_friction_prox_reformulation:
-    #         prox_arg = rho * g - h
-
-    #     ########################
-    #     # non-vectorized version
-    #     ########################
-    #     for i, j in enumerate(NF_connectivity):
-    #         j = np.array(j)
-    #         nj = len(j)
-    #         if nj > 0:
-    #             if inside[i]:
-    #                 Jg[j[:, None], j] = identity(nj)
-    #             elif outside_and_positive[i]:
-    #                 ri = r[i]
-    #                 if ri < 0:
-    #                     ri = 0
-    #                 if use_friction_prox_reformulation:
-    #                     gj = g[j]
-    #                     norm_gj = norm(gj)
-    #                     dj = gj / norm_gj
-
-    #                     Jg[j[:, None], j] = (
-    #                         ri * (identity(nj) - np.outer(dj, dj)) / norm_gj
-    #                     )
-    #                     Jh[j[:, None], j] = identity(nj)
-    #                     Jr[j[:, None], i] = dj
-    #                 else:
-    #                     prox_argj = prox_arg[j]
-    #                     norm_prox_argj = norm(prox_argj)
-    #                     dj = prox_argj / norm_prox_argj
-
-    #                     factor = ri * (identity(nj) - np.outer(dj, dj)) / norm_prox_argj
-
-    #                     Jg[j[:, None], j] = factor @ diags(rho[j])
-    #                     Jh[j[:, None], j] = identity(nj) - factor
-    #                     Jr[j[:, None], i] = dj
-
-    #             else:
-    #                 Jh[j[:, None], j] = identity(nj)
-
-    #     return Jg, Jh, Jr
+        return Jx, Jy, Jz
 
 
 # TODO:

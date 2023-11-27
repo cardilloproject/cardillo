@@ -32,6 +32,7 @@ class RotatingBouncingBall:
         self.friction_laws = [
             ([0], [0], Sphere(mu)), # Coulomb
         ]
+        # fmt: on
         self.nla_N = 1
         self.nla_F = 1
         self.e_N = np.atleast_1d(e_N)

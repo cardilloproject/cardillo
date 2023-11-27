@@ -13,7 +13,7 @@ class SolverOptions:
     newton_max_iter: int = 20
     reuse_lu_decomposition: bool = True
     reuse_lu_max_iter: int = 4
-    # reuse_lu_max_cycles: int = 5
+    reuse_lu_max_cycles: int = 5
     error_function: callable = lambda x: max(abs(x))
     prox_scaling: float = 1.0
     continue_with_unconverged: bool = True
