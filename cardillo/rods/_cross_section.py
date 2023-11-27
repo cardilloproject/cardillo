@@ -1,5 +1,4 @@
 import numpy as np
-from cardillo.math import pi
 
 
 class CrossSection:
@@ -29,11 +28,11 @@ class UserDefinedCrossSection(CrossSection):
 class CircularCrossSection(CrossSection):
     def __init__(self, radius):
         self._radius = radius
-        self._area = pi * radius**2
+        self._area = np.pi * radius**2
         # see https://de.wikipedia.org/wiki/Fl%C3%A4chenmoment
         self._first_moment = np.zeros(3)
         # https://en.wikipedia.org/wiki/List_of_second_moments_of_area
-        self._second_moment = np.diag([2, 1, 1]) / 4 * pi * radius**4
+        self._second_moment = np.diag([2, 1, 1]) / 4 * np.pi * radius**4
 
     @property
     def radius(self):

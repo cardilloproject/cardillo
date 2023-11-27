@@ -232,19 +232,14 @@ class Riks:
         self.MAX_FACTOR = 1.5  # maximal scaling factor
         self.scale_exponent = scale_exponent
 
-        # dimensions
-        self.nq = self.system.nq
-        self.nu = self.system.nu
-        self.nla_g = self.system.nla_g
-        self.nla_S = self.system.nla_S
-        self.nx = self.nq + self.nla_g + 1
-
         # split vectors
         self.split_unknowns = np.cumsum(
             np.array(
                 [
-                    self.nq,
-                    self.nla_g,
+                    system.nq,
+                    system.nla_c,
+                    system.nla_g,
+                    system.nla_N,
                     1,
                 ],
                 dtype=int,
@@ -253,9 +248,11 @@ class Riks:
         self.split_residual = np.cumsum(
             np.array(
                 [
-                    self.nu,
-                    self.nla_g,
-                    self.nla_S,
+                    system.nu,
+                    system.nla_c,
+                    system.nla_g,
+                    system.nla_S,
+                    system.nla_N,
                     1,
                 ],
                 dtype=int,
@@ -264,13 +261,19 @@ class Riks:
 
         # initial
         self.q0 = self.system.q0
+        self.la_c0 = self.system.la_c0
         self.la_g0 = self.system.la_g0
         self.la_arc0 = la_arc0
+        self.la_N0 = self.system.la_N0
         self.u0 = np.zeros(system.nu)  # statics
 
         # initial values for generalized coordinates, lagrange multipliers and force scaling
-        self.xk = np.concatenate((self.q0, self.la_g0, np.array([0])))
-        self.x0_bar = np.concatenate((self.q0, self.la_g0, np.array([la_arc0])))
+        self.xk = np.concatenate(
+            (self.q0, self.la_c0, self.la_g0, self.la_N0, np.array([0]))
+        )
+        self.x0_bar = np.concatenate(
+            (self.q0, self.la_c0, self.la_g0, self.la_N0, np.array([la_arc0]))
+        )
 
         ####################################################################################################
         # Solve linearized system for fixed external force using Newtons method.
@@ -306,59 +309,85 @@ class Riks:
 
     def a(self, x):
         """The most primitive arc-length equation restricts the change of all
-        generalized coordinates q w.r.t. the last converged Newton step qk."""
-        qk, la_gk, tk = np.array_split(self.xk, self.split_unknowns)
-        q, la_g, t = np.array_split(x, self.split_unknowns)
-        dq = q - qk
+        generalized coordinates `qn1` w.r.t. the last converged Newton step `qn`."""
+        qn = np.array_split(self.xk, self.split_unknowns)[0]
+        qn1 = np.array_split(x, self.split_unknowns)[0]
+        dq = qn1 - qn
         return dq @ dq
 
-    def a_x(self, x):
-        qk, la_gk, tk = np.array_split(self.xk, self.split_unknowns)
-        q, la_g, t = np.array_split(x, self.split_unknowns)
-        dq = q - qk
-        return 2 * dq, np.zeros(self.nla_g), 0
+    def a_q(self, x):
+        qn = np.array_split(self.xk, self.split_unknowns)[0]
+        qn1 = np.array_split(x, self.split_unknowns)[0]
+        dq = qn1 - qn
+        return 2 * dq
 
     def R(self, x):
         # extract generalized coordinates, Lagrange multipliers and arc-length parameter
-        q, la_g, t = np.array_split(x, self.split_unknowns)
+        q, la_c, la_g, la_N, t = np.array_split(x, self.split_unknowns)
         t = t[0]
 
-        # evaluate all functions with t = la_arc -> model does not change!
+        # evaluate all functions with t = la_arc
         # - this requires the external force that should be scaled to be of the form
-        #   F_ext(t, q) = t * F(q)
-        # - the constraints for displacement control have to be of the form
-        #   g(t, q) = t * g(q)
+        #   h(t, q) = W(g) * t
+        # - for displacement control, the bilateral constraints can be time-dependent
+        #   g = g(t, q)
 
         # compute quantities required for Jacobian
-        self.W_g = self.system.W_g(t, q)
+        self.W_g = self.system.W_g(t, q, format="csr")
+        self.W_c = self.system.W_c(t, q, format="csr")
+        self.W_N = self.system.W_N(t, q, format="csr")
+        self.g_N = self.system.g_N(t, q)
         self.h = self.system.h(t, q, self.u0)
         self.g = self.system.g(t, q)
 
         # build residual
-        R = np.zeros(self.nx)
+        R = np.zeros_like(x)
         R = x.copy()
-        R[: self.split_residual[0]] = self.h + self.W_g @ la_g
-        R[self.split_residual[0] : self.split_residual[1]] = self.g
-        R[self.split_residual[1] : self.split_residual[2]] = self.system.g_S(t, q)
+        R[: self.split_residual[0]] = self.h + self.W_c @ la_c + self.W_g @ la_g
+        R[self.split_residual[0] : self.split_residual[1]] = self.system.c(
+            t, q, self.u0, la_c
+        )
+        R[self.split_residual[1] : self.split_residual[2]] = self.g
+        R[self.split_residual[2] : self.split_residual[3]] = self.system.g_S(t, q)
+        R[self.split_residual[3] : self.split_residual[4]] = np.minimum(la_N, self.g_N)
         R[-1] = self.a(x) - self.ds**2
 
         return R
 
     def J(self, x):
         # extract generalized coordinates, Lagrange multipliers and arc-length parameter
-        q, la_g, t = np.array_split(x, self.split_unknowns)
+        q, la_c, la_g, la_N, t = np.array_split(x, self.split_unknowns)
         t = t[0]
 
-        h_q = self.system.h_q(t, q, self.u0)
-        Wla_g_q = self.system.Wla_g_q(t, q, la_g)
-        Ru_q = h_q + Wla_g_q
+        # evaluate additionally required quantites for computing the jacobian
+        # coo is used for efficient bmat
+        K = (
+            self.system.h_q(t, q, self.u0)
+            + self.system.Wla_c_q(t, q, la_c)
+            + self.system.Wla_g_q(t, q, la_g)
+            + self.system.Wla_N_q(t, q, la_N)
+        )
+        c_q = self.system.c_q(t, q, self.u0, la_c)
+        c_la_c = self.system.c_la_c()
         g_q = self.system.g_q(t, q)
         g_S_q = self.system.g_S_q(t, q)
+
+        # note: csr_matrix is best for row slicing, see
+        # https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csr_array.html#scipy.sparse.csr_array
+        g_N_q = self.system.g_N_q(t, q, format="csr")
+
+        Rla_N_q = lil_array((self.system.nla_N, self.system.nq), dtype=float)
+        Rla_N_la_N = lil_array((self.system.nla_N, self.system.nla_N), dtype=float)
+        for i in range(self.system.nla_N):
+            if la_N[i] < self.g_N[i]:
+                Rla_N_la_N[i, i] = 1.0
+            else:
+                Rla_N_q[i] = g_N_q[i]
 
         # note: We use finite differences to compute the derivatives w.r.t.
         # to the arc-length parameter. Hence, we do not have to specify here
         # how the arc-length parameter enters the vector of generalized forces h.
-        # For displacement based approaches, we simpyl add a corresponding
+        # For displacement based approaches, we simply add a corresponding
         # bilateral constraint g(t, q).
         eps = self.eps
         Wla_g_t = (self.system.W_g(t + eps, q) @ la_g - self.W_g @ la_g) / eps
@@ -367,18 +396,15 @@ class Riks:
         g_t = (self.system.g(t + eps, q) - self.g) / eps
 
         # derivative of the arc length equation
-        a_q, a_la_g, a_la_arc = self.a_x(x)
+        a_q = self.a_q(x)
 
         # fmt: off
-        return bmat(
-            [
-                [ Ru_q, self.W_g, Ru_t[:, None]],
-                [  g_q,     None,  g_t[:, None]],
-                [g_S_q,     None,          None],
-                [  a_q,   a_la_g,      a_la_arc],
-            ],
-            format="csc",
-        )
+        return bmat([[      K, self.W_c, self.W_g,   self.W_N, Ru_t[:, None]], 
+                     [    c_q,   c_la_c,     None,       None,          None],
+                     [    g_q,     None,     None,       None,  g_t[:, None]],
+                     [  g_S_q,     None,     None,       None,          None],
+                     [Rla_N_q,     None,     None, Rla_N_la_N,          None],
+                     [    a_q,     None,     None,       None,          None]], format="csc")
         # fmt: on
 
     def solve(self):
@@ -388,12 +414,18 @@ class Riks:
         # initialize current generalized coordinates, Lagrange multipliers and
         # arc-length parameter
         q = [self.q0]
+        la_c = [self.la_c0]
         la_g = [self.la_g0]
+        la_N = [self.la_N0]
         la_arc = [self.la_arc0]
 
         # loop over ranges of force scaling
         xk1 = self.x0_bar.copy()  # initialize such that Jacobian is regular!
-        while xk1[-1] > self.la_arc_span[0] and xk1[-1] < self.la_arc_span[1]:
+
+        # progress bar
+        pbar = tqdm(total=100, leave=True)
+        i0 = 0
+        while xk1[-1] >= self.la_arc_span[0] and xk1[-1] <= self.la_arc_span[1]:
             # increment number of steps
             i += 1
 
@@ -407,10 +439,7 @@ class Riks:
             xk1, converged, error, newton_iter, R = fsolve(
                 self.R, xk1, jac=self.J, options=self.options
             )
-            print(
-                f" - internal newton method at t: {xk1[-1]:2.4e} with error: {error:2.2e}"
-            )
-            # assert converged, f"internal newton method is not converged"
+            assert converged, f"internal newton method is not converged"
 
             # Scale ds such that iter goal is satisfied. Disable scaling if we
             # have halved the ds parameter before or after the first iteration
@@ -427,15 +456,31 @@ class Riks:
             self.xk = xk1.copy()
 
             # append solutions to lists
-            q_, la_g_, la_arc_ = np.array_split(xk1, self.split_unknowns)
+            q_, la_c_, la_g_, la_N_, la_arc_ = np.array_split(xk1, self.split_unknowns)
             q.append(q_)
+            la_c.append(la_c_)
             la_g.append(la_g_)
+            la_N.append(la_N_)
             la_arc.append(la_arc_[0])
+
+            # update progress bar
+            i1 = int(
+                100
+                * (la_arc_[0] - self.la_arc_span[0])
+                / (self.la_arc_span[1] - self.la_arc_span[0])
+            )
+            pbar.update(i1 - i0)
+            pbar.set_description(
+                f"la_arc: {self.la_arc_span[1]:0.2e} <= {la_arc_[0]:0.2e} <= {self.la_arc_span[1]:0.2e}"
+            )
+            i0 = i1
 
         # return solution object
         return Solution(
             system=self.system,
             t=np.asarray(la_arc),
             q=np.asarray(q),
+            la_c=np.asarray(la_c),
             la_g=np.asarray(la_g),
+            la_N=np.asarray(la_N),
         )

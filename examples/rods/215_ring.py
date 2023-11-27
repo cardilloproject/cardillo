@@ -45,8 +45,8 @@ https://doi.org/10.1016/j.engstruct.2020.111755
 def _215_ring(
     load_type="force", rod_hypothesis_penalty="shear_deformable", VTK_export=False
 ):
-    # Rod = make_CosseratRod_SE3(mixed=True)
-    Rod = make_CosseratRod_SE3(mixed=False)
+    Rod = make_CosseratRod_SE3(mixed=True)
+    # Rod = make_CosseratRod_SE3(mixed=False)
     # Rod = CosseratRodPG_QuatMixed
     # Rod = CosseratRodPG_SE3Mixed
 
