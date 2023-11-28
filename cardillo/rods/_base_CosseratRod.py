@@ -520,41 +520,44 @@ class CosseratRod(RodExportBase, ABC):
 
     #     return E_pot_el
 
-    def eval_stresses(self, t, q, xi):
+    def eval_stresses(self, t, q, la_c, xi):
         el = self.element_number(xi)
         Qe = self.Q[self.elDOF[el]]
         qe = q[self.elDOF[el]]
 
         _, _, K_Gamma_bar0, K_Kappa_bar0 = self._eval(Qe, xi)
 
-        J_0 = norm(K_Gamma_bar0)
-        K_Gamma0 = K_Gamma_bar0 / J_0
-        K_Kappa0 = K_Kappa_bar0 / J_0
+        J = norm(K_Gamma_bar0)
+        K_Gamma0 = K_Gamma_bar0 / J
+        K_Kappa0 = K_Kappa_bar0 / J
 
         _, _, K_Gamma_bar, K_Kappa_bar = self._eval(qe, xi)
 
-        K_Gamma = K_Gamma_bar / J_0
-        K_Kappa = K_Kappa_bar / J_0
+        K_Gamma = K_Gamma_bar / J
+        K_Kappa = K_Kappa_bar / J
 
         K_n = self.material_model.K_n(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
         K_m = self.material_model.K_m(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
 
         return K_n, K_m
 
-    def eval_strains(self, t, q, xi):
+    def eval_strains(self, t, q, la_c, xi):
         el = self.element_number(xi)
         Qe = self.Q[self.elDOF[el]]
         qe = q[self.elDOF[el]]
 
-        _, _, K_Gamma_bar0, _ = self._eval(Qe, xi)
-        J_0 = norm(K_Gamma_bar0)
+        _, _, K_Gamma_bar0, K_Kappa_bar0 = self._eval(Qe, xi)
+
+        J = norm(K_Gamma_bar0)
+        K_Gamma0 = K_Gamma_bar0 / J
+        K_Kappa0 = K_Kappa_bar0 / J
 
         _, _, K_Gamma_bar, K_Kappa_bar = self._eval(qe, xi)
 
-        K_Gamma = K_Gamma_bar / J_0
-        K_Kappa = K_Kappa_bar / J_0
+        K_Gamma = K_Gamma_bar / J
+        K_Kappa = K_Kappa_bar / J
 
-        return K_Gamma, K_Kappa
+        return K_Gamma - K_Gamma0, K_Kappa - K_Kappa0
 
     #########################################
     # equations of motion
@@ -1373,7 +1376,7 @@ class CosseratRodMixed(CosseratRod):
         # number of nodes per element
         self.nnodes_element_la_c = self.mesh_la_c.nnodes_per_element
 
-        # total number of compliance coordiantes
+        # total number of compliance coordinates
         self.nla_c = self.mesh_la_c.nq
 
         # number of compliance coordinates per element
@@ -1438,67 +1441,40 @@ class CosseratRodMixed(CosseratRod):
 
     #     return E_pot_el
 
-    def eval_stresses(self, t, la_c, xi):
-        raise NotImplementedError
+    def eval_stresses(self, t, q, la_c, xi):
         el = self.element_number(xi)
         la_ce = la_c[self.elDOF_la_c[el]]
+        # TODO: lets see how to avoid the flatten
+        N_la_ce = self.basis_functions_la_c(xi).flatten()
+        la_cc = np.zeros(len(self.idx_mixed))
 
-        # TODO: evaluate shape functions for specific xi
-        # interpolation of internal forces and moments
         for node in range(self.nnodes_element_la_c):
             la_c_node = la_ce[self.nodalDOF_element_la_c[node]]
-            la_c += self.N_la_c[el, i, node] * la_c_node
+            la_cc += N_la_ce[node] * la_c_node
 
-        K_n = self.K_n_la_c_sieve @ la_c[: self.nmixed_n]
-        K_m = self.K_m_la_c_sieve @ la_c[self.nmixed_n :]
-
-        N_n = N_m = self.basis_functions_n(xi).flatten()
-        K_n = np.zeros(3, dtype=qe.dtype)
-        K_m = np.zeros(3, dtype=qe.dtype)
-
-        for node in range(self.nnodes_element_n):
-            n_node = qe[self.nodalDOF_element_n[node]]
-            K_n += N_n[node] * n_node
-            m_node = qe[self.nodalDOF_element_m[node]]
-            K_m += N_m[node] * m_node
+        K_n = self.K_n_la_c_sieve @ la_cc[: self.nmixed_n]
+        K_m = self.K_m_la_c_sieve @ la_cc[self.nmixed_n :]
 
         return K_n, K_m
 
-    def eval_strains(self, t, q, xi, mixed=False):
-        raise NotImplementedError
+    def eval_strains(self, t, q, la_c, xi):
+        K_n, K_m = self.eval_stresses(t, q, la_c, xi)
         el = self.element_number(xi)
         Qe = self.Q[self.elDOF[el]]
-        qe = q[self.elDOF[el]]
 
         _, _, K_Gamma_bar0, K_Kappa_bar0 = self._eval(Qe, xi)
 
-        J_0 = norm(K_Gamma_bar0)
-        K_Gamma0 = K_Gamma_bar0 / J_0
-        K_Kappa0 = K_Kappa_bar0 / J_0
+        J = norm(K_Gamma_bar0)
+        K_Gamma0 = K_Gamma_bar0 / J
+        K_Kappa0 = K_Kappa_bar0 / J
 
-        _, _, K_Gamma_bar, K_Kappa_bar = self._eval(qe, xi)
+        C_n_inv = self.material_model.C_n_inv
+        C_m_inv = self.material_model.C_m_inv
 
-        J = norm(K_Gamma_bar)
-        K_Gamma_DB = K_Gamma_bar / J
-        K_Kappa_DB = K_Kappa_bar / J
+        K_Gamma = C_n_inv @ K_n + K_Gamma0
+        K_Kappa = C_m_inv @ K_m + K_Kappa0
 
-        if mixed:
-            N_n = N_m = self.basis_functions_n(xi).flatten()
-            K_n = np.zeros(3, dtype=qe.dtype)
-            K_m = np.zeros(3, dtype=qe.dtype)
-
-            for node in range(self.nnodes_element_n):
-                n_node = qe[self.nodalDOF_element_n[node]]
-                K_n += N_n[node] * n_node
-                m_node = qe[self.nodalDOF_element_m[node]]
-                K_m += N_m[node] * m_node
-
-            K_Gamma = self.material_model.K_gam_comp(K_n, K_Gamma0)
-            K_Kappa = self.material_model.K_kap_comp(K_m, K_Kappa0)
-
-            return K_Gamma, K_Kappa, K_Gamma_DB, K_Kappa_DB
-        else:
-            return K_Gamma_DB, K_Kappa_DB
+        return K_Gamma - K_Gamma0, K_Kappa - K_Kappa0
 
     ##########################
     # compliance contributions
@@ -1611,7 +1587,7 @@ class CosseratRodMixed(CosseratRod):
             return approx_fprime(
                 qe, lambda qe: self.c_el(qe, la_ce, el), method="3-point", eps=1e-6
             )
-        
+
         c_q_el = np.zeros(
             (self.nla_c_element, self.nq_element), dtype=np.common_type(qe, la_ce)
         )
@@ -1719,7 +1695,7 @@ class CosseratRodMixed(CosseratRod):
             return approx_fprime(
                 qe, lambda qe: self.W_c_el(qe, el) @ la_ce, method="3-point", eps=1e-6
             )
-        
+
         Wla_c_q_el = np.zeros(
             (self.nu_element, self.nq_element), dtype=np.common_type(qe, la_ce)
         )
@@ -1894,6 +1870,22 @@ def make_CosseratRodConstrained(mixed, constraints):
             # evaluate shape functions at specific xi
             self.basis_functions_la_g = self.mesh_la_g.eval_basis
 
+        def eval_constraint_stresses(self, la_g, xi):
+            el = self.element_number(xi)
+            la_ge = la_g[self.elDOF_la_g[el]]
+            # TODO: lets see how to avoid the flatten
+            N_la_ge = self.basis_functions_la_g(xi).flatten()
+            la_gg = np.zeros(self.nconstraints_gamma + self.nconstraints_kappa)
+
+            for node in range(self.nnodes_element_la_g):
+                la_g_node = la_ge[self.nodalDOF_element_la_g[node]]
+                la_gg += N_la_ge[node] * la_g_node
+
+            K_n_c = self.K_n_la_g_sieve @ la_gg[: self.nconstraints_gamma]
+            K_m_c = self.K_m_la_g_sieve @ la_gg[self.nconstraints_gamma :]
+
+            return K_n_c, K_m_c
+
         def g(self, t, q):
             g = np.zeros(self.nla_g, dtype=q.dtype)
             for el in range(self.nelement):
@@ -1948,7 +1940,7 @@ def make_CosseratRodConstrained(mixed, constraints):
                 return approx_fprime(
                     qe, lambda qe: self.g_el(qe, el), method="3-point", eps=1e-6
                 )
-        
+
             g_q_el = np.zeros((self.nla_g_element, self.nq_element), dtype=qe.dtype)
             for i in range(self.nquadrature):
                 # extract reference state variables
@@ -2063,9 +2055,12 @@ def make_CosseratRodConstrained(mixed, constraints):
                     "Class derived from CosseratRod does not implement _deval. We use a numerical Jacobian!"
                 )
                 return approx_fprime(
-                    qe, lambda qe: self.W_g_el(qe, el) @ la_ge, method="3-point", eps=1e-6
+                    qe,
+                    lambda qe: self.W_g_el(qe, el) @ la_ge,
+                    method="3-point",
+                    eps=1e-6,
                 )
-        
+
             Wla_g_q_el = np.zeros(
                 (self.nu_element, self.nq_element), dtype=np.common_type(qe, la_ge)
             )
