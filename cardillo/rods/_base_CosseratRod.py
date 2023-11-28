@@ -834,7 +834,7 @@ class CosseratRod(RodExportBase, ABC):
     def f_pot_el_q(self, qe, el):
         if not hasattr(self, "_deval"):
             warnings.warn(
-                "Class derived from TimoshenkoPetrovGalerkinBase does not implement _deval. We use a numerical Jacobian!"
+                "Class derived from CosseratRod does not implement _deval. We use a numerical Jacobian!"
             )
             return approx_fprime(
                 qe, lambda qe: self.f_pot_el(qe, el), method="3-point", eps=1e-6
@@ -1604,6 +1604,14 @@ class CosseratRodMixed(CosseratRod):
         return coo
 
     def c_q_el(self, qe, la_ce, el):
+        if not hasattr(self, "_deval"):
+            warnings.warn(
+                "Class derived from CosseratRod does not implement _deval. We use a numerical Jacobian!"
+            )
+            return approx_fprime(
+                qe, lambda qe: self.c_el(qe, la_ce, el), method="3-point", eps=1e-6
+            )
+        
         c_q_el = np.zeros(
             (self.nla_c_element, self.nq_element), dtype=np.common_type(qe, la_ce)
         )
@@ -1704,6 +1712,14 @@ class CosseratRodMixed(CosseratRod):
         return coo
 
     def Wla_c_q_el(self, qe, la_ce, el):
+        if not hasattr(self, "_deval"):
+            warnings.warn(
+                "Class derived from CosseratRod does not implement _deval. We use a numerical Jacobian!"
+            )
+            return approx_fprime(
+                qe, lambda qe: self.W_c_el(qe, el) @ la_ce, method="3-point", eps=1e-6
+            )
+        
         Wla_c_q_el = np.zeros(
             (self.nu_element, self.nq_element), dtype=np.common_type(qe, la_ce)
         )
@@ -1925,6 +1941,14 @@ def make_CosseratRodConstrained(mixed, constraints):
             return coo
 
         def g_q_el(self, qe, el):
+            if not hasattr(self, "_deval"):
+                warnings.warn(
+                    "Class derived from CosseratRod does not implement _deval. We use a numerical Jacobian!"
+                )
+                return approx_fprime(
+                    qe, lambda qe: self.g_el(qe, el), method="3-point", eps=1e-6
+                )
+        
             g_q_el = np.zeros((self.nla_g_element, self.nq_element), dtype=qe.dtype)
             for i in range(self.nquadrature):
                 # extract reference state variables
@@ -2034,6 +2058,14 @@ def make_CosseratRodConstrained(mixed, constraints):
             return coo
 
         def Wla_g_q_el(self, qe, la_ge, el):
+            if not hasattr(self, "_deval"):
+                warnings.warn(
+                    "Class derived from CosseratRod does not implement _deval. We use a numerical Jacobian!"
+                )
+                return approx_fprime(
+                    qe, lambda qe: self.W_g_el(qe, el) @ la_ge, method="3-point", eps=1e-6
+                )
+        
             Wla_g_q_el = np.zeros(
                 (self.nu_element, self.nq_element), dtype=np.common_type(qe, la_ge)
             )
