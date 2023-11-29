@@ -92,7 +92,13 @@ def cantilever(
     moment = K_Moment(M, cantilever, (1,))
     system.add(moment)
 
-    system.assemble(options=SolverOptions(compute_consistent_initial_conditions=False, newton_max_iter=30, newton_atol=1.e-8))
+    system.assemble(
+        options=SolverOptions(
+            compute_consistent_initial_conditions=False,
+            newton_max_iter=30,
+            newton_atol=1.0e-8,
+        )
+    )
 
     # add Newton solver
     solver = Newton(system, n_load_steps=n_load_steps)
@@ -196,6 +202,60 @@ def cantilever(
     # plot animation
     ax1.azim = -90
     ax1.elev = 72
+
+    plt.show()
+
+    def stress_strain(rod, sol, nxi=100):
+        xis = np.linspace(0, 1, num=nxi)
+
+        Delta_K_Gamma = np.zeros((3, nxi))
+        Delta_K_Kappa = np.zeros((3, nxi))
+        K_n = np.zeros((3, nxi))
+        K_m = np.zeros((3, nxi))
+
+        for i, xii in enumerate(xis):
+            (K_n[:, i], K_m[:, i]) = rod.eval_stresses(
+                sol.t[-1], sol.q[-1], sol.la_c[-1], xii
+            )
+            (Delta_K_Gamma[:, i], Delta_K_Kappa[:, i]) = rod.eval_strains(
+                sol.t[-1], sol.q[-1], sol.la_c[-1], xii
+            )
+
+        if rod.nla_g != 0:
+            for i, xii in enumerate(xis):
+                K_n_c, K_m_c = rod.eval_constraint_stresses(sol.la_g[-1], xii)
+                K_n[:, i] += K_n_c
+                K_m[:, i] += K_m_c
+
+        return xis, Delta_K_Gamma, Delta_K_Kappa, K_n, K_m
+
+    fig, ax = plt.subplots(1, 4)
+
+    xis, K_Gamma, K_Kappa, K_n, K_m = stress_strain(cantilever, sol)
+
+    ax[0].set_title("K_Gamma - K_Gamma0")
+    ax[0].plot(xis, K_Gamma[0], label="Delta K_Gamma0")
+    ax[0].plot(xis, K_Gamma[1], label="Delta K_Gamma1")
+    ax[0].plot(xis, K_Gamma[2], label="Delta K_Gamma2")
+
+    ax[1].set_title("K_Kappa - K_Kappa0")
+    ax[1].plot(xis, K_Kappa[0], label="Delta K_Kappa0")
+    ax[1].plot(xis, K_Kappa[1], label="Delta K_Kappa1")
+    ax[1].plot(xis, K_Kappa[2], label="Delta K_Kappa2")
+
+    ax[2].set_title("K_n")
+    ax[2].plot(xis, K_n[0], label="K_n0")
+    ax[2].plot(xis, K_n[1], label="K_n1")
+    ax[2].plot(xis, K_n[2], label="K_n2")
+
+    ax[3].set_title("K_m")
+    ax[3].plot(xis, K_m[0], label="K_m0")
+    ax[3].plot(xis, K_m[1], label="K_m1")
+    ax[3].plot(xis, K_m[2], label="K_m2")
+
+    for axi in ax.flat:
+        axi.grid()
+        axi.legend()
 
     plt.show()
 
@@ -320,14 +380,14 @@ if __name__ == "__main__":
     # )
     # # mixed formulations
     # # For shear-rigid rods Harsch2021 and Simo1986 coincide.
-    # cantilever(
-    #     Rod=make_CosseratRod_R12(mixed=True, constraints=[1, 2]),
-    #     nelements=10,
-    #     polynomial_degree=2,
-    #     n_load_steps=3,
-    #     reduced_integration=False,
-    #     constitutive_law=Simo1986,
-    # )
+    cantilever(
+        Rod=make_CosseratRod_R12(mixed=False, constraints=[1, 2]),
+        nelements=10,
+        polynomial_degree=3,
+        n_load_steps=3,
+        reduced_integration=True,
+        constitutive_law=Simo1986,
+    )
     # cantilever(
     #     Rod=make_CosseratRod_R12(mixed=True, constraints=[0, 1, 2]),
     #     nelements=10,
@@ -349,37 +409,37 @@ if __name__ == "__main__":
     #     reduced_integration=False,
     #     constitutive_law=Harsch2021,
     # )
-    cantilever(
-        Rod=make_CosseratRod_R3SO3(constraints=[1, 2]),
-        nelements=10,
-        polynomial_degree=2,
-        n_load_steps=3,
-        reduced_integration=False,
-        constitutive_law=Harsch2021,
-    )
-    cantilever(
-        Rod=make_CosseratRod_R3SO3(constraints=[0, 1, 2]),
-        nelements=10,
-        polynomial_degree=2,
-        n_load_steps=3,
-        reduced_integration=False,
-        constitutive_law=Harsch2021,
-    )
-    # mixed formulations
-    # For shear-rigid rods Harsch2021 and Simo1986 coincide.
-    cantilever(
-        Rod=make_CosseratRod_R3SO3(mixed=True, constraints=[1, 2]),
-        nelements=10,
-        polynomial_degree=2,
-        n_load_steps=3,
-        reduced_integration=False,
-        constitutive_law=Simo1986,
-    )
-    cantilever(
-        Rod=make_CosseratRod_R3SO3(mixed=True, constraints=[0, 1, 2]),
-        nelements=10,
-        polynomial_degree=2,
-        n_load_steps=3,
-        reduced_integration=False,
-        constitutive_law=Simo1986,
-    )
+    # cantilever(
+    #     Rod=make_CosseratRod_R3SO3(constraints=[1, 2]),
+    #     nelements=10,
+    #     polynomial_degree=2,
+    #     n_load_steps=3,
+    #     reduced_integration=False,
+    #     constitutive_law=Harsch2021,
+    # )
+    # cantilever(
+    #     Rod=make_CosseratRod_R3SO3(constraints=[0, 1, 2]),
+    #     nelements=10,
+    #     polynomial_degree=2,
+    #     n_load_steps=3,
+    #     reduced_integration=False,
+    #     constitutive_law=Harsch2021,
+    # )
+    # # mixed formulations
+    # # For shear-rigid rods Harsch2021 and Simo1986 coincide.
+    # cantilever(
+    #     Rod=make_CosseratRod_R3SO3(mixed=True, constraints=[1, 2]),
+    #     nelements=10,
+    #     polynomial_degree=2,
+    #     n_load_steps=3,
+    #     reduced_integration=False,
+    #     constitutive_law=Simo1986,
+    # )
+    # cantilever(
+    #     Rod=make_CosseratRod_R3SO3(mixed=True, constraints=[0, 1, 2]),
+    #     nelements=10,
+    #     polynomial_degree=2,
+    #     n_load_steps=3,
+    #     reduced_integration=False,
+    #     constitutive_law=Simo1986,
+    # )
