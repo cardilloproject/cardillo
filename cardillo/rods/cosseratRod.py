@@ -11,6 +11,8 @@ from cardillo.math import (
     T_SO3_quat_P,
     Exp_SO3_quat,
     Exp_SO3_quat_p,
+    Log_SO3,
+    Exp_SO3,
 )
 
 from cardillo.rods._base_CosseratRod import (
@@ -84,16 +86,13 @@ def make_CosseratRod_SE3(mixed=False, constraints=None):
             **kwargs,
         ):
             return CosseratRod.straight_initial_configuration(
-                1,
-                1,
-                "Lagrange",
-                "Lagrange",
                 nelement,
                 L,
-                r_OP,
-                A_IK,
-                v_P,
-                K_omega_IK,
+                polynomial_degree=1,
+                r_OP=r_OP,
+                A_IK=A_IK,
+                v_P=v_P,
+                K_omega_IK=K_omega_IK,
             )
 
         def _eval(self, qe, xi):
@@ -261,6 +260,147 @@ def make_CosseratRod_SE3(mixed=False, constraints=None):
     return CosseratRod_SE3
 
 
+def make_CosseratRod_R3SO3(mixed=False, constraints=None):
+    if mixed == True:
+        if constraints == None:
+            CosseratRodBase = CosseratRodMixed
+        else:
+            CosseratRodBase = make_CosseratRodConstrained(
+                mixed=mixed, constraints=constraints
+            )
+    else:
+        if constraints == None:
+            CosseratRodBase = CosseratRod
+        else:
+            CosseratRodBase = make_CosseratRodConstrained(
+                mixed=mixed, constraints=constraints
+            )
+
+    class CosseratRod_R3SO3(CosseratRodBase):
+        def __init__(
+            self,
+            cross_section,
+            material_model,
+            nelement,
+            Q,
+            q0=None,
+            u0=None,
+            reduced_integration=True,
+            cross_section_inertias=CrossSectionInertias(),
+            **kwargs,
+        ):
+            super().__init__(
+                cross_section,
+                material_model,
+                nelement,
+                polynomial_degree=1,
+                nquadrature=1 if reduced_integration else 2,
+                Q=Q,
+                q0=q0,
+                u0=u0,
+                nquadrature_dyn=2,
+                cross_section_inertias=cross_section_inertias,
+            )
+
+        @staticmethod
+        def straight_configuration(
+            nelement,
+            L,
+            r_OP=np.zeros(3, dtype=float),
+            A_IK=np.eye(3, dtype=float),
+            **kwargs,
+        ):
+            return CosseratRod.straight_configuration(
+                nelement, L, polynomial_degree=1, r_OP=r_OP, A_IK=A_IK
+            )
+
+        @staticmethod
+        def straight_initial_configuration(
+            nelement,
+            L,
+            r_OP=np.zeros(3, dtype=float),
+            A_IK=np.eye(3, dtype=float),
+            v_P=np.zeros(3, dtype=float),
+            K_omega_IK=np.zeros(3, dtype=float),
+            **kwargs,
+        ):
+            return CosseratRod.straight_initial_configuration(
+                nelement,
+                L,
+                polynomial_degree=1,
+                r_OP=r_OP,
+                A_IK=A_IK,
+                v_P=v_P,
+                K_omega_IK=K_omega_IK,
+            )
+
+        def _eval(self, qe, xi):
+            # evaluate shape functions
+            N_r, N_r_xi = self.basis_functions_r(xi)
+            N_psi, N_psi_xi = self.basis_functions_psi(xi)
+
+            # interpolate centerline and tangent vector
+            r_OP = np.zeros(3, dtype=qe.dtype)
+            r_OP_xi = np.zeros(3, dtype=qe.dtype)
+            for node in range(self.nnodes_element_r):
+                r_OP_node = qe[self.nodalDOF_element_r[node]]
+                r_OP += N_r[node] * r_OP_node
+                r_OP_xi += N_r_xi[node] * r_OP_node
+
+            # nodal rotation parametrization
+            psi0, psi1 = qe[self.nodalDOF_element_psi]
+
+            # nodal transformation matrices
+            A_IK0 = Exp_SO3_quat(psi0)
+            A_IK1 = Exp_SO3_quat(psi1)
+
+            # relative interpolation of the rotation vector and it first derivative
+            psi01 = Log_SO3(A_IK0.T @ A_IK1)
+
+            # objective rotation
+            A_IK = A_IK0 @ Exp_SO3(N_psi[1] * psi01)
+
+            # axial and shear strains
+            K_Gamma_bar = A_IK.T @ r_OP_xi
+
+            # objective curvature
+            # note: for two-node element T_SO3 @ psi_xi = psi_xi
+            # T = T_SO3(N_psi[1] * psi01)
+            # K_Kappa_bar = T @ (N_psi_xi[1] * psi01)
+            K_Kappa_bar = N_psi_xi[1] * psi01
+
+            return r_OP, A_IK, K_Gamma_bar, K_Kappa_bar
+
+        def A_IK(self, t, q, frame_ID):
+            # evaluate shape functions
+            N_psi, _ = self.basis_functions_psi(frame_ID[0])
+
+            # nodal rotation parametrization
+            psi0, psi1 = q[self.nodalDOF_element_psi]
+
+            # nodal transformation matrices
+            A_IK0 = Exp_SO3_quat(psi0)
+            A_IK1 = Exp_SO3_quat(psi1)
+
+            # relative interpolation of the rotation vector and it first derivative
+            psi01 = Log_SO3(A_IK0.T @ A_IK1)
+
+            # objective rotation
+            A_IK = A_IK0 @ Exp_SO3(N_psi[1] * psi01)
+
+            return A_IK
+
+        def A_IK_q(self, t, q, frame_ID):
+            from cardillo.math.approx_fprime import approx_fprime
+
+            A_IK_q_num = approx_fprime(
+                q, lambda q: self.A_IK(t, q, frame_ID), method="3-point", eps=1e-3
+            )
+            return A_IK_q_num
+
+    return CosseratRod_R3SO3
+
+
 def make_CosseratRod_Quat(mixed=False, constraints=None):
     if mixed == True:
         if constraints == None:
@@ -339,22 +479,6 @@ def make_CosseratRod_Quat(mixed=False, constraints=None):
         def _eval(self, qe, xi):
             # evaluate shape functions
             N, N_xi = self.basis_functions_r(xi)
-
-            # quats = np.array(
-            #     [
-            #         qe[self.nodalDOF_element_psi[node]].copy()
-            #         for node in range(self.nnodes_element_r)
-            #     ]
-            # )
-            # signs = np.ones(len(quats))
-            # Q0 = quats[0]
-            # for i in range(1, len(quats)):
-            #     Qi = quats[i]
-            #     # inner = Q0 @ Qi
-            #     # if inner < 0:
-            #     if np.linalg.norm(Qi - Q0) > 1:
-            #         quats[i] *= -1
-            #         signs[i] = -1
 
             # interpolate
             r_OP = np.zeros(3, dtype=qe.dtype)
