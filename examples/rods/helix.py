@@ -1,19 +1,18 @@
 from cardillo.math import e1, e2, e3
 from cardillo.rods import (
-    RectangularCrossSection,
     CircularCrossSection,
     Simo1986,
 )
-from cardillo.discrete import Frame
 from cardillo.constraints import RigidConnection
 from cardillo.rods import animate_beam
 from cardillo.rods.cosseratRod import (
-    make_CosseratRod_R12,
-    make_CosseratRod_Quat,
     make_CosseratRod_SE3,
+    make_CosseratRod_Quat,
+    make_CosseratRod_R12,
+    make_CosseratRod_R3SO3,
 )
 
-from cardillo.forces import K_Moment, Force
+from cardillo.forces import K_Moment
 from cardillo import System
 from cardillo.solver import Newton, SolverOptions
 from cardillo.visualization import Export
@@ -23,16 +22,16 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 from math import pi
 
-
 def helix(
     Rod,
-    nelements=20,
+    nelements=10,
     polynomial_degree=2,
     n_load_steps=10,
     reduced_integration=True,
     VTK_export=False,
     slenderness=1.0e4,
     atol=1.0e-13,
+    export_name="rod",
 ):
     # geometry of the rod
     n = 2  # number of coils
@@ -100,9 +99,8 @@ def helix(
         lambda t: (R0 * alpha_xi**2)
         / (length**2)
         * (c * e1 * Fi[0] + e3 * Fi[2])
-        * t
+        * t * 0.5
     )
-    # M = lambda t: 2 * np.pi / length * (e1 * Fi[0] + e3 * Fi[2]) * t * 1.5
     moment = K_Moment(M, cantilever, (1,))
     system.add(moment)
 
@@ -112,8 +110,7 @@ def helix(
     solver = Newton(
         system,
         n_load_steps=n_load_steps,
-        max_iter=100,
-        atol=atol,
+        options=SolverOptions(newton_max_iter=30, newton_atol=atol)
     )
 
     # solve nonlinear static equilibrium equations
@@ -121,6 +118,7 @@ def helix(
 
     # extract solutions
     q = sol.q
+    la_c = sol.la_c
     nt = len(q)
     t = sol.t[:nt]
 
@@ -156,78 +154,114 @@ def helix(
 
     plt.show()
 
+    path = Path(__file__)
+    path = Path(path.parent / path.stem)
+    path.mkdir(parents=True, exist_ok=True)
+
+    def stress_strain(rod, sol, nxi=100):
+        xis = np.linspace(0, 1, num=nxi)
+
+        Delta_K_Gamma = np.zeros((3, nxi))
+        Delta_K_Kappa = np.zeros((3, nxi))
+        K_n = np.zeros((3, nxi))
+        K_m = np.zeros((3, nxi))
+
+        for i, xii in enumerate(xis):
+                (
+                    K_n[:, i],
+                    K_m[:, i]
+                ) = rod.eval_stresses(sol.t[-1], sol.q[-1], sol.la_c[-1], xii)
+                (
+                    Delta_K_Gamma[:, i],
+                    Delta_K_Kappa[:, i]
+                ) = rod.eval_strains(sol.t[-1], sol.q[-1], sol.la_c[-1], xii)
+
+        return xis, Delta_K_Gamma, Delta_K_Kappa, K_n, K_m
+        
+    fig, ax = plt.subplots(1, 4)
+
+    xis, K_Gamma, K_Kappa, K_n, K_m = stress_strain(cantilever, sol)
+    header = "xi, K_Gamma1, K_Gamma2, K_Gamma3, K_Kappa1, K_Kappa2, K_Kappa3, \
+            K_n1, K_n2, K_n3, K_m1, K_m2, K_m3"
+    export_data = np.vstack(
+        [xis, *K_Gamma, *K_Kappa, *K_n, *K_m]
+    ).T
+
+    np.savetxt(
+        path / f"strain_stress_helix_{export_name}.txt",
+        export_data,
+        delimiter=", ",
+        header=header,
+        comments="",
+    )
+
+    ax[0].set_title("K_Gamma - K_Gamma0")
+    ax[0].plot(xis, K_Gamma[0], label="Delta K_Gamma0")
+    ax[0].plot(xis, K_Gamma[1], label="Delta K_Gamma1")
+    ax[0].plot(xis, K_Gamma[2], label="Delta K_Gamma2")
+
+    ax[1].set_title("K_Kappa - K_Kappa0")
+    ax[1].plot(xis, K_Kappa[0], label="Delta K_Kappa0")
+    ax[1].plot(xis, K_Kappa[1], label="Delta K_Kappa1")
+    ax[1].plot(xis, K_Kappa[2], label="Delta K_Kappa2")
+
+    ax[2].set_title("K_n")
+    ax[2].plot(xis, K_n[0], label="K_n0")
+    ax[2].plot(xis, K_n[1], label="K_n1")
+    ax[2].plot(xis, K_n[2], label="K_n2")
+
+    ax[3].set_title("K_m")
+    ax[3].plot(xis, K_m[0], label="K_m0")
+    ax[3].plot(xis, K_m[1], label="K_m1")
+    ax[3].plot(xis, K_m[2], label="K_m2")
+
+
+    for axi in ax.flat:
+        axi.grid()
+        axi.legend()
+
+    plt.show()
 
 if __name__ == "__main__":
     #############################
     # robust mixed formulations #
     #############################
 
-    helix(
-        Rod=make_CosseratRod_SE3(mixed=True),
-        nelements=10,
-        polynomial_degree=1,
-        n_load_steps=1,
-        reduced_integration=True,
-        slenderness=1.0e4,
-        atol=1.0e-12,
-    )
+    # helix(
+    #     Rod=make_CosseratRod_SE3(mixed=True),
+    #     nelements=10,
+    #     n_load_steps=1,
+    #     reduced_integration=True,
+    #     slenderness=1.0e4,
+    #     atol=1.0e-12,
+    # )
 
-    helix(
-        Rod=make_CosseratRod_Quat(mixed=True),
-        nelements=10,
-        polynomial_degree=2,
-        n_load_steps=1,
-        reduced_integration=True,
-        slenderness=1.0e4,
-        atol=1.0e-12,
-    )
+    # helix(
+    #     Rod=make_CosseratRod_Quat(mixed=True),
+    #     nelements=10,
+    #     polynomial_degree=2,
+    #     n_load_steps=1,
+    #     reduced_integration=True,
+    #     slenderness=1.0e4,
+    #     atol=1.0e-12,
+    # )
 
-    helix(
-        Rod=make_CosseratRod_R12(mixed=True),
-        nelements=10,
-        polynomial_degree=2,
-        n_load_steps=2,
-        reduced_integration=True,
-        slenderness=1.0e4,
-        atol=1.0e-12,
-    )
+    # helix(
+    #     Rod=make_CosseratRod_R12(mixed=True),
+    #     nelements=10,
+    #     polynomial_degree=2,
+    #     n_load_steps=2,
+    #     reduced_integration=True,
+    #     slenderness=1.0e4,
+    #     atol=1.0e-12,
+    # )
 
-    #####################################
-    # parameters from Paper Harsch2023a #
-    #####################################
-    # helix(Rod=make_CosseratRod_SE3(mixed=False), nelements=5, polynomial_degree=1, n_load_steps = 69, reduced_integration=True, slenderness=1.0e1, atol=1.0e-8)
-    # # crashes in load step 31
-
-    # helix(Rod=make_CosseratRod_SE3(mixed=False), nelements=5, polynomial_degree=1, n_load_steps = 99, reduced_integration=True, slenderness=1.0e2, atol=1.0e-9)
-    # # crashes in load step 77
-
-    # helix(Rod=make_CosseratRod_SE3(mixed=False), nelements=5, polynomial_degree=1, n_load_steps = 199, reduced_integration=True, slenderness=1.0e3, atol=1.0e-10)
-    # # this works
-
-    # helix(Rod=make_CosseratRod_SE3(mixed=False), nelements=5, polynomial_degree=1, n_load_steps = 699, reduced_integration=True, slenderness=1.0e4, atol=1.0e-11)
-    # # crashes in load step 251
-
-    ##############################################
-    # paramters from Harsch2023a (archived code) #
-    ##############################################
-
-    # helix(Rod=make_CosseratRod_SE3(mixed=False), nelements=5, polynomial_degree=1, n_load_steps = 70, reduced_integration=True, slenderness=1.0e1, atol=1.0e-8)
-    # # crashes in load step 31
-
-    # helix(Rod=make_CosseratRod_SE3(mixed=False), nelements=5, polynomial_degree=1, n_load_steps = 100, reduced_integration=True, slenderness=1.0e2, atol=1.0e-10)
-    # # crashes in load step 78
-
-    # helix(Rod=make_CosseratRod_SE3(mixed=False), nelements=5, polynomial_degree=1, n_load_steps = 200, reduced_integration=True, slenderness=1.0e3, atol=1.0e-12)
-    # # works
-
-    # helix(Rod=make_CosseratRod_SE3(mixed=False), nelements=5, polynomial_degree=1, n_load_steps = 500, reduced_integration=True, slenderness=1.0e4, atol=1.0e-14)
-    # # works
 
     # #######################
     # # paramters that work #
     # #######################
 
-    # helix(Rod=make_CosseratRod_SE3(mixed=False), nelements=5, polynomial_degree=1, n_load_steps = 100, reduced_integration=True, slenderness=1.0e1, atol=1.0e-8)
+    # helix(Rod=make_CosseratRod_SE3(mixed=False), nelements=10, n_load_steps = 1, reduced_integration=True, slenderness=1.0e1, atol=1.0e-8, export_name="SE3_DB")
 
     # helix(Rod=make_CosseratRod_SE3(mixed=False), nelements=5, polynomial_degree=1, n_load_steps = 109, reduced_integration=True, slenderness=1.0e2, atol=1.0e-9)
     # # strangely: n_load_steps = 110 does not work anymore
@@ -237,7 +271,10 @@ if __name__ == "__main__":
     # helix(Rod=make_CosseratRod_SE3(mixed=False), nelements=5, polynomial_degree=1, n_load_steps = 700, reduced_integration=True, slenderness=1.0e4, atol=1.0e-14)
 
     # Quaternion-interpolation:
-    # helix(Rod=make_CosseratRod_Quat(mixed=False), nelements=10, polynomial_degree=2, n_load_steps = 100, reduced_integration=True, slenderness=1.0e1, atol=1.0e-8)
+    helix(Rod=make_CosseratRod_Quat(mixed=False), nelements=10, polynomial_degree=1, n_load_steps = 10, reduced_integration=True, slenderness=1.0e1, atol=1.0e-8)
+
+    # helix(Rod=make_CosseratRod_R3SO3(mixed=False), nelements=10, polynomial_degree=1, n_load_steps = 10, reduced_integration=True, slenderness=1.0e1, atol=1.0e-8)
+
 
     # helix(Rod=make_CosseratRod_Quat(mixed=False), nelements=10, polynomial_degree=2, n_load_steps = 119, reduced_integration=True, slenderness=1.0e2, atol=1.0e-9)
 
@@ -246,7 +283,7 @@ if __name__ == "__main__":
     # helix(Rod=make_CosseratRod_Quat(mixed=False), nelements=10, polynomial_degree=2, n_load_steps = 700, reduced_integration=True, slenderness=1.0e4, atol=1.0e-14)
 
     # R12 interpolation
-    # helix(Rod=make_CosseratRod_R12(mixed=False), nelements=10, polynomial_degree=2, n_load_steps = 100, reduced_integration=True, slenderness=1.0e1, atol=1.0e-8)
+    # helix(Rod=make_CosseratRod_R12(mixed=False), nelements=20, polynomial_degree=2, n_load_steps = 100, reduced_integration=True, slenderness=1.0e1, atol=1.0e-8)
 
     # helix(Rod=make_CosseratRod_R12(mixed=False), nelements=10, polynomial_degree=2, n_load_steps = 129, reduced_integration=True, slenderness=1.0e2, atol=1.0e-9)
 
