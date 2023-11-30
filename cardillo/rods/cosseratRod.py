@@ -512,7 +512,7 @@ def make_CosseratRod_Quat(mixed=False, constraints=None):
             # K_Kappa_bar = (
             #     (2 / Q2) * np.hstack((-q[:, None], q0 * np.eye(3) - ax2skew(q))) @ Q_xi
             # )
-            K_Kappa_bar = T_SO3_quat(Q, normalize=False) @ Q_xi
+            K_Kappa_bar = T_SO3_quat(Q, normalize=True) @ Q_xi
 
             return r_OP, A_IK, K_Gamma_bar, K_Kappa_bar
 
@@ -577,7 +577,7 @@ def make_CosseratRod_Quat(mixed=False, constraints=None):
             K_Gamma_bar_qe = np.einsum("k,kij", r_OP_xi, A_IK_qe) + A_IK.T @ r_OP_xi_qe
 
             # curvature, Rucker2018 (17)
-            T = T_SO3_quat(Q, normalize=False)
+            T = T_SO3_quat(Q, normalize=True)
             K_Kappa_bar = T @ Q_xi
             # K_Kappa_bar = (
             #     (2 / Q2) * np.hstack((-q[:, None], q0 * np.eye(3) - ax2skew(q))) @ Q_xi
@@ -587,7 +587,7 @@ def make_CosseratRod_Quat(mixed=False, constraints=None):
             K_Kappa_bar_qe = (
                 np.einsum(
                     "ijk,j->ik",
-                    T_SO3_quat_P(Q, normalize=False),
+                    T_SO3_quat_P(Q, normalize=True),
                     Q_xi,
                 )
                 @ Q_qe

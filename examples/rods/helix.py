@@ -273,7 +273,7 @@ if __name__ == "__main__":
     # Quaternion-interpolation:
     helix(Rod=make_CosseratRod_Quat(mixed=False), nelements=10, polynomial_degree=1, n_load_steps = 10, reduced_integration=True, slenderness=1.0e1, atol=1.0e-8)
 
-    helix(Rod=make_CosseratRod_R3SO3(mixed=False), nelements=10, polynomial_degree=1, n_load_steps = 10, reduced_integration=True, slenderness=1.0e1, atol=1.0e-8)
+    # helix(Rod=make_CosseratRod_R3SO3(mixed=False), nelements=10, polynomial_degree=1, n_load_steps = 10, reduced_integration=True, slenderness=1.0e1, atol=1.0e-8)
 
 
     # helix(Rod=make_CosseratRod_Quat(mixed=False), nelements=10, polynomial_degree=2, n_load_steps = 119, reduced_integration=True, slenderness=1.0e2, atol=1.0e-9)
