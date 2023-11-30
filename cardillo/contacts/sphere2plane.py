@@ -4,15 +4,19 @@ from cardillo.math.algebra import cross3, ax2skew
 from cardillo.math.prox import Sphere
 
 
+# TODO: We have to add a function that computes the correct contact fores by 
+# application of A @ la_F. That should be done on system level and the solver 
+# calls this before the converged la_F's are stored.
 class Sphere2Plane:
     def __init__(
         self,
         frame,
         subsystem,
-        r,
         mu,
+        r=0,
         e_N=None,
         e_F=None,
+        anisotropy=np.ones(2),
         frame_ID=np.zeros(3),
         K_r_SP=np.zeros(3),
     ):
@@ -24,6 +28,7 @@ class Sphere2Plane:
         self.e_N = np.zeros(self.nla_N) if e_N is None else e_N * np.ones(self.nla_N)
 
         if mu > 0:
+            self.A = np.diag(anisotropy)
             self.nla_F = 2 * self.nla_N
             self.gamma_F = self.__gamma_F
             self.e_F = np.zeros(self.nla_F) if e_F is None else e_F * np.ones(self.nla_F)
@@ -78,42 +83,55 @@ class Sphere2Plane:
             t, q, u, a, frame_ID=self.frame_ID, K_r_SP=self.K_r_SP
         )
 
-        self.Omega = lambda t, q, u: self.subsystem.A_IK(
-            t, q, frame_ID=self.frame_ID
-        ) @ self.subsystem.K_Omega(t, q, u, frame_ID=self.frame_ID)
-        self.Omega_q = lambda t, q, u: self.subsystem.A_IK(
-            t, q, frame_ID=self.frame_ID
-        ) @ self.subsystem.K_Omega_q(t, q, u, frame_ID=self.frame_ID) + np.einsum(
-            "ijk,j->ik",
-            self.subsystem.A_IK_q(t, q, frame_ID=self.frame_ID),
-            self.subsystem.K_Omega(t, q, u, frame_ID=self.frame_ID),
-        )
-        self.J_R = lambda t, q: self.subsystem.A_IK(
-            t, q, frame_ID=self.frame_ID
-        ) @ self.subsystem.K_J_R(t, q, frame_ID=self.frame_ID)
-        self.J_R_q = lambda t, q: np.einsum(
-            "ijl,jk->ikl",
-            self.subsystem.A_IK_q(t, q, frame_ID=self.frame_ID),
-            self.subsystem.K_J_R(t, q, frame_ID=self.frame_ID),
-        ) + np.einsum(
-            "ij,jkl->ikl",
-            self.subsystem.A_IK(t, q, frame_ID=self.frame_ID),
-            self.subsystem.K_J_R_q(t, q, frame_ID=self.frame_ID),
-        )
-        self.Psi = lambda t, q, u, a: self.subsystem.A_IK(
-            t, q, frame_ID=self.frame_ID
-        ) @ self.subsystem.K_Psi(t, q, u, a, frame_ID=self.frame_ID)
-        self.Psi_q = lambda t, q, u, a: self.subsystem.A_IK(
-            t, q, frame_ID=self.frame_ID
-        ) @ self.subsystem.K_Psi_q(t, q, u, a, frame_ID=self.frame_ID) + np.einsum(
-            "ijk,j->ik",
-            self.subsystem.A_IK_q(t, q, frame_ID=self.frame_ID),
-            self.subsystem.K_Psi(t, q, u, a, frame_ID=self.frame_ID),
-        )
-        self.Psi_u = lambda t, q, u, a: self.subsystem.A_IK(
-            t, q, frame_ID=self.frame_ID
-        ) @ self.subsystem.K_Psi_u(t, q, u, a, frame_ID=self.frame_ID)
+        if hasattr(self.subsystem, "A_IK"):
+            self.Omega = lambda t, q, u: self.subsystem.A_IK(
+                t, q, frame_ID=self.frame_ID
+            ) @ self.subsystem.K_Omega(t, q, u, frame_ID=self.frame_ID)
+            self.Omega_q = lambda t, q, u: self.subsystem.A_IK(
+                t, q, frame_ID=self.frame_ID
+            ) @ self.subsystem.K_Omega_q(t, q, u, frame_ID=self.frame_ID) + np.einsum(
+                "ijk,j->ik",
+                self.subsystem.A_IK_q(t, q, frame_ID=self.frame_ID),
+                self.subsystem.K_Omega(t, q, u, frame_ID=self.frame_ID),
+            )
+            self.J_R = lambda t, q: self.subsystem.A_IK(
+                t, q, frame_ID=self.frame_ID
+            ) @ self.subsystem.K_J_R(t, q, frame_ID=self.frame_ID)
+            self.J_R_q = lambda t, q: np.einsum(
+                "ijl,jk->ikl",
+                self.subsystem.A_IK_q(t, q, frame_ID=self.frame_ID),
+                self.subsystem.K_J_R(t, q, frame_ID=self.frame_ID),
+            ) + np.einsum(
+                "ij,jkl->ikl",
+                self.subsystem.A_IK(t, q, frame_ID=self.frame_ID),
+                self.subsystem.K_J_R_q(t, q, frame_ID=self.frame_ID),
+            )
+            self.Psi = lambda t, q, u, a: self.subsystem.A_IK(
+                t, q, frame_ID=self.frame_ID
+            ) @ self.subsystem.K_Psi(t, q, u, a, frame_ID=self.frame_ID)
+            self.Psi_q = lambda t, q, u, a: self.subsystem.A_IK(
+                t, q, frame_ID=self.frame_ID
+            ) @ self.subsystem.K_Psi_q(t, q, u, a, frame_ID=self.frame_ID) + np.einsum(
+                "ijk,j->ik",
+                self.subsystem.A_IK_q(t, q, frame_ID=self.frame_ID),
+                self.subsystem.K_Psi(t, q, u, a, frame_ID=self.frame_ID),
+            )
+            self.Psi_u = lambda t, q, u, a: self.subsystem.A_IK(
+                t, q, frame_ID=self.frame_ID
+            ) @ self.subsystem.K_Psi_u(t, q, u, a, frame_ID=self.frame_ID)
+        else:
+            self.Omega = lambda t, q, u: np.zeros(3)
+            self.Omega_q = lambda t, q, u: np.zeros((3, self.subsystem.nq))
+            self.J_R = lambda t, q: np.zeros((self.subsystem.nu, 3))
+            self.J_R_q = lambda t, q: np.zeros((self.subsystem.nu, 3, self.subsystem.nq))
+            self.Psi = lambda t, q, u, u_dot: np.zeros(3)
+            self.Psi_q = lambda t, q, u, u_dot: np.zeros((3, self.subsystem.nq))
+            self.Psi_q = lambda t, q, u, u_dot: np.zeros((3, self.subsystem.nu))
 
+
+    ################
+    # normal contact
+    ################
     def g_N(self, t, q):
         return np.array([self.n @ (self.r_OP(t, q) - self.r_OQ)]) - self.r
 
@@ -151,37 +169,39 @@ class Sphere2Plane:
     def Wla_N_q(self, t, q, la_N):
         return la_N[0] * np.einsum("i,ijk->jk", self.n, self.J_P_q(t, q))
 
+    ##########
+    # friction
+    ##########
     def __gamma_F(self, t, q, u):
         v_C = self.v_P(t, q, u) + self.r * cross3(self.n, self.Omega(t, q, u))
-        return self.t1t2 @ v_C
+        return self.A.T @ self.t1t2 @ v_C
 
     def gamma_F_q(self, t, q, u):
         return approx_fprime(q, lambda q: self.gamma_F(t, q, u))
         v_C_q = self.v_P_q(t, q, u) + self.r * ax2skew(self.n) @ self.Omega_q(t, q, u)
-        return self.t1t2 @ v_C_q
+        return self.A.T @ self.t1t2 @ v_C_q
 
     def gamma_F_dot(self, t, q, u, u_dot):
         r_PC = -self.r * self.n
         a_C = self.a_P(t, q, u, u_dot) + cross3(self.Psi(t, q, u, u_dot), r_PC)
-        return self.t1t2 @ a_C
+        return self.A.T @ self.t1t2 @ a_C
 
     def gamma_F_dot_q(self, t, q, u, u_dot):
         # return approx_fprime(q, lambda q: self.gamma_F_dot(t, q, u, u_dot))
         r_PC = -self.r * self.n
         a_C_q = self.a_P_q(t, q, u, u_dot) - ax2skew(r_PC) @ self.Psi_q(t, q, u, u_dot)
-        return self.t1t2 @ a_C_q
+        return self.A.T @ self.t1t2 @ a_C_q
 
     def gamma_F_dot_u(self, t, q, u, u_dot):
         # return approx_fprime(u, lambda u: self.gamma_F_dot(t, q, u, u_dot))
         r_PC = -self.r * self.n
         a_C_u = self.a_P_u(t, q, u, u_dot) - ax2skew(r_PC) @ self.Psi_u(t, q, u, u_dot)
-        return self.t1t2 @ a_C_u
+        return self.A.T @ self.t1t2 @ a_C_u
 
     def gamma_F_u(self, t, q):
         # return approx_fprime(np.zeros(self.nu), lambda u: self.gamma_F(t, q, u))
         J_C = self.J_P(t, q) + self.r * ax2skew(self.n) @ self.J_R(t, q)
-        gamma_F_u = self.t1t2 @ J_C
-        return gamma_F_u
+        return self.A.T @ self.t1t2 @ J_C
 
     def W_F(self, t, q):
         return self.gamma_F_u(t, q).T
@@ -191,8 +211,11 @@ class Sphere2Plane:
         # J_C_q = self.J_P_q(t, q) + self.r * np.einsum(
         #     "ij,jkl->ikl", ax2skew(self.n), self.J_R_q(t, q)
         # )
-        # dense = np.einsum("i,ij,jkl->kl", la_F, self.t1t2, J_C_q)
+        # dense = np.einsum("i,ij,jkl->kl", la_F, self.A.T @ self.t1t2, J_C_q)
 
+    ############
+    # vtk export
+    ############
     def export(self, sol_i, **kwargs):
         r_OP = self.r_OP(sol_i.t, sol_i.q[self.qDOF])
         n = self.n

@@ -34,13 +34,14 @@ https://doi.org/10.1177/10812865211000790
 
 4.1 Elliptic integral solutions of Euler's elastica
 
-This is an example how to switch on and off the constraints.
+It is a test for the static analysis of all different rod formulations in their different versions: 
+(constrained) displacement-based and (constrained) mixed formulations.
 """
 
 def cantilever(
     Rod,
     nelements=10,
-    polynomial_degree=3,
+    polynomial_degree=2,
     n_load_steps=3,
     VTK_export=False,
     reduced_integration=True,
@@ -108,26 +109,6 @@ def cantilever(
     q = sol.q
     nt = len(q)
     t = sol.t[:nt]
-
-    # VTK export
-    if VTK_export:
-        path = Path(__file__)
-        e = Export(path.parent, path.stem, True, 30, sol)
-        e.export_contr(
-            cantilever,
-            level="centerline + directors",
-            num=3 * nelements,
-            file_name="cantilever_curve",
-        )
-        e.export_contr(
-            cantilever,
-            continuity="C0",
-            level="volume",
-            n_segments=nelements,
-            num=3 * nelements,
-            file_name="cantilever_volume",
-        )
-
 
     # matplotlib visualization
     # construct animation of beam
@@ -203,67 +184,16 @@ def cantilever(
     ax1.azim = -90
     ax1.elev = 72
 
-    plt.show()
-
-    def stress_strain(rod, sol, nxi=100):
-        xis = np.linspace(0, 1, num=nxi)
-
-        Delta_K_Gamma = np.zeros((3, nxi))
-        Delta_K_Kappa = np.zeros((3, nxi))
-        K_n = np.zeros((3, nxi))
-        K_m = np.zeros((3, nxi))
-
-        for i, xii in enumerate(xis):
-            (K_n[:, i], K_m[:, i]) = rod.eval_stresses(
-                sol.t[-1], sol.q[-1], sol.la_c[-1], xii
-            )
-            (Delta_K_Gamma[:, i], Delta_K_Kappa[:, i]) = rod.eval_strains(
-                sol.t[-1], sol.q[-1], sol.la_c[-1], xii
-            )
-
-        if hasattr(rod, "nla_g"):
-            for i, xii in enumerate(xis):
-                K_n_c, K_m_c = rod.eval_constraint_stresses(sol.la_g[-1], xii)
-                K_n[:, i] += K_n_c
-                K_m[:, i] += K_m_c
-
-        return xis, Delta_K_Gamma, Delta_K_Kappa, K_n, K_m
-
-    fig, ax = plt.subplots(1, 4)
-
-    xis, K_Gamma, K_Kappa, K_n, K_m = stress_strain(cantilever, sol)
-
-    ax[0].set_title("K_Gamma - K_Gamma0")
-    ax[0].plot(xis, K_Gamma[0], label="Delta K_Gamma0")
-    ax[0].plot(xis, K_Gamma[1], label="Delta K_Gamma1")
-    ax[0].plot(xis, K_Gamma[2], label="Delta K_Gamma2")
-
-    ax[1].set_title("K_Kappa - K_Kappa0")
-    ax[1].plot(xis, K_Kappa[0], label="Delta K_Kappa0")
-    ax[1].plot(xis, K_Kappa[1], label="Delta K_Kappa1")
-    ax[1].plot(xis, K_Kappa[2], label="Delta K_Kappa2")
-
-    ax[2].set_title("K_n")
-    ax[2].plot(xis, K_n[0], label="K_n0")
-    ax[2].plot(xis, K_n[1], label="K_n1")
-    ax[2].plot(xis, K_n[2], label="K_n2")
-
-    ax[3].set_title("K_m")
-    ax[3].plot(xis, K_m[0], label="K_m0")
-    ax[3].plot(xis, K_m[1], label="K_m1")
-    ax[3].plot(xis, K_m[2], label="K_m2")
-
-    for axi in ax.flat:
-        axi.grid()
-        axi.legend()
-
-    plt.show()
+    plt.show(block=False)
+    plt.pause(5)
+    plt.close()
 
 if __name__ == "__main__":
     ############################
     # Quaternion interpolation #
     ############################
     # displacement-based formulation
+    
     cantilever(
         Rod=make_CosseratRod_Quat(mixed=False),
         constitutive_law=Harsch2021,
@@ -294,4 +224,69 @@ if __name__ == "__main__":
         Rod=make_CosseratRod_Quat(mixed=True, constraints=[0, 1, 2]),
         constitutive_law=Simo1986,
         title = "inextensible shear-rigid (red): constrained mixed quaternion interpolation"
+    )
+
+    #####################
+    # SE3 interpolation #
+    #####################
+    # displacement-based formulation
+    cantilever(
+        Rod=make_CosseratRod_SE3(mixed=False),
+        constitutive_law=Harsch2021,
+        title = "shear-deformable (blue): D-B SE3 interpolation",
+    )
+
+    cantilever(
+        Rod=make_CosseratRod_SE3(mixed=False, constraints=[1, 2]),
+        constitutive_law=Harsch2021,
+        title = "shear-rigid (green): constrained D-B SE3 interpolation",
+    )
+    cantilever(
+        Rod=make_CosseratRod_SE3(mixed=False, constraints=[0, 1, 2]),
+        constitutive_law=Harsch2021,
+        title = "inextensible shear-rigid (red): constrained D-B SE3 interpolation"
+    )
+    # mixed formulation
+    # For shear-rigid rods Harsch2021 and Simo1986 coincide.
+    cantilever(
+        Rod=make_CosseratRod_SE3(mixed=True, constraints=[1, 2]),
+        constitutive_law=Simo1986,
+        title = "shear-rigid (green): constrained mixed SE3 interpolation",
+    )
+    cantilever(
+        Rod=make_CosseratRod_SE3(mixed=True, constraints=[0, 1, 2]),
+        constitutive_law=Simo1986,
+        title = "inextensible shear-rigid (red): constrained mixed SE3 interpolation"
+    )
+
+    #####################
+    # R12 interpolation #
+    #####################
+    # displacement-based formulation
+    cantilever(
+        Rod=make_CosseratRod_R12(mixed=False),
+        constitutive_law=Harsch2021,
+        title = "shear-deformable (blue): D-B R12 interpolation",
+    )
+    cantilever(
+        Rod=make_CosseratRod_R12(mixed=False, constraints=[1, 2]),
+        constitutive_law=Harsch2021,
+        title = "shear-rigid (green): constrained D-B R12 interpolation",
+    )
+    cantilever(
+        Rod=make_CosseratRod_R12(mixed=False, constraints=[0, 1, 2]),
+        constitutive_law=Harsch2021,
+        title = "inextensible shear-rigid (red): constrained D-B R12 interpolation"
+    )
+    # mixed formulation
+    # For shear-rigid rods Harsch2021 and Simo1986 coincide.
+    cantilever(
+        Rod=make_CosseratRod_R12(mixed=True, constraints=[1, 2]),
+        constitutive_law=Simo1986,
+        title = "shear-rigid (green): constrained mixed R12 interpolation",
+    )
+    cantilever(
+        Rod=make_CosseratRod_R12(mixed=True, constraints=[0, 1, 2]),
+        constitutive_law=Simo1986,
+        title = "inextensible shear-rigid (red): constrained mixed R12 interpolation"
     )
