@@ -1,7 +1,14 @@
 import numpy as np
 from pathlib import Path
-from cardillo.discrete import RigidBody
-from cardillo.discrete.shapes import Cuboid, Ball, Cylinder, FromSTL, Tetrahedron
+from cardillo.discrete import RigidBody, Frame
+from cardillo.discrete.shapes import (
+    Cuboid,
+    Ball,
+    Cylinder,
+    FromSTL,
+    Tetrahedron,
+    RectangleTrimesh,
+)
 from cardillo import System
 from cardillo.solver import Moreau
 from cardillo.visualization import Export
@@ -10,6 +17,11 @@ from cardillo.visualization import Export
 def test_some_rigid_bodies():
     path = Path(__file__)
     u0 = np.random.rand(6)
+
+    #####################
+    # rectangle primitive
+    #####################
+    rectangle = RectangleTrimesh(Frame)(dimensions=[5, 8], axis=2)
 
     ###############
     # box primitive
@@ -66,7 +78,8 @@ def test_some_rigid_bodies():
     system.add(ball, box, cylinder, stl_box, tetrahedron)
     system.assemble()
 
-    sol = Moreau(system, 10, 1e-2).solve()
+    # sol = Moreau(system, 10, 1e-2).solve()
+    sol = Moreau(system, 1, 1e-2).solve()
 
     e = Export(
         path=path.parent, 
@@ -74,6 +87,7 @@ def test_some_rigid_bodies():
         overwrite=True, 
         fps=30, 
         solution=sol)
+    e.export_contr(rectangle)
     e.export_contr(ball)
     e.export_contr(box)
     e.export_contr(cylinder)

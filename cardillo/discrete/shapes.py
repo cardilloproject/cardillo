@@ -1,6 +1,66 @@
 import numpy as np
 from cardillo.visualization import vtk_sphere
 import meshio
+import trimesh
+
+
+def RectangleTrimesh(Base):
+    class _Rectangle(Base):
+        def __init__(self, **kwargs):
+            axis = kwargs.pop("axis", 2)
+            assert axis in (0, 1, 2)
+
+            dimensions = kwargs.pop("dimensions", (1, 1))
+            # dimensions = kwargs.pop("dimensions", (2, 0.5))
+            assert len(dimensions) == 2
+
+            # 0: [1, 2, 0]
+            # 1: [2, 0, 1]
+            # 2: [0, 1, 2]
+            self.rolled_axis = np.roll([1, 2, 0], -axis)
+            self.dimensions = dimensions
+
+            A_IK = kwargs.pop("A_IK", np.eye(3))[:, self.rolled_axis]
+            transform = np.eye(4)
+            transform[:3, :3] = A_IK
+            self.visual_primitive = trimesh.primitives.Box(
+                extents=[*dimensions, 0], transform=transform
+            )
+            self.visual_mesh = self.visual_primitive.to_mesh()
+
+            # # debug
+            # axis = trimesh.creation.axis()
+            # axis.apply_transform(transform)
+            # scene = trimesh.Scene()
+            # scene.add_geometry(self.trimesh)
+            # scene.add_geometry(axis)
+            # scene.show()
+
+            kwargs.update({"A_IK": A_IK})
+            super().__init__(**kwargs)
+
+        def export(self, sol_i, base_export=False, **kwargs):
+            if base_export:
+                return super().export(sol_i, **kwargs)
+            else:
+                r_OS = self.r_OP(sol_i.t)
+                A_IK = self.A_IK(sol_i.t)
+
+                self.visual_mesh.apply_transform
+
+                K_r_SPs = self.visual_mesh.vertices.view(np.ndarray)
+                points = (r_OS[:, None] + A_IK @ K_r_SPs.T).T
+
+                cells = [
+                    ("triangle", self.visual_mesh.faces),
+                ]
+
+            return points, cells, None, None
+
+    return _Rectangle
+
+
+# rectangle = RectangleTrimesh(object)(axis=0)
 
 
 def Rectangle(Base):
@@ -23,7 +83,10 @@ def Rectangle(Base):
             dimensions = kwargs.pop("dimensions", (1, 1))
             assert len(dimensions) == 2
 
-            self.rolled_axis = np.roll([0, 1, 2], axis + 1)
+            # 0: [1, 2, 0]
+            # 1: [2, 0, 1]
+            # 2: [0, 1, 2]
+            self.rolled_axis = np.roll([1, 2, 0], -axis)
             self.dimensions = dimensions
 
             kwargs.update({"A_IK": kwargs.pop("A_IK", np.eye(3))[:, self.rolled_axis]})
@@ -84,7 +147,7 @@ def Ball(Base):
             else:
                 points_sphere, cell, point_data = vtk_sphere(self.radius)
                 cells = [cell]
-                points, vel, acc = [], [], []
+                points, vel = [], []
                 for point in points_sphere:
                     points.append(self.r_OP(sol_i.t, sol_i.q[self.qDOF], K_r_SP=point))
                     vel.append(
@@ -153,7 +216,7 @@ def Cuboid(Base):
             if base_export:
                 return super().export(sol_i, **kwargs)
             else:
-                points, vel, acc = [], [], []
+                points, vel = [], []
                 for point in self.points:
                     points.append(self.r_OP(sol_i.t, sol_i.q[self.qDOF], K_r_SP=point))
 
@@ -200,7 +263,7 @@ def Cylinder(Base):
                     ],
                     dtype=float,
                 )
-                raise RuntimeError("Check if this np.roll behaves as expected!")
+                # raise RuntimeError("Check if this np.roll behaves as expected!")
                 K_Theta_S = np.diag(np.roll(diag, shift=self.axis))
 
             kwargs.update({"mass": mass, "K_Theta_S": K_Theta_S})
@@ -217,7 +280,7 @@ def Cylinder(Base):
                 r_OS = self.r_OP(sol_i.t, sol_i.q[self.qDOF])
                 A_IK = self.A_IK(sol_i.t, sol_i.q[self.qDOF])
 
-                raise RuntimeError("Check if this np.roll behaves as expected!")
+                # raise RuntimeError("Check if this np.roll behaves as expected!")
                 rolled_axes = np.roll([0, 1, 2], -self.axis)
                 d1, d2, d3 = A_IK[:, rolled_axes].T
                 r_OP0 = r_OS - 0.5 * d1 * self.length
