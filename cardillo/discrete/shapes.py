@@ -45,22 +45,51 @@ def RectangleTrimesh(Base):
             else:
                 r_OS = self.r_OP(sol_i.t)
                 A_IK = self.A_IK(sol_i.t)
-
-                self.visual_mesh.apply_transform
+                t1, t2, n = A_IK.T
 
                 K_r_SPs = self.visual_mesh.vertices.view(np.ndarray)
                 points = (r_OS[:, None] + A_IK @ K_r_SPs.T).T
 
+                points = np.concatenate((points, [r_OS, r_OS + t1]))
+                faces = self.visual_mesh.faces
+
+                # # export lines for coordinate system
+                # lines = np.array([
+                #     r_OS,
+                #     r_OS + t1,
+                #     r_OS + t2,
+                #     r_OS + n,
+                # ])
+                # offset = len(points)
+                # line_cells = [
+                #     [offset, offset + 1],
+                #     [offset, offset + 2],
+                #     [offset, offset + 3],
+                # ]
+                # points = np.concatenate((points, lines))
+
                 cells = [
-                    ("triangle", self.visual_mesh.faces),
+                    ("triangle", faces),
+                    # ("line", line_cells),
                 ]
 
-            return points, cells, None, None
+                # fmt: off
+                point_data = dict(
+                    t1=len(points) * [t1,],
+                    t2=len(points) * [t2,],
+                    n=len(points) * [n,],
+                )
+
+                cell_data = dict(
+                    t1=[len(faces) * [t1,]],
+                    t2=[len(faces) * [t2,]],
+                    n=[len(faces) * [n,]],
+                )
+                # fmt: on
+
+            return points, cells, point_data, cell_data
 
     return _Rectangle
-
-
-# rectangle = RectangleTrimesh(object)(axis=0)
 
 
 def Rectangle(Base):
