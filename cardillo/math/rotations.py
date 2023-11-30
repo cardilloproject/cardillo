@@ -666,7 +666,7 @@ def T_SO3_quat(P, normalize=True):
             (-p[:, None], p0 * np.eye(3, dtype=P.dtype) - ax2skew(p))
         )
     else:
-        return 2 * np.hstack((-p.T, p0 * np.eye(3, dtype=P.dtype) - ax2skew(p)))
+        return 2 * np.hstack((-p[:, None], p0 * np.eye(3, dtype=P.dtype) - ax2skew(p)))
 
 
 def T_SO3_inv_quat(P, normalize=True):
