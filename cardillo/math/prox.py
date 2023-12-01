@@ -124,30 +124,6 @@ class Sphere:
         return Jx, Jy, Jz
 
 
-# TODO:
-# - write documentation
-# - Can we pass the reformulation somehow to the class without making it dynamic?
-class Ellipsoid:
-    def __init__(self, dimension=2, scaling=np.ones(2), reformulation=True):
-        scaling = np.atleast_1d(scaling)
-        self.dimension = dimension
-        self.scaling = scaling
-        assert len(scaling) == dimension
-        self.inverse_scaling = 1 / scaling
-        self.reformulation = reformulation
-
-    def prox(self, x, radius):
-        # scale the argument to compute the proximal point on a hypersphere
-        x_scaled = x * self.inverse_scaling
-
-        # project onto hypersphere
-        norm_x = np.linalg.norm(x_scaled)
-        if norm_x > 0:
-            return x_scaled if norm_x <= radius else radius * x_scaled / norm_x
-        else:
-            return x_scaled if norm_x <= radius else radius * x_scaled
-
-
 def estimate_prox_parameter(alpha, W, M):
     """
     Estimation of relaxation parameters $r_i$ of prox function for normal contacts
