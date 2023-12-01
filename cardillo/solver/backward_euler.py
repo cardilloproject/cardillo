@@ -312,12 +312,8 @@ class BackwardEuler:
         P_N = [self.dt * self.la_Nn]
         P_F = [self.dt * self.la_Fn]
 
-        # initial Jacobian
-        if self.options.reuse_lu_decomposition:
-            i_newton = 0
-            lu = splu(self.J_x(self.xn.copy(), self.yn.copy()))
-            solver_summary.add_lu(1)
-
+        lu = None
+        n_lu = 0
         pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
         for _ in pbar:
             # only compute optimized prox-parameters once per time step
@@ -342,33 +338,42 @@ class BackwardEuler:
             xn1 = x0.copy()
             yn1 = y0.copy()
 
+            newton_scale = (
+                self.options.newton_atol + np.abs(xn1) * self.options.newton_rtol
+            )
             if self.options.reuse_lu_decomposition:
                 # compute new residual and check convergence
                 R_newton = self.R_x(xn1, yn1)
+                error_newton = (
+                    np.linalg.norm(R_newton / newton_scale) / newton_scale.size**0.5
+                )
+                converged_newton = error_newton < 1
                 error_newton = np.max(np.absolute(R_newton))
                 converged_newton = error_newton < self.options.newton_atol
-                n_cycles = 0
 
                 # Newton loop with inexact Jacobian
-                if not converged_newton:
-                    i_newton = 0
-                while (not converged_newton) and (
-                    i_newton < self.options.newton_max_iter
-                ):
-                    i_newton += 1
-                    # compute new Jacobian if requested
-                    if n_cycles > self.options.reuse_lu_max_cycles:
-                        i_newton = self.options.newton_max_iter
-                    elif i_newton >= self.options.reuse_lu_max_iter:
+                i_newton = 0
+                first_cyle = True
+                while not converged_newton:
+                    if lu is None or i_newton >= self.options.reuse_lu_max_iter:
                         lu = splu(self.J_x(xn1, yn1))
+                        n_lu += 1
                         solver_summary.add_lu(1)
-                        i_newton = 0
-                        n_cycles += 1
 
+                        if first_cyle:
+                            first_cyle = False
+                            i_newton = 0
+
+                    i_newton += 1
                     xn1 -= lu.solve(R_newton)
                     R_newton = self.R_x(xn1, yn1)
-                    error_newton = np.max(np.absolute(R_newton))
-                    converged_newton = error_newton < self.options.newton_atol
+                    error_newton = (
+                        np.linalg.norm(R_newton / newton_scale)
+                        / newton_scale.size**0.5
+                    )
+                    converged_newton = error_newton < 1
+                    if converged_newton:
+                        break
 
             else:
                 xn1, converged_newton, error_newton, i_newton, _ = fsolve(

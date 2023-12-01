@@ -82,7 +82,7 @@ class Moreau:
                 P_Ni = self.dt
 
             P_F[i_F] = -force_recervoir.prox(
-                self.prox_r_F[i_F] * xi_F[i_F] - P_F[i_F],
+                min(self.prox_r_F[i_F]) * xi_F[i_F] - P_F[i_F],
                 P_Ni,
             )
 
@@ -281,6 +281,7 @@ class Moreau:
                     raise RuntimeError(
                         f"fixed-point iteration not converged after {j+1} iterations with error: {error:.5e}"
                     )
+            solver_summary.add_lu(1)
             solver_summary.add_fixed_point(j, error)
 
             qn1, un1 = self.system.step_callback(tn1, qn1, un1)
@@ -319,4 +320,5 @@ class Moreau:
             P_gamma=np.array(P_gamma),
             P_N=np.array(P_N),
             P_F=np.array(P_F),
+            solver_summary=solver_summary,
         )

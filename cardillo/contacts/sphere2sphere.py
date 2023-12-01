@@ -1,4 +1,7 @@
 import numpy as np
+from cachetools import cachedmethod, LRUCache
+from cachetools.keys import hashkey
+
 from cardillo.math import norm, cross3, ax2skew
 from cardillo.math.approx_fprime import approx_fprime
 from cardillo.math.prox import Sphere
@@ -30,7 +33,9 @@ class Sphere2Sphere:
         if mu > 0:
             self.nla_F = 2 * self.nla_N
             self.gamma_F = self.__gamma_F
-            self.e_F = np.zeros(self.nla_F) if e_F is None else e_F * np.ones(self.nla_F)
+            self.e_F = (
+                np.zeros(self.nla_F) if e_F is None else e_F * np.ones(self.nla_F)
+            )
 
             # fmt: off
             self.friction_laws = [
@@ -38,20 +43,8 @@ class Sphere2Sphere:
             ]
             # fmt: on
 
-        # self.nla_N = 1
-        # self.mu = np.array([mu])
-
-        # if mu == 0:
-        #     self.nla_F = 0
-        #     self.NF_connectivity = [[]]
-        # else:
-        #     # raise NotImplementedError("Friction is not implemented yet!")
-        #     self.nla_F = 2
-        #     self.NF_connectivity = [[0, 1]]
-        #     self.gamma_F = self.__gamma_F
-
-        # self.e_N = np.zeros(self.nla_N) if e_N is None else e_N * np.ones(self.nla_N)
-        # self.e_F = np.zeros(self.nla_F) if e_F is None else e_F * np.ones(self.nla_F)
+        self.normal_cache = LRUCache(maxsize=1)
+        self.normal_and_tangents_cache = LRUCache(maxsize=1)
 
     def assembler_callback(self):
         qDOF1 = self.subsystem1.local_qDOF_P(self.frame_ID1)
@@ -206,6 +199,10 @@ class Sphere2Sphere:
         #     t, q[:nq1], u[:nu1], a[:nu1], frame_ID=self.frame_ID1
         # )
 
+    @cachedmethod(
+        lambda self: self.normal_cache,
+        key=lambda self, t, q: hashkey(t, *q),
+    )
     def normal(self, t, q):
         r_S1S2 = self.r_OS2(t, q) - self.r_OS1(t, q)
         return r_S1S2 / norm(r_S1S2)
@@ -215,20 +212,24 @@ class Sphere2Sphere:
         # n[2] < 1
         return (np.arccos(n[2]), np.arctan2(n[1], n[0]))
 
+    @cachedmethod(
+        lambda self: self.normal_and_tangents_cache,
+        key=lambda self, t, q: hashkey(t, *q),
+    )
     def normal_and_tangents(self, t, q):
         n = self.normal(t, q)
         theta, phi = self.__angles(n)
         # # derivative of n in spherical coordinates with respect to theta
-        # # t1 = np.array([np.cos(theta) * np.cos(phi), \
-        # #                np.cos(theta) * np.sin(phi), \
+        # # t1 = np.array([np.cos(theta) * np.cos(phi),
+        # #                np.cos(theta) * np.sin(phi),
         # #                -np.sin(theta)])
         # # # derivative of n in spherical coordinates with respect to phi
-        # # t2 = np.array([-np.sin(theta) * np.sin(phi), \
-        # #                np.sin(theta) * np.cos(phi), \
+        # # t2 = np.array([-np.sin(theta) * np.sin(phi),
+        # #                np.sin(theta) * np.cos(phi),
         # #                0])
         # # return ((t1, t2))
-        # return np.array([[np.cos(theta) * np.cos(phi), -np.sin(phi)], \
-        #                  [np.cos(theta) * np.sin(phi),  np.cos(phi)], \
+        # return np.array([[np.cos(theta) * np.cos(phi), -np.sin(phi)],
+        #                  [np.cos(theta) * np.sin(phi),  np.cos(phi)],
         #                  [-np.sin(theta),               0]])
 
         sin_theta, cos_theta = np.sin(theta), np.cos(theta)
@@ -244,10 +245,8 @@ class Sphere2Sphere:
         r_S1S2 = self.r_OS2(t, q) - self.r_OS1(t, q)
         return np.array([norm(r_S1S2) - self.radius1 - self.radius2])
 
-    # TODO: Check derivative!
     def g_N_q(self, t, q):
         n = self.normal(t, q)
-        # self.tangents(t, q)
         r_OS1_q = self.r_OS1_q(t, q)
         r_OS2_q = self.r_OS2_q(t, q)
         g_N_q = np.concatenate((-n @ r_OS1_q, n @ r_OS2_q)).reshape(
@@ -264,8 +263,8 @@ class Sphere2Sphere:
     def g_N_dot(self, t, q, u):
         return np.array([self.normal(t, q) @ (self.v_S2(t, q, u) - self.v_S1(t, q, u))])
 
-    # def g_N_dot_q(self, t, q, u):
-    #     return np.array([self.n(t) @ self.v_P_q(t, q, u)])
+    def g_N_dot_q(self, t, q, u):
+        raise NotImplementedError
 
     def g_N_dot_u(self, t, q):
         n = self.normal(t, q)
@@ -284,11 +283,11 @@ class Sphere2Sphere:
             ]
         )
 
-    # def g_N_ddot_q(self, t, q, u, u_dot):
-    #     return np.array([self.n(t) @ self.a_P_q(t, q, u, u_dot)])
+    def g_N_ddot_q(self, t, q, u, u_dot):
+        raise NotImplementedError
 
-    # def g_N_ddot_u(self, t, q, u, u_dot):
-    #     return np.array([self.n(t) @ self.a_P_u(t, q, u, u_dot)])
+    def g_N_ddot_u(self, t, q, u, u_dot):
+        raise NotImplementedError
 
     def Wla_N_q(self, t, q, la_N):
         return approx_fprime(q, lambda q: la_N[0] * self.g_N_dot_u(t, q))

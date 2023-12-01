@@ -125,8 +125,6 @@ def cantilever(
     solver = Newton(
         system,
         n_load_steps=n_load_steps,
-        max_iter=30,
-        atol=1e-8,
     )
 
     # solve nonlinear static equilibrium equations

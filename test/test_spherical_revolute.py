@@ -370,13 +370,13 @@ if __name__ == "__main__":
     #######################
     # spherical joint tests
     #######################
-    # run("Spherical", BackwardEuler)
+    run("Spherical", BackwardEuler)
     run("Spherical", ScipyIVP)
 
     ######################
     # revolute joint tests
     ######################
-    # run("Revolute", BackwardEuler)
+    run("Revolute", BackwardEuler)
     run("Revolute", ScipyIVP)
 
     ###########################

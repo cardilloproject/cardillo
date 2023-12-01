@@ -62,6 +62,9 @@ class RigidBody:
 
         self.A_IK_cache = LRUCache(maxsize=1)
         self.A_IK_q_cache = LRUCache(maxsize=1)
+        self.r_OP_cache = LRUCache(maxsize=1)
+        self.v_P_cache = LRUCache(maxsize=1)
+        self.J_P_cache = LRUCache(maxsize=1)
 
     #####################
     # kinematic equations
@@ -167,6 +170,12 @@ class RigidBody:
         A_IK_q[:, :, 3:] = Exp_SO3_quat_p(q[3:])
         return A_IK_q
 
+    @cachedmethod(
+        lambda self: self.r_OP_cache,
+        key=lambda self, t, q, frame_ID=None, K_r_SP=np.zeros(3, dtype=float): hashkey(
+            t, *q, *K_r_SP
+        ),
+    )
     def r_OP(self, t, q, frame_ID=None, K_r_SP=np.zeros(3, dtype=float)):
         return q[:3] + self.A_IK(t, q) @ K_r_SP
 
@@ -176,6 +185,12 @@ class RigidBody:
         r_OP_q[:, :] += np.einsum("ijk,j->ik", self.A_IK_q(t, q), K_r_SP)
         return r_OP_q
 
+    @cachedmethod(
+        lambda self: self.v_P_cache,
+        key=lambda self, t, q, u, frame_ID=None, K_r_SP=np.zeros(
+            3, dtype=float
+        ): hashkey(t, *q, *u, *K_r_SP),
+    )
     def v_P(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3, dtype=float)):
         return u[:3] + self.A_IK(t, q) @ cross3(u[3:], K_r_SP)
 
@@ -201,6 +216,12 @@ class RigidBody:
         )
         return a_P_u
 
+    @cachedmethod(
+        lambda self: self.J_P_cache,
+        key=lambda self, t, q, frame_ID=None, K_r_SP=np.zeros(3, dtype=float): hashkey(
+            t, *q, *K_r_SP
+        ),
+    )
     def J_P(self, t, q, frame_ID=None, K_r_SP=np.zeros(3, dtype=float)):
         J_P = np.zeros((3, self.nu), dtype=q.dtype)
         J_P[:, :3] = np.eye(3)
