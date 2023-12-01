@@ -22,6 +22,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 from math import pi
 
+
 def helix(
     Rod,
     nelements=10,
@@ -99,7 +100,8 @@ def helix(
         lambda t: (R0 * alpha_xi**2)
         / (length**2)
         * (c * e1 * Fi[0] + e3 * Fi[2])
-        * t * 0.5
+        * t
+        * 0.5
     )
     moment = K_Moment(M, cantilever, (1,))
     system.add(moment)
@@ -110,7 +112,7 @@ def helix(
     solver = Newton(
         system,
         n_load_steps=n_load_steps,
-        options=SolverOptions(newton_max_iter=30, newton_atol=atol)
+        options=SolverOptions(newton_max_iter=30, newton_atol=atol),
     )
 
     # solve nonlinear static equilibrium equations
@@ -167,25 +169,21 @@ def helix(
         K_m = np.zeros((3, nxi))
 
         for i, xii in enumerate(xis):
-                (
-                    K_n[:, i],
-                    K_m[:, i]
-                ) = rod.eval_stresses(sol.t[-1], sol.q[-1], sol.la_c[-1], xii)
-                (
-                    Delta_K_Gamma[:, i],
-                    Delta_K_Kappa[:, i]
-                ) = rod.eval_strains(sol.t[-1], sol.q[-1], sol.la_c[-1], xii)
+            (K_n[:, i], K_m[:, i]) = rod.eval_stresses(
+                sol.t[-1], sol.q[-1], sol.la_c[-1], xii
+            )
+            (Delta_K_Gamma[:, i], Delta_K_Kappa[:, i]) = rod.eval_strains(
+                sol.t[-1], sol.q[-1], sol.la_c[-1], xii
+            )
 
         return xis, Delta_K_Gamma, Delta_K_Kappa, K_n, K_m
-        
+
     fig, ax = plt.subplots(1, 4)
 
     xis, K_Gamma, K_Kappa, K_n, K_m = stress_strain(cantilever, sol)
     header = "xi, K_Gamma1, K_Gamma2, K_Gamma3, K_Kappa1, K_Kappa2, K_Kappa3, \
             K_n1, K_n2, K_n3, K_m1, K_m2, K_m3"
-    export_data = np.vstack(
-        [xis, *K_Gamma, *K_Kappa, *K_n, *K_m]
-    ).T
+    export_data = np.vstack([xis, *K_Gamma, *K_Kappa, *K_n, *K_m]).T
 
     np.savetxt(
         path / f"strain_stress_helix_{export_name}.txt",
@@ -215,12 +213,12 @@ def helix(
     ax[3].plot(xis, K_m[1], label="K_m1")
     ax[3].plot(xis, K_m[2], label="K_m2")
 
-
     for axi in ax.flat:
         axi.grid()
         axi.legend()
 
     plt.show()
+
 
 if __name__ == "__main__":
     #############################
@@ -256,7 +254,6 @@ if __name__ == "__main__":
     #     atol=1.0e-12,
     # )
 
-
     # #######################
     # # paramters that work #
     # #######################
@@ -271,10 +268,17 @@ if __name__ == "__main__":
     # helix(Rod=make_CosseratRod_SE3(mixed=False), nelements=5, polynomial_degree=1, n_load_steps = 700, reduced_integration=True, slenderness=1.0e4, atol=1.0e-14)
 
     # Quaternion-interpolation:
-    helix(Rod=make_CosseratRod_Quat(mixed=False), nelements=10, polynomial_degree=1, n_load_steps = 10, reduced_integration=True, slenderness=1.0e1, atol=1.0e-8)
+    helix(
+        Rod=make_CosseratRod_Quat(mixed=False),
+        nelements=10,
+        polynomial_degree=1,
+        n_load_steps=10,
+        reduced_integration=True,
+        slenderness=1.0e1,
+        atol=1.0e-8,
+    )
 
     # helix(Rod=make_CosseratRod_R3SO3(mixed=False), nelements=10, polynomial_degree=1, n_load_steps = 10, reduced_integration=True, slenderness=1.0e1, atol=1.0e-8)
-
 
     # helix(Rod=make_CosseratRod_Quat(mixed=False), nelements=10, polynomial_degree=2, n_load_steps = 119, reduced_integration=True, slenderness=1.0e2, atol=1.0e-9)
 

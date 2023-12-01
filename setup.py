@@ -29,6 +29,7 @@ setup(
         "pytest",
         "dill>=0.3.7",
         "cachetools",
+        "trimesh>=4.0.5",
     ],
     packages=find_packages(),
     python_requires=">=3.10",
