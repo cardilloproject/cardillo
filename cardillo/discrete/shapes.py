@@ -3,6 +3,49 @@ from cardillo.visualization import vtk_sphere
 import meshio
 import trimesh
 
+def Meshed(Base):
+    class _Meshed(Base):
+        def __init__(
+            self, trimesh_obj, K_r_SP, A_KM=np.eye(3), **kwargs
+        ):
+            """Generate an object (typically with Base `Frame` or `RigidBody`) from a given Trimesh object
+            Args:
+                trimesh_obj: instance of trimesh defining the mesh
+                K_r_SP (np.ndarray): offset center of mass (S) from STL origin (P) in body fixed K-frame
+                A_KM (np.ndarray): tansformation from mesh-fixed frame (M) to body-fixed frame (K)
+            """
+            self.K_r_SP = K_r_SP
+            self.A_KM = A_KM
+
+            assert isinstance(trimesh_obj, trimesh.Trimesh)
+            if hasattr(trimesh_obj, "to_mesh"):
+                # primitives are converted to mesh
+                self.self.visual_mesh = trimesh_obj.to_mesh()
+            else:
+                self.self.visual_mesh = trimesh_obj
+
+            # vectors from mesh origin to vertices represented in mesh-fixed frame
+            M_r_PQ_i = self.visual_mesh.vertices.view(np.ndarray) 
+
+            # vectors (transposed) from center of mass (S) of body to vertices represented in body-fixed frame
+            self.K_r_SQi_T = self.K_r_SP[:, None] + self.A_KM @ M_r_PQ_i.T
+            super().__init__(**kwargs)
+
+        def export(self, sol_i, base_export=False, **kwargs):
+            if base_export:
+                return super().export(sol_i, **kwargs)
+            else:
+                r_OS = self.r_OP(sol_i.t)
+                A_IK = self.A_IK(sol_i.t)
+                points = (r_OS[:, None] + A_IK @ self.K_r_SQi_T).T
+
+                cells = [
+                    ("triangle", self.visual_mesh.faces),
+                ]
+
+            return points, cells, None, None
+
+    return _Meshed
 
 def RectangleTrimesh(Base):
     class _Rectangle(Base):
@@ -477,47 +520,3 @@ def Tetrahedron(Base):
     return _Tetrahedron
 
 
-def FromSTL(Base):
-    class _FromSTL(Base):
-        def __init__(self, path, K_r_SP, scale: float = 1.0, **kwargs):
-            """Generate an object (typically with Base `Frame` or `RigidBody`) from a given STL file
-
-            Args:
-                path (str, Path): path of STL file
-                K_r_SP (np.ndarray): offset center of mass (S) from STL origin (P) in body fixed K-frame
-                scale (float, optional): scaling factor of STL file. Defaults to 1.0.
-            """
-            self.path = path
-            self.K_r_SP = K_r_SP
-
-            self.meshio_mesh = meshio.read(self.path)
-            self.meshio_mesh.points *= scale
-            self.points = self.meshio_mesh.points
-
-            super().__init__(**kwargs)
-
-        def export(self, sol_i, base_export=False, **kwargs):
-            if base_export:
-                return super().export(sol_i, **kwargs)
-            else:
-                points, vel = [], []
-                for K_r_PQ in self.meshio_mesh.points:
-                    # center of mass (S) over stl origin (P) to arbitrary stl point (Q)
-                    K_r_SQ = self.K_r_SP + K_r_PQ
-                    points.append(self.r_OP(sol_i.t, sol_i.q[self.qDOF], K_r_SP=K_r_SQ))
-
-                    vel.append(
-                        self.v_P(
-                            sol_i.t,
-                            sol_i.q[self.qDOF],
-                            sol_i.u[self.uDOF],
-                            K_r_SP=K_r_SQ,
-                        )
-                    )
-
-                point_data = dict(v=vel)
-                cells = self.meshio_mesh.cells
-
-            return points, cells, point_data, None
-
-    return _FromSTL
