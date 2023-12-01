@@ -342,11 +342,18 @@ class BackwardEuler:
             xn1 = x0.copy()
             yn1 = y0.copy()
 
+            newton_scale = (
+                self.options.newton_atol + np.abs(xn1) * self.options.newton_rtol
+            )
             if self.options.reuse_lu_decomposition:
                 # compute new residual and check convergence
                 R_newton = self.R_x(xn1, yn1)
-                error_newton = np.max(np.absolute(R_newton))
-                converged_newton = error_newton < self.options.newton_atol
+                # error_newton = np.max(np.absolute(R_newton))
+                # converged_newton = error_newton < self.options.newton_atol
+                error_newton = (
+                    np.linalg.norm(R_newton / newton_scale) / newton_scale.size**0.5
+                )
+                converged_newton = error_newton < 1
 
                 # Newton loop with inexact Jacobian
                 if not converged_newton:
@@ -363,8 +370,13 @@ class BackwardEuler:
 
                     xn1 -= lu.solve(R_newton)
                     R_newton = self.R_x(xn1, yn1)
-                    error_newton = np.max(np.absolute(R_newton))
-                    converged_newton = error_newton < self.options.newton_atol
+                    # error_newton = np.max(np.absolute(R_newton))
+                    # converged_newton = error_newton < self.options.newton_atol
+                    error_newton = (
+                        np.linalg.norm(R_newton / newton_scale)
+                        / newton_scale.size**0.5
+                    )
+                    converged_newton = error_newton < 1
 
             else:
                 xn1, converged_newton, error_newton, i_newton, _ = fsolve(

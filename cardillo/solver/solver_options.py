@@ -9,11 +9,10 @@ class SolverOptions:
     fixed_point_rtol: float = 1e-8
     fixed_point_max_iter: int = int(1e3)
     newton_atol: float = 1e-8
-    # newton_rtol: float = 1e-8 # note: this is never used
+    newton_rtol: float = 1e-8
     newton_max_iter: int = 20
     reuse_lu_decomposition: bool = True
     reuse_lu_max_iter: int = 4
-    reuse_lu_max_cycles: int = 5
     error_function: callable = lambda x: max(abs(x))
     prox_scaling: float = 1.0
     continue_with_unconverged: bool = True
@@ -27,7 +26,7 @@ class SolverOptions:
         assert self.fixed_point_rtol > 0
         assert self.fixed_point_max_iter > 0
         assert self.newton_atol > 0
-        # assert self.newton_rtol > 0
+        assert self.newton_rtol > 0
         assert self.newton_max_iter > 0
         assert self.prox_scaling > 0
         assert self.numerical_jacobian_method in [False, "2-point", "3-point", "cs"]
