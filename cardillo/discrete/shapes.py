@@ -76,7 +76,7 @@ def Meshed(Base):
             if base_export:
                 return super().export(sol_i, **kwargs)
             else:
-                r_OS = self.r_OP(sol_i.t, sol_i.q[self.qDOF]) # TODO: slicing could be done on global level in Export class.
+                r_OS = self.r_OP(sol_i.t, sol_i.q[self.qDOF]) # TODO: slicing could be done on global level in Export class. Moreover, solution class should be able to return the slice, e.g., sol_i.get_q_of_body(name). 
                 A_IK = self.A_IK(sol_i.t, sol_i.q[self.qDOF])
                 points = (r_OS[:, None] + A_IK @ self.K_r_SQi_T).T
 
