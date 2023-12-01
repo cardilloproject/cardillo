@@ -347,6 +347,7 @@ class BackwardEuler:
                 R_newton = self.R_x(xn1, yn1)
                 error_newton = np.max(np.absolute(R_newton))
                 converged_newton = error_newton < self.options.newton_atol
+                n_cycles = 0
 
                 # Newton loop with inexact Jacobian
                 if not converged_newton:
@@ -356,10 +357,13 @@ class BackwardEuler:
                 ):
                     i_newton += 1
                     # compute new Jacobian if requested
-                    if i_newton >= self.options.reuse_lu_max_iter:
+                    if n_cycles > self.options.reuse_lu_max_cycles:
+                        i_newton = self.options.newton_max_iter
+                    elif i_newton >= self.options.reuse_lu_max_iter:
                         lu = splu(self.J_x(xn1, yn1))
                         solver_summary.add_lu(1)
                         i_newton = 0
+                        n_cycles += 1
 
                     xn1 -= lu.solve(R_newton)
                     R_newton = self.R_x(xn1, yn1)
