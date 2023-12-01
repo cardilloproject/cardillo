@@ -6,10 +6,7 @@ from cardillo.rods import (
 )
 
 from cardillo.rods.cosseratRod import (
-    make_CosseratRod_SE3,
-    make_CosseratRod_R12,
     make_CosseratRod_Quat,
-    make_CosseratRod_R3SO3,
 )
 
 from cardillo.constraints import RigidConnection
@@ -37,15 +34,16 @@ https://doi.org/10.1177/10812865211000790
 This is an example how to switch on and off the constraints.
 """
 
+
 def cantilever(
     Rod,
     nelements=10,
-    polynomial_degree=3,
+    polynomial_degree=2,
     n_load_steps=3,
     VTK_export=False,
     reduced_integration=True,
     constitutive_law=Harsch2021,
-    title="set_a_plot_title"
+    title="set_a_plot_title",
 ):
     print(title)
     # geometry of the rod
@@ -99,7 +97,11 @@ def cantilever(
     system.assemble(options=SolverOptions(compute_consistent_initial_conditions=False))
 
     # add Newton solver
-    solver = Newton(system, n_load_steps=n_load_steps, options=SolverOptions(newton_max_iter=30, newton_atol=1.e-8))
+    solver = Newton(
+        system,
+        n_load_steps=n_load_steps,
+        options=SolverOptions(newton_max_iter=30, newton_atol=1.0e-8),
+    )
 
     # solve nonlinear static equilibrium equations
     sol = solver.solve()
@@ -127,7 +129,6 @@ def cantilever(
             num=3 * nelements,
             file_name="cantilever_volume",
         )
-
 
     # matplotlib visualization
     # construct animation of beam
@@ -259,6 +260,7 @@ def cantilever(
 
     plt.show()
 
+
 if __name__ == "__main__":
     ############################
     # Quaternion interpolation #
@@ -267,19 +269,19 @@ if __name__ == "__main__":
     cantilever(
         Rod=make_CosseratRod_Quat(mixed=False),
         constitutive_law=Harsch2021,
-        title = "shear-deformable (blue): D-B quaternion interpolation",
+        title="shear-deformable (blue): D-B quaternion interpolation",
     )
 
     cantilever(
         Rod=make_CosseratRod_Quat(mixed=False, constraints=[1, 2]),
         constitutive_law=Harsch2021,
-        title = "shear-rigid (green): constrained D-B quaternion interpolation",
+        title="shear-rigid (green): constrained D-B quaternion interpolation",
     )
 
     cantilever(
         Rod=make_CosseratRod_Quat(mixed=False, constraints=[0, 1, 2]),
         constitutive_law=Harsch2021,
-        title = "inextensible shear-rigid (red): constrained D-B quaternion interpolation"
+        title="inextensible shear-rigid (red): constrained D-B quaternion interpolation",
     )
 
     # mixed formulation
@@ -287,11 +289,11 @@ if __name__ == "__main__":
     cantilever(
         Rod=make_CosseratRod_Quat(mixed=True, constraints=[1, 2]),
         constitutive_law=Simo1986,
-        title = "shear-rigid (green): constrained mixed quaternion interpolation",
+        title="shear-rigid (green): constrained mixed quaternion interpolation",
     )
 
     cantilever(
         Rod=make_CosseratRod_Quat(mixed=True, constraints=[0, 1, 2]),
         constitutive_law=Simo1986,
-        title = "inextensible shear-rigid (red): constrained mixed quaternion interpolation"
+        title="inextensible shear-rigid (red): constrained mixed quaternion interpolation",
     )

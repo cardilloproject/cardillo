@@ -12,6 +12,7 @@ from cardillo.math.rotations import (
     T_SO3_quat,
 )
 
+
 def interpolate_nlerp(s, r_OP0, A_IK0, r_OP1, A_IK1):
     r_OP = (1.0 - s) * r_OP0 + s * r_OP1
     psi0 = Log_SO3_quat(A_IK0)
@@ -25,6 +26,7 @@ def interpolate_nlerp(s, r_OP0, A_IK0, r_OP1, A_IK1):
     K_kappa_IK_normalized = T_SO3_quat(psi01, normalize=True) @ (psi1 - psi0)
     return r_OP, A_IK, K_kappa_IK, K_kappa_IK_normalized
 
+
 def interpolate_slerp(s, r_OP0, A_IK0, r_OP1, A_IK1):
     r_OP = (1.0 - s) * r_OP0 + s * r_OP1
     psi0 = Log_SO3_quat(A_IK0)
@@ -33,16 +35,14 @@ def interpolate_slerp(s, r_OP0, A_IK0, r_OP1, A_IK1):
     # SLERP
     angle = np.arccos(psi0 @ psi1)
     sa = np.sin(angle)
-    psi01 = (
-        np.sin((1 - s) *  angle) * psi0
-        + np.sin(s * angle) * psi1
-    ) / sa
+    psi01 = (np.sin((1 - s) * angle) * psi0 + np.sin(s * angle) * psi1) / sa
 
     A_IK = Exp_SO3_quat(psi01, normalize=False)
 
     K_kappa_IK = Log_SO3(A_IK0.T @ A_IK1)
 
     return r_OP, A_IK, K_kappa_IK
+
 
 def plot(ax, r_OPs, A_IKs, centerline_color="-k"):
     ax.plot(*r_OPs.T, centerline_color)
@@ -110,17 +110,24 @@ if __name__ == "__main__":
     A_IK_slerp = np.zeros((num, 3, 3))
     kappa_slerp = np.zeros((3, num))
 
-    for (i, si) in enumerate(s):
+    for i, si in enumerate(s):
         print(f"\nevaluation at s: {si}")
         print(f"---------------------")
-        
-        r_OP_nlerp[i], A_IK_nlerp[i], kappa_nlerp[:, i], kappa_nlerp_normalized[:, i] = interpolate_nlerp(si, r_OP0, A_IK0, r_OP1, A_IK1)
+
+        (
+            r_OP_nlerp[i],
+            A_IK_nlerp[i],
+            kappa_nlerp[:, i],
+            kappa_nlerp_normalized[:, i],
+        ) = interpolate_nlerp(si, r_OP0, A_IK0, r_OP1, A_IK1)
         H_IK_nlerp = SE3(A_IK_nlerp[i], r_OP_nlerp[i])
 
         print(f"kappa_nlerp: {kappa_nlerp[:, i]}")
         print(f"kappa_nlerp_normalized: {kappa_nlerp_normalized[:, i]}")
 
-        r_OP_slerp[i], A_IK_slerp[i], kappa_slerp[:, i] = interpolate_slerp(si, r_OP0, A_IK0, r_OP1, A_IK1)
+        r_OP_slerp[i], A_IK_slerp[i], kappa_slerp[:, i] = interpolate_slerp(
+            si, r_OP0, A_IK0, r_OP1, A_IK1
+        )
         H_IK_slerp = SE3(A_IK_slerp[i], r_OP_slerp[i])
         print(f"kappa_slerp: {kappa_slerp[:, i]}")
         print(f"kappa_nlerp - kappa_slerp: {kappa_nlerp[:, i]- kappa_slerp[:, i]}")
@@ -129,9 +136,13 @@ if __name__ == "__main__":
 
         print(f"h_nlerp_slerp:\n{h_K_nlerp_K_slerp}")
         # print(f"psi_nlerp_slerp: {np.linalg.norm(h_K_nlerp_K_slerp[3:])}")
-        print(f"psi_nlerp_slerp [°]: {np.linalg.norm(h_K_nlerp_K_slerp[3:]) * 180 / np.pi}")
+        print(
+            f"psi_nlerp_slerp [°]: {np.linalg.norm(h_K_nlerp_K_slerp[3:]) * 180 / np.pi}"
+        )
 
-    print(f"\nrelation kappa_nlerp to kappa_slerp: {kappa_nlerp[: ,-1] / kappa_slerp[: ,-1]}")
+    print(
+        f"\nrelation kappa_nlerp to kappa_slerp: {kappa_nlerp[: ,-1] / kappa_slerp[: ,-1]}"
+    )
 
     fig, ax = plt.subplots(1, 3)
 
@@ -143,13 +154,19 @@ if __name__ == "__main__":
     ax[1].set_title("slerp")
     ax[1].set_ylim([-0.5, 1.8])
     ax[1].grid()
-    ax[2].plot(s, kappa_nlerp_normalized[0, :], s, kappa_nlerp_normalized[1, :], s, kappa_nlerp_normalized[2, :])
+    ax[2].plot(
+        s,
+        kappa_nlerp_normalized[0, :],
+        s,
+        kappa_nlerp_normalized[1, :],
+        s,
+        kappa_nlerp_normalized[2, :],
+    )
     ax[2].set_title("nlerp with normalization in T_SO3_quat")
     ax[2].set_ylim([-0.5, 1.8])
     ax[2].grid()
 
     # ax[1].plot(s, kappa_i2[0, :], s, kappa_i2[1, :], s, kappa_i2[2, :])
-
 
     fig = plt.figure()
     ax = fig.add_subplot(projection="3d")
