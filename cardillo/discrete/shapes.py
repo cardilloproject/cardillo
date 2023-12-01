@@ -30,7 +30,13 @@ def Meshed(Base):
 
             # check if mesh represents a valid volume
             if not trimesh_obj.is_volume:
-                warnings.warn('Imported mesh does not represent a volume, i.e. one of the following properties are not fulfilled: watertight, consistent winding, outward facing normals.')
+                print('Imported mesh does not represent a volume, i.e. one of the following properties are not fulfilled: watertight, consistent winding, outward facing normals.')
+                # try to fill the wholes
+                trimesh_obj.fill_holes()
+                if not trimesh_obj.is_volume:
+                    print("Using mesh that is not a volume. Computed mass and moment of inertia might be unphyical.")
+                else:
+                    print("Fixed mesh by filling the holes.")
             
             # store visual mesh in body fixed frame
             H_KM = np.eye(4)
@@ -70,8 +76,8 @@ def Meshed(Base):
             if base_export:
                 return super().export(sol_i, **kwargs)
             else:
-                r_OS = self.r_OP(sol_i.t, sol_i.q)
-                A_IK = self.A_IK(sol_i.t, sol_i.q)
+                r_OS = self.r_OP(sol_i.t, sol_i.q[self.qDOF]) # TODO: slicing could be done on global level in Export class.
+                A_IK = self.A_IK(sol_i.t, sol_i.q[self.qDOF])
                 points = (r_OS[:, None] + A_IK @ self.K_r_SQi_T).T
 
                 cells = [
