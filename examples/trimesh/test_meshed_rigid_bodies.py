@@ -10,6 +10,17 @@ from cardillo.solver import BackwardEuler
 
 from cardillo.visualization import Export
 
+def show_system(system, t, q, origin_size=0):
+    # TODO: this is nice for debugging and quickly get an overview. However, when the window is closed, it stops the execution of the code. 
+    # If we find a solution to this, we could provide this function as a visualization utility or as part of System.py.
+    scene = trimesh.Scene()
+    if origin_size>0:
+        scene.add_geometry(trimesh.creation.axis(origin_size=origin_size))
+    for contr in system.contributions:
+        if hasattr(contr, "get_visual_mesh_wrt_I"):
+            scene.add_geometry(contr.get_visual_mesh_wrt_I(t, q[contr.qDOF]))
+    scene.show()
+    return
 
 if __name__=="__main__":
     path = Path(__file__)
@@ -30,14 +41,6 @@ if __name__=="__main__":
     
     q20 = np.concatenate([np.array([0,1,1]), Spurrier(A_IK_basic(np.pi/4).x())])
     rigid_body2 = MeshedRB(part_mesh, density=1, mass=1, K_Theta_S=np.eye(3), q0=q20)#K_r_SP=np.array([0, 0, 1]), A_KM=A_IK_basic(np.pi/10).x())
-
-    scene = trimesh.Scene()
-    scene.add_geometry(trimesh.creation.axis(origin_size=0.05))
-    scene.add_geometry(frame.get_visual_mesh_wrt_I(0, 0))
-    scene.add_geometry(rigid_body1.get_visual_mesh_wrt_I(0, q10))
-    scene.add_geometry(rigid_body2.get_visual_mesh_wrt_I(0, q20))
-    # scene.add_geometry(trimesh.creation.axis(origin_size=0.1, transform=box.visual_mesh.bounding_box_oriented.transform))
-    
 
     system = System()
     system.add(frame)
@@ -62,4 +65,4 @@ if __name__=="__main__":
     e.export_contr(rigid_body1)
     e.export_contr(rigid_body2)
 
-    scene.show() # this ends the execution of the file!!!!
+    show_system(system, system.t0, system.q0, origin_size=0.05)
