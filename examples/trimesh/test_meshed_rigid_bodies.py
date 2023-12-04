@@ -12,8 +12,6 @@ from cardillo.visualization import Export
 
 from scipy.interpolate import interp1d
 
-import time
-
 def show_system(system, t, q, origin_size=0):
     fps = 30
     # TODO: this is nice for debugging and quickly get an overview. However, when the window is closed, it stops the execution of the code. 
