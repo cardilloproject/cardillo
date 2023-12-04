@@ -34,7 +34,7 @@ class Export:
         self.vtk_file.appendChild(self.collection)
 
     def __unique_file_name(self, file_name):
-        file_name_ = f"{file_name}0"
+        file_name_ = file_name
         i = 1
         while (self.path / f"{file_name_}.pvd").exists():
             file_name_ = f"{file_name}{i}"
@@ -135,10 +135,6 @@ class Export:
         points, cells, point_data, cell_data = [], [], {}, {}
         l = 0
         for contr in contr_list:
-            if hasattr(contr, "pre_iteration_update"):
-                contr.pre_iteration_update(
-                    sol_i.t, sol_i.q[contr.qDOF], sol_i.u[contr.uDOF]
-                )
             p, c, p_data, c_data = contr.export(sol_i, **kwargs)
             l = len(points)
             points.extend(p)
@@ -156,7 +152,7 @@ class Export:
         if "file_name" in kwargs and kwargs["file_name"] is not None:
             contr_name = kwargs["file_name"]
         else:
-            contr_name = contr.__class__.__name__
+            contr_name = contr.name
         return contr_name
 
     def export_contr(self, contr, **kwargs):

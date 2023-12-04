@@ -110,7 +110,6 @@ if __name__ == "__main__":
         overwrite=True,
         fps=30,
         solution=solution,
-        system=system,
     )
     # e.export_contr([pm0, pm1], file_name="points")
     # e.export_contr(pm0)

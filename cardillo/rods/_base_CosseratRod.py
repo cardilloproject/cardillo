@@ -482,43 +482,41 @@ class CosseratRod(RodExportBase, ABC):
     ###############################
     # potential and internal forces
     ###############################
-    # # TODO:
-    # def E_pot(self, t, q):
-    #     E_pot = 0.0
-    #     for el in range(self.nelement):
-    #         elDOF = self.elDOF[el]
-    #         E_pot += self.E_pot_el(q[elDOF], el)
-    #     return E_pot
+    def E_pot(self, t, q):
+        E_pot = 0.0
+        for el in range(self.nelement):
+            elDOF = self.elDOF[el]
+            E_pot += self.E_pot_el(q[elDOF], el)
+        return E_pot
 
-    # # TODO:
-    # def E_pot_el(self, qe, el):
-    #     E_pot_el = 0.0
+    def E_pot_el(self, qe, el):
+        E_pot_el = 0.0
 
-    #     for i in range(self.nquadrature):
-    #         # extract reference state variables
-    #         qpi = self.qp[el, i]
-    #         qwi = self.qw[el, i]
-    #         Ji = self.J[el, i]
-    #         K_Gamma0 = self.K_Gamma0[el, i]
-    #         K_Kappa0 = self.K_Kappa0[el, i]
+        for i in range(self.nquadrature):
+            # extract reference state variables
+            qpi = self.qp[el, i]
+            qwi = self.qw[el, i]
+            Ji = self.J[el, i]
+            K_Gamma0 = self.K_Gamma0[el, i]
+            K_Kappa0 = self.K_Kappa0[el, i]
 
-    #         # evaluate required quantities
-    #         _, _, K_Gamma_bar, K_Kappa_bar = self._eval(qe, qpi)
+            # evaluate required quantities
+            _, _, K_Gamma_bar, K_Kappa_bar = self._eval(qe, qpi)
 
-    #         # axial and shear strains
-    #         K_Gamma = K_Gamma_bar / Ji
+            # axial and shear strains
+            K_Gamma = K_Gamma_bar / Ji
 
-    #         # torsional and flexural strains
-    #         K_Kappa = K_Kappa_bar / Ji
+            # torsional and flexural strains
+            K_Kappa = K_Kappa_bar / Ji
 
-    #         # evaluate strain energy function
-    #         E_pot_el += (
-    #             self.material_model.potential(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
-    #             * Ji
-    #             * qwi
-    #         )
+            # evaluate strain energy function
+            E_pot_el += (
+                self.material_model.potential(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
+                * Ji
+                * qwi
+            )
 
-    #     return E_pot_el
+        return E_pot_el
 
     def eval_stresses(self, t, q, la_c, xi):
         el = self.element_number(xi)
@@ -1403,43 +1401,43 @@ class CosseratRodMixed(CosseratRod):
     ###############################
     # potential and internal forces
     ###############################
-    # # TODO:
-    # def E_pot(self, t, q):
-    #     E_pot = 0.0
-    #     for el in range(self.nelement):
-    #         elDOF = self.elDOF[el]
-    #         E_pot += self.E_pot_el(q[elDOF], el)
-    #     return E_pot
+    # TODO:
+    def E_pot(self, t, q):
+        E_pot = 0.0
+        for el in range(self.nelement):
+            elDOF = self.elDOF[el]
+            E_pot += self.E_pot_el(q[elDOF], el)
+        return E_pot
 
-    # # TODO:
-    # def E_pot_el(self, qe, el):
-    #     E_pot_el = 0.0
+    # TODO:
+    def E_pot_el(self, qe, el):
+        E_pot_el = 0.0
 
-    #     for i in range(self.nquadrature):
-    #         # extract reference state variables
-    #         qpi = self.qp[el, i]
-    #         qwi = self.qw[el, i]
-    #         Ji = self.J[el, i]
-    #         K_Gamma0 = self.K_Gamma0[el, i]
-    #         K_Kappa0 = self.K_Kappa0[el, i]
+        for i in range(self.nquadrature):
+            # extract reference state variables
+            qpi = self.qp[el, i]
+            qwi = self.qw[el, i]
+            Ji = self.J[el, i]
+            K_Gamma0 = self.K_Gamma0[el, i]
+            K_Kappa0 = self.K_Kappa0[el, i]
 
-    #         # evaluate required quantities
-    #         _, _, K_Gamma_bar, K_Kappa_bar = self._eval(qe, qpi)
+            # evaluate required quantities
+            _, _, K_Gamma_bar, K_Kappa_bar = self._eval(qe, qpi)
 
-    #         # axial and shear strains
-    #         K_Gamma = K_Gamma_bar / Ji
+            # axial and shear strains
+            K_Gamma = K_Gamma_bar / Ji
 
-    #         # torsional and flexural strains
-    #         K_Kappa = K_Kappa_bar / Ji
+            # torsional and flexural strains
+            K_Kappa = K_Kappa_bar / Ji
 
-    #         # evaluate strain energy function
-    #         E_pot_el += (
-    #             self.material_model.potential(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
-    #             * Ji
-    #             * qwi
-    #         )
+            # evaluate strain energy function
+            E_pot_el += (
+                self.material_model.potential(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
+                * Ji
+                * qwi
+            )
 
-    #     return E_pot_el
+        return E_pot_el
 
     def eval_stresses(self, t, q, la_c, xi):
         el = self.element_number(xi)
