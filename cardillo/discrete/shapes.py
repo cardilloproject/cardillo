@@ -4,10 +4,16 @@ import meshio
 import trimesh
 import warnings
 
+
 def Meshed(Base):
     class _Meshed(Base):
         def __init__(
-            self, trimesh_obj, density=None, K_r_SP=np.zeros(3), A_KM=np.eye(3), **kwargs
+            self,
+            trimesh_obj,
+            density=None,
+            K_r_SP=np.zeros(3),
+            A_KM=np.eye(3),
+            **kwargs
         ):
             """Generate an object (typically with Base `Frame` or `RigidBody`) from a given Trimesh object
             Args:
@@ -30,14 +36,18 @@ def Meshed(Base):
 
             # check if mesh represents a valid volume
             if not trimesh_obj.is_volume:
-                print('Imported mesh does not represent a volume, i.e. one of the following properties are not fulfilled: watertight, consistent winding, outward facing normals.')
+                print(
+                    "Imported mesh does not represent a volume, i.e. one of the following properties are not fulfilled: watertight, consistent winding, outward facing normals."
+                )
                 # try to fill the wholes
                 trimesh_obj.fill_holes()
                 if not trimesh_obj.is_volume:
-                    print("Using mesh that is not a volume. Computed mass and moment of inertia might be unphyical.")
+                    print(
+                        "Using mesh that is not a volume. Computed mass and moment of inertia might be unphyical."
+                    )
                 else:
                     print("Fixed mesh by filling the holes.")
-            
+
             # store visual mesh in body fixed frame
             H_KM = np.eye(4)
             H_KM[:3, 3] = K_r_SP
@@ -45,10 +55,10 @@ def Meshed(Base):
             self.visual_mesh = trimesh_obj.copy().apply_transform(H_KM)
 
             # vectors (transposed) from S to vertices represented in body-fixed frame
-            self.K_r_SQi_T = self.visual_mesh.vertices.view(np.ndarray).T 
+            self.K_r_SQi_T = self.visual_mesh.vertices.view(np.ndarray).T
 
             # compute inertia quantities of body
-            if (density is not None):
+            if density is not None:
                 # set density and compute properties
                 self.visual_mesh.density = density
                 mass = self.visual_mesh.mass
@@ -59,8 +69,12 @@ def Meshed(Base):
 
                 if (mass_arg is not None) and (not np.allclose(mass, mass_arg)):
                     warnings.warn("Specified mass does not correspond to mass of mesh.")
-                if (K_Theta_S_arg is not None) and (not np.allclose(K_Theta_S, K_Theta_S_arg)):
-                    warnings.warn("Specified moment of inertia does not correspond to moment of inertia of mesh.")
+                if (K_Theta_S_arg is not None) and (
+                    not np.allclose(K_Theta_S, K_Theta_S_arg)
+                ):
+                    warnings.warn(
+                        "Specified moment of inertia does not correspond to moment of inertia of mesh."
+                    )
 
                 kwargs.update({"mass": mass, "K_Theta_S": K_Theta_S})
 
@@ -76,7 +90,9 @@ def Meshed(Base):
             if base_export:
                 return super().export(sol_i, **kwargs)
             else:
-                r_OS = self.r_OP(sol_i.t, sol_i.q[self.qDOF]) # TODO: slicing could be done on global level in Export class. Moreover, solution class should be able to return the slice, e.g., sol_i.get_q_of_body(name). 
+                r_OS = self.r_OP(
+                    sol_i.t, sol_i.q[self.qDOF]
+                )  # TODO: slicing could be done on global level in Export class. Moreover, solution class should be able to return the slice, e.g., sol_i.get_q_of_body(name).
                 A_IK = self.A_IK(sol_i.t, sol_i.q[self.qDOF])
                 points = (r_OS[:, None] + A_IK @ self.K_r_SQi_T).T
 
@@ -87,6 +103,7 @@ def Meshed(Base):
             return points, cells, None, None
 
     return _Meshed
+
 
 def RectangleTrimesh(Base):
     class _Rectangle(Base):
@@ -559,5 +576,3 @@ def Tetrahedron(Base):
             return points, cells, point_data, None
 
     return _Tetrahedron
-
-
