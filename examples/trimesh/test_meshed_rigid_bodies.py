@@ -30,7 +30,7 @@ def show_system(system, t, q, origin_size=0):
 def animate_system(system, t, q, fps=30, t_factor=1, origin_size=0):
     # TODO: this is nice for debugging and quickly get an overview. However, when the window is closed, it stops the execution of the code. 
     # If we find a solution to this, we could provide this function as a visualization utility or as part of System.py.
-    # t_factor : 1s real time = t_factor * 1s animation time
+    # t_factor : 1s real time = t_factor * 1s animation time (t_factor=10 means video is 10 times slower than reality)
     scene = trimesh.Scene()
     # since an empty scene would raise an arror, an origin is added. This is overridden anyways.
     scene.add_geometry(trimesh.creation.axis())
