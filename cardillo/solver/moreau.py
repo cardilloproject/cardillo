@@ -105,6 +105,8 @@ class Moreau:
         W_gamma = self.system.W_gamma(tn12, qn12)
         W_c = self.system.W_c(tn12, qn12)
         la_c = self.system.la_c(tn12, qn12, un)
+        W_tau = self.system.W_tau(tn12, qn12)
+        la_tau = self.system.la_tau(tn12, qn12, un)
         chi_g = self.system.g_dot(tn12, qn12, np.zeros_like(un))
         chi_gamma = self.system.gamma(tn12, qn12, np.zeros_like(un))
 
@@ -122,7 +124,7 @@ class Moreau:
         # initial right hand side without contact forces
         b = np.concatenate(
             (
-                M @ un + dt * (h + W_c @ la_c),
+                M @ un + dt * (h + W_c @ la_c + W_tau @ la_tau),
                 chi_g,
                 chi_gamma,
             )
