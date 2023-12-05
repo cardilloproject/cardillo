@@ -4,6 +4,7 @@ from scipy.interpolate import interp1d
 
 from cardillo.math import SE3inv
 
+
 def show_system(system, t, q, origin_size=0):
     # TODO: this is nice for debugging and quickly get an overview. However, when the window is closed, it stops the execution of the code.
     # If we find a solution to this, we could provide this function as a visualization utility or as part of System.py.
@@ -19,6 +20,7 @@ def show_system(system, t, q, origin_size=0):
             scene.add_geometry(contr.K_visual_mesh.copy().apply_transform(H_IK))
     scene.show()
     return
+
 
 def animate_system(system, t, q, fps=30, t_factor=1, origin_size=0):
     # TODO: this is nice for debugging and quickly get an overview. However, when the window is closed, it stops the execution of the code.
@@ -40,11 +42,10 @@ def animate_system(system, t, q, fps=30, t_factor=1, origin_size=0):
             name = scene.add_geometry(mesh)
             contributions[name] = contr
             transformations[name] = H_IK
-            
 
     # interpolate data
     q_interp = interp1d(t, q, axis=0)
-    dt = 1 / fps
+    dt = float(1 / fps)
     t_span = np.arange(t[0], t[-1], step=dt / t_factor)
     # this is a trick to pass variables to callback function as it is called as: callback(scene)
     scene.i = 0
@@ -71,4 +72,3 @@ def update_scene(scene):
         H_update = H_IK @ SE3inv(H_I0K)
         scene.graph.update(name, matrix=H_update)
         scene.H_IK[name] = H_IK
-    

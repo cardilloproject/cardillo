@@ -11,7 +11,7 @@ def Meshed(Base):
             density=None,
             K_r_SP=np.zeros(3),
             A_KM=np.eye(3),
-            **kwargs
+            **kwargs,
         ):
             """Generate an object (typically with Base `Frame` or `RigidBody`) from a given Trimesh object
             Args:
@@ -102,3 +102,92 @@ def Meshed(Base):
 
     return _Meshed
 
+
+def Box(Base):
+    MeshedBase = Meshed(Base)
+
+    class _Box(MeshedBase):
+        def __init__(
+            self,
+            dimensions=np.ones(3),
+            **kwargs,
+        ):
+            self.dimensions = dimensions
+            trimesh_obj = trimesh.creation.box(extents=dimensions)
+            super().__init__(trimesh_obj=trimesh_obj, **kwargs)
+
+    return _Box
+
+
+def Cone(Base):
+    MeshedBase = Meshed(Base)
+
+    class _Cone(MeshedBase):
+        def __init__(
+            self,
+            radius=1,
+            height=2,
+            **kwargs,
+        ):
+            self.radius = radius
+            self.height = height
+            trimesh_obj = trimesh.creation.cone(radius, height)
+            super().__init__(trimesh_obj=trimesh_obj, **kwargs)
+
+    return _Cone
+
+
+def Cylinder(Base):
+    MeshedBase = Meshed(Base)
+
+    class _Cylinder(MeshedBase):
+        def __init__(
+            self,
+            radius=1,
+            height=2,
+            **kwargs,
+        ):
+            self.radius = radius
+            self.height = height
+            trimesh_obj = trimesh.creation.cylinder(radius, height=height)
+            super().__init__(trimesh_obj=trimesh_obj, **kwargs)
+
+    return _Cylinder
+
+
+def Sphere(Base):
+    MeshedBase = Meshed(Base)
+
+    class _Sphere(MeshedBase):
+        def __init__(
+            self,
+            radius=1,
+            subdivisions=2,
+            **kwargs,
+        ):
+            self.radius = radius
+            self.subdivisions = subdivisions
+            trimesh_obj = trimesh.creation.icosphere(
+                radius=radius, subdivisions=subdivisions
+            )
+            super().__init__(trimesh_obj=trimesh_obj, **kwargs)
+
+    return _Sphere
+
+
+def Capsule(Base):
+    MeshedBase = Meshed(Base)
+
+    class _Capsule(MeshedBase):
+        def __init__(
+            self,
+            radius=1,
+            height=2,
+            **kwargs,
+        ):
+            self.radius = radius
+            self.height = height
+            trimesh_obj = trimesh.creation.capsule(radius=radius, height=height)
+            super().__init__(trimesh_obj=trimesh_obj, **kwargs)
+
+    return _Capsule
