@@ -1,5 +1,6 @@
 from cardillo.rods import (
     RectangularCrossSection,
+    CircularCrossSection,
     Simo1986,
     animate_beam,
 )
@@ -7,6 +8,8 @@ from cardillo.rods import (
 
 from cardillo.rods.cosseratRod import (
     make_CosseratRod_Quat,
+    make_CosseratRod_SE3,
+    make_CosseratRod_R12,
 )
 
 from cardillo.discrete import Frame
@@ -28,17 +31,25 @@ from pathlib import Path
 
 
 """
+Cantilever beam examples from
+
+Harsch, J. and Eugster, S. R., "Finite element analysis of planar nonlinear classical beam theories", 2020. 
+https://doi.org/10.1007/978-3-030-50460-1_10
+
+6.4 Clamped-hinged circular arch subject to point load
+
 Example proposed by Kadapa, C. in
 "A simple extrapolated predictor for overcoming the starting and tracking issues in the
  arc-length method for nonlinear structural mechanics",
 Engineering Structures, Volume 234, 1 May 2021, 111755
+
 https://doi.org/10.1016/j.engstruct.2020.111755
 """
 
 
 def circular_arch(
     Rod,
-    nelements=20,
+    nelements=60,
     polynomial_degree=1,
     n_load_steps=10,
     reduced_integration=True,
@@ -48,33 +59,34 @@ def circular_arch(
     width = 1.0
     cross_section = RectangularCrossSection(width, width)
 
-    A = 2.29
-    I = 1.0
-
-    atol = 1e-7
-
-    EE = 1e6  # Young's modulus
-    GG = EE / (2 * (1 + 0))  # shear modulus
+    # material properties
+    EI = B = 1e3
+    EA = 0.05 * EI
+    GA = 0.01 * EI
+    GIp = 2 * EI
+    rho = 0
+    Theta = 0
 
     # material model
-    Ei = np.array([EE * A, GG * A, GG * A])
-    Fi = np.array([GG * I, EE * I, EE * I])
+    Ei = np.array([EA, GA, GA])
+    Fi = np.array([GIp, EI, EI])
 
     material_model = Simo1986(Ei, Fi)
 
+    # curverd initial configuration
     R = 100
     angle = 215 * pi / 180
-    start_angle = 17.5 * pi / 180
+    start_angle = -17.5 * pi / 180
 
     # definition of the parametric curve
     curve = lambda xi: np.array(
-        [R * np.cos(xi - start_angle), R * np.sin(xi - start_angle), 0]
+        [R * np.cos(xi + start_angle), R * np.sin(xi + start_angle), 0]
     )
     dcurve = lambda xi: np.array(
-        [R * np.sin(xi - start_angle), R * np.cos(xi - start_angle), 0]
+        [-R * np.sin(xi + start_angle), R * np.cos(xi + start_angle), 0]
     )
     ddcurve = lambda xi: np.array(
-        [R * np.cos(xi - start_angle), -R * np.sin(xi - start_angle), 0]
+        [-R * np.cos(xi + start_angle), -R * np.sin(xi + start_angle), 0]
     )
 
     # starting point and orientation of initial point, initial length
@@ -116,21 +128,19 @@ def circular_arch(
     system = System()
 
     # clamped point
-    frame_left = Frame(r_OP01, A_IK01)
-    clamping_left = RigidConnection(frame_left, arch, frame_ID2=(0,))
+    clamping_right = RigidConnection(system.origin, arch, frame_ID2=(0,))
 
     # hinged point
-    frame_right = Frame(r_OP02, A_IK02)
-    hinge_right = Revolute(frame_right, arch, 2, frame_ID2=(1,))
+    frame_left = Frame(r_OP02, A_IK02)
+    hinge_left = Revolute(frame_left, arch, 2, frame_ID2=(1,))
 
     system.add(arch)
+    system.add(clamping_right)
     system.add(frame_left)
-    system.add(clamping_left)
-    system.add(frame_right)
-    system.add(hinge_right)
+    system.add(hinge_left)
 
     # concentrated force
-    F = lambda t: -1000 * t * e2
+    F = lambda t: -1 * t * e2
     force = Force(F, arch, frame_ID=(0.5,))
     system.add(force)
 
@@ -144,7 +154,8 @@ def circular_arch(
     # )
     solver = Riks(
         system,
-        la_arc0=1e-2,
+        la_arc0=1e-3,
+        iter_goal=3,
         la_arc_span=np.array([-1, 1]),
         options=SolverOptions(newton_atol=atol),
     )
@@ -154,47 +165,70 @@ def circular_arch(
     nt = len(q)
     t = sol.t[:nt]
 
-    x_tip_displacement = np.zeros(len(t))
-    y_tip_displacement = np.zeros(len(t))
+    path = Path(__file__)
 
-    element = nelements // 2
+    u_x = np.zeros(nt)
+    u_y = np.zeros(nt)
 
-    for i in range(len(t)):
-        x_tip_displacement[i] = abs(
-            q[i, arch.elDOF_r[element - 1][polynomial_degree]]
-            - q0[arch.elDOF_r[element - 1][polynomial_degree]]
-        )
-        y_tip_displacement[i] = abs(
-            q[i, arch.elDOF_r[element - 1][polynomial_degree * 2 + 1]]
-            - q0[arch.elDOF_r[element - 1][polynomial_degree * 2 + 1]]
-        )
+    q_arch = sol.q[:, arch.qDOF]
+    qe_arch = q_arch[:, arch.local_qDOF_P((0.5,))]
 
-    fig5, ax = plt.subplots()
+    r_OP0 = arch.r_OP(0, qe_arch[0], frame_ID=(0.5,))
+    print(f"r_OP0:{r_OP0}")
+    for i in range(nt):
+        r_OPi = arch.r_OP(0, qe_arch[i], frame_ID=(0.5,))
+        u_x[i], u_y[i], _ = -(r_OPi - r_OP0)
+
+    fig5, ax = plt.subplots(1, 2)
 
     # ax.plot(t, x_tip_displacement, '-', color='blue', label='X Tip Displacement', marker='o')
     # ax.plot(t, y_tip_displacement, '-', color='red', label='Y Tip Displacement', marker='s')
-    ax.plot(
-        x_tip_displacement, t, "-", color="blue", label="X Tip Displacement", marker="o"
+    ax[0].plot(u_x, t, "-", color="blue", label="X Tip Displacement", marker="o")
+    ax[1].plot(u_y, t, "-", color="red", label="Y Tip Displacement", marker="s")
+
+    force_displacement = np.loadtxt(
+        Path(path.parent, "_data_circular_arch_215", "force_displacement_T.txt"),
+        delimiter=",",
+        skiprows=1,
+        # dtype=float,
     )
-    ax.plot(
-        y_tip_displacement, t, "-", color="red", label="Y Tip Displacement", marker="s"
+
+    force_u_x_Simo = np.loadtxt(
+        Path(path.parent, "_data_circular_arch_215", "force_u_x_Simo1986.csv"),
+        delimiter=";",
+        # skiprows=1,
+        # dtype=float,
     )
+    force_u_y_Simo = np.loadtxt(
+        Path(path.parent, "_data_circular_arch_215", "force_u_y_Simo1986.csv"),
+        delimiter=";",
+        # skiprows=1,
+        # dtype=float,
+    )
+
+    ax[0].plot(
+        force_displacement[:, 2][::200],
+        force_displacement[:, 1][::200],
+        "x",
+        color="blue",
+    )
+    ax[0].plot(force_u_x_Simo[:, 0], force_u_x_Simo[:, 1] / 1000, "x", color="green")
+    ax[1].plot(
+        force_displacement[:, 3][::200],
+        force_displacement[:, 1][::200],
+        "x",
+        color="red",
+    )
+
+    ax[1].plot(force_u_y_Simo[:, 0], force_u_y_Simo[:, 1] / 1000, "x", color="green")
 
     # Aggiungi una legenda
-    ax.legend(loc="upper left")
+    ax[0].legend(loc="upper left")
 
     # Personalizza il titolo e le label degli assi se necessario
-    ax.set_title("Displacements of the point B")
-    ax.set_xlabel("u, v")
-    ax.set_ylabel("Load Factor")
-
-    # x_values = np.linspace(0, f_max, n_load_step)
-    # for x_value in x_values:  # Assumendo che tu voglia una linea per ogni punto di dati
-    #     ax.axvline(x=x_value, color='gray', linestyle='--')
-
-    # y_values = np.linspace(-30, 60, 11)
-    # for y_value in y_values:
-    #     ax.axhline(y=y_value, color='gray', linestyle='--')
+    ax[0].set_title("Displacements of tip point")
+    ax[0].set_xlabel("u_x")
+    ax[0].set_ylabel("Load Factor")
 
     # VTK export
     if VTK_export:
@@ -228,8 +262,19 @@ def circular_arch(
         repeat=True,
     )
 
+    # add plane with z-direction as normal
+    X_z = np.linspace(-2 * R, 2 * R, num=2)
+    Y_z = np.linspace(-2 * R, 2 * R, num=2)
+    X_z, Y_z = np.meshgrid(X_z, Y_z)
+    Z_z = np.zeros_like(X_z)
+    ax1.plot_surface(X_z, Y_z, Z_z, alpha=0.2)
+
+    # camera settings for 3D plot
+    ax1.azim = -90
+    ax1.elev = 72
+
     plt.show()
 
 
 if __name__ == "__main__":
-    circular_arch(Rod=make_CosseratRod_Quat(mixed=False))
+    circular_arch(Rod=make_CosseratRod_Quat(mixed=True), VTK_export=False)
