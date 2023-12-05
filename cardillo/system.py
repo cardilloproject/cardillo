@@ -23,7 +23,6 @@ properties.extend(["gamma"])
 properties.extend(["c", "c_q", "c_u"])
 properties.extend(["g_S"])
 
-properties.extend(["W_tau"])
 properties.extend(["la_tau"])
 
 properties.extend(["g_N"])
@@ -67,7 +66,6 @@ class System:
         self.nla_S = 0
         self.nla_N = 0
         self.nla_F = 0
-        
 
         self.contributions = []
         self.contributions_map = {}
@@ -384,7 +382,7 @@ class System:
         for contr in self.__h_u_contr:
             coo[contr.uDOF, contr.uDOF] = contr.h_u(t, q[contr.qDOF], u[contr.uDOF])
         return coo.asformat(format)
-    
+
     ############
     # compliance
     ############
@@ -434,7 +432,7 @@ class System:
                 t, q[contr.qDOF], la_c[contr.la_cDOF]
             )
         return coo.asformat(format)
-    
+
     ###########
     # actuators
     ###########
@@ -443,7 +441,7 @@ class System:
         for contr in self.__la_tau_contr:
             coo[contr.uDOF, contr.la_tauDOF] = contr.W_tau(t, q[contr.qDOF])
         return coo.asformat(format)
-    
+
     def la_tau(self, t, q, u):
         la_tau = np.zeros(self.nla_tau, dtype=np.common_type(q, u))
         for contr in self.__la_tau_contr:

@@ -8,12 +8,14 @@ class Revolute(PositionOrientationBase):
         subsystem1,
         subsystem2,
         axis,
+        angle0=0.0,
         r_OB0=None,
         A_IB0=None,
         frame_ID1=np.zeros(3),
         frame_ID2=np.zeros(3),
     ):
         self.axis = axis
+        self.angle0 = angle0
         self.plane_axes = np.roll([0, 1, 2], -axis)[1:]
         projection_pairs_rotation = [
             (axis, self.plane_axes[0]),
@@ -71,7 +73,7 @@ class Revolute(PositionOrientationBase):
         self.previous_quadrant = quadrant
 
         # compute rotation angle without singularities
-        angle = self.n_full_rotations * 2 * np.pi
+        angle = self.angle0 + self.n_full_rotations * 2 * np.pi
         if quadrant == 1:
             angle += np.arctan(y / x)
         elif quadrant == 2:
@@ -132,7 +134,7 @@ class Revolute(PositionOrientationBase):
         J_R1 = self.J_R1(t, q)
         J_R2 = self.J_R2(t, q)
         e_c1 = self.A_IB1(t, q)[:, self.axis]
-        return np.concatenate([-J_R1.T @ e_c1, J_R2.T @ e_c1])
+        return np.concatenate([-J_R1.T @ e_c1, J_R2.T @ e_c1]).reshape(self._nu, 1)
 
     def W_angle_q(self, t, q):
         nq1 = self._nq1
