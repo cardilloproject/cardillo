@@ -10,55 +10,7 @@ from cardillo.solver import BackwardEuler
 
 from cardillo.visualization import Export
 
-from scipy.interpolate import interp1d
-
-
-def show_system(system, t, q, origin_size=0):
-    # TODO: this is nice for debugging and quickly get an overview. However, when the window is closed, it stops the execution of the code.
-    # If we find a solution to this, we could provide this function as a visualization utility or as part of System.py.
-    scene = trimesh.Scene()
-    if origin_size > 0:
-        scene.add_geometry(trimesh.creation.axis(origin_size=origin_size))
-    for contr in system.contributions:
-        if hasattr(contr, "get_visual_mesh_wrt_I"):
-            scene.add_geometry(contr.get_visual_mesh_wrt_I(t, q[contr.qDOF]))
-    scene.show()
-    return
-
-
-def animate_system(system, t, q, fps=30, t_factor=1, origin_size=0):
-    # TODO: this is nice for debugging and quickly get an overview. However, when the window is closed, it stops the execution of the code.
-    # If we find a solution to this, we could provide this function as a visualization utility or as part of System.py.
-    # t_factor : 1s real time = t_factor * 1s animation time (t_factor=10 means video is 10 times slower than reality)
-    scene = trimesh.Scene()
-    # since an empty scene would raise an arror, an origin is added. This is overridden anyways.
-    scene.add_geometry(trimesh.creation.axis())
-
-    # interpolate data
-    q_interp = interp1d(t, q, axis=0)
-    dt = 1 / fps
-    t_span = np.arange(t[0], t[-1], step=dt / t_factor)
-    # this is a trick to pass variables to callback function as it is called as: callback(scene)
-    scene.i = 0
-    scene.t = t_span
-    scene.q = q_interp
-    scene.system = system
-    scene.origin_size = origin_size
-    scene.show(callback=update_scene, callback_period=dt)
-
-
-def update_scene(scene):
-    # TODO: this is not a real update but a redrawing of the scene. Using relative transformations on the objects could be faster.
-    ti = scene.t[scene.i]
-    qi = scene.q(ti)
-    scene.i += 1
-    scene.i = scene.i % len(scene.t)
-    scene.geometry.clear()
-    if scene.origin_size > 0:
-        scene.add_geometry(trimesh.creation.axis(origin_size=scene.origin_size))
-    for contr in scene.system.contributions:
-        if hasattr(contr, "get_visual_mesh_wrt_I"):
-            scene.add_geometry(contr.get_visual_mesh_wrt_I(ti, qi[contr.qDOF]))
+from cardillo.visualization.trimesh import show_system, animate_system
 
 
 if __name__ == "__main__":
@@ -93,7 +45,7 @@ if __name__ == "__main__":
 
     # show_system(system, system.t0, system.q0, origin_size=0.05)
 
-    sol = BackwardEuler(system, 1, 1e-1).solve()
+    sol = BackwardEuler(system, 5, 1e-1).solve()
 
     path = Path(__file__)
     e = Export(
