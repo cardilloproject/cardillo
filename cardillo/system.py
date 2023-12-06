@@ -450,10 +450,10 @@ class System:
             coo[contr.uDOF, contr.la_tauDOF] = contr.W_tau(t, q[contr.qDOF])
         return coo.asformat(format)
 
-    def la_tau(self, t, q, u, tau):
+    def la_tau(self, t, q, u):
         la_tau = np.zeros(self.nla_tau, dtype=np.common_type(q, u))
         for contr in self.__la_tau_contr:
-            la_tau[contr.la_tauDOF] = contr.la_tau(t, q[contr.qDOF], u[contr.uDOF], tau[contr.tauDOF])
+            la_tau[contr.la_tauDOF] = contr.la_tau(t, q[contr.qDOF], u[contr.uDOF])
         return la_tau
     
     def tau(self, t):
@@ -461,6 +461,26 @@ class System:
         for contr in self.__tau_contr:
             tau[contr.tauDOF] = contr.tau(t)
         return tau
+    
+    def set_tau(self, tau):
+        if callable(tau):
+            for contr in self.__tau_contr:
+                contr.tau = lambda t: tau(t)[contr.tauDOF]
+        else:
+            for contr in self.__tau_contr:
+                contr.tau = lambda t: tau[contr.tauDOF]
+    
+    def set_tau_from_dict(self, tau_dict):
+        raise NotImplementedError
+        # this is not tested!
+        for name, tau in tau_dict.items():
+            contr = self.contributions_map[name]
+            if callable(tau):
+                contr.tau = lambda t: tau(t)[contr.tauDOF]
+            else:
+                contr.tau = lambda t: tau[contr.tauDOF]
+        
+
 
     #########################################
     # bilateral constraints on position level

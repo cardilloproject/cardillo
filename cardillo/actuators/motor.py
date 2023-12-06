@@ -7,7 +7,7 @@ def Motor(Transmission):
     class _Motor(Transmission):
         def __init__(self, tau, **kwargs):
             if not callable(tau):
-                self.tau = lambda t: tau #TODO: I don't like this to much. Maybe tau should be just a System property. Otherwise the implementation self.la_tau = self.tau may be tempting.
+                self.tau = lambda t: tau 
             else:
                 self.tau = tau
             self.nla_tau = 1
@@ -16,7 +16,7 @@ def Motor(Transmission):
 
             self.W_tau = self.W_l
 
-        def la_tau(self, t, q, u, tau):
-            return tau
+        def la_tau(self, t, q, u):
+            return self.tau(t)
 
     return _Motor

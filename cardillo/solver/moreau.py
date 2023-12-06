@@ -106,8 +106,7 @@ class Moreau:
         W_c = self.system.W_c(tn12, qn12)
         la_c = self.system.la_c(tn12, qn12, un)
         W_tau = self.system.W_tau(tn12, qn12)
-        tau12 = self.system.tau(tn12)
-        la_tau = self.system.la_tau(tn12, qn12, un, tau12)
+        la_tau = self.system.la_tau(tn12, qn12, un)
         chi_g = self.system.g_dot(tn12, qn12, np.zeros_like(un))
         chi_gamma = self.system.gamma(tn12, qn12, np.zeros_like(un))
 
