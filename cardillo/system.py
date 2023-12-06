@@ -455,13 +455,13 @@ class System:
         for contr in self.__la_tau_contr:
             la_tau[contr.la_tauDOF] = contr.la_tau(t, q[contr.qDOF], u[contr.uDOF])
         return la_tau
-    
+
     def tau(self, t):
         tau = np.zeros(self.ntau)
         for contr in self.__tau_contr:
             tau[contr.tauDOF] = contr.tau(t)
         return tau
-    
+
     def set_tau(self, tau):
         if callable(tau):
             for contr in self.__tau_contr:
@@ -469,7 +469,7 @@ class System:
         else:
             for contr in self.__tau_contr:
                 contr.tau = lambda t: tau[contr.tauDOF]
-    
+
     def set_tau_from_dict(self, tau_dict):
         raise NotImplementedError
         # this is not tested!
@@ -479,8 +479,6 @@ class System:
                 contr.tau = lambda t: tau(t)[contr.tauDOF]
             else:
                 contr.tau = lambda t: tau[contr.tauDOF]
-        
-
 
     #########################################
     # bilateral constraints on position level
