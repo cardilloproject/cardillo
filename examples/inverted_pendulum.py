@@ -11,7 +11,7 @@ from cardillo.constraints import Revolute
 from cardillo.forces import Force
 from cardillo.force_laws import ScalarForceLaw
 from cardillo.transmissions import RotationalTransmission
-from cardillo.actuators import Motor
+from cardillo.actuators import Motor, PDcontroller
 
 from cardillo.solver import Moreau, BackwardEuler
 
@@ -142,15 +142,22 @@ if __name__ == "__main__":
     ax.plot(t[2:], la_tau)
     # plt.show()
 
-    # add moment
+    # add motor moment as feedforward
     la_tau_interp = interp1d(t[2:], la_tau, axis=0, fill_value="extrapolate")
-    x = lambda t, l, l_dot: -la_tau_interp(t)
-    moment = ScalarForceLaw(RotationalTransmission)(x, subsystem=joint)
-    system.add(moment)
-
+    motor.tau = lambda t: la_tau_interp(t) if t<=1 else 0
+    
+    # add PD controller as feedback
+    phi_interp = interp1d(t, phi, axis=0, fill_value="extrapolate")
+    phi_dot_interp = interp1d(t[1:], phi_dot, axis=0, fill_value="extrapolate")
+    angle_des = lambda t: np.array([phi_interp(t), phi_dot_interp(t)])
+    kp = 1000
+    kd = 10
+    controller = PDcontroller(RotationalTransmission)(kp, kd, angle_des ,subsystem=joint)
+    system.add(controller)
     system.assemble()
+    
 
-    # t1 = 6
+    t1 = 4
     dt = 1e-3
     joint.reset()
     sol = Moreau(system, t1, dt).solve()

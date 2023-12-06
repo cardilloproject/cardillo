@@ -24,6 +24,7 @@ properties.extend(["c", "c_q", "c_u"])
 properties.extend(["g_S"])
 
 properties.extend(["la_tau"])
+properties.extend(["tau"])
 
 properties.extend(["g_N"])
 properties.extend(["gamma_F", "gamma_F_q"])
@@ -63,6 +64,7 @@ class System:
         self.nla_gamma = 0
         self.nla_c = 0
         self.nla_tau = 0
+        self.ntau = 0
         self.nla_S = 0
         self.nla_N = 0
         self.nla_F = 0
@@ -175,6 +177,7 @@ class System:
         self.nla_gamma = 0
         self.nla_c = 0
         self.nla_tau = 0
+        self.ntau = 0
         self.nla_S = 0
         self.nla_N = 0
         self.nla_F = 0
@@ -215,10 +218,15 @@ class System:
                 contr.la_cDOF = np.arange(0, contr.nla_c) + self.nla_c
                 self.nla_c += contr.nla_c
 
-            # if contribution has compliance contribution
+            # if contribution of actuator forces
             if hasattr(contr, "nla_tau"):
                 contr.la_tauDOF = np.arange(0, contr.nla_tau) + self.nla_tau
                 self.nla_tau += contr.nla_tau
+
+            # if contribution of control inputs
+            if hasattr(contr, "ntau"):
+                contr.tauDOF = np.arange(0, contr.ntau) + self.ntau
+                self.ntau += contr.ntau
 
             # if contribution has constraints on position level address constraint coordinates
             if hasattr(contr, "nla_g"):
@@ -442,11 +450,17 @@ class System:
             coo[contr.uDOF, contr.la_tauDOF] = contr.W_tau(t, q[contr.qDOF])
         return coo.asformat(format)
 
-    def la_tau(self, t, q, u):
+    def la_tau(self, t, q, u, tau):
         la_tau = np.zeros(self.nla_tau, dtype=np.common_type(q, u))
         for contr in self.__la_tau_contr:
-            la_tau[contr.la_tauDOF] = contr.la_tau(t, q[contr.qDOF], u[contr.uDOF])
+            la_tau[contr.la_tauDOF] = contr.la_tau(t, q[contr.qDOF], u[contr.uDOF], tau[contr.tauDOF])
         return la_tau
+    
+    def tau(self, t):
+        tau = np.zeros(self.ntau)
+        for contr in self.__tau_contr:
+            tau[contr.tauDOF] = contr.tau(t)
+        return tau
 
     #########################################
     # bilateral constraints on position level
