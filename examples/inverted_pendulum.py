@@ -23,13 +23,13 @@ if __name__ == "__main__":
     only_unforced_dynmics = False
 
     # desired swing-up trajectory
-    desired_trajectory = ["homogeneous", "optimal_torque"][0]
+    desired_trajectory = ["homogeneous", "optimal_torque"][0] # optimal control does not work yet!
 
     # feed forward method
     feed_forward = [None, "inverse_dynamics"][1]
 
     # feed back controller
-    feed_back = [None, "PD", "PID"][1]
+    feed_back = [None, "PD", "PID"][0]
 
     l = 1
     m = 1
@@ -104,9 +104,10 @@ if __name__ == "__main__":
 
     t0 = 0
     t1 = 1
-    dt = 1e-3
+    
 
     if desired_trajectory == "homogeneous":
+        dt = 1e-3
         t = np.arange(t0, t1, dt)
         phi = np.pi * smoothstep2(t, x_min=t0, x_max=t1)
         phi_dot = (phi[1:] - phi[:-1]) / dt
@@ -118,6 +119,7 @@ if __name__ == "__main__":
 
     elif desired_trajectory == "optimal_torque":
         # initial unknowns
+        dt = 1e-1
         t = np.arange(t0, t1, dt)
         phi = np.pi * smoothstep2(t, x_min=t0, x_max=t1)
         phi_dot = (phi[1:] - phi[:-1]) / dt
@@ -187,13 +189,24 @@ if __name__ == "__main__":
             qk1, uk1, la_g, tau = unpack_x(x)
             k1 = 1
             k2 = 1
-            return 0  # k1 * np.sum(tau) + k2 * joint.angle(t[-1], qk1[-1, joint.qDOF])
+            return  k1 * np.sum(tau) + k2 * joint.angle(t[-1], qk1[-1, joint.qDOF])
 
         opt_sol = minimize(cost, x0, constraints={"type": "eq", "fun": constraints})
         if opt_sol.success:
             x_opt = opt_sol.x
+            print(opt_sol.message)
         else:
-            ValueError("optimization ")
+            raise ValueError("optimization not converged.")
+        q_opt, u_opt, _, tau_opt = unpack_x(x_opt)
+
+        joint.reset()
+        angle = []
+        for ti, qi in zip(tk1, q_opt[:, joint.qDOF]):
+            angle.append(joint.angle(ti, qi))
+        
+        plt.plot(tk1, angle)
+        plt.show()
+        
 
     if feed_forward == "inverse_dynamics":
         ####################
@@ -270,11 +283,13 @@ if __name__ == "__main__":
 
     joint.reset()
     angle = []
-    for ti, qi in zip(sol.t, sol.q[:, :7]):
+    for ti, qi in zip(sol.t, sol.q[:, joint.qDOF]):
         angle.append(joint.angle(ti, qi))
 
     fig, ax = plt.subplots()
     ax.plot(sol.t, angle)
+    ax.set_xlabel('t')
+    ax.set_ylabel('phi')
     plt.show()
 
     ###########
