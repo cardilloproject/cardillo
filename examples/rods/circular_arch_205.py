@@ -44,28 +44,47 @@ Example proposed by Kadapa, C. in
 Engineering Structures, Volume 234, 1 May 2021, 111755
 
 https://doi.org/10.1016/j.engstruct.2020.111755
+
+
+Analytical solutions for critical loads of elastica:
+D.A. DaDeppo, R. Schmidt, Instability of clamped-hinged
+circular arches subjected to a point load, J. Appl. Mech.
+Trans. ASME 42 (1975) 894-896
+https://doi.org/10.1115/1.3423734
 """
 
 
 def circular_arch(
     Rod,
-    nelements=60,
-    polynomial_degree=1,
+    nelements=20,
+    polynomial_degree=2,
     n_load_steps=10,
     reduced_integration=True,
     VTK_export=False,
+    material_properties="Kadapa",
 ):
     # cross section properties for visualization purposes
     width = 1.0
     cross_section = RectangularCrossSection(width, width)
 
     # material properties
-    EI = B = 1e3
-    EA = 0.05 * EI
-    GA = 0.01 * EI
-    GIp = 2 * EI
-    rho = 0
-    Theta = 0
+    if material_properties == "Harsch2020":
+        EI = B = 1e3
+        EA = 0.05 * EI
+        GA = 0.01 * EI
+        GIp = 2 * EI
+        tip_force = 1
+    elif material_properties == "Kadapa":
+        A = 2.29
+        I = 1.0
+        EE = 1e6  # Young's modulus
+        GG = EE / (2 * (1 + 0))  # shear modulus
+        EA = EE * A
+        GA = GG * A
+        GIp = GG * I
+        EI = EE * I
+        tip_force = 1000
+    
 
     # material model
     Ei = np.array([EA, GA, GA])
@@ -75,8 +94,10 @@ def circular_arch(
 
     # curverd initial configuration
     R = 100
-    angle = 215 * pi / 180
-    start_angle = -17.5 * pi / 180
+    # alpha = 107.5
+    alpha = 60
+    angle = 2 * alpha * pi / 180
+    start_angle = (90 - alpha) * pi / 180
 
     # definition of the parametric curve
     curve = lambda xi: np.array(
@@ -140,7 +161,7 @@ def circular_arch(
     system.add(hinge_left)
 
     # concentrated force
-    F = lambda t: -1 * t * e2
+    F = lambda t: -tip_force * t * e2
     force = Force(F, arch, frame_ID=(0.5,))
     system.add(force)
 
@@ -155,8 +176,8 @@ def circular_arch(
     solver = Riks(
         system,
         la_arc0=1e-3,
-        iter_goal=3,
-        la_arc_span=np.array([-1, 1]),
+        iter_goal=4,
+        la_arc_span=np.array([-2, 2]),
         options=SolverOptions(newton_atol=atol),
     )
 
@@ -277,4 +298,4 @@ def circular_arch(
 
 
 if __name__ == "__main__":
-    circular_arch(Rod=make_CosseratRod_Quat(mixed=True), VTK_export=False)
+    circular_arch(Rod=make_CosseratRod_Quat(mixed=True, constraints=[0,1,2]), VTK_export=False)
