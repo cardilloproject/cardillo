@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
 from cardillo.math.prox import Sphere
+from cardillo.math.approx_fprime import approx_fprime
+from cardillo.math.smoothstep import smoothstep1, smoothstep3, smoothstep4, smoothstep5
 from cardillo import System
 from cardillo.solver import (
     Moreau,
@@ -17,16 +19,18 @@ from cardillo.solver import (
 
 class belt_system:
     def __init__(
-        self, length, density, stiffness, damping, drive_roller_velocity, drive_roller_acceleration, F_friction, q0, u0, nelements=10, 
+        self, length, density, stiffness, damping, drive_roller_velocity, drive_roller_acceleration, F_prestress, F_friction_smooth, F_friction_ns, inertia_idleroller_ratio, q0, u0, nelements=10, 
     ):
         
         self.stiffness = stiffness
         self.damping = damping
         self.density = density
+        self.inertia_idleroller_ratio = inertia_idleroller_ratio
         self.length = length
         self.nelement = nelements
         self.nnd = nelements + 1
         self.Delta_x = length / self.nelement
+        self.F_prestress = F_prestress
 
         # if drive_roller_velocity is not callable:
         #     self.drive_roller_velocity = lambda t: drive_roller_velocity
@@ -44,25 +48,27 @@ class belt_system:
 
         self.nq = self.nnd
         self.nu = self.nnd
+        self.nla_gamma = 1
+
+        self.nla_F = self.nnd
+
         self.q0 = q0
         self.u0 = u0
         assert self.nq == len(q0)
         assert self.nu == len(u0)
 
-        self.F_friction = F_friction
+        self.F_friction_smooth = F_friction_smooth
 
         # fmt: off
-        self.friction_laws = [
-            ([], [0], Sphere(F_friction)),
-            ([], [1], Sphere(F_friction)),
-            ([], [2], Sphere(F_friction)),
-        ]
+        self.friction_laws = []
+        for i in range(self.nla_F):
+            self.friction_laws.append(([], [i], Sphere(F_friction_ns)))
+
+        
+        
         # fmt: on
 
-        # self.nla_gamma = 1
-
-        self.nla_F = self.nnd
-        # self.nla_F = 1
+        
         self.e_F = np.zeros(self.nla_F)
 
         self.A = np.zeros((self.nq, self.nq))
@@ -99,10 +105,11 @@ class belt_system:
             Delta_s = qe[1] - qe[0]
             M[elDOF[:, None], elDOF] += self.density * Delta_s / self.Delta_x * self.A_e
 
+        M[-1, -1] *= self.inertia_idleroller_ratio
         return M
 
     def h(self, t, q, u):
-        return self.f_elastic(q) + self.f_viscous(q, u) + self.f_gyr(q, u)
+        return self.f_elastic(q) + self.f_viscous(q, u) + self.f_gyr(q, u) + self.f_ext(t, q, u)
 
     def f_gyr(self, q, u):
         f_gyr = np.zeros(self.nu, dtype=np.common_type(q, u))
@@ -132,28 +139,46 @@ class belt_system:
             Delta_s = qe[1] - qe[0]
             ue = u[elDOF]
             Delta_v = ue[1] - ue[0]
-            f_viscous[elDOF] -= self.damping / (Delta_s) * np.array([-Delta_v, Delta_v])
+            f_viscous[elDOF] -= self.damping / Delta_s * np.array([-Delta_v, Delta_v])
         return f_viscous
     
+    def f_ext(self, t, q, u):
+        f_ext = np.zeros(self.nu, dtype=np.common_type(q, u))
+        f_ext[0]  += -self.F_prestress(t)
+        f_ext[-1] += self.F_prestress(t)
+
+        # v_th = 5e-5
+        # for i in range(self.nnd):
+        #     if np.abs(u[i]) < v_th:
+        #         f_ext[i] -= self.F_friction_smooth * u[i] / v_th
+        #     else:
+        #         f_ext[i] -= self.F_friction_smooth * np.sign(u[i])
+
+        eps = 5e-5
+        for i in range(self.nnd):
+            f_ext[i] -= self.F_friction_smooth * u[i] / (np.abs(u[i])+eps)
+
+        return f_ext
+    
+    #####################
+    # velocity constraint
     ######################
-    # # velocity constraint
-    # ######################
-    # def gamma(self, t, q, u):
-    #     return np.array([u[0]]) - self.drive_roller_velocity(t)
+    def gamma(self, t, q, u):
+        return np.array([u[0]]) - self.drive_roller_velocity(t)
 
-    # def gamma_u(self, t, q):
-    #     gamma_u = np.zeros((self.nla_gamma, self.nu), dtype=q.dtype)
-    #     gamma_u[0, 0] = 1
-    #     return gamma_u
+    def gamma_u(self, t, q):
+        gamma_u = np.zeros((self.nla_gamma, self.nu), dtype=q.dtype)
+        gamma_u[0, 0] = 1
+        return gamma_u
 
-    # def gamma_dot(self, t, q, u, u_dot):
-    #     return np.array([u_dot[0]]) - self.drive_roller_acceleration(t)
+    def gamma_dot(self, t, q, u, u_dot):
+        return np.array([u_dot[0]]) - self.drive_roller_acceleration(t)
 
-    # def W_gamma(self, t, q):
-    #     return self.gamma_u(t, q).T
+    def W_gamma(self, t, q):
+        return self.gamma_u(t, q).T
 
-    # def Wla_gamma_q(self, t, q, la_F):
-    #     return np.zeros((self.nu, self.nq))
+    def Wla_gamma_q(self, t, q, la_F):
+        return np.zeros((self.nu, self.nq))
 
 
 
@@ -198,23 +223,32 @@ class belt_system:
 
 
 if __name__ == "__main__":
-    nelements = 2
+    nelements = 3
     length = 1
-    density = 600
+    density = .9
     thickness = 2.3e-3
     stiffness = 7.e7 * thickness
-    # damping = 1e3
-    damping = 0
-    F_friction = 1e3
-    angular_frequency = 2 * 2 * np.pi
-    drive_roller_velocity = lambda t: -0.2 * np.sin(angular_frequency * t)
-    drive_roller_acceleration = lambda t: -0.2 * np.cos(angular_frequency * t) * angular_frequency
+    damping = 1.e2
+    inertia_idleroller_ratio = 1.e2
+    # F_friction = 1e4
+    F_friction_smooth = 0.5 * 10 / nelements #1e3
+    F_friction_ns = 0.1
+    F_friction_ns = 0.
+    # F_friction = 0.
+    # drive_roller_position = lambda t: -0.092 * smoothstep3(t, 0.0, 0.5)
+    drive_roller_position = lambda t: -0.023 * smoothstep3(t, 0.0, 0.5)
+    drive_roller_velocity = lambda t: approx_fprime(t, drive_roller_position)
+    drive_roller_acceleration = lambda t: approx_fprime(t, drive_roller_velocity)
+    # drive_roller_velocity = lambda t: -0.2 * np.sin(angular_frequency * t)
+    # drive_roller_acceleration = lambda t: -0.2 * np.cos(angular_frequency * t) * angular_frequency
+    # drive_roller_velocity = lambda t: 0
+    F_prestress = lambda t: 1.e4
 
-
-    # q0 = np.linspace(0, length, nelements+1) * 0.98
-    # u0 = np.zeros(nelements+1)
-    q0 = np.linspace(0, length, nelements+1)
-    u0 = -np.ones(nelements+1)
+    x = np.linspace(0, length, nelements+1)
+    q0 = stiffness / (stiffness + F_prestress(0)) * x
+    u0 = np.zeros(nelements+1)
+    # q0 = np.linspace(0, length, nelements+1)
+    # u0 = -np.ones(nelements+1)
 
     belt = belt_system(
         length=1,
@@ -223,7 +257,10 @@ if __name__ == "__main__":
         damping=damping,
         drive_roller_velocity=drive_roller_velocity,
         drive_roller_acceleration=drive_roller_acceleration,
-        F_friction=F_friction, 
+        F_prestress=F_prestress,
+        F_friction_smooth=F_friction_smooth,
+        F_friction_ns=F_friction_ns,
+        inertia_idleroller_ratio=inertia_idleroller_ratio,
         q0=q0, 
         u0=u0, 
         nelements=nelements, 
@@ -234,11 +271,12 @@ if __name__ == "__main__":
 
     system.assemble()
     
-    t_final = 1
+    t_final = 3
     dt = 1e-3
+    # dt = 1e-5
 
-    # solver = ScipyIVP(system, t_final, dt)
-    # # solver, label = Moreau(system, t_final, dt), "Moreau"
+    # solver, label = ScipyIVP(system, t_final, dt, method="Radau", atol=1e-6), "Radau"
+    # solver, label = Moreau(system, t_final, dt, options=SolverOptions(reuse_lu_decomposition=True)), "Moreau"
     
     solver, label = (
         BackwardEuler(
@@ -263,11 +301,12 @@ if __name__ == "__main__":
     ax[0].grid()
     # ax[0].legend()
 
-    plt.show()
+    ax[1].set_title("material influx idle-roller - material outflux drive-roller")
+    ax[1].plot(t[::10], (q[::10, -1] - q[0, -1]) - (q[::10, 0] - q[0, 0]), "-k", label=label)
+    ax[1].grid()
 
-    # ax[1].set_title("u_x(t)")
-    # ax[1].plot(t, u[:, 0], "-k", label=label)
-    # ax[1].legend()
+
+    plt.show()
 
     # ax[2].set_title("P_F(t)")
     # ax[2].plot(t, P_F[:, 0], "-k", label=label)
