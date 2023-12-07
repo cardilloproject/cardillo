@@ -54,13 +54,15 @@ class belt_system:
         # fmt: off
         self.friction_laws = [
             ([], [0], Sphere(F_friction)),
+            ([], [1], Sphere(F_friction)),
+            ([], [2], Sphere(F_friction)),
         ]
         # fmt: on
 
         # self.nla_gamma = 1
 
-        # self.nla_F = self.nnd
-        self.nla_F = 1
+        self.nla_F = self.nnd
+        # self.nla_F = 1
         self.e_F = np.zeros(self.nla_F)
 
         self.A = np.zeros((self.nq, self.nq))
@@ -157,42 +159,42 @@ class belt_system:
 
     #########
     # friction
-    # ##########
-    def gamma_F(self, t, q, u):
-        return np.array([u[0]])
-
-    def gamma_F_u(self, t, q):
-        gamma_F_u = np.zeros((self.nla_F, self.nu), dtype=q.dtype)
-        gamma_F_u[0, 0] = 1
-        return gamma_F_u
-
-    def gamma_F_dot(self, t, q, u, u_dot):
-        return np.array([u_dot[0]])
-
-    def W_F(self, t, q):
-        return self.gamma_F_u(t, q).T
-
-    def Wla_F_q(self, t, q, la_F):
-        return np.zeros((self.nu, self.nq))
-    
-
-    # ########
-    # # friction
-    # ##########
+    # # ##########
     # def gamma_F(self, t, q, u):
-    #     return u
+    #     return np.array([u[-1]])
 
     # def gamma_F_u(self, t, q):
-    #     return np.eye(self.nu)
+    #     gamma_F_u = np.zeros((self.nla_F, self.nu), dtype=q.dtype)
+    #     gamma_F_u[0, -1] = 1
+    #     return gamma_F_u
 
     # def gamma_F_dot(self, t, q, u, u_dot):
-    #     return u_dot
+    #     return np.array([u_dot[-1]])
 
     # def W_F(self, t, q):
     #     return self.gamma_F_u(t, q).T
 
     # def Wla_F_q(self, t, q, la_F):
     #     return np.zeros((self.nu, self.nq))
+    
+
+    ########
+    # friction
+    ##########
+    def gamma_F(self, t, q, u):
+        return u
+
+    def gamma_F_u(self, t, q):
+        return np.eye(self.nu)
+
+    def gamma_F_dot(self, t, q, u, u_dot):
+        return u_dot
+
+    def W_F(self, t, q):
+        return self.gamma_F_u(t, q).T
+
+    def Wla_F_q(self, t, q, la_F):
+        return np.zeros((self.nu, self.nq))
 
 
 if __name__ == "__main__":
@@ -209,10 +211,10 @@ if __name__ == "__main__":
     drive_roller_acceleration = lambda t: -0.2 * np.cos(angular_frequency * t) * angular_frequency
 
 
-    q0 = np.linspace(0, length, nelements+1) * 0.98
-    u0 = np.zeros(nelements+1)
-    # q0 = np.linspace(0, length, nelements+1)
-    # u0 = -np.ones(nelements+1)
+    # q0 = np.linspace(0, length, nelements+1) * 0.98
+    # u0 = np.zeros(nelements+1)
+    q0 = np.linspace(0, length, nelements+1)
+    u0 = -np.ones(nelements+1)
 
     belt = belt_system(
         length=1,
