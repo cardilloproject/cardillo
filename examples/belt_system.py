@@ -223,7 +223,7 @@ class belt_system:
 
 
 if __name__ == "__main__":
-    nelements = 3
+    nelements = 10
     length = 1
     density = .9
     thickness = 2.3e-3
@@ -231,12 +231,14 @@ if __name__ == "__main__":
     damping = 1.e2
     inertia_idleroller_ratio = 1.e2
     # F_friction = 1e4
+    # F_friction_smooth = 0
     F_friction_smooth = 0.5 * 10 / nelements #1e3
-    F_friction_ns = 0.1
-    F_friction_ns = 0.
+    # F_friction_ns = 0.5 * 10 / nelements
+    F_friction_ns = 0
     # F_friction = 0.
-    # drive_roller_position = lambda t: -0.092 * smoothstep3(t, 0.0, 0.5)
-    drive_roller_position = lambda t: -0.023 * smoothstep3(t, 0.0, 0.5)
+    # drive_roller_position = lambda t: -0.092 * smoothstep4(t, 0.0, 0.5)
+    drive_roller_position = lambda t: -0.046 * smoothstep4(t, 0.0, 0.5)
+    # drive_roller_position = lambda t: -0.023 * smoothstep4(t, 0.0, 0.5)
     drive_roller_velocity = lambda t: approx_fprime(t, drive_roller_position)
     drive_roller_acceleration = lambda t: approx_fprime(t, drive_roller_velocity)
     # drive_roller_velocity = lambda t: -0.2 * np.sin(angular_frequency * t)
@@ -275,16 +277,16 @@ if __name__ == "__main__":
     dt = 1e-3
     # dt = 1e-5
 
-    # solver, label = ScipyIVP(system, t_final, dt, method="Radau", atol=1e-6), "Radau"
+    solver, label = ScipyIVP(system, t_final, dt, method="BDF", atol=1e-8), "Radau"
     # solver, label = Moreau(system, t_final, dt, options=SolverOptions(reuse_lu_decomposition=True)), "Moreau"
     
-    solver, label = (
-        BackwardEuler(
-            # system, t_final, dt, options=SolverOptions(reuse_lu_decomposition=True)
-            system, t_final, dt, options=SolverOptions(reuse_lu_decomposition=True, numerical_jacobian_method="2-point")
-        ),
-        "BackwardEuler",
-    )
+    # solver, label = (
+    #     BackwardEuler(
+    #         # system, t_final, dt, options=SolverOptions(reuse_lu_decomposition=True)
+    #         system, t_final, dt, options=SolverOptions(reuse_lu_decomposition=True, numerical_jacobian_method="2-point")
+    #     ),
+    #     "BackwardEuler",
+    # )
 
     sol = solver.solve()
     t = sol.t
@@ -302,7 +304,7 @@ if __name__ == "__main__":
     # ax[0].legend()
 
     ax[1].set_title("material influx idle-roller - material outflux drive-roller")
-    ax[1].plot(t[::10], (q[::10, -1] - q[0, -1]) - (q[::10, 0] - q[0, 0]), "-k", label=label)
+    ax[1].plot(t[:], (q[:, -1] - q[0, -1]) - (q[:, 0] - q[0, 0]), "-k", label=label)
     ax[1].grid()
 
 
