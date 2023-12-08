@@ -257,6 +257,5 @@ def circular_arch(
 
     plt.show()
 
-
 if __name__ == "__main__":
-    circular_arch(Rod=make_CosseratRod_Quat(mixed=True), i_alpha=12)
+    circular_arch(Rod=make_CosseratRod_Quat(mixed=True), i_alpha=14)
