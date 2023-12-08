@@ -5,7 +5,6 @@ from cardillo.rods import (
     animate_beam,
 )
 
-
 from cardillo.rods.cosseratRod import (
     make_CosseratRod_Quat,
     make_CosseratRod_SE3,
@@ -31,60 +30,41 @@ from pathlib import Path
 
 
 """
-Cantilever beam examples from
+Instability of Clamped-Hinged Circular Arches Subjected to a Point Load
 
-Harsch, J. and Eugster, S. R., "Finite element analysis of planar nonlinear classical beam theories", 2020. 
-https://doi.org/10.1007/978-3-030-50460-1_10
-
-6.4 Clamped-hinged circular arch subject to point load
-
-Example proposed by Kadapa, C. in
-"A simple extrapolated predictor for overcoming the starting and tracking issues in the
- arc-length method for nonlinear structural mechanics",
-Engineering Structures, Volume 234, 1 May 2021, 111755
-
-https://doi.org/10.1016/j.engstruct.2020.111755
-
-
-Analytical solutions for critical loads of elastica:
 D.A. DaDeppo, R. Schmidt, Instability of clamped-hinged
 circular arches subjected to a point load, J. Appl. Mech.
 Trans. ASME 42 (1975) 894-896
 https://doi.org/10.1115/1.3423734
-"""
 
+"A simple extrapolated predictor for overcoming the starting and tracking issues in the  arc-length method for nonlinear structural mechanics", Engineering Structures, Volume 234, 1 May 2021, 111755
+https://doi.org/10.1016/j.engstruct.2020.111755
+
+"""
 
 def circular_arch(
     Rod,
-    nelements=20,
+    i_alpha=14,
+    nelements=10,
     polynomial_degree=2,
     n_load_steps=10,
     reduced_integration=True,
     VTK_export=False,
-    material_properties="Kadapa",
 ):
     # cross section properties for visualization purposes
     width = 1.0
     cross_section = RectangularCrossSection(width, width)
 
     # material properties
-    if material_properties == "Harsch2020":
-        EI = B = 1e3
-        EA = 0.05 * EI
-        GA = 0.01 * EI
-        GIp = 2 * EI
-        tip_force = 1
-    elif material_properties == "Kadapa":
-        A = 2.29
-        I = 1.0
-        EE = 1e6  # Young's modulus
-        GG = EE / (2 * (1 + 0))  # shear modulus
-        EA = EE * A
-        GA = GG * A
-        GIp = GG * I
-        EI = EE * I
-        tip_force = 1000
-    
+    A = 2.29
+    I = 1.0
+    EE = 1e6  # Young's modulus
+    GG = EE / (2 * (1 + 0))  # shear modulus
+    EA = EE * A
+    GA = GG * A
+    GIp = GG * I
+    EI = EE * I
+    tip_force = 1000
 
     # material model
     Ei = np.array([EA, GA, GA])
@@ -94,12 +74,25 @@ def circular_arch(
 
     # curverd initial configuration
     R = 100
-    # alpha = 107.5
-    alpha = 60
+
+    path = Path(__file__)
+
+    data_DaDeppo = np.loadtxt(
+        Path(path.parent, "_data_circular_arch_215", "critical_loads_DaDeppo1975.csv"),
+        delimiter=",",
+        skiprows=1,
+    )
+
+    alpha = data_DaDeppo[i_alpha, 0]
+    print(f"circular arch with angle:{2*alpha}")
+    critical_load = data_DaDeppo[i_alpha, 1] / 10
+    u_x_DaDeppo = data_DaDeppo[i_alpha, 2] * R
+    u_y_DaDeppo = data_DaDeppo[i_alpha, 3] * R
+
     angle = 2 * alpha * pi / 180
     start_angle = (90 - alpha) * pi / 180
 
-    # definition of the parametric curve
+    # definition of the arch curve
     curve = lambda xi: np.array(
         [R * np.cos(xi + start_angle), R * np.sin(xi + start_angle), 0]
     )
@@ -110,19 +103,8 @@ def circular_arch(
         [-R * np.cos(xi + start_angle), -R * np.sin(xi + start_angle), 0]
     )
 
-    # starting point and orientation of initial point, initial length
-    r_OP01 = curve(0)
-    A_IK01 = np.eye(3, dtype=float)
-    A_IK01[:, 0] = dcurve(0) / norm(dcurve(0))
-    A_IK01[:, 1] = ddcurve(0) / norm(ddcurve(0))
-    A_IK01[:, 2] = cross3(A_IK01[:, 0], A_IK01[:, 1])
-
     # final point
     r_OP02 = curve(angle)
-    A_IK02 = np.eye(3, dtype=float)
-    A_IK02[:, 0] = dcurve(angle) / norm(dcurve(angle))
-    A_IK02[:, 1] = ddcurve(angle) / norm(ddcurve(angle))
-    A_IK02[:, 2] = cross3(A_IK02[:, 0], A_IK02[:, 1])
 
     q0 = Rod.deformed_configuration(
         nelements,
@@ -152,7 +134,7 @@ def circular_arch(
     clamping_right = RigidConnection(system.origin, arch, frame_ID2=(0,))
 
     # hinged point
-    frame_left = Frame(r_OP02, A_IK02)
+    frame_left = Frame(r_OP02)
     hinge_left = Revolute(frame_left, arch, 2, frame_ID2=(1,))
 
     system.add(arch)
@@ -167,17 +149,17 @@ def circular_arch(
 
     system.assemble(options=SolverOptions(compute_consistent_initial_conditions=False))
 
-    atol = 1e-6
-    # solver = Newton(
-    #     system,
-    #     n_load_steps=10,
-    #     options=SolverOptions(newton_atol=atol),
-    # )
+    atol = 1e-10
+    # # solver = Newton(
+    # #     system,
+    # #     n_load_steps=10,
+    # #     options=SolverOptions(newton_atol=atol),
+    # # )
     solver = Riks(
         system,
-        la_arc0=1e-3,
+        la_arc0=1e-2,
         iter_goal=4,
-        la_arc_span=np.array([-2, 2]),
+        la_arc_span=np.array([-1.1*critical_load, 1.1*critical_load]),
         options=SolverOptions(newton_atol=atol),
     )
 
@@ -186,7 +168,7 @@ def circular_arch(
     nt = len(q)
     t = sol.t[:nt]
 
-    path = Path(__file__)
+    
 
     u_x = np.zeros(nt)
     u_y = np.zeros(nt)
@@ -202,55 +184,34 @@ def circular_arch(
 
     fig5, ax = plt.subplots(1, 2)
 
-    # ax.plot(t, x_tip_displacement, '-', color='blue', label='X Tip Displacement', marker='o')
-    # ax.plot(t, y_tip_displacement, '-', color='red', label='Y Tip Displacement', marker='s')
-    ax[0].plot(u_x, t, "-", color="blue", label="X Tip Displacement", marker="o")
-    ax[1].plot(u_y, t, "-", color="red", label="Y Tip Displacement", marker="s")
-
-    force_displacement = np.loadtxt(
-        Path(path.parent, "_data_circular_arch_215", "force_displacement_T.txt"),
-        delimiter=",",
-        skiprows=1,
-        # dtype=float,
-    )
-
-    force_u_x_Simo = np.loadtxt(
-        Path(path.parent, "_data_circular_arch_215", "force_u_x_Simo1986.csv"),
-        delimiter=";",
-        # skiprows=1,
-        # dtype=float,
-    )
-    force_u_y_Simo = np.loadtxt(
-        Path(path.parent, "_data_circular_arch_215", "force_u_y_Simo1986.csv"),
-        delimiter=";",
-        # skiprows=1,
-        # dtype=float,
-    )
-
-    ax[0].plot(
-        force_displacement[:, 2][::200],
-        force_displacement[:, 1][::200],
-        "x",
-        color="blue",
-    )
-    ax[0].plot(force_u_x_Simo[:, 0], force_u_x_Simo[:, 1] / 1000, "x", color="green")
-    ax[1].plot(
-        force_displacement[:, 3][::200],
-        force_displacement[:, 1][::200],
-        "x",
-        color="red",
-    )
-
-    ax[1].plot(force_u_y_Simo[:, 0], force_u_y_Simo[:, 1] / 1000, "x", color="green")
-
-    # Aggiungi una legenda
+    ax[0].plot(u_x, t, "-", color="blue", label="Cosserat rod")
+    ax[0].plot(u_x_DaDeppo, critical_load, marker="+", color="red", label="critical load DaDeppo 1975")
     ax[0].legend(loc="upper left")
-
-    # Personalizza il titolo e le label degli assi se necessario
-    ax[0].set_title("Displacements of tip point")
+    ax[0].set_title("horizontal displacements of tip point")
     ax[0].set_xlabel("u_x")
-    ax[0].set_ylabel("Load Factor")
+    ax[0].set_ylabel("load factor")
+    
+    ax[1].plot(u_y, t, "-", color="blue", label="Cosserat rod")
+    ax[1].plot(u_y_DaDeppo, critical_load, "+", color="red", label="critical load DaDeppo 1975")
+    ax[1].legend(loc="upper left")
+    ax[1].set_title("horizontal displacements of tip point")
+    ax[1].set_xlabel("u_x")
+    ax[1].set_ylabel("load factor")
 
+    if i_alpha == 14:
+        force_u_x_Kadapa = np.loadtxt(
+            Path(path.parent, "_data_circular_arch_215", "force_u_x_Kadapa2021.csv"),
+            delimiter=",",
+            skiprows=1,
+        )
+        force_u_y_Kadapa = np.loadtxt(
+            Path(path.parent, "_data_circular_arch_215", "force_u_y_Kadapa2021.csv"),
+            delimiter=",",
+            skiprows=1,
+        )
+        ax[0].plot(force_u_x_Kadapa[:, 0] * 100, force_u_x_Kadapa[:, 1] / 10, "x", color="green")
+        ax[1].plot(force_u_y_Kadapa[:, 0] * 100, force_u_y_Kadapa[:, 1] / 10, "x", color="green")
+  
     # VTK export
     if VTK_export:
         path = Path(__file__)
@@ -298,4 +259,4 @@ def circular_arch(
 
 
 if __name__ == "__main__":
-    circular_arch(Rod=make_CosseratRod_Quat(mixed=True, constraints=[0,1,2]), VTK_export=False)
+    circular_arch(Rod=make_CosseratRod_Quat(mixed=True), i_alpha=12)
