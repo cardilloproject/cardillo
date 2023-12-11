@@ -18,29 +18,36 @@ from cardillo.solver import Moreau
 from cardillo.math import A_IK_basic, cross3
 from cardillo.math import smoothstep2
 
+from optimal_control_pendulum import optimal_control_pendulum
+
 if __name__ == "__main__":
     # only compute forward dynamics of unforced pendulum
     only_unforced_dynmics = False
 
     # desired swing-up trajectory
-    desired_trajectory = ["homogeneous", "optimal_torque"][0] # optimal control does not work yet!
+    desired_trajectory = ["homogeneous", "optimal_torque"][
+        1
+    ]  # optimal control does not work yet!
 
     # feed forward method
-    feed_forward = [None, "inverse_dynamics"][1]
+    feed_forward = True  # inverse dynamics for "homogeneous"
 
     # feed back controller
-    feed_back = [None, "PD", "PID"][0]
+    feed_back = [None, "PD", "PID"][1]
 
     l = 1
     m = 1
     theta_S = m * (l**2) / 12
+    g = 10
 
     phi0 = 0  # np.pi / 2
     phi_dot0 = 0
 
+    phiN = 1 * np.pi  # target angle
+
     system = System()
 
-    K_r_OS = np.array([0, -l, 0])
+    K_r_OS = np.array([0, -l / 2, 0])
     A_IK0 = A_IK_basic(phi0).z()
     r_OS0 = A_IK0 @ K_r_OS
     K_Omega0 = np.array([0, 0, phi_dot0])
@@ -56,7 +63,7 @@ if __name__ == "__main__":
     )
     joint.name = "revolute joint"
 
-    gravity = Force(np.array([0, -10 * m, 0]), pendulum)
+    gravity = Force(np.array([0, -g * m, 0]), pendulum)
 
     system.add(pendulum, gravity, joint)
 
@@ -64,19 +71,6 @@ if __name__ == "__main__":
     tau = lambda t: 0
     motor = Motor(RotationalTransmission)(tau, subsystem=joint)
     system.add(motor)
-
-    # # add spring damper
-    # stiffness = 10
-    # damping = 2
-    # l0 = 0 #np.pi
-    # force_law = lambda t, l, l_dot: stiffness * (l - l0) + damping * l_dot
-    # spring = ScalarForceLaw(RotationalTransmission)(force_law, subsystem=joint)
-    # system.add(spring)
-
-    # add moment
-    # force_law = lambda t, l, l_dot: - 1
-    # moment = ScalarForceLaw(RotationalTransmission)(force_law, subsystem=joint)
-    # system.add(moment)
 
     system.assemble()
 
@@ -98,168 +92,98 @@ if __name__ == "__main__":
         plt.show()
         exit()
 
-    ####################
-    # inverse kinematics
-    ####################
+    #####################
+    # trajectory planning
+    #####################
 
     t0 = 0
     t1 = 1
-    
 
     if desired_trajectory == "homogeneous":
         dt = 1e-3
         t = np.arange(t0, t1, dt)
-        phi = np.pi * smoothstep2(t, x_min=t0, x_max=t1)
+        phi = phiN * smoothstep2(t, x_min=t0, x_max=t1)
         phi_dot = (phi[1:] - phi[:-1]) / dt
 
         # fig, ax = plt.subplots()
         # ax.plot(t, phi, "k")
         # ax.plot(t[1:], phi_dot, "r")
         # plt.show()
+        if feed_forward:
+            ####################
+            # inverse kinematics
+            ####################
+            A_IK = np.array([A_IK_basic(phi_).z() for phi_ in phi])
+            r_OS = np.array([A_IK_ @ K_r_OS for A_IK_ in A_IK])
+            K_Omega = np.array([[0, 0, phi_dot_] for phi_dot_ in phi_dot])
+            v_S = np.array(
+                [cross3(K_Omega_, r_OS_) for K_Omega_, r_OS_ in zip(K_Omega, r_OS[1:])]
+            )  # I_Omega = K_Omega!!
+
+            q = np.array(
+                [RigidBody.pose2q(r_OS_, A_IK_) for r_OS_, A_IK_ in zip(r_OS, A_IK)]
+            )
+            u = np.concatenate([v_S, K_Omega], axis=1)
+            u_dot = (u[1:] - u[:-1]) / dt
+
+            # fig, ax = plt.subplots()
+            # ax.plot(t[2:], u_dot)
+            # plt.show()
+
+            ##################
+            # inverse dynamics
+            ##################
+            # M @ u_dot - h = W_tau @ la_tau + W_g @ la_g
+            la = np.array(
+                [
+                    np.linalg.pinv(
+                        np.concatenate(
+                            (
+                                system.W_tau(t_, q_).toarray(),
+                                system.W_g(t_, q_).toarray(),
+                            ),
+                            axis=1,
+                        )
+                    )
+                    @ (system.M(t_, q_) @ u_dot_ - system.h(t_, q_, u_))
+                    for t_, q_, u_, u_dot_ in zip(t[2:], q[2:], u[1:], u_dot)
+                ]
+            )
+            la_tau = la[:, 0]
+            la_g = la[:, 1:]
+
+            # fig, ax = plt.subplots()
+            # ax.plot(t[2:], la_tau)
+            # plt.show()
+
+            # add motor moment as feedforward
+            la_tau_interp = interp1d(t[2:], la_tau, axis=0, fill_value="extrapolate")
+            motor.tau = lambda t: la_tau_interp(t) if t <= 1 else 0
 
     elif desired_trajectory == "optimal_torque":
         # initial unknowns
-        dt = 1e-1
-        t = np.arange(t0, t1, dt)
-        phi = np.pi * smoothstep2(t, x_min=t0, x_max=t1)
+        dt = 4e-2
+        phi_dotN = 0
+        _, t, phi, tau = optimal_control_pendulum(
+            l, m, t1, phiN, phi_dotN, dt, g=g, phi0=phi0, phi_dot0=phi_dot0
+        )
         phi_dot = (phi[1:] - phi[:-1]) / dt
-        A_IK = np.array([A_IK_basic(phi_).z() for phi_ in phi])
-        r_OS = np.array([A_IK_ @ K_r_OS for A_IK_ in A_IK])
-        K_Omega = np.array([[0, 0, phi_dot_] for phi_dot_ in phi_dot])
-        v_S = np.array(
-            [cross3(K_Omega_, r_OS_) for K_Omega_, r_OS_ in zip(K_Omega, r_OS[1:])]
-        )  # I_Omega = K_Omega!!
 
-        q = np.array(
-            [RigidBody.pose2q(r_OS_, A_IK_) for r_OS_, A_IK_ in zip(r_OS, A_IK)]
-        )
-        u = np.concatenate([v_S, K_Omega], axis=1)
-
-        tk1 = t[2:]
-        nt = len(tk1)
-        nx = system.nq + system.nu + system.nla_g + system.ntau
-
-        def pack_x(q, u, la_g, tau):
-            return np.concatenate([q, u, la_g, tau], axis=1).flatten(order="C")
-
-        def unpack_x(x):
-            return np.array_split(
-                x.reshape((nt, nx), order="C"),
-                [
-                    system.nq,
-                    system.nq + system.nu,
-                    system.nq + system.nu + system.nla_g,
-                ],
-                axis=1,
+        if feed_forward:
+            motor.tau = interp1d(
+                t[:-2], tau, axis=0, fill_value=0.0, bounds_error=False
             )
 
-        x0 = pack_x(q[2:], u[1:], np.zeros((nt, system.nla_g)), np.zeros((nt, 1)))
-
-        def constraints(x):
-            qk1, uk1, la_g, tau = unpack_x(x)
-            q0 = system.q0
-            u0 = system.u0
-            q1 = q0 + dt * system.q_dot(t0, q0, u0)
-            qk = np.concatenate([q1.reshape(1, system.nq), qk1[:-1]])
-            uk = np.concatenate([u0.reshape(1, system.nu), uk1[:-1]])
-
-            system.set_tau(interp1d(tk1, tau, axis=0, fill_value="extrapolate"))
-
-            R_q = np.array(
-                [
-                    qk1_ - qk_ - dt * system.q_dot(t_, qk1_, uk1_)
-                    for t_, qk_, qk1_, uk1_ in zip(tk1, qk, qk1, uk1)
-                ]
-            )
-            R_u = np.array(
-                [
-                    system.M(t_, qk1_) @ (uk1_ - uk_)
-                    - system.h(t_, qk1_, uk1_)
-                    - system.W_g(t_, qk1_) @ la_g_
-                    - system.W_tau(t_, qk1_) @ system.tau(t_)
-                    for t_, qk1_, uk_, uk1_, la_g_ in zip(tk1, qk1, uk, uk1, la_g)
-                ]
-            )
-            R_g = np.array([system.g(t_, qk1_) for t_, qk1_ in zip(tk1, qk1)])
-
-            R = np.concatenate([R_q, R_u, R_g], axis=1)
-            return R.flatten(order="C")
-
-        def cost(x):
-            qk1, uk1, la_g, tau = unpack_x(x)
-            k1 = 1
-            k2 = 1
-            return  k1 * np.sum(tau) + k2 * joint.angle(t[-1], qk1[-1, joint.qDOF])
-
-        opt_sol = minimize(cost, x0, constraints={"type": "eq", "fun": constraints})
-        if opt_sol.success:
-            x_opt = opt_sol.x
-            print(opt_sol.message)
-        else:
-            raise ValueError("optimization not converged.")
-        q_opt, u_opt, _, tau_opt = unpack_x(x_opt)
-
-        joint.reset()
-        angle = []
-        for ti, qi in zip(tk1, q_opt[:, joint.qDOF]):
-            angle.append(joint.angle(ti, qi))
-        
-        plt.plot(tk1, angle)
-        plt.show()
-        
-
-    if feed_forward == "inverse_dynamics":
-        ####################
-        # inverse kinematics
-        ####################
-        A_IK = np.array([A_IK_basic(phi_).z() for phi_ in phi])
-        r_OS = np.array([A_IK_ @ K_r_OS for A_IK_ in A_IK])
-        K_Omega = np.array([[0, 0, phi_dot_] for phi_dot_ in phi_dot])
-        v_S = np.array(
-            [cross3(K_Omega_, r_OS_) for K_Omega_, r_OS_ in zip(K_Omega, r_OS[1:])]
-        )  # I_Omega = K_Omega!!
-
-        q = np.array(
-            [RigidBody.pose2q(r_OS_, A_IK_) for r_OS_, A_IK_ in zip(r_OS, A_IK)]
-        )
-        u = np.concatenate([v_S, K_Omega], axis=1)
-        u_dot = (u[1:] - u[:-1]) / dt
-
-        # fig, ax = plt.subplots()
-        # ax.plot(t[2:], u_dot)
-        # plt.show()
-
-        ##################
-        # inverse dynamics
-        ##################
-        # M @ u_dot - h = W_tau @ la_tau + W_g @ la_g
-        la = np.array(
-            [
-                np.linalg.pinv(
-                    np.concatenate(
-                        (system.W_tau(t_, q_).toarray(), system.W_g(t_, q_).toarray()),
-                        axis=1,
-                    )
-                )
-                @ (system.M(t_, q_) @ u_dot_ - system.h(t_, q_, u_))
-                for t_, q_, u_, u_dot_ in zip(t[2:], q[2:], u[1:], u_dot)
-            ]
-        )
-        la_tau = la[:, 0]
-        la_g = la[:, 1:]
-
-        # fig, ax = plt.subplots()
-        # ax.plot(t[2:], la_tau)
-        # plt.show()
-
-        # add motor moment as feedforward
-        la_tau_interp = interp1d(t[2:], la_tau, axis=0, fill_value="extrapolate")
-        motor.tau = lambda t: la_tau_interp(t) if t <= 1 else 0
-
-    # add PD controller as feedback
-    phi_interp = interp1d(t, phi, axis=0, fill_value="extrapolate")
-    phi_dot_interp = interp1d(t[1:], phi_dot, axis=0, fill_value="extrapolate")
+    #####################
+    # feedback controller
+    #####################
+    # desired/planned trajectory
+    phi_interp = interp1d(t, phi, axis=0, fill_value=phiN, bounds_error=False)
+    phi_dot_interp = interp1d(
+        t[1:], phi_dot, axis=0, fill_value=0.0, bounds_error=False
+    )
     angle_des = lambda t: np.array([phi_interp(t), phi_dot_interp(t)])
+    # controller gains
     kp = 50
     ki = 100
     kd = 10
@@ -276,6 +200,10 @@ if __name__ == "__main__":
 
     system.assemble()
 
+    ############
+    # simulation
+    ############
+
     t1 = 4
     dt = 1e-3
     joint.reset()
@@ -288,8 +216,8 @@ if __name__ == "__main__":
 
     fig, ax = plt.subplots()
     ax.plot(sol.t, angle)
-    ax.set_xlabel('t')
-    ax.set_ylabel('phi')
+    ax.set_xlabel("t")
+    ax.set_ylabel("phi")
     plt.show()
 
     ###########
@@ -322,7 +250,7 @@ if __name__ == "__main__":
 
     def update(t, q, line):
         r_OS = pendulum.r_OP(t, q)
-        line.set_data([0, r_OS[0]], [0, r_OS[1]])
+        line.set_data([0, 2 * r_OS[0]], [0, 2 * r_OS[1]])
         return (line,)
 
     def animate(i):
