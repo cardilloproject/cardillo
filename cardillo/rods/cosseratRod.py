@@ -76,6 +76,28 @@ def make_CosseratRod_SE3(mixed=False, constraints=None):
             return CosseratRod.straight_configuration(nelement, L, 1, r_OP, A_IK)
 
         @staticmethod
+        def deformed_configuration(
+            nelement,
+            curve,
+            dcurve,
+            ddcurve,
+            xi1,
+            polynomial_degree=1,
+            r_OP=np.zeros(3, dtype=float),
+            A_IK=np.eye(3, dtype=float),
+        ):
+            return CosseratRod.deformed_configuration(
+                nelement,
+                curve,
+                dcurve,
+                ddcurve,
+                xi1,
+                polynomial_degree=1,
+                r_OP=r_OP,
+                A_IK=A_IK,
+            )
+
+        @staticmethod
         def straight_initial_configuration(
             nelement,
             L,

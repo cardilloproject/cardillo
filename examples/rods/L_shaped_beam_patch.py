@@ -211,7 +211,7 @@ def L_shaped_beam_patch(
     ax1.elev = 72
 
     E_pot_total_ref = np.loadtxt(
-        Path(path.parent, "_data_L_shaped_beam_patch", "E_pot.txt"),
+        Path(path.parent, "_data_L_shaped_beam_patch", "E_pot.csv"),
         delimiter=",",
         skiprows=1,
     )

@@ -158,7 +158,7 @@ def cantilever(
         Path(
             path.parent,
             "_data_cantilever_tip_force_and_moment",
-            "centerline_T_numeric.txt",
+            "centerline_T_numeric.csv",
         ),
         delimiter=",",
         skiprows=1,
@@ -173,7 +173,7 @@ def cantilever(
         Path(
             path.parent,
             "_data_cantilever_tip_force_and_moment",
-            "centerline_EB_numeric.txt",
+            "centerline_EB_numeric.csv",
         ),
         delimiter=",",
         skiprows=1,
@@ -188,7 +188,7 @@ def cantilever(
         Path(
             path.parent,
             "_data_cantilever_tip_force_and_moment",
-            "centerline_IEB_analytic.txt",
+            "centerline_IEB_analytic.csv",
         ),
         delimiter=",",
         skiprows=1,

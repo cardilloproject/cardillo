@@ -263,38 +263,36 @@ class CosseratRod(RodExportBase, ABC):
         curve,
         dcurve,
         ddcurve,
-        angle,
-        polynomial_degree=1,
+        xi1,
+        polynomial_degree,
         r_OP=np.zeros(3, dtype=float),
         A_IK=np.eye(3, dtype=float),
     ):
         nnodes_r = polynomial_degree * nelement + 1
 
-        LL = np.linspace(0, angle, nnodes_r)
+        xis = np.linspace(0, xi1, nnodes_r)
 
         # nodal positions
         r0 = np.zeros((3, nnodes_r))
         P0 = np.zeros((4, nnodes_r))
 
-        for i in range(nnodes_r):
-            r0[:, i] = r_OP + A_IK @ curve(LL[i])
+        for i, xii in enumerate(xis):
+            r0[:, i] = r_OP + A_IK @ curve(xii)
             A_KC = np.zeros((3, 3))
-            A_KC[:, 0] = dcurve(LL[i]) / norm(dcurve(LL[i]))
-            A_KC[:, 1] = ddcurve(LL[i]) / norm(ddcurve(LL[i]))
+            A_KC[:, 0] = dcurve(xii) / norm(dcurve(xii))
+            A_KC[:, 1] = ddcurve(xii) / norm(ddcurve(xii))
             A_KC[:, 2] = cross3(A_KC[:, 0], A_KC[:, 1])
             A_IC = A_IK @ A_KC
             P0[:, i] = Log_SO3_quat(A_IC)
 
-            # TODO: check for half space
-
         for i in range(nnodes_r - 1):
             inner = P0[:, i] @ P0[:, i + 1]
-            print(f"i: {i}")
+            # print(f"i: {i}")
             if inner < 0:
-                print("wrong hemisphere!")
+                # print("wrong hemisphere!")
                 P0[:, i + 1] *= -1
-            else:
-                print(f"correct hemisphere")
+            # else:
+            # print(f"correct hemisphere")
 
         # reshape nodal positions for generalized coordinates tuple
         q_r = r0.reshape(-1, order="C")
