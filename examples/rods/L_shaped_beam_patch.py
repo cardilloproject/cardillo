@@ -61,40 +61,35 @@ def L_shaped_beam_patch(
     Fi = np.array([0.5, 2, 2])
     material_model = Simo1986(Ei, Fi)
 
+    # starting positions and orientations
+    r_OP0 = np.array([[0, 0, 0], [length, 0, 0]])
+    A_IK0 = np.zeros((2, 3, 3))
+    A_IK0[0] = np.eye(3)
+    A_IK0[1] = A_IK_basic(-pi / 2).z()
+
     # construct system
     system = System()
 
-    # compute straight initial configuration of cantilever
-    q0 = Rod.straight_configuration(
-        nelements, length, polynomial_degree=polynomial_degree
-    )
-    # construct cantilever
-    cantilever1 = Rod(
-        cross_section,
-        material_model,
-        nelements,
-        Q=q0,
-        q0=q0,
-        polynomial_degree=polynomial_degree,
-        reduced_integration=reduced_integration,
-    )
-
-    r_OP = np.array([length, 0, 0])
-    A_IK = A_IK_basic(-pi / 2).z()
-
-    q0 = Rod.straight_configuration(
-        nelements, length, polynomial_degree=polynomial_degree, r_OP=r_OP, A_IK=A_IK
-    )
-
-    cantilever2 = Rod(
-        cross_section,
-        material_model,
-        nelements,
-        Q=q0,
-        q0=q0,
-        polynomial_degree=polynomial_degree,
-        reduced_integration=reduced_integration,
-    )
+    rod = []
+    for i in range(2):
+        q0 = Rod.straight_configuration(
+            nelements,
+            length,
+            polynomial_degree=polynomial_degree,
+            r_OP=r_OP0[i],
+            A_IK=A_IK0[i],
+        )
+        rodi = Rod(
+            cross_section,
+            material_model,
+            nelements,
+            Q=q0,
+            q0=q0,
+            polynomial_degree=polynomial_degree,
+            reduced_integration=reduced_integration,
+        )
+        rod.append(rodi)
+        system.add(rodi)
 
     A_IK = (
         lambda t: A_IK_basic(smoothstep2(t, 0.25, 0.5) * 2 * pi).x()
@@ -102,14 +97,12 @@ def L_shaped_beam_patch(
         @ A_IK_basic(smoothstep2(t, 0.75, 1.0) * 2 * pi).z()
     )
     rotating_frame = Frame(A_IK=A_IK)
-    clamping_left = RigidConnection(rotating_frame, cantilever1, frame_ID2=(0,))
+    clamping_left = RigidConnection(rotating_frame, rod[0], frame_ID2=(0,))
     rod_rod_clamping = RigidConnection(
-        cantilever1, cantilever2, frame_ID1=(1,), frame_ID2=(0,)
+        rod[0], rod[1], frame_ID1=(1,), frame_ID2=(0,)
     )
 
     # assemble the system
-    system.add(cantilever1)
-    system.add(cantilever2)
     system.add(rotating_frame)
     system.add(clamping_left)
     system.add(rod_rod_clamping)
@@ -117,7 +110,7 @@ def L_shaped_beam_patch(
     # moment at cantilever tip
     m = material_model.Fi[2] * 2 * np.pi / length
     M = lambda t: smoothstep2(t, 0, 0.25) * e3 * m
-    moment = K_Moment(M, cantilever2, frame_ID=(1,))
+    moment = K_Moment(M, rod[1], frame_ID=(1,))
     system.add(moment)
 
     system.assemble(options=SolverOptions(compute_consistent_initial_conditions=False))
@@ -140,22 +133,21 @@ def L_shaped_beam_patch(
     # VTK export
     if VTK_export:
         path = Path(__file__)
-        e = Export(path.parent, path.stem, True, 100, sol)
-        rod_list = [cantilever1, cantilever2]
-        for i, rod in enumerate(rod_list):
+        e = Export(path.parent, path.stem, True, 30, sol)
+        for i, rodi in enumerate(rod):
             e.export_contr(
-                rod,
+                rodi,
                 level="centerline + directors",
                 num=3 * nelements,
-                file_name="rod_curve",
+                file_name=f"rod_{i}_curve",
             )
             e.export_contr(
-                rod,
+                rodi,
                 continuity="C0",
                 level="volume",
                 n_segments=nelements,
                 num=3 * nelements,
-                file_name="rod_volume",
+                file_name=f"rod_{i}_volume",
             )
 
     # matplotlib visualization
@@ -163,11 +155,11 @@ def L_shaped_beam_patch(
     fig1, ax1, anim1 = animate_beam(
         t,
         q,
-        [cantilever1, cantilever2],
+        rod,
         scale=1.6 * length,
         scale_di=0.05,
         show=False,
-        n_frames=cantilever1.nelement + 1,
+        n_frames=rod[0].nelement + 1,
         repeat=True,
     )
 
@@ -219,8 +211,8 @@ def L_shaped_beam_patch(
     E_pot_total = np.zeros(len(t))
 
     for i, ti in enumerate(t):
-        E_pot_total[i] += cantilever1.E_pot(ti, q[i, cantilever1.qDOF])
-        E_pot_total[i] += cantilever2.E_pot(ti, q[i, cantilever2.qDOF])
+        E_pot_total[i] += rod[0].E_pot(ti, q[i, rod[0].qDOF])
+        E_pot_total[i] += rod[1].E_pot(ti, q[i, rod[1].qDOF])
 
     fig2, ax2 = plt.subplots()
     ax2.plot(t, E_pot_total, "-", color="red", label="Cosserat (numeric)")

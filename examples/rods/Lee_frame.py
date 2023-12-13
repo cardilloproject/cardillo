@@ -64,66 +64,51 @@ def lee_frame(
 
     material_model = Simo1986(Ei, Fi)
 
-    # starting position and orientation of left point
-    r_OP01 = np.zeros(3, dtype=float)
-    A_IK01 = A_IK_basic(np.pi / 2).z()
-    r_OP02 = np.array([0, length, 0])
-    A_IK02 = np.eye(3)
+    # starting positions and orientations
+    r_OP0 = np.array([[0, 0, 0], [0, length, 0]])
+    A_IK0 = np.zeros((2, 3, 3))
+    A_IK0[0] = A_IK_basic(np.pi / 2).z()
+    A_IK0[1] = np.eye(3)
 
     # construct system
     system = System()
 
-    q01 = Rod.straight_configuration(
-        nelements,
-        length,
-        polynomial_degree=polynomial_degree,
-        r_OP=r_OP01,
-        A_IK=A_IK01,
-    )
-    cantilever1 = Rod(
-        cross_section,
-        material_model,
-        nelements,
-        Q=q01,
-        q0=q01,
-        polynomial_degree=polynomial_degree,
-        reduced_integration=reduced_integration,
-    )
-
-    q02 = Rod.straight_configuration(
-        nelements,
-        length,
-        polynomial_degree=polynomial_degree,
-        r_OP=r_OP02,
-        A_IK=A_IK02,
-    )
-    cantilever2 = Rod(
-        cross_section,
-        material_model,
-        nelements,
-        Q=q02,
-        q0=q02,
-        polynomial_degree=polynomial_degree,
-        reduced_integration=reduced_integration,
-    )
+    rod = []
+    for i in range(2):
+        q0 = Rod.straight_configuration(
+            nelements,
+            length,
+            polynomial_degree=polynomial_degree,
+            r_OP=r_OP0[i],
+            A_IK=A_IK0[i],
+        )
+        rodi = Rod(
+            cross_section,
+            material_model,
+            nelements,
+            Q=q0,
+            q0=q0,
+            polynomial_degree=polynomial_degree,
+            reduced_integration=reduced_integration,
+        )
+        rod.append(rodi)
+        system.add(rodi)
 
     # rigid connection between rods
     clamping_c1_c2 = RigidConnection(
-        cantilever1, cantilever2, frame_ID1=(1,), frame_ID2=(0,)
+        rod[0], rod[1], frame_ID1=(1,), frame_ID2=(0,)
     )
 
     # hinge constraints
-    hinge_c1 = Revolute(cantilever1, system.origin, 2, frame_ID1=(0,))
-    hinge_c2 = Revolute(cantilever2, system.origin, 2, frame_ID1=(1,))
+    hinge_c1 = Revolute(rod[0], system.origin, 2, frame_ID1=(0,))
+    hinge_c2 = Revolute(rod[1], system.origin, 2, frame_ID1=(1,))
 
     # concentrated force
     f_max = 40.0e3
     F = lambda t: -f_max * t * e2
-    force = K_Force(F, cantilever2, frame_ID=(0.2,))
+    force = K_Force(F, rod[1], frame_ID=(0.2,))
 
     # assemble the system
-    system.add(cantilever1)
-    system.add(cantilever2)
     system.add(clamping_c1_c2)
     system.add(hinge_c1)
     system.add(hinge_c2)
@@ -159,45 +144,32 @@ def lee_frame(
     if VTK_export:
         path = Path(__file__)
         e = Export(path.parent, path.stem, True, 30, sol)
-        e.export_contr(
-            cantilever1,
-            level="centerline + directors",
-            num=3 * nelements,
-            file_name="cantilever1_curve",
-        )
-        e.export_contr(
-            cantilever1,
-            continuity="C0",
-            level="volume",
-            n_segments=nelements,
-            num=3 * nelements,
-            file_name="cantilever1_volume",
-        )
-        e.export_contr(
-            cantilever2,
-            level="centerline + directors",
-            num=3 * nelements,
-            file_name="cantilever2_curve",
-        )
-        e.export_contr(
-            cantilever2,
-            continuity="C0",
-            level="volume",
-            n_segments=nelements,
-            num=3 * nelements,
-            file_name="cantilever2_volume",
-        )
+        for i, rodi in enumerate(rod):
+            e.export_contr(
+                rodi,
+                level="centerline + directors",
+                num=3 * nelements,
+                file_name=f"rod_{i}_curve",
+            )
+            e.export_contr(
+                rodi,
+                continuity="C0",
+                level="volume",
+                n_segments=nelements,
+                num=3 * nelements,
+                file_name=f"rod_{i}_volume",
+            )
+
 
     u_x = np.zeros(nt)
     u_y = np.zeros(nt)
 
-    q_c2 = sol.q[:, cantilever2.qDOF]
-    qe_c2 = q_c2[:, cantilever2.local_qDOF_P((0.2,))]
+    q_c2 = sol.q[:, rod[1].qDOF]
+    qe_c2 = q_c2[:, rod[1].local_qDOF_P((0.2,))]
 
-    r_OP0 = cantilever2.r_OP(0, qe_c2[0], frame_ID=(0.2,))
-    print(f"r_OP0:{r_OP0}")
+    r_OP0 = rod[1].r_OP(0, qe_c2[0], frame_ID=(0.2,))
     for i in range(nt):
-        r_OPi = cantilever2.r_OP(0, qe_c2[i], frame_ID=(0.2,))
+        r_OPi = rod[1].r_OP(0, qe_c2[i], frame_ID=(0.2,))
         u = r_OPi - r_OP0
         u_x[i] = u[0]
         u_y[i] = -u[1]
@@ -263,11 +235,11 @@ def lee_frame(
     _, ax, _ = animate_beam(
         t,
         q,
-        [cantilever1, cantilever2],
+        rod,
         scale=1.1 * length,
         scale_di=0.05,
         show=False,
-        n_frames=cantilever1.nelement + 1,
+        n_frames=rod[0].nelement + 1,
         repeat=True,
     )
 
@@ -286,4 +258,5 @@ def lee_frame(
 
 
 if __name__ == "__main__":
+    # requires around 6 minutes computational time
     lee_frame(Rod=make_CosseratRod_Quat(mixed=True))
