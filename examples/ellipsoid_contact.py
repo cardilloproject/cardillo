@@ -76,6 +76,7 @@ def sim():
         # normal contacts
         #################
         def alpha(self, phi):
+            # return np.arctan(self.a * np.sin(phi) / self.b * np.cos(phi)) - phi
             return np.arctan2(self.a * np.sin(phi), self.b * np.cos(phi)) - phi
 
         def g_N(self, t, q):
@@ -127,6 +128,9 @@ def sim():
 
             # bracket = (-self.a * cap * sp + self.b * sap * cp)
             # print(f"bracket: {bracket}")
+
+            # g_N_dot_num = approx_fprime(q, lambda q: self.g_N(t, q)) @ self.q_dot(t, q, u)
+            # print(f"g_N_dot - g_N_dot_num: {g_N_dot - g_N_dot_num}")
 
             # print(f"g_N_dot - g_N_dot_simplified: {g_N_dot - g_N_dot_simplified}")
             if self.simplified:
@@ -192,7 +196,7 @@ def sim():
     system.assemble(options=SolverOptions(compute_consistent_initial_conditions=False))
 
     t1 = 2
-    dt = 1e-3
+    dt = 1e-2
     sol = Moreau(
         system,
         t1,
