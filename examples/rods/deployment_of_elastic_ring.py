@@ -13,10 +13,9 @@ from cardillo.rods.cosseratRod import (
 
 from cardillo.discrete import Frame
 from cardillo.constraints import RigidConnection, Cylindrical, Prismatic
-from Cardillo_extensions.solver.statics import Newton, Riks, SolverOptions
+from cardillo.solver import Newton, Riks, SolverOptions
 from cardillo.forces import Moment
 
-import Cardillo_extensions.discrete.shapes 
 
 from cardillo.math import e1, e2, e3, A_IK_basic, norm, cross3, Log_SO3_quat
 
@@ -37,14 +36,14 @@ from shutil import rmtree
 Goto, Y. , Watanabe, Y., Kasugai, T. and Obata, M.: "Elastic buckling phenomenon applicable to deployable rings" ,
 International Journal of Solids and Structures, 29(7):893 – 909, 1992,
 https://doi.org/10.1016/0020-7683(92)90024-N
-"""
 
+"""
 
 def deployment_of_elastic_ring(
     Rod,
     nelements=10,
     polynomial_degree=2,
-    n_load_steps=40,
+    n_load_steps=100,
     VTK_export=False,
     reduced_integration=True,
     displacement_controlled=False,
@@ -105,7 +104,7 @@ def deployment_of_elastic_ring(
     if displacement_controlled:
         A_IK_rotating = lambda t: A_IK_basic(4 * pi * t).x()
         rotating_frame = Frame(A_IK=A_IK_rotating)
-        guidance_right = Prismatic(ring, rotating_frame, 0, frame_ID1=(0.5,))
+        guidance_right = Prismatic(ring, rotating_frame, 1, frame_ID1=(0.5,))
         
         system.add(rotating_frame)
         system.add(guidance_right)
@@ -118,27 +117,20 @@ def deployment_of_elastic_ring(
         )
 
     else:
-        # guidance_right = Cylindrical(ring, system.origin, 0, frame_ID1=(0.5,))
-        
-        # system.add(guidance_right)
-
-        M = lambda t: EE * I2 / radius * t * np.array([1, 0, 0])
-
+        M_max = EE * I2 / radius
+        M = lambda t: M_max * t * np.array([1, 0, 0])
         moment = Moment(M, ring, (0.5,))
-        # moment = Moment(M, cantilever, (0.5, ))
         system.add(moment)
 
         system.assemble(options=SolverOptions(compute_consistent_initial_conditions=False))
 
         solver = Riks(
         system,
-        n_load_step=100,
         iter_goal=3,
         la_arc0=2e-2,
         la_arc_span=np.array([-1, 1]),
+        n_load_steps=100,
         )
-
-
 
     sol = solver.solve()
     q = sol.q
@@ -146,31 +138,61 @@ def deployment_of_elastic_ring(
     t = sol.t[:nt]
     la_g = sol.la_g[:nt]
 
-    M = la_g[:, clamping_left.la_gDOF[4]]
+    if displacement_controlled:
+        M = la_g[:, clamping_left.la_gDOF[5]]
+    else:
+        M = t * M_max
 
+    # compute displacement of point B
+    u = np.zeros((3, nt))
+    frame_ID = (0.25,)
+    qe = q[:, ring.local_qDOF_P(frame_ID)]
+    r_OP0 = ring.r_OP(0, qe[0], frame_ID=frame_ID)
+
+    for i in range(nt):
+        r_OPi = ring.r_OP(0, qe[i], frame_ID=frame_ID)
+        u[:, i] = r_OPi - r_OP0
+
+    _, ax = plt.subplots()
+
+    ax.plot(
+        u[0], M, "-", color="blue", label="u_x", marker="o"
+    )
+    ax.plot(
+        u[1], M, "-", color="red", label="u_y", marker="s"
+    )
+    ax.plot(
+        u[2], M, "-", color="green", label="u_z", marker="^",
+    )
+
+    ax.grid()
+    ax.legend(loc="upper left")
+    ax.set_title("moment-displacement curve point B")
+    ax.set_xlabel("displacement")
+    ax.set_ylabel("moment")
 
     # VTK export
-    # if VTK_export:
-    #     path = Path(__file__)
-    #     e = Export(path.parent, path.stem, True, 30, sol)
-    #     e.export_contr(
-    #         cantilever,
-    #         level="centerline + directors",
-    #         num=3 * nelements,
-    #         file_name="cantilever_curve",
-    #     )
-    #     e.export_contr(
-    #         cantilever,
-    #         continuity="C0",
-    #         level="volume",
-    #         n_segments=nelements,
-    #         num=3 * nelements,
-    #         file_name="cantilever_volume",
-    #     )
+    if VTK_export:
+        path = Path(__file__)
+        e = Export(path.parent, path.stem, True, 30, sol)
+        e.export_contr(
+            ring,
+            level="centerline + directors",
+            num=3 * nelements,
+            file_name="ring_curve",
+        )
+        e.export_contr(
+            ring,
+            continuity="C0",
+            level="volume",
+            n_segments=nelements,
+            num=3 * nelements,
+            file_name="ring_volume",
+        )
 
     # matplotlib visualization
     # construct animation of beam
-    fig1, ax1, anim1 = animate_beam(
+    _, ax, _ = animate_beam(
         t,
         q,
         [ring],
@@ -181,78 +203,8 @@ def deployment_of_elastic_ring(
         repeat=True,
     )
 
-    x_B_displacement = np.zeros(len(t))
-    y_B_displacement = np.zeros(len(t))
-    z_B_displacement = np.zeros(len(t))
-
-    reference_point = pi / 2 / xi_end
-    frame_ID = (reference_point,)
-
-    qDOF_element_of_interest = ring.local_qDOF_P(frame_ID)
-    r0 = ring.r_OP(0, q[0, qDOF_element_of_interest], frame_ID=frame_ID)
-
-    # the plotted displacements depend on how the structure is modelled in the 3D space. In this case we have that the x
-    for i, ti in enumerate(t):
-        ri = ring.r_OP(ti, q[i, qDOF_element_of_interest], frame_ID=frame_ID)
-        x_B_displacement[i] = ri[0] - r0[0]
-        y_B_displacement[i] = ri[1] - r0[1]
-        z_B_displacement[i] = ri[2] - r0[2]
-
-
-    displacement_data = np.column_stack((t, x_B_displacement, y_B_displacement, z_B_displacement))
-
-    fig2, ax = plt.subplots()
-
-    if displacement_controlled:
-        M = la_g[:, clamping_left.la_gDOF[4]]
-    else:
-        M = t
-
-    ax.plot(
-        x_B_displacement, M, "-", color="blue", label="B X Displacement", marker="o"
-    )
-    ax.plot(
-        y_B_displacement, M, "-", color="red", label="B Y Displacement", marker="s"
-    )
-    ax.plot(
-        z_B_displacement, M, "-", color="green", label="B Z Displacement", marker="^",
-    )
-
-
-
-    
-
-    # Aggiungi una legenda
-    ax.legend(loc="upper left")
-
-    # Personalizza il titolo e le label degli assi se necessario
-    ax.set_title("Displacements of the point B")
-    ax.set_xlabel("u, v, w")
-    ax.set_ylabel("Load Factor")
-    # ax.set_ylim(-1.5, 3.0)
-
     plt.show()
-
-    path = Path(__file__)
-    path = Path(path.parent / path.stem)
-    # if path.exists():
-    #     rmtree(path)
-    path.mkdir(parents=True, exist_ok=True)
-
-    header = "t, x_B_displacement, y_B_displacement, z_B_displacement"
-
-    np.savetxt(
-        path
-        / f"B_point_displacements.txt",
-        displacement_data,
-        delimiter=", ",
-        header=header,
-        comments="",
-    )
 
 
 if __name__ == "__main__":
-    deployment_of_elastic_ring(Rod=make_CosseratRod_Quat(mixed=True))
-
-
-# to obtain the curves for the displacement of point B need run the file "curve_B_deployment"
+    deployment_of_elastic_ring(Rod=make_CosseratRod_Quat(mixed=True), displacement_controlled=True)

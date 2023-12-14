@@ -159,9 +159,9 @@ def beam_patches_3d(
 
     _, ax = plt.subplots(1, 1)
 
-    ax.plot(tip_force * t, u[0, :], "-", color="red", label="u_x: Cosserat rod")
-    ax.plot(tip_force * t, u[1, :], "-", color="green", label="u_y: Cosserat rod")
-    ax.plot(tip_force * t, u[2, :], "-", color="blue", label="u_z: Cosserat rod")
+    ax.plot(tip_force * t, u[0], "-", color="red", label="u_x: Cosserat rod")
+    ax.plot(tip_force * t, u[1], "-", color="green", label="u_y: Cosserat rod")
+    ax.plot(tip_force * t, u[2], "-", color="blue", label="u_z: Cosserat rod")
     # ax[0].plot(force_u_x_Simo[:, 0], forc'e_u_x_Simo[:, 1] / 40, "--", color="green", label="Simo")
     ax.plot(
         force_u_Harsch[:, 0],

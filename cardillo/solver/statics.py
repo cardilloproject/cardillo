@@ -212,12 +212,14 @@ class Riks:
         la_arc0=1.0e-3,
         la_arc_span=np.array([0, 1], dtype=float),
         scale_exponent=0.5,
+        n_load_steps = 5.e3,
         options=SolverOptions(),
     ):
         self.system = system
         self.options = options
         self.la_arc0 = la_arc0
         self.la_arc_span = la_arc_span
+        self.n_load_steps = n_load_steps
 
         # initial arc-length parameter is not required in the first step and
         # will be computed later
@@ -425,9 +427,12 @@ class Riks:
         # progress bar
         pbar = tqdm(total=100, leave=True)
         i0 = 0
-        while xk1[-1] >= self.la_arc_span[0] and xk1[-1] <= self.la_arc_span[1]:
+        n_load = 0
+        while xk1[-1] >= self.la_arc_span[0] and xk1[-1] <= self.la_arc_span[1] and n_load <= self.n_load_steps:
             # increment number of steps
             i += 1
+            # number of load steps
+            n_load += 1
 
             # use secant predictor for all other force increments than the first one
             if i > 1:
