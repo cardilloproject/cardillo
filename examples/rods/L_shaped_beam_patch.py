@@ -98,9 +98,7 @@ def L_shaped_beam_patch(
     )
     rotating_frame = Frame(A_IK=A_IK)
     clamping_left = RigidConnection(rotating_frame, rod[0], frame_ID2=(0,))
-    rod_rod_clamping = RigidConnection(
-        rod[0], rod[1], frame_ID1=(1,), frame_ID2=(0,)
-    )
+    rod_rod_clamping = RigidConnection(rod[0], rod[1], frame_ID1=(1,), frame_ID2=(0,))
 
     # assemble the system
     system.add(rotating_frame)

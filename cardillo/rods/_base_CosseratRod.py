@@ -2,6 +2,9 @@ import numpy as np
 from abc import ABC, abstractmethod
 import warnings
 
+from cachetools import cachedmethod, LRUCache
+from cachetools.keys import hashkey
+
 from cardillo.rods._base_export import RodExportBase
 from ._cross_section import CrossSectionInertias
 from cardillo.math.algebra import norm, cross3, ax2skew
@@ -44,6 +47,9 @@ class CosseratRod(RodExportBase, ABC):
         print(f"nquadrature_dyn: {nquadrature_dyn}")
         print(f"nquadrature: {nquadrature}")
         self.nelement = nelement
+
+        self._eval_cache = LRUCache(maxsize=nquadrature + 10)
+        self._deval_cache = LRUCache(maxsize=nquadrature + 10)
 
         ######################################################
         # discretization parameters centerline and orientation
