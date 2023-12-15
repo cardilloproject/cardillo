@@ -13,13 +13,23 @@ def Meshed(Base):
             scale=1,
             **kwargs,
         ):
-            """Generate an object (typically with Base `Frame` or `RigidBody`) from a given Trimesh object
-            Args:
-                mesh_obj: file-like object defining source of mesh or instance of trimesh defining the mesh
-                density: mass density for the computation of the inertia properties of the mesh. If set to None, user specified mass and K_Theta_S are used.
-                K_r_SP (np.ndarray): offset center of mass (S) from STL origin (P) in body fixed K-frame
-                A_KM (np.ndarray): tansformation from mesh-fixed frame (M) to body-fixed frame (K)
-                scale: factor scaling the mesh after import.
+            """Generate an object (typically with Base `Frame` or `RigidBody`)
+            from a given Trimesh object.
+
+            Parameters
+            ----------
+            mesh_obj:
+                file-like object defining source of mesh or instance of trimesh
+                defining the mesh
+            density: float or None
+                mass density for the computation of the inertia properties of the
+                mesh. If set to None, user specified mass and K_Theta_S are used.
+            K_r_SP: np.ndarray (3,)
+                offset center of mass (S) from STL origin (P) in body fixed K-frame
+            A_KM: np.ndarray (3, 3)
+                tansformation from mesh-fixed frame (M) to body-fixed frame (K)
+            scale: float
+                factor scaling the mesh after import.
             """
             self.K_r_SP = K_r_SP
             self.A_KM = A_KM
@@ -94,9 +104,10 @@ def Meshed(Base):
             if base_export:
                 return super().export(sol_i, **kwargs)
             else:
-                r_OS = self.r_OP(
-                    sol_i.t, sol_i.q[self.qDOF]
-                )  # TODO: slicing could be done on global level in Export class. Moreover, solution class should be able to return the slice, e.g., sol_i.get_q_of_body(name).
+                # TODO: slicing could be done on global level in Export class. 
+                # Moreover, solution class should be able to return the slice, 
+                # e.g., sol_i.get_q_of_body(name).
+                r_OS = self.r_OP(sol_i.t, sol_i.q[self.qDOF])
                 A_IK = self.A_IK(sol_i.t, sol_i.q[self.qDOF])
                 points = (r_OS[:, None] + A_IK @ self.K_r_SQi_T).T
 

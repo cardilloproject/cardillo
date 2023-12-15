@@ -23,7 +23,7 @@ from cardillo.visualization.trimesh import show_system, animate_system
 
 if __name__ == "__main__":
     path = Path(__file__)
-    vtk_export = False
+    vtk_export = True
 
     cube_mesh = trimesh.creation.box(extents=[3, 3, 3])
     plane_mesh = cube_mesh.copy().apply_transform(np.diag([1, 1, 0.001, 1]))
@@ -69,7 +69,8 @@ if __name__ == "__main__":
     system.add(Force(np.array([0, 0, -10 * rigid_body6.mass]), rigid_body6))
     system.assemble()
 
-    # show_system(system, system.t0, system.q0, origin_size=0.05) # this will end the execution of the file!!
+    # this will end the execution of the file!!
+    show_system(system, system.t0, system.q0, origin_size=0.05)
 
     sol = BackwardEuler(system, 5, 1e-1).solve()
 
