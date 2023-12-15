@@ -101,7 +101,6 @@ def helix(
         / (length**2)
         * (c * e1 * Fi[0] + e3 * Fi[2])
         * t
-        * 0.5
     )
     moment = K_Moment(M, cantilever, (1,))
     system.add(moment)
@@ -234,15 +233,15 @@ if __name__ == "__main__":
     #     atol=1.0e-12,
     # )
 
-    # helix(
-    #     Rod=make_CosseratRod_Quat(mixed=True),
-    #     nelements=10,
-    #     polynomial_degree=2,
-    #     n_load_steps=1,
-    #     reduced_integration=True,
-    #     slenderness=1.0e4,
-    #     atol=1.0e-12,
-    # )
+    helix(
+        Rod=make_CosseratRod_Quat(mixed=True),
+        nelements=10,
+        polynomial_degree=2,
+        n_load_steps=1,
+        reduced_integration=True,
+        slenderness=1.0e4,
+        atol=1.0e-12,
+    )
 
     # helix(
     #     Rod=make_CosseratRod_R12(mixed=True),
@@ -268,17 +267,15 @@ if __name__ == "__main__":
     # helix(Rod=make_CosseratRod_SE3(mixed=False), nelements=5, polynomial_degree=1, n_load_steps = 700, reduced_integration=True, slenderness=1.0e4, atol=1.0e-14)
 
     # Quaternion-interpolation:
-    helix(
-        Rod=make_CosseratRod_Quat(mixed=False),
-        nelements=10,
-        polynomial_degree=1,
-        n_load_steps=10,
-        reduced_integration=True,
-        slenderness=1.0e1,
-        atol=1.0e-8,
-    )
-
-    # helix(Rod=make_CosseratRod_R3SO3(mixed=False), nelements=10, polynomial_degree=1, n_load_steps = 10, reduced_integration=True, slenderness=1.0e1, atol=1.0e-8)
+    # helix(
+    #     Rod=make_CosseratRod_Quat(mixed=False),
+    #     nelements=10,
+    #     polynomial_degree=2,
+    #     n_load_steps=100,
+    #     reduced_integration=True,
+    #     slenderness=1.0e1,
+    #     atol=1.0e-8,
+    # )
 
     # helix(Rod=make_CosseratRod_Quat(mixed=False), nelements=10, polynomial_degree=2, n_load_steps = 119, reduced_integration=True, slenderness=1.0e2, atol=1.0e-9)
 
