@@ -190,7 +190,7 @@ def cantilever(
     elif load_type == "constant_end_load":
         # add reference solution to the animation
         centerline_T = np.loadtxt(
-            Path(path.parent, "_data_cantilever", "constant_end_load_centerline_T.txt"),
+            Path(path.parent, "_data_cantilever", "constant_end_load_centerline_T.csv"),
             delimiter=",",
             skiprows=1,
         )
@@ -202,7 +202,7 @@ def cantilever(
         )
         centerline_EB = np.loadtxt(
             Path(
-                path.parent, "_data_cantilever", "constant_end_load_centerline_EB.txt"
+                path.parent, "_data_cantilever", "constant_end_load_centerline_EB.csv"
             ),
             delimiter=",",
             skiprows=1,
@@ -215,7 +215,7 @@ def cantilever(
         )
         centerline_IEB = np.loadtxt(
             Path(
-                path.parent, "_data_cantilever", "constant_end_load_centerline_IEB.txt"
+                path.parent, "_data_cantilever", "constant_end_load_centerline_IEB.csv"
             ),
             delimiter=",",
             skiprows=1,
@@ -230,7 +230,7 @@ def cantilever(
         # add normalized force-displacement diagram
         fig2, ax2 = plt.subplots()
         Deltas_T = np.loadtxt(
-            Path(path.parent, "_data_cantilever", "constant_end_load_Deltas_T.txt"),
+            Path(path.parent, "_data_cantilever", "constant_end_load_Deltas_T.csv"),
             delimiter=",",
             skiprows=1,
         )
@@ -244,7 +244,7 @@ def cantilever(
         ax2.plot(Deltas_T[:, 0], Deltas_T[:, 2], "s", color="blue")
 
         Deltas_EB = np.loadtxt(
-            Path(path.parent, "_data_cantilever", "constant_end_load_Deltas_EB.txt"),
+            Path(path.parent, "_data_cantilever", "constant_end_load_Deltas_EB.csv"),
             delimiter=",",
             skiprows=1,
         )
@@ -259,7 +259,7 @@ def cantilever(
 
         # elastica: analytical solution of Bisshopp, K.E. and Drucker, D.C. "Large deflection of cantilever beams", 1945
         Deltas_IEB_A = np.loadtxt(
-            Path(path.parent, "_data_cantilever", "constant_end_load_Deltas_IEB_A.txt"),
+            Path(path.parent, "_data_cantilever", "constant_end_load_Deltas_IEB_A.csv"),
             delimiter=",",
             skiprows=1,
         )
@@ -300,7 +300,7 @@ def cantilever(
             Path(
                 path.parent,
                 "_data_cantilever",
-                "follower_end_load_centerline_T_lambda_3_7.txt",
+                "follower_end_load_centerline_T_lambda_3_7.csv",
             ),
             delimiter=",",
             skiprows=1,
@@ -312,7 +312,7 @@ def cantilever(
             "-b",
         )
         # # Euler-Bernoulli beam
-        # centerline_T = np.loadtxt(Path(path.parent, "_data_cantilever","follower_end_load_centerline_EB_lambda_3_7.txt"), delimiter=",", skiprows=1)
+        # centerline_T = np.loadtxt(Path(path.parent, "_data_cantilever","follower_end_load_centerline_EB_lambda_3_7.csv"), delimiter=",", skiprows=1)
         # ax1.plot(centerline_T[:, 0], centerline_T[:, 1], np.zeros_like(centerline_T[:, 0]), "-r")
 
         # camera settings for 3D plot
@@ -323,7 +323,7 @@ def cantilever(
         fig2, ax2 = plt.subplots()
         # Timoshenko beam
         Deltas_T = np.loadtxt(
-            Path(path.parent, "_data_cantilever", "follower_end_load_Deltas_T.txt"),
+            Path(path.parent, "_data_cantilever", "follower_end_load_Deltas_T.csv"),
             delimiter=",",
             skiprows=1,
         )
@@ -337,7 +337,7 @@ def cantilever(
         ax2.plot(Deltas_T[:43, 2], Deltas_T[:43, 0], "o", color="blue")
         # # Euler-Bernoulli beam
         # Deltas_EB = np.loadtxt(
-        #     Path(path.parent, "_data_cantilever", "follower_end_load_Deltas_EB.txt"),
+        #     Path(path.parent, "_data_cantilever", "follower_end_load_Deltas_EB.csv"),
         #     delimiter=",",
         #     skiprows=1,
         # )

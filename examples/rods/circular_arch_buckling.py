@@ -30,7 +30,7 @@ from pathlib import Path
 
 
 """
-Instability of Clamped-Hinged Circular Arches Subjected to a Point Load
+Instability of clamped-hinged circular arches subjected to a point load
 
 D.A. DaDeppo, R. Schmidt, Instability of clamped-hinged
 circular arches subjected to a point load, J. Appl. Mech.
@@ -42,11 +42,12 @@ https://doi.org/10.1016/j.engstruct.2020.111755
 
 """
 
+
 def circular_arch(
     Rod,
     i_alpha=14,
-    nelements=10,
-    polynomial_degree=2,
+    nelements=20,
+    polynomial_degree=1,
     n_load_steps=10,
     reduced_integration=True,
     VTK_export=False,
@@ -72,19 +73,23 @@ def circular_arch(
 
     material_model = Simo1986(Ei, Fi)
 
-    # curverd initial configuration
+    # curved initial configuration
     R = 100
 
     path = Path(__file__)
 
     data_DaDeppo = np.loadtxt(
-        Path(path.parent, "_data_circular_arch_215", "critical_loads_DaDeppo1975.csv"),
+        Path(
+            path.parent,
+            "_data_circular_arch_buckling",
+            "critical_loads_DaDeppo1975.csv",
+        ),
         delimiter=",",
         skiprows=1,
     )
 
     alpha = data_DaDeppo[i_alpha, 0]
-    print(f"circular arch with angle:{2*alpha}")
+    print(f"circular arch with angle: {2*alpha}")
     critical_load = data_DaDeppo[i_alpha, 1] / 10
     u_x_DaDeppo = data_DaDeppo[i_alpha, 2] * R
     u_y_DaDeppo = data_DaDeppo[i_alpha, 3] * R
@@ -149,17 +154,17 @@ def circular_arch(
 
     system.assemble(options=SolverOptions(compute_consistent_initial_conditions=False))
 
-    atol = 1e-10
-    # # solver = Newton(
-    # #     system,
-    # #     n_load_steps=10,
-    # #     options=SolverOptions(newton_atol=atol),
-    # # )
+    atol = 1e-6
+    # solver = Newton(
+    #     system,
+    #     n_load_steps=10,
+    #     options=SolverOptions(newton_atol=atol),
+    # )
     solver = Riks(
         system,
-        la_arc0=1e-2,
+        la_arc0=1e-4,
         iter_goal=4,
-        la_arc_span=np.array([-1.1*critical_load, 1.1*critical_load]),
+        la_arc_span=np.array([-1.1 * critical_load, 1.1 * critical_load]),
         options=SolverOptions(newton_atol=atol),
     )
 
@@ -167,8 +172,6 @@ def circular_arch(
     q = sol.q
     nt = len(q)
     t = sol.t[:nt]
-
-    
 
     u_x = np.zeros(nt)
     u_y = np.zeros(nt)
@@ -182,17 +185,25 @@ def circular_arch(
         r_OPi = arch.r_OP(0, qe_arch[i], frame_ID=(0.5,))
         u_x[i], u_y[i], _ = -(r_OPi - r_OP0)
 
-    fig5, ax = plt.subplots(1, 2)
+    _, ax = plt.subplots(1, 2)
 
     ax[0].plot(u_x, t, "-", color="blue", label="Cosserat rod")
-    ax[0].plot(u_x_DaDeppo, critical_load, marker="+", color="red", label="critical load DaDeppo 1975")
+    ax[0].plot(
+        u_x_DaDeppo,
+        critical_load,
+        marker="+",
+        color="red",
+        label="critical load DaDeppo 1975",
+    )
     ax[0].legend(loc="upper left")
     ax[0].set_title("horizontal displacements of tip point")
     ax[0].set_xlabel("u_x")
     ax[0].set_ylabel("load factor")
-    
+
     ax[1].plot(u_y, t, "-", color="blue", label="Cosserat rod")
-    ax[1].plot(u_y_DaDeppo, critical_load, "+", color="red", label="critical load DaDeppo 1975")
+    ax[1].plot(
+        u_y_DaDeppo, critical_load, "+", color="red", label="critical load DaDeppo 1975"
+    )
     ax[1].legend(loc="upper left")
     ax[1].set_title("horizontal displacements of tip point")
     ax[1].set_xlabel("u_x")
@@ -200,18 +211,34 @@ def circular_arch(
 
     if i_alpha == 14:
         force_u_x_Kadapa = np.loadtxt(
-            Path(path.parent, "_data_circular_arch_215", "force_u_x_Kadapa2021.csv"),
+            Path(
+                path.parent, "_data_circular_arch_buckling", "force_u_x_Kadapa2021.csv"
+            ),
             delimiter=",",
             skiprows=1,
         )
         force_u_y_Kadapa = np.loadtxt(
-            Path(path.parent, "_data_circular_arch_215", "force_u_y_Kadapa2021.csv"),
+            Path(
+                path.parent, "_data_circular_arch_buckling", "force_u_y_Kadapa2021.csv"
+            ),
             delimiter=",",
             skiprows=1,
         )
-        ax[0].plot(force_u_x_Kadapa[:, 0] * 100, force_u_x_Kadapa[:, 1] / 10, "x", color="green")
-        ax[1].plot(force_u_y_Kadapa[:, 0] * 100, force_u_y_Kadapa[:, 1] / 10, "x", color="green")
-  
+        ax[0].plot(
+            force_u_x_Kadapa[:, 0] * 100,
+            force_u_x_Kadapa[:, 1] / 10,
+            "x",
+            color="green",
+            label="Kadapa 2021",
+        )
+        ax[1].plot(
+            force_u_y_Kadapa[:, 0] * 100,
+            force_u_y_Kadapa[:, 1] / 10,
+            "x",
+            color="green",
+            label="Kadapa 2021",
+        )
+
     # VTK export
     if VTK_export:
         path = Path(__file__)
@@ -232,8 +259,8 @@ def circular_arch(
         )
 
     # matplotlib visualization
-    # construct animation of beam
-    fig1, ax1, anim1 = animate_beam(
+    # construct animation of rod
+    _, ax1, _ = animate_beam(
         t,
         q,
         [arch],
@@ -257,5 +284,6 @@ def circular_arch(
 
     plt.show()
 
+
 if __name__ == "__main__":
-    circular_arch(Rod=make_CosseratRod_Quat(mixed=True), i_alpha=14)
+    circular_arch(Rod=make_CosseratRod_Quat(mixed=False), i_alpha=14)
