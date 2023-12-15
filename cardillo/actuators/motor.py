@@ -1,20 +1,40 @@
 import numpy as np
 
+class Motor:
+    def __init__(self, subsystem, tau, **kwargs):
+        if not callable(tau):
+            self.tau = lambda t: tau
+        else:
+            self.tau = tau
+        self.nla_tau = 1
+        self.ntau = 1
 
-def Motor(Transmission):
-    class _Motor(Transmission):
-        def __init__(self, tau, **kwargs):
-            if not callable(tau):
-                self.tau = lambda t: tau
-            else:
-                self.tau = tau
-            self.nla_tau = 1
-            self.ntau = 1
-            super().__init__(**kwargs)
+        self.subsystem = subsystem
+        super().__init__(**kwargs)
 
-            self.W_tau = self.W_l
+        self.W_tau = self.subsystem.W_l
 
-        def la_tau(self, t, q, u):
-            return self.tau(t)
+    def assembler_callback(self):
+        self.qDOF = self.subsystem.qDOF
+        self.uDOF = self.subsystem.uDOF
 
-    return _Motor
+    def la_tau(self, t, q, u):
+        return self.tau(t)
+
+# def Motor(Transmission):
+#     class _Motor(Transmission):
+#         def __init__(self, tau, **kwargs):
+#             if not callable(tau):
+#                 self.tau = lambda t: tau
+#             else:
+#                 self.tau = tau
+#             self.nla_tau = 1
+#             self.ntau = 1
+#             super().__init__(**kwargs)
+
+#             self.W_tau = self.W_l
+
+#         def la_tau(self, t, q, u):
+#             return self.tau(t)
+
+#     return _Motor

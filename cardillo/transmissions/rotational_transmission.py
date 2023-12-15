@@ -12,12 +12,12 @@ class RotationalTransmission:
         self.l = lambda t, q: subsystem.angle(t, q)
         self.l_dot = lambda t, q, u: subsystem.angle_dot(t, q, u)
 
-        self.l_q = lambda t, q: subsystem.angle_q(t, q)
-        self.l_dot_q = lambda t, q, u: subsystem.angle_dot_q(t, q, u)
-        self.l_dot_u = lambda t, q, u: subsystem.angle_dot_u(t, q, u)
+        self.l_q = lambda t, q: subsystem.l_q(t, q)
+        self.l_dot_q = lambda t, q, u: subsystem.l_dot_q(t, q, u)
+        self.l_dot_u = lambda t, q, u: subsystem.l_dot_u(t, q, u)
 
-        self.W_l = lambda t, q: subsystem.W_angle(t, q)
-        self.W_l_q = lambda t, q: subsystem.W_angle_q(t, q)
+        self.W_l = lambda t, q: subsystem.W_l(t, q)
+        self.W_l_q = lambda t, q: subsystem.W_l_q(t, q)
 
     def assembler_callback(self):
         self.qDOF = self.subsystem.qDOF

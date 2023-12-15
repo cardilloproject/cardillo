@@ -7,7 +7,7 @@ def PIDcontroller(Transmission):
             if not callable(tau):
                 self.tau = (
                     lambda t: tau
-                )  # TODO: I don't like this to much. Maybe tau should be just a System property. Otherwise the implementation self.la_tau = self.tau may be tempting.
+                )  
             else:
                 self.tau = tau
             self.nla_tau = 1

@@ -22,6 +22,10 @@ class Revolute(PositionOrientationBase):
             (axis, self.plane_axes[1]),
         ]
 
+        # TODO: is this needed, or is it clear that the kinematic DOF quantity "l" of a revolute joint is its angle?
+        self.angle = self.l
+        self.angle_dot = self.l_dot
+
         super().__init__(
             subsystem1,
             subsystem2,
@@ -49,7 +53,7 @@ class Revolute(PositionOrientationBase):
         else:
             raise RuntimeError("You should never be here!")
 
-    def angle(self, t, q):
+    def l(self, t, q):
         A_IB1 = self.A_IB1(t, q)
         A_IB2 = self.A_IB2(t, q)
 
@@ -85,11 +89,11 @@ class Revolute(PositionOrientationBase):
 
         return angle
 
-    def angle_dot(self, t, q, u):
+    def l_dot(self, t, q, u):
         e_c1 = self.A_IB1(t, q)[:, self.axis]
         return (self.Omega2(t, q, u) - self.Omega1(t, q, u)) @ e_c1
 
-    def angle_dot_q(self, t, q, u):
+    def l_dot_q(self, t, q, u):
         e_c1 = self.A_IB1(t, q)[:, self.axis]
         e_c1_q1 = self.A_IB1_q1(t, q)[:, self.axis]
 
@@ -101,11 +105,11 @@ class Revolute(PositionOrientationBase):
             ]
         )
 
-    def angle_dot_u(self, t, q, u):
+    def l_dot_u(self, t, q, u):
         e_c1 = self.A_IB1(t, q)[:, self.axis]
         return e_c1 @ np.concatenate([-self.J_R1(t, q), self.J_R2(t, q)], axis=1)
 
-    def angle_q(self, t, q):
+    def l_q(self, t, q):
         A_IB1 = self.A_IB1(t, q)
         A_IB2 = self.A_IB2(t, q)
         A_IB1_q1 = self.A_IB1_q1(t, q)
@@ -130,13 +134,13 @@ class Revolute(PositionOrientationBase):
 
         return (x * y_q - y * x_q) / (x**2 + y**2)
 
-    def W_angle(self, t, q):
+    def W_l(self, t, q):
         J_R1 = self.J_R1(t, q)
         J_R2 = self.J_R2(t, q)
         e_c1 = self.A_IB1(t, q)[:, self.axis]
         return np.concatenate([-J_R1.T @ e_c1, J_R2.T @ e_c1]).reshape(self._nu, 1)
 
-    def W_angle_q(self, t, q):
+    def W_l_q(self, t, q):
         nq1 = self._nq1
         nu1 = self._nu1
 

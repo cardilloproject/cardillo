@@ -10,9 +10,8 @@ from cardillo import System
 from cardillo.discrete import RigidBody
 from cardillo.constraints import Revolute
 from cardillo.forces import Force
-from cardillo.transmissions import RotationalTransmission
 from cardillo.actuators import Motor, PDcontroller, PIDcontroller
-
+from cardillo.transmissions import RotationalTransmission
 from cardillo.solver import Moreau
 
 from cardillo.math import A_IK_basic, cross3
@@ -69,7 +68,7 @@ if __name__ == "__main__":
 
     # # add moment
     tau = lambda t: 0
-    motor = Motor(RotationalTransmission)(tau, subsystem=joint)
+    motor = Motor(joint, tau)
     system.add(motor)
 
     system.assemble()
