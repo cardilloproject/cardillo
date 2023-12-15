@@ -25,48 +25,33 @@ if __name__ == "__main__":
     path = Path(__file__)
     vtk_export = False
 
-    MeshedFrame = Meshed(Frame)
-    MeshedRB = Meshed(RigidBody)
-
     cube_mesh = trimesh.creation.box(extents=[3, 3, 3])
     plane_mesh = cube_mesh.copy().apply_transform(np.diag([1, 1, 0.001, 1]))
-    frame = MeshedFrame(plane_mesh, K_r_SP=np.array([0, 0, 0]))
+    frame = Meshed(Frame)(plane_mesh, K_r_SP=np.array([0, 0, 0]))
 
     q10 = np.concatenate([np.array([0, 0, 1]), Spurrier(A_IK_basic(np.pi / 4).x())])
-    # box_mesh = trimesh.creation.box(extents=[0.2, 0.2, 0.1])
-    # rigid_body1 = MeshedRB(box_mesh, density=2, mass=1, K_Theta_S=np.eye(3), q0=q10)
     rigid_body1 = Box(RigidBody)(
         dimensions=[0.2, 0.2, 0.1], density=2, mass=1, K_Theta_S=np.eye(3), q0=q10
     )
 
     q20 = np.concatenate([np.array([0, 1, 1]), Spurrier(A_IK_basic(np.pi / 2).x())])
-    scale = 3
-    tippedisk_mesh = trimesh.load_mesh(
-        Path.joinpath(path.parent, "tippedisk.stl")
-    ).apply_transform(np.diag([scale, scale, scale, 1]))
-    rigid_body2 = MeshedRB(
-        tippedisk_mesh, density=1, mass=1, K_Theta_S=np.eye(3), q0=q20
+    rigid_body2 = Meshed(RigidBody)(
+        Path.joinpath(path.parent, "tippedisk.stl"), density=1, scale=3, q0=q20
     )
 
     q30 = np.concatenate([np.array([1, 1, 1]), Spurrier(A_IK_basic(-np.pi / 4).x())])
     rigid_body3 = Cone(RigidBody)(
-        radius=0.1, height=0.2, density=2, mass=1, K_Theta_S=np.eye(3), q0=q30
+        radius=0.1, height=0.2, mass=1, K_Theta_S=np.eye(3), q0=q30
     )
 
     q40 = np.concatenate([np.array([1, -1, 1]), Spurrier(A_IK_basic(0).x())])
-    rigid_body4 = Cylinder(RigidBody)(
-        radius=0.1, height=0.2, density=2, mass=1, K_Theta_S=np.eye(3), q0=q40
-    )
+    rigid_body4 = Cylinder(RigidBody)(radius=0.1, height=0.2, density=2, q0=q40)
 
     q50 = np.concatenate([np.array([0, -1, 1]), np.array([1, 0, 0, 0])])
-    rigid_body5 = Sphere(RigidBody)(
-        radius=0.1, subdivisions=3, density=2, mass=1, K_Theta_S=np.eye(3), q0=q50
-    )
+    rigid_body5 = Sphere(RigidBody)(radius=0.1, subdivisions=3, density=2, q0=q50)
 
     q60 = np.concatenate([np.array([1, 0, 1]), Spurrier(A_IK_basic(-np.pi / 3).x())])
-    rigid_body6 = Capsule(RigidBody)(
-        radius=0.1, height=0.2, density=2, mass=1, K_Theta_S=np.eye(3), q0=q60
-    )
+    rigid_body6 = Capsule(RigidBody)(radius=0.1, height=0.2, density=2, q0=q60)
 
     system = System()
     system.add(frame)

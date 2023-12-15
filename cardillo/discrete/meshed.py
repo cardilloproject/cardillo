@@ -1,24 +1,25 @@
 import numpy as np
 import trimesh
-import warnings
 
 
 def Meshed(Base):
     class _Meshed(Base):
         def __init__(
             self,
-            trimesh_obj,
+            mesh_obj,
             density=None,
             K_r_SP=np.zeros(3),
             A_KM=np.eye(3),
+            scale=1,
             **kwargs,
         ):
             """Generate an object (typically with Base `Frame` or `RigidBody`) from a given Trimesh object
             Args:
-                trimesh_obj: instance of trimesh defining the mesh
+                mesh_obj: file-like object defining source of mesh or instance of trimesh defining the mesh
                 density: mass density for the computation of the inertia properties of the mesh. If set to None, user specified mass and K_Theta_S are used.
                 K_r_SP (np.ndarray): offset center of mass (S) from STL origin (P) in body fixed K-frame
                 A_KM (np.ndarray): tansformation from mesh-fixed frame (M) to body-fixed frame (K)
+                scale: factor scaling the mesh after import.
             """
             self.K_r_SP = K_r_SP
             self.A_KM = A_KM
@@ -26,7 +27,12 @@ def Meshed(Base):
             #############################
             # consistency checks for mesh
             #############################
-            assert isinstance(trimesh_obj, trimesh.Trimesh)
+            if isinstance(mesh_obj, trimesh.Trimesh):
+                trimesh_obj = mesh_obj
+            else:
+                trimesh_obj = trimesh.load_mesh(mesh_obj)
+
+            trimesh_obj.apply_transform(np.diag([scale, scale, scale, 1]))
 
             # primitives are converted to mesh
             if hasattr(trimesh_obj, "to_mesh"):
@@ -66,11 +72,11 @@ def Meshed(Base):
                 K_Theta_S_arg = kwargs.pop("K_Theta_S", None)
 
                 if (mass_arg is not None) and (not np.allclose(mass, mass_arg)):
-                    warnings.warn("Specified mass does not correspond to mass of mesh.")
+                    print("Specified mass does not correspond to mass of mesh.")
                 if (K_Theta_S_arg is not None) and (
                     not np.allclose(K_Theta_S, K_Theta_S_arg)
                 ):
-                    warnings.warn(
+                    print(
                         "Specified moment of inertia does not correspond to moment of inertia of mesh."
                     )
 
@@ -114,7 +120,7 @@ def Box(Base):
         ):
             self.dimensions = dimensions
             trimesh_obj = trimesh.creation.box(extents=dimensions)
-            super().__init__(trimesh_obj=trimesh_obj, **kwargs)
+            super().__init__(mesh_obj=trimesh_obj, **kwargs)
 
     return _Box
 
@@ -132,7 +138,7 @@ def Cone(Base):
             self.radius = radius
             self.height = height
             trimesh_obj = trimesh.creation.cone(radius, height)
-            super().__init__(trimesh_obj=trimesh_obj, **kwargs)
+            super().__init__(mesh_obj=trimesh_obj, **kwargs)
 
     return _Cone
 
@@ -150,7 +156,7 @@ def Cylinder(Base):
             self.radius = radius
             self.height = height
             trimesh_obj = trimesh.creation.cylinder(radius, height=height)
-            super().__init__(trimesh_obj=trimesh_obj, **kwargs)
+            super().__init__(mesh_obj=trimesh_obj, **kwargs)
 
     return _Cylinder
 
@@ -170,7 +176,7 @@ def Sphere(Base):
             trimesh_obj = trimesh.creation.icosphere(
                 radius=radius, subdivisions=subdivisions
             )
-            super().__init__(trimesh_obj=trimesh_obj, **kwargs)
+            super().__init__(mesh_obj=trimesh_obj, **kwargs)
 
     return _Sphere
 
@@ -188,6 +194,6 @@ def Capsule(Base):
             self.radius = radius
             self.height = height
             trimesh_obj = trimesh.creation.capsule(radius=radius, height=height)
-            super().__init__(trimesh_obj=trimesh_obj, **kwargs)
+            super().__init__(mesh_obj=trimesh_obj, **kwargs)
 
     return _Capsule

@@ -1,7 +1,7 @@
 import numpy as np
 from pathlib import Path
 from cardillo.discrete import RigidBody, Frame
-from cardillo.discrete.shapes import (
+from cardillo.discrete.meshed import (
     Cuboid,
     Ball,
     Cylinder,
