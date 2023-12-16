@@ -283,9 +283,9 @@ def Rhex(
     dt = 1e-2
     solver = BackwardEuler(
         system,
-        t1=5,
+        t1=2,
         dt=dt,
-        options=SolverOptions(newton_atol=1e-4, fixed_point_atol=1e-2),
+        options=SolverOptions(newton_atol=1e-4, fixed_point_atol=1e-3),
     )
 
     sol = solver.solve()
