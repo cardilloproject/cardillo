@@ -12,6 +12,7 @@ from cardillo.forces import (
     LinearDamper,
     PDRotational,
 )
+from cardillo.force_laws import Spring
 from cardillo.math import Exp_SO3, axis_angle2quat, norm
 
 # solver parameters
@@ -65,18 +66,22 @@ def run(Solver, **solver_kwargs):
     q0 = np.hstack((r_OP0, p))
     rigid_body = RigidBody(m, K_theta_S, q0, u0)
 
-    joint = PDRotational(Revolute, Spring=LinearSpring, Damper=LinearDamper)(
-        subsystem1=system.origin,
-        subsystem2=rigid_body,
-        axis=rotation_axis,
-        r_OB0=np.zeros(3),
-        A_IB0=A_IK0,
-        k=k,
-        d=d,
-        g_ref=g_ref,
-    )
+    joint = Revolute(system.origin, rigid_body, rotation_axis,r_OB0=np.zeros(3),
+        A_IB0=A_IK0,)
+    
+    spring = Spring(joint, k, d, l_ref=g_ref)
+    # joint = PDRotational(Revolute, Spring=LinearSpring, Damper=LinearDamper)(
+    #     subsystem1=system.origin,
+    #     subsystem2=rigid_body,
+    #     axis=rotation_axis,
+    #     r_OB0=np.zeros(3),
+    #     A_IB0=A_IK0,
+    #     k=k,
+    #     d=d,
+    #     g_ref=g_ref,
+    # )
 
-    system.add(rigid_body, joint)
+    system.add(rigid_body, joint, spring)
     system.assemble()
 
     ############################################################################

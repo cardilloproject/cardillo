@@ -1,5 +1,6 @@
 class LinearSpring:
     def __init__(self, k, g_ref=None):
+
         self.k = k
         self.g_ref = g_ref
 

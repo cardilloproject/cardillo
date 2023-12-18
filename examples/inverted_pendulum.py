@@ -11,7 +11,6 @@ from cardillo.discrete import RigidBody
 from cardillo.constraints import Revolute
 from cardillo.forces import Force
 from cardillo.actuators import Motor, PDcontroller, PIDcontroller
-from cardillo.transmissions import RotationalTransmission
 from cardillo.solver import Moreau
 
 from cardillo.math import A_IK_basic, cross3
@@ -187,13 +186,13 @@ if __name__ == "__main__":
     ki = 100
     kd = 10
     if feed_back == "PD":
-        controller = PDcontroller(RotationalTransmission)(
-            kp, kd, angle_des, subsystem=joint
+        controller = PDcontroller(joint,
+            kp, kd, angle_des
         )
         system.add(controller)
     elif feed_back == "PID":
-        controller = PIDcontroller(RotationalTransmission)(
-            kp, ki, kd, angle_des, subsystem=joint
+        controller = PIDcontroller( joint,
+            kp, ki, kd, angle_des
         )
         system.add(controller)
 
