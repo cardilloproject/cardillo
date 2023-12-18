@@ -94,20 +94,13 @@ def Meshed(Base):
 
             super().__init__(**kwargs)
 
-        # def get_visual_mesh_wrt_I(self, t, q):
-        #     H_IK = np.eye(4)
-        #     H_IK[:3, 3] = self.r_OP(t, q)
-        #     H_IK[:3, :3] = self.A_IK(t, q)
-        #     return self.K_visual_mesh.copy().apply_transform(H_IK)
-
         def export(self, sol_i, base_export=False, **kwargs):
             if base_export:
                 return super().export(sol_i, **kwargs)
             else:
-                # TODO: slicing could be done on global level in Export class. 
-                # Moreover, solution class should be able to return the slice, 
-                # e.g., sol_i.get_q_of_body(name).
-                r_OS = self.r_OP(sol_i.t, sol_i.q[self.qDOF])
+                r_OS = self.r_OP(
+                    sol_i.t, sol_i.q[self.qDOF]
+                )  # TODO: Idea: slicing could be done on global level in Export class. Moreover, solution class should be able to return the slice, e.g., sol_i.get_q_of_body(name).
                 A_IK = self.A_IK(sol_i.t, sol_i.q[self.qDOF])
                 points = (r_OS[:, None] + A_IK @ self.K_r_SQi_T).T
 

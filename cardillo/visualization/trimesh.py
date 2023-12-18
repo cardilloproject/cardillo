@@ -6,10 +6,7 @@ from cardillo.math import SE3inv
 
 
 def show_system(system, t, q, origin_size=0):
-    # TODO: this is nice for debugging and quickly get an overview. However,
-    # when the window is closed, it stops the execution of the code. If we
-    # find a solution to this, we could provide this function as a visualization
-    # utility or as part of system.py.
+    # TODO: On MacOS: When the window is closed, it stops the execution of the code.
     scene = trimesh.Scene()
     if origin_size > 0:
         scene.add_geometry(trimesh.creation.axis(origin_size=origin_size))
@@ -25,12 +22,8 @@ def show_system(system, t, q, origin_size=0):
 
 
 def animate_system(system, t, q, fps=30, t_factor=1, origin_size=0):
-    # TODO: this is nice for debugging and quickly get an overview. However,
-    # when the window is closed, it stops the execution of the code. If we
-    # find a solution to this, we could provide this function as a visualization
-    # utility or as part of system.py.
-    # t_factor : 1s real time = t_factor * 1s animation time (t_factor=10 means
-    # video is 10 times slower than reality)
+    # TODO: On MacOS: When the window is closed, it stops the execution of the code.
+    # t_factor : 1s real time = t_factor * 1s animation time (t_factor=10 means video is 10 times slower than reality)
     scene = trimesh.Scene()
     # initial configuration
     if origin_size > 0:
@@ -62,8 +55,6 @@ def animate_system(system, t, q, fps=30, t_factor=1, origin_size=0):
 
 
 def update_scene(scene):
-    # TODO: this is not a real update but a redrawing of the scene. Using
-    # relative transformations on the objects could be faster.
     ti = scene.t[scene.i]
     qi = scene.q(ti)
     scene.i += 1
