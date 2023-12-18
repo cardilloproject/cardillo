@@ -8,7 +8,7 @@ from cardillo.rods import (
 from cardillo.rods.cosseratRod import (
     make_CosseratRod_SE3,
     make_CosseratRod_Quat,
-    make_CosseratRod_R12
+    make_CosseratRod_R12,
 )
 
 from cardillo.discrete import Frame
@@ -39,6 +39,7 @@ https://doi.org/10.1016/0020-7683(92)90024-N
 
 """
 
+
 def deployment_of_elastic_ring(
     Rod,
     nelements=10,
@@ -48,7 +49,6 @@ def deployment_of_elastic_ring(
     reduced_integration=True,
     displacement_controlled=False,
 ):
-    
     # cross section properties
     width = 1.0 / 3
     height = 1.0
@@ -57,8 +57,8 @@ def deployment_of_elastic_ring(
     I1, I2, I3 = np.diag(cross_section.second_moment)
 
     # material model
-    EE = 2.1 * 1.e7             # Young's modulus
-    GG = EE / (2 * (1 + 0.3))   # shear modulus
+    EE = 2.1 * 1.0e7  # Young's modulus
+    GG = EE / (2 * (1 + 0.3))  # shear modulus
     Ei = np.array([EE * A, GG * A, GG * A])
     Fi = np.array([GG * 9.753 * 1e-3, EE * I2, EE * I3])
 
@@ -105,15 +105,17 @@ def deployment_of_elastic_ring(
         A_IK_rotating = lambda t: A_IK_basic(4 * pi * t).x()
         rotating_frame = Frame(A_IK=A_IK_rotating)
         guidance_right = Prismatic(ring, rotating_frame, 1, frame_ID1=(0.5,))
-        
+
         system.add(rotating_frame)
         system.add(guidance_right)
 
-        system.assemble(options=SolverOptions(compute_consistent_initial_conditions=False))
+        system.assemble(
+            options=SolverOptions(compute_consistent_initial_conditions=False)
+        )
 
         solver = Newton(
-        system,
-        n_load_steps=100,
+            system,
+            n_load_steps=100,
         )
 
     else:
@@ -122,14 +124,16 @@ def deployment_of_elastic_ring(
         moment = Moment(M, ring, (0.5,))
         system.add(moment)
 
-        system.assemble(options=SolverOptions(compute_consistent_initial_conditions=False))
+        system.assemble(
+            options=SolverOptions(compute_consistent_initial_conditions=False)
+        )
 
         solver = Riks(
-        system,
-        iter_goal=3,
-        la_arc0=2e-2,
-        la_arc_span=np.array([-1, 1]),
-        n_load_steps=100,
+            system,
+            iter_goal=3,
+            la_arc0=2e-2,
+            la_arc_span=np.array([-1, 1]),
+            n_load_steps=100,
         )
 
     sol = solver.solve()
@@ -155,14 +159,15 @@ def deployment_of_elastic_ring(
 
     _, ax = plt.subplots()
 
+    ax.plot(u[0], M, "-", color="blue", label="u_x", marker="o")
+    ax.plot(u[1], M, "-", color="red", label="u_y", marker="s")
     ax.plot(
-        u[0], M, "-", color="blue", label="u_x", marker="o"
-    )
-    ax.plot(
-        u[1], M, "-", color="red", label="u_y", marker="s"
-    )
-    ax.plot(
-        u[2], M, "-", color="green", label="u_z", marker="^",
+        u[2],
+        M,
+        "-",
+        color="green",
+        label="u_z",
+        marker="^",
     )
 
     ax.grid()
@@ -207,4 +212,6 @@ def deployment_of_elastic_ring(
 
 
 if __name__ == "__main__":
-    deployment_of_elastic_ring(Rod=make_CosseratRod_Quat(mixed=True), displacement_controlled=True)
+    deployment_of_elastic_ring(
+        Rod=make_CosseratRod_Quat(mixed=True), displacement_controlled=True
+    )

@@ -95,9 +95,7 @@ def lee_frame(
         system.add(rodi)
 
     # rigid connection between rods
-    clamping_c1_c2 = RigidConnection(
-        rod[0], rod[1], frame_ID1=(1,), frame_ID2=(0,)
-    )
+    clamping_c1_c2 = RigidConnection(rod[0], rod[1], frame_ID1=(1,), frame_ID2=(0,))
 
     # hinge constraints
     hinge_c1 = Revolute(rod[0], system.origin, 2, frame_ID1=(0,))
@@ -159,7 +157,6 @@ def lee_frame(
                 num=3 * nelements,
                 file_name=f"rod_{i}_volume",
             )
-
 
     u_x = np.zeros(nt)
     u_y = np.zeros(nt)

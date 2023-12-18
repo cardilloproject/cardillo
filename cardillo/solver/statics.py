@@ -212,7 +212,7 @@ class Riks:
         la_arc0=1.0e-3,
         la_arc_span=np.array([0, 1], dtype=float),
         scale_exponent=0.5,
-        n_load_steps = 5.e3,
+        n_load_steps=5.0e3,
         options=SolverOptions(),
     ):
         self.system = system
@@ -428,7 +428,11 @@ class Riks:
         pbar = tqdm(total=100, leave=True)
         i0 = 0
         n_load = 0
-        while xk1[-1] >= self.la_arc_span[0] and xk1[-1] <= self.la_arc_span[1] and n_load <= self.n_load_steps:
+        while (
+            xk1[-1] >= self.la_arc_span[0]
+            and xk1[-1] <= self.la_arc_span[1]
+            and n_load <= self.n_load_steps
+        ):
             # increment number of steps
             i += 1
             # number of load steps
