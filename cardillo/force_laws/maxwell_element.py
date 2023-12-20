@@ -12,6 +12,7 @@ class MaxwellElement:
     def assembler_callback(self):
         self.qDOF = np.concatenate((self.subsystem.qDOF, self.q_dotDOF))
         self.uDOF = self.subsystem.uDOF
+        self._nq = len(self.qDOF)
         self._nu = len(self.uDOF)
         if self.l_ref is None:
             self.l_ref = self.subsystem.l(self.subsystem.t0, self.subsystem.q0)
@@ -21,7 +22,8 @@ class MaxwellElement:
         return (self.k / self.eta) * (self.subsystem.l(t, q[:-1]) - l_d - self.l_ref)
     
     def q_dot_q(self, t, q, u):
-        q_dot_q = (self.k / self.eta) * self.subsystem.l_q(t, q[:-1])
+        q_dot_q = np.zeros(self._nq)
+        q_dot_q[:-1] = (self.k / self.eta) * self.subsystem.l_q(t, q[:-1])
         q_dot_q[-1] -= self.k / self.eta
         return q_dot_q
 
@@ -38,9 +40,10 @@ class MaxwellElement:
 
     def h_q(self, t, q, u):
         l_d = q[-1]
-        h_q = -(
+        h_q = np.zeros((self._nu, self._nq))
+        h_q[:, :-1] = -(
             self.subsystem.W_l_q(t, q[:-1]) * self.k * (self.subsystem.l(t, q[:-1]) - l_d - self.l_ref)
-            + np.outer(self.subsystem.W_l(t, q[:-1]), self._g_q(t, q[:-1])) * self.k
+            + np.outer(self.subsystem.W_l(t, q[:-1]), self.subsystem.l_q(t, q[:-1])) * self.k
         )
         h_q[:, -1] -= self.subsystem.W_l(t, q[:-1]) * self.k
         return h_q

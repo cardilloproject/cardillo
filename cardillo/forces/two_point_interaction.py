@@ -111,6 +111,15 @@ class TwoPointInteraction:
         gamma_q[nq1:] = n @ self.v_P2_q(t, q, u) + v_P1P2 @ n_q2
         return gamma_q
 
+    def l_dot_u(self, t, q, u):
+        n = self._n(t, q)
+
+        nu1 = self._nu1
+        l_dot_u = np.zeros(self._nu)
+        l_dot_u[:nu1] = -n @ self.J_P1(t, q) 
+        l_dot_u[nu1:] = n @ self.J_P2(t, q)
+        return l_dot_u
+
     def _n(self, t, q):
         r_OP1 = self.r_OP1(t, q)
         r_OP2 = self.r_OP2(t, q)
