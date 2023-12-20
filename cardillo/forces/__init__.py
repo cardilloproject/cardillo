@@ -5,3 +5,4 @@ from .scalar_force_translational import ScalarForceTranslational
 from .scalar_force_rotational import PDRotational
 from .scalar_force_translational_nel import nElScalarForceTranslational
 from .maxwell_element import MaxwellElement
+from .two_point_interaction import TwoPointInteraction

@@ -4,7 +4,9 @@ from scipy.integrate import solve_ivp
 
 from cardillo import System
 from cardillo.discrete import PointMass
-from cardillo.forces import MaxwellElement as MaxwellElementFL
+# from cardillo.forces import MaxwellElement as MaxwellElementFL
+from cardillo.forces import TwoPointInteraction
+from cardillo.force_laws import MaxwellElement as MaxwellElementFL
 from cardillo.solver import BackwardEuler, Moreau, ScipyIVP, Rattle
 
 
@@ -147,16 +149,17 @@ class MaxwellElementCompliance:
 
 
 class MaxwellElementForceElement:
-    def __init__(self, mass, stiffness, damping, l0, x0, g_d0, x_dot0):
+    def __init__(self, mass, stiffness, damping, l0, x0, l_d0, x_dot0):
         self.system = System()
         pm = PointMass(mass, q0=np.array([x0, 0, 0]), u0=np.array([x_dot0, 0, 0]))
         pm.name = "point mass"
         self.system.add(pm)
+        tpi = TwoPointInteraction(self.system.origin, pm)
         max = MaxwellElementFL(
-            self.system.origin, pm, stiffness, damping, g_sref=l0, q0=np.array([g_d0])
+            tpi, stiffness, damping, l_ref=l0, q0=np.array([l_d0])
         )
         max.name = "Maxwell-element"
-        self.system.add(max)
+        self.system.add(tpi, max)
         self.system.assemble()
 
     def get_system(self):
@@ -177,24 +180,24 @@ if __name__ == "__main__":
     la_c0 = np.array([-5], dtype=float)
 
     # maxwell_element = MaxwellElement(mass, stiffness, damping, l0, q0, u0)
-    maxwell_element = MaxwellElementCompliance(
-        mass, stiffness, damping, l0, q0, u0, la_c0
-    )
-    system = System()
-    system.add(maxwell_element)
-    system.assemble()
+    # maxwell_element = MaxwellElementCompliance(
+    #     mass, stiffness, damping, l0, q0, u0, la_c0
+    # )
+    # system = System()
+    # system.add(maxwell_element)
+    # system.assemble()
 
-    # system = MaxwellElementForceElement(
-    #     mass, stiffness, damping, l0, x0, x_D0, x_dot0
-    # ).get_system()
+    system = MaxwellElementForceElement(
+        mass, stiffness, damping, l0, x0, x_D0, x_dot0
+    ).get_system()
 
     t0 = 0
     t1 = 1
     dt = 1e-3
     # sol = BackwardEuler(system, t1, dt).solve()
     # sol = ScipyIVP(system, t1, dt).solve()
-    # sol = Moreau(system, t1, dt).solve()
-    sol = Rattle(system, t1, dt).solve()
+    sol = Moreau(system, t1, dt).solve()
+    # sol = Rattle(system, t1, dt).solve()
     t, q, u = sol.t, sol.q, sol.u
 
     # - ref. solution

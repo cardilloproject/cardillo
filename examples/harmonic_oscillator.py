@@ -5,10 +5,12 @@ from cardillo import System
 from cardillo.solver import ScipyIVP, BackwardEuler
 from cardillo.discrete import PointMass
 from cardillo.forces import Force
+from cardillo.force_laws import SpringDamper
 from cardillo.forces import (
     LinearDamper,
     LinearSpring,
     ScalarForceTranslational,
+    TwoPointInteraction
 )
 
 if __name__ == "__main__":
@@ -25,23 +27,27 @@ if __name__ == "__main__":
 
     f_g = Force(lambda t: np.array([0, 0, -m * g]), mass)
 
-    linear_spring = LinearSpring(k)
-    # linear_spring = None
-    linear_damper = LinearDamper(d)
-    # linear_damper = None
-    scalar_force_element = ScalarForceTranslational(
-        system.origin, mass, linear_spring, linear_damper
-    )
+    # linear_spring = LinearSpring(k)
+    # # linear_spring = None
+    # linear_damper = LinearDamper(d)
+    # # linear_damper = None
+    # scalar_force_element = ScalarForceTranslational(
+    #     system.origin, mass, linear_spring, linear_damper
+    # )
+
+    tp_interaction = TwoPointInteraction(system.origin, mass)
+    scalar_force_element = SpringDamper(tp_interaction, k, d)
     system.add(mass)
     system.add(f_g)
+    system.add(tp_interaction)
     system.add(scalar_force_element)
     system.assemble()
 
     t0 = 0
     t1 = 2
     dt = 1.0e-2
-    # solver = ScipyIVP(system, t1, dt)
-    solver = BackwardEuler(system, t1, dt)
+    solver = ScipyIVP(system, t1, dt)
+    # solver = BackwardEuler(system, t1, dt)
     sol = solver.solve()
     t = sol.t
     q = sol.q

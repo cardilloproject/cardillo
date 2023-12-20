@@ -1,1 +1,3 @@
-from .scalar_force_law import ScalarForceLaw, Spring
+from .spring import Spring
+from .spring_damper import SpringDamper
+from .maxwell_element import MaxwellElement
