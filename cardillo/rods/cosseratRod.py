@@ -15,6 +15,9 @@ from cardillo.math import (
     Exp_SO3,
 )
 
+from cachetools import cachedmethod, LRUCache
+from cachetools.keys import hashkey
+
 from cardillo.rods._base_CosseratRod import (
     CosseratRod,
     CosseratRodMixed,
@@ -23,7 +26,7 @@ from cardillo.rods._base_CosseratRod import (
 from ._cross_section import CrossSectionInertias
 
 
-def make_CosseratRod_SE3(mixed=False, constraints=None):
+def make_CosseratRod_SE3(mixed=True, constraints=None):
     if mixed == True:
         if constraints == None:
             CosseratRodBase = CosseratRodMixed
@@ -117,6 +120,10 @@ def make_CosseratRod_SE3(mixed=False, constraints=None):
                 K_omega_IK=K_omega_IK,
             )
 
+        @cachedmethod(
+            lambda self: self._eval_cache,
+            key=lambda self, qe, xi: hashkey(*qe, xi),
+        )
         def _eval(self, qe, xi):
             # nodal unknowns
             r_OP0, r_OP1 = qe[self.nodalDOF_element_r]
@@ -165,6 +172,10 @@ def make_CosseratRod_SE3(mixed=False, constraints=None):
 
             return r_OP, A_IK, K_Gamma_bar, K_Kappa_bar
 
+        @cachedmethod(
+            lambda self: self._deval_cache,
+            key=lambda self, qe, xi: hashkey(*qe, xi),
+        )
         def _deval(self, qe, xi):
             # extract nodal screws
             nodalDOF0 = np.concatenate(
@@ -282,7 +293,7 @@ def make_CosseratRod_SE3(mixed=False, constraints=None):
     return CosseratRod_SE3
 
 
-def make_CosseratRod_R3SO3(mixed=False, constraints=None):
+def make_CosseratRod_R3SO3(mixed=True, constraints=None):
     if mixed == True:
         if constraints == None:
             CosseratRodBase = CosseratRodMixed
@@ -423,7 +434,7 @@ def make_CosseratRod_R3SO3(mixed=False, constraints=None):
     return CosseratRod_R3SO3
 
 
-def make_CosseratRod_Quat(mixed=False, constraints=None):
+def make_CosseratRod_Quat(mixed=True, constraints=None):
     if mixed == True:
         if constraints == None:
             CosseratRodBase = CosseratRodMixed
@@ -498,6 +509,10 @@ def make_CosseratRod_Quat(mixed=False, constraints=None):
                 K_omega_IK,
             )
 
+        @cachedmethod(
+            lambda self: self._eval_cache,
+            key=lambda self, qe, xi: hashkey(*qe, xi),
+        )
         def _eval(self, qe, xi):
             # evaluate shape functions
             N, N_xi = self.basis_functions_r(xi)
@@ -538,6 +553,10 @@ def make_CosseratRod_Quat(mixed=False, constraints=None):
 
             return r_OP, A_IK, K_Gamma_bar, K_Kappa_bar
 
+        @cachedmethod(
+            lambda self: self._deval_cache,
+            key=lambda self, qe, xi: hashkey(*qe, xi),
+        )
         def _deval(self, qe, xi):
             # evaluate shape functions
             N_r, N_r_xi = self.basis_functions_r(xi)
@@ -677,7 +696,7 @@ def make_CosseratRod_Quat(mixed=False, constraints=None):
     return CosseratRod_Quat
 
 
-def make_CosseratRod_R12(mixed=False, constraints=None):
+def make_CosseratRod_R12(mixed=True, constraints=None):
     if mixed == True:
         if constraints == None:
             CosseratRodBase = CosseratRodMixed
@@ -729,6 +748,10 @@ def make_CosseratRod_R12(mixed=False, constraints=None):
             )
 
         # returns interpolated positions, orientations and strains at xi in [0,1]
+        @cachedmethod(
+            lambda self: self._eval_cache,
+            key=lambda self, qe, xi: hashkey(*qe, xi),
+        )
         def _eval(self, qe, xi):
             # evaluate shape functions
             N_r, N_r_xi = self.basis_functions_r(xi)
@@ -766,6 +789,10 @@ def make_CosseratRod_R12(mixed=False, constraints=None):
 
             return r_OP, A_IK, K_Gamma_bar, K_Kappa_bar
 
+        @cachedmethod(
+            lambda self: self._deval_cache,
+            key=lambda self, qe, xi: hashkey(*qe, xi),
+        )
         def _deval(self, qe, xi):
             # evaluate shape functions
             N_r, N_r_xi = self.basis_functions_r(xi)

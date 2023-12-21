@@ -91,7 +91,8 @@ def test_some_rigid_bodies():
         overwrite=True, 
         fps=30, 
         solution=sol)
-    e.export_contr(rectangle)
+    # TODO: give rectangle also a name
+    e.export_contr(rectangle, file_name="floor")
     e.export_contr(ball)
     e.export_contr(box)
     e.export_contr(cylinder)

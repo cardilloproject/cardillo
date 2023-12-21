@@ -290,7 +290,7 @@ class Sphere2Sphere:
         raise NotImplementedError
 
     def Wla_N_q(self, t, q, la_N):
-        return approx_fprime(q, lambda q: la_N[0] * self.g_N_dot_u(t, q))
+        return approx_fprime(q, lambda q: la_N @ self.g_N_dot_u(t, q))
 
     ##########
     # friction
@@ -314,8 +314,6 @@ class Sphere2Sphere:
         return approx_fprime(q, lambda q: self.gamma_F(t, q, u))
 
     def gamma_F_u(self, t, q):
-        # return approx_fprime(np.zeros(self.nu), lambda u: self.gamma_F(t, q, u))
-
         n, t1, t2 = self.normal_and_tangents(t, q)
 
         J_P1 = self.J_S1(t, q) - ax2skew(self.radius1 * n) @ self.J1_R(t, q)
@@ -351,4 +349,4 @@ class Sphere2Sphere:
         )
 
     def Wla_F_q(self, t, q, la_F):
-        return approx_fprime(q, lambda q: self.gamma_F_u(t, q).T @ la_F)
+        return approx_fprime(q, lambda q: la_F @ self.gamma_F_u(t, q))

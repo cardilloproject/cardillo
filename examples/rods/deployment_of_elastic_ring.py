@@ -133,7 +133,7 @@ def deployment_of_elastic_ring(
             iter_goal=3,
             la_arc0=2e-2,
             la_arc_span=np.array([-1, 1]),
-            n_load_steps=100,
+            max_load_steps=100,
         )
 
     sol = solver.solve()
@@ -159,16 +159,9 @@ def deployment_of_elastic_ring(
 
     _, ax = plt.subplots()
 
-    ax.plot(u[0], M, "-", color="blue", label="u_x", marker="o")
-    ax.plot(u[1], M, "-", color="red", label="u_y", marker="s")
-    ax.plot(
-        u[2],
-        M,
-        "-",
-        color="green",
-        label="u_z",
-        marker="^",
-    )
+    ax.plot(u[0], M, "-", color="blue", label="u_x")
+    ax.plot(u[1], M, "-", color="red", label="u_y")
+    ax.plot(u[2], M, "-", color="green", label="u_z")
 
     ax.grid()
     ax.legend(loc="upper left")
