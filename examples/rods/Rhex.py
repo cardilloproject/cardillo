@@ -19,8 +19,8 @@ from cardillo.contacts import Sphere2Plane
 
 from cardillo.rods.force_line_distributed import Force_line_distributed
 
-from cardillo.constraints import RigidConnection
-from cardillo.solver import Newton, BackwardEuler, SolverOptions
+from cardillo.constraints import RigidConnection, Revolute
+from cardillo.solver import Newton, BackwardEuler, SolverOptions, Moreau
 from cardillo.forces import Force, K_Moment, Moment, K_Force
 
 from cardillo.math import e1, e2, e3, smoothstep0
@@ -204,7 +204,7 @@ def Rhex(
     # construct system
     system = System()
 
-    h_drop = 0.1
+    h_drop = 0
     l_box = 0.5
     w_box = 0.2
     h_box = 0.15
@@ -261,15 +261,18 @@ def Rhex(
             q0=q0,
             polynomial_degree=polynomial_degree,
             reduced_integration=reduced_integration,
+            cross_section_inertias = cross_section_inertias,
         )
         leg.append(legi)
         system.add(legi)
-        foot_contact = Sphere2Plane(system.origin, legi, mu=0.2, frame_ID=(1,))
-        system.add(foot_contact)
-        foot_contact2 = Sphere2Plane(system.origin, legi, mu=0.2, frame_ID=(0.9,))
-        system.add(foot_contact2)
-        foot_contact3 = Sphere2Plane(system.origin, legi, mu=0.2, frame_ID=(0.8,))
-        system.add(foot_contact3)
+        # foot_contact = Sphere2Plane(system.origin, legi, mu=0.2, frame_ID=(1,))
+        # system.add(foot_contact)
+        # foot_contact2 = Sphere2Plane(system.origin, legi, mu=0.2, frame_ID=(0.9,))
+        # system.add(foot_contact2)
+        # foot_contact3 = Sphere2Plane(system.origin, legi, mu=0.2, frame_ID=(0.8,))
+        # system.add(foot_contact3)
+        foot_hinge = Revolute(legi, system.origin, axis=1, A_IB0=np.eye(3), frame_ID1=(1,))
+        system.add(foot_hinge)
         gravity = Force_line_distributed(leg_gravity, legi)
         system.add(gravity)
         box_leg_connection = RigidConnection(box, legi, frame_ID2=(0,))
@@ -280,13 +283,20 @@ def Rhex(
 
     system.assemble(options=SolverOptions(compute_consistent_initial_conditions=False))
 
-    dt = 1e-2
+    dt = 1e-3
     solver = BackwardEuler(
         system,
-        t1=2,
+        t1=10,
         dt=dt,
-        options=SolverOptions(newton_atol=1e-4, fixed_point_atol=1e-3),
+        options=SolverOptions(newton_atol=1e-6, fixed_point_atol=1e-3, prox_scaling=10),
     )
+    # dt = 1e-6
+    # solver = Moreau(
+    #     system,
+    #     t1=0.05,
+    #     dt=dt,
+    #     options=SolverOptions(fixed_point_atol=1e-3, prox_scaling=0.5),
+    # )
 
     sol = solver.solve()
 
