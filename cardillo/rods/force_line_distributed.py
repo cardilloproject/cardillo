@@ -5,7 +5,7 @@ class Force_line_distributed:
 
     def __init__(self, force, rod):
         if not callable(force):
-            self.force = lambda (t, xi): force
+            self.force = lambda t, xi: force
         else:
             self.force = force
         self.rod = rod
