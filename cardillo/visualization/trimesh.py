@@ -8,8 +8,6 @@ from cardillo.math import SE3inv
 def show_system(system, t, q, origin_size=0):
     # TODO: On MacOS: When the window is closed, it stops the execution of the code.
     scene = trimesh.Scene()
-    if origin_size > 0:
-        scene.add_geometry(trimesh.creation.axis(origin_size=origin_size))
     for contr in system.contributions:
         if hasattr(contr, "K_visual_mesh"):
             qc = q[contr.qDOF]
@@ -26,8 +24,6 @@ def animate_system(system, t, q, fps=30, t_factor=1, origin_size=0):
     # t_factor : 1s real time = t_factor * 1s animation time (t_factor=10 means video is 10 times slower than reality)
     scene = trimesh.Scene()
     # initial configuration
-    if origin_size > 0:
-        scene.add_geometry(trimesh.creation.axis(origin_size=origin_size))
     contributions = {}
     transformations = {}
     for contr in system.contributions:

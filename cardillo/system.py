@@ -5,6 +5,7 @@ from scipy.sparse import diags
 
 from cardillo.utility.coo_matrix import CooMatrix
 from cardillo.discrete.frame import Frame
+from cardillo.discrete.meshed import Axis
 from cardillo.solver import consistent_initial_conditions
 
 properties = []
@@ -52,7 +53,7 @@ class System:
 
     """
 
-    def __init__(self, t0=0):
+    def __init__(self, t0=0, origin_size=0):
         self.t0 = t0
         self.nq = 0
         self.nu = 0
@@ -67,7 +68,11 @@ class System:
         self.contributions_map = {}
         self.ncontr = 0
 
-        self.origin = Frame()
+        if origin_size > 0:
+            self.origin = Axis(Frame)(origin_size=origin_size)
+        else:
+            self.origin = Frame()
+
         self.origin.name = "cardillo_origin"
         self.add(self.origin)
 

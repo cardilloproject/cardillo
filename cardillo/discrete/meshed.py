@@ -230,3 +230,17 @@ def Tetrahedron(Base):
             super().__init__(mesh_obj=trimesh_obj, **kwargs)
 
     return _Tetrahedron
+
+def Axis(Base):
+    MeshedBase = Meshed(Base)
+
+    class _Axis(MeshedBase):
+        def __init__(
+            self,
+            origin_size=0.04,
+            **kwargs,
+        ):
+            trimesh_obj = trimesh.creation.axis(origin_size=origin_size)
+            super().__init__(mesh_obj=trimesh_obj, **kwargs)
+
+    return _Axis
