@@ -27,144 +27,107 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-""" 
-Lee's frame example proposed by Kadapa, C. in 
-"A simple extrapolated predictor for overcoming the starting and tracking
-issues in the arc-length method for nonlinear structural mechanics",
-Engineering structures, 2021
-https://doi.org/10.1016/j.engstruct.2020.111755
+""" Lee frame: Buckling of a hinged right-angle frame under follower point
+load
+
+Harsch, J. and Eugster, S. R., "Finite element analysis of planar nonlinear classical beam theories", 2020. 
+https://doi.org/10.1007/978-3-030-50460-1_10, Section 6.5
 
 """
 
 
-def cantilever(
-    load_type="force", rod_hypothesis_penalty="shear_deformable", VTK_export=False
+def lee_frame(
+    Rod,
+    nelements=5,
+    polynomial_degree=3,
+    n_load_steps=10,
+    reduced_integration=True,
+    VTK_export=False,
 ):
-    # interpolation of Ansatz/trial functions
-    Rod = make_CosseratRod_SE3()
-    # Rod = make_CosseratRod_Quat()
-    # Rod = make_CosseratRod_R12()
-
-    # Ghosh and Roy use a mesh with 5 element for beam
-    nelements = 5
-    polynomial_degree = 2
+    # cross section properties for visualization purposes
+    width = 1.0
+    cross_section = RectangularCrossSection(width, width)
 
     # geometry of the rod
     length = 120
-    # slenderness = 1.0e2
-    width = 1
 
-    # cross section
-    cross_section = RectangularCrossSection(width, width)
-
-    atol = 1e-7
-
-    Ee = 720.0
-    Poisson = 0.3
-    Gg = Ee / (2 * (1 + Poisson))
-    Area = 6
-    II = 2
+    # material properties
+    EE = 7.2e6
+    nu = 0.3
+    GG = EE / (2 + 2 * nu)
+    A = 6.0
+    I = 2.0
 
     # material model
-    Ei = np.array([Ee * Area, Gg * Area, Gg * Area])
-    Fi = np.array([Ee * II, Ee * II, Ee * II])
+    Ei = np.array([EE * A, GG * A, GG * A])
+    Fi = np.array([2 * GG * I, EE * I, EE * I])
 
     material_model = Simo1986(Ei, Fi)
 
-    # position and orientation of left point
-    r_OP01 = np.zeros(3, dtype=float)
-    A_IK01 = np.eye(3, dtype=float)
-    r_OP02 = np.zeros(3, dtype=float)
-    r_OP02[0] = length
-    angolo_rad = np.radians(90)
-    A_IK02 = A_IK_basic(angolo_rad).y()
+    # starting positions and orientations
+    r_OP0 = np.array([[0, 0, 0], [0, length, 0]])
+    A_IK0 = np.zeros((2, 3, 3))
+    A_IK0[0] = A_IK_basic(np.pi / 2).z()
+    A_IK0[1] = np.eye(3)
 
     # construct system
     system = System()
 
-    q01 = Rod.straight_configuration(
-        nelements,
-        length,
-        polynomial_degree=polynomial_degree,
-        r_OP=r_OP01,
-        A_IK=A_IK01,
-    )
-    cantilever1 = Rod(
-        cross_section,
-        material_model,
-        nelements,
-        Q=q01,
-        q0=q01,
-        polynomial_degree=polynomial_degree,
-        reduced_integration=False,
-    )
+    rod = []
+    for i in range(2):
+        q0 = Rod.straight_configuration(
+            nelements,
+            length,
+            polynomial_degree=polynomial_degree,
+            r_OP=r_OP0[i],
+            A_IK=A_IK0[i],
+        )
+        rodi = Rod(
+            cross_section,
+            material_model,
+            nelements,
+            Q=q0,
+            q0=q0,
+            polynomial_degree=polynomial_degree,
+            reduced_integration=reduced_integration,
+        )
+        rod.append(rodi)
+        system.add(rodi)
 
-    q02 = Rod.straight_configuration(
-        nelements,
-        length,
-        polynomial_degree=polynomial_degree,
-        r_OP=r_OP02,
-        A_IK=A_IK02,
-    )
-    cantilever2 = Rod(
-        cross_section,
-        material_model,
-        nelements,
-        Q=q02,
-        q0=q02,
-        polynomial_degree=polynomial_degree,
-        reduced_integration=False,
-    )
+    # rigid connection between rods
+    clamping_c1_c2 = RigidConnection(rod[0], rod[1], frame_ID1=(1,), frame_ID2=(0,))
 
-    # rigid connection between beams
-    clamping_c1_c2 = RigidConnection(
-        cantilever1, cantilever2, frame_ID1=(1,), frame_ID2=(0,)
-    )
+    # hinge constraints
+    hinge_c1 = Revolute(rod[0], system.origin, 2, frame_ID1=(0,))
+    hinge_c2 = Revolute(rod[1], system.origin, 2, frame_ID1=(1,))
 
-    # hinge on the left of beam 1
-    # x-axis rotation
-    frame_left_c1 = Frame(r_OP01, A_IK01)
-    hinge_left_c1 = Revolute(frame_left_c1, cantilever1, 1, frame_ID2=(0,))
-
-    # hinge on the right of beam 2
-    r_OP02_right = np.zeros(3, dtype=float)
-    r_OP02_right[0] = length
-    r_OP02_right[2] = -length
-    frame_right_c2 = Frame(r_OP02_right, A_IK02)
-    hinge_right_c2 = Revolute(frame_right_c2, cantilever2, 1, frame_ID2=(1,))
-    # hinge_right_c2= Revolute(cantilever2, system.origin, 0, frame_ID1=(1,))
-
-    f_max = 100
     # concentrated force
-    F = lambda t: -f_max * t * e1
-    force = Force(F, cantilever2, frame_ID=(0.2,))
+    f_max = 40.0e3
+    F = lambda t: -f_max * t * e2
+    force = K_Force(F, rod[1], frame_ID=(0.2,))
 
     # assemble the system
-    system.add(cantilever1)
-    system.add(cantilever2)
     system.add(clamping_c1_c2)
-    system.add(frame_left_c1)
-    system.add(frame_right_c2)
-    system.add(hinge_left_c1)
-    system.add(hinge_right_c2)
+    system.add(hinge_c1)
+    system.add(hinge_c2)
     system.add(force)
 
-    system.assemble()
+    system.assemble(options=SolverOptions(compute_consistent_initial_conditions=False))
 
+    atol = 1e-6
     # add Newton solver
     # solver = Newton(
     #     system,
-    #     n_load_steps=10,
-    #     max_iter=30,
-    #     atol=atol,
+    #     n_load_steps=1,
+    #     options=SolverOptions(newton_atol=atol),
     # )
 
     solver = Riks(
         system,
-        iter_goal=4,
-        la_arc0=5e-3,
-        la_arc_span=np.array([-0.1, 0.25]),
-        options=SolverOptions(),
+        iter_goal=3,
+        la_arc0=1e-3,
+        la_arc_span=np.array([-0.4, 1]),
+        options=SolverOptions(newton_atol=atol),
     )
 
     # solve nonlinear static equilibrium equations
@@ -175,97 +138,122 @@ def cantilever(
     nt = len(q)
     t = sol.t[:nt]
 
-    # matplotlib visualization
-    # construct animation of beam
-    fig1, ax1, anim1 = animate_beam(
-        t,
-        q,  # nuova configurazione derivata dal linearSolve
-        [cantilever1, cantilever2],
-        scale=length,
-        scale_di=0.05,
-        show=False,
-        n_frames=cantilever1.nelement + 1,
-        repeat=True,
-    )
-
-    x_tip_displacement = np.zeros(len(t))
-    y_tip_displacement = np.zeros(len(t))
-
-    frame_ID = (0.2,)
-    qDOF_element_of_interest = cantilever2.qDOF[cantilever2.local_qDOF_P(frame_ID)]
-    r0 = cantilever2.r_OP(0, system.q0[qDOF_element_of_interest], frame_ID=frame_ID)
-
-    # the plotted displacements depend on how the structure is modelled in the 3D space. In this case we have that the x
-    for i, ti in enumerate(t):
-        ri = cantilever2.r_OP(ti, q[i, qDOF_element_of_interest], frame_ID=frame_ID)
-        y_tip_displacement[i] = -(ri[0] - r0[0])
-        x_tip_displacement[i] = -(ri[2] - r0[2])
-
-    fig2, ax = plt.subplots()
-
-    # ax.plot(t, x_tip_displacement, '-', color='blue', label='X Tip Displacement', marker='o')
-    # ax.plot(t, y_tip_displacement, '-', color='red', label='Y Tip Displacement', marker='s')
-    ax.plot(
-        x_tip_displacement,
-        f_max * t,
-        "-",
-        color="blue",
-        label="X Tip Displacement",
-        marker="o",
-    )
-    ax.plot(
-        y_tip_displacement,
-        f_max * t,
-        "-",
-        color="red",
-        label="Y Tip Displacement",
-        marker="s",
-    )
-
-    # Aggiungi una legenda
-    ax.legend(loc="upper left")
-
-    # Personalizza il titolo e le label degli assi se necessario
-    ax.set_title("Displacements of the point B")
-    ax.set_xlabel("u, v")
-    ax.set_ylabel("Load Factor")
-    ax.set_ylim(-1.5, 3.0)
-
-    plt.show()
-
     # VTK export
     if VTK_export:
         path = Path(__file__)
         e = Export(path.parent, path.stem, True, 30, sol)
-        e.export_contr(
-            cantilever1,
-            level="centerline + directors",
-            num=3 * nelements,
-            file_name="cantilever1_curve",
-        )
-        e.export_contr(
-            cantilever1,
-            continuity="C0",
-            level="volume",
-            n_segments=nelements,
-            num=3 * nelements,
-            file_name="cantilever1_volume",
-        )
-        e.export_contr(
-            cantilever2,
-            level="centerline + directors",
-            num=3 * nelements,
-            file_name="cantilever2_curve",
-        )
-        e.export_contr(
-            cantilever2,
-            continuity="C0",
-            level="volume",
-            n_segments=nelements,
-            num=3 * nelements,
-            file_name="cantilever2_volume",
-        )
+        for i, rodi in enumerate(rod):
+            e.export_contr(
+                rodi,
+                level="centerline + directors",
+                num=3 * nelements,
+                file_name=f"rod_{i}_curve",
+            )
+            e.export_contr(
+                rodi,
+                continuity="C0",
+                level="volume",
+                n_segments=nelements,
+                num=3 * nelements,
+                file_name=f"rod_{i}_volume",
+            )
+
+    u_x = np.zeros(nt)
+    u_y = np.zeros(nt)
+
+    q_c2 = sol.q[:, rod[1].qDOF]
+    qe_c2 = q_c2[:, rod[1].local_qDOF_P((0.2,))]
+
+    r_OP0 = rod[1].r_OP(0, qe_c2[0], frame_ID=(0.2,))
+    for i in range(nt):
+        r_OPi = rod[1].r_OP(0, qe_c2[i], frame_ID=(0.2,))
+        u = r_OPi - r_OP0
+        u_x[i] = u[0]
+        u_y[i] = -u[1]
+
+    path = Path(__file__)
+
+    force_u_x_Simo = np.loadtxt(
+        Path(path.parent, "_data_Lee_frame", "force_u_x_Simo1986.csv"),
+        delimiter=",",
+        skiprows=1,
+    )
+
+    force_u_y_Simo = np.loadtxt(
+        Path(path.parent, "_data_Lee_frame", "force_u_y_Simo2986.csv"),
+        delimiter=",",
+        skiprows=1,
+    )
+
+    force_u_Harsch = np.loadtxt(
+        Path(path.parent, "_data_Lee_frame", "force_u_Harsch2020.csv"),
+        delimiter=",",
+        skiprows=1,
+    )
+
+    _, ax = plt.subplots(1, 2)
+
+    ax[0].plot(u_x, t, "-", color="red", marker="x", label="Cosserat rod")
+    ax[0].plot(
+        force_u_x_Simo[:, 0],
+        force_u_x_Simo[:, 1] / 40,
+        "--",
+        color="green",
+        label="Simo",
+    )
+    ax[0].plot(
+        force_u_Harsch[:, 2], force_u_Harsch[:, 1], "--", color="blue", label="Harsch"
+    )
+    ax[0].legend(loc="upper left")
+    ax[0].set_title("horizontal displacements of tip point")
+    ax[0].set_xlabel("u_x")
+    ax[0].set_ylabel("load factor")
+    ax[0].grid()
+
+    ax[1].plot(u_y, t, "-", color="red", marker="x", label="Cosserat rod")
+    ax[1].plot(
+        force_u_y_Simo[:, 0],
+        force_u_y_Simo[:, 1] / 40,
+        "--",
+        color="green",
+        label="Simo",
+    )
+    ax[1].plot(
+        force_u_Harsch[:, 3], force_u_Harsch[:, 1], "--", color="blue", label="Harsch"
+    )
+    ax[1].legend(loc="upper left")
+    ax[1].set_title("vertical displacements of tip point")
+    ax[1].set_xlabel("u_y")
+    ax[1].set_ylabel("load factor")
+    ax[1].grid()
+
+    # matplotlib visualization
+    # construct animation of rod
+    _, ax, _ = animate_beam(
+        t,
+        q,
+        rod,
+        scale=1.1 * length,
+        scale_di=0.05,
+        show=False,
+        n_frames=rod[0].nelement + 1,
+        repeat=True,
+    )
+
+    # add plane with z-direction as normal
+    X_z = np.linspace(-1.1 * length, 1.1 * length, num=2)
+    Y_z = np.linspace(-1.1 * length, 1.1 * length, num=2)
+    X_z, Y_z = np.meshgrid(X_z, Y_z)
+    Z_z = np.zeros_like(X_z)
+    ax.plot_surface(X_z, Y_z, Z_z, alpha=0.2)
+
+    # camera settings for 3D plot
+    ax.azim = -90
+    ax.elev = 72
+
+    plt.show()
 
 
 if __name__ == "__main__":
-    cantilever(load_type="force", VTK_export=False)
+    # requires around 6 minutes computational time
+    lee_frame(Rod=make_CosseratRod_Quat(mixed=True))

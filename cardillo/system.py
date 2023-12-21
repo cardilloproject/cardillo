@@ -5,6 +5,7 @@ from scipy.sparse import diags
 
 from cardillo.utility.coo_matrix import CooMatrix
 from cardillo.discrete.frame import Frame
+from cardillo.discrete.meshed import Axis
 from cardillo.solver import consistent_initial_conditions
 
 properties = []
@@ -56,7 +57,7 @@ class System:
 
     """
 
-    def __init__(self, t0=0):
+    def __init__(self, t0=0, origin_size=0):
         self.t0 = t0
         self.nq = 0
         self.nu = 0
@@ -73,7 +74,11 @@ class System:
         self.contributions_map = {}
         self.ncontr = 0
 
-        self.origin = Frame()
+        if origin_size > 0:
+            self.origin = Axis(Frame)(origin_size=origin_size)
+        else:
+            self.origin = Frame()
+
         self.origin.name = "cardillo_origin"
         self.add(self.origin)
 
@@ -268,13 +273,14 @@ class System:
 
         # compute constant system parts
         # - parts of the mass matrix
-        self.I_M = [
-            contr.variable_mass if hasattr(contr, "variable_mass") else False
+        I_constant_mass_matrix = np.array([
+            contr.constant_mass_matrix if hasattr(contr, "constant_mass_matrix") else False
             for contr in self.__M_contr
-        ]
+        ])
+        self.I_M = ~I_constant_mass_matrix
         self.__M_contr = np.array(self.__M_contr)
         coo = CooMatrix((self.nu, self.nu))
-        for contr in self.__M_contr:
+        for contr in self.__M_contr[I_constant_mass_matrix]:
             coo[contr.uDOF, contr.uDOF] = contr.M(self.t0, self.q0[contr.qDOF])
         self._M0 = coo.tocoo()
 
