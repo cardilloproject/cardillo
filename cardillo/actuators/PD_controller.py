@@ -2,7 +2,7 @@ import numpy as np
 
 
 class PDcontroller:
-    def __init__(self, subsystem, kp, kd, tau, **kwargs):
+    def __init__(self, subsystem, kp, kd, tau):
         self.subsystem = subsystem
         if not callable(tau):
             self.tau = lambda t: tau
@@ -10,7 +10,6 @@ class PDcontroller:
             self.tau = tau
         self.nla_tau = 1
         self.ntau = 2
-        super().__init__(**kwargs)
 
         self.kp = kp
         self.kd = kd

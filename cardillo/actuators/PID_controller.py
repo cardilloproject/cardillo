@@ -3,7 +3,7 @@ import numpy as np
 
 
 class PIDcontroller:
-    def __init__(self, subsystem, kp, ki, kd, tau, **kwargs):
+    def __init__(self, subsystem, kp, ki, kd, tau):
 
         self.subsystem = subsystem
         if not callable(tau):
@@ -16,15 +16,14 @@ class PIDcontroller:
         self.ntau = 2
         self.nq = 1
         self.q0 = np.zeros(1)
-        super().__init__(**kwargs)
 
         self.kp = kp
         self.ki = ki
         self.kd = kd
 
     def assembler_callback(self):
-        super().assembler_callback()
         self.qDOF = np.concatenate([self.subsystem.qDOF, self.q_dotDOF])
+        self.uDOF = self.subsystem.uDOF
 
     def q_dot(self, t, q, u):
         return (

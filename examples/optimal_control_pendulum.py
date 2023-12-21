@@ -118,20 +118,6 @@ if __name__ == "__main__":
     ax.set_ylabel("tau")
     plt.show()
 
-    sol = Moreau(system, 2 * tN, dt / 2).solve()
-
-    t, q = sol.t, sol.q
-
-    fig, ax = plt.subplots()
-    ax.plot(t, q)
-    ax.set_xlabel("t")
-    ax.set_ylabel("phi")
-
-    fig, ax = plt.subplots()
-    ax.plot(t[1:], [system.tau(ti) for ti in t[1:]])
-    ax.set_xlabel("t")
-    ax.set_ylabel("tau")
-    plt.show()
 
     ###########
     # animation

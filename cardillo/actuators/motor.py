@@ -1,7 +1,7 @@
 import numpy as np
 
 class Motor:
-    def __init__(self, subsystem, tau, **kwargs):
+    def __init__(self, subsystem, tau):
         if not callable(tau):
             self.tau = lambda t: tau
         else:
@@ -10,7 +10,6 @@ class Motor:
         self.ntau = 1
 
         self.subsystem = subsystem
-        super().__init__(**kwargs)
 
         self.W_tau = self.subsystem.W_l
 

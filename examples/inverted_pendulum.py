@@ -23,15 +23,19 @@ if __name__ == "__main__":
     only_unforced_dynmics = False
 
     # desired swing-up trajectory
-    desired_trajectory = ["homogeneous", "optimal_torque"][
-        1
-    ]  # optimal control does not work yet!
+    desired_trajectory = ["constant", "homogeneous", "optimal_torque"][
+        2
+    ]  
 
     # feed forward method
-    feed_forward = True  # inverse dynamics for "homogeneous"
+    feed_forward = [False, True][1]  # inverse dynamics for "homogeneous", no feed forward for "constant"
 
     # feed back controller
     feed_back = [None, "PD", "PID"][1]
+    # controller gains
+    kp = 10
+    ki = 5
+    kd = 2
 
     l = 1
     m = 1
@@ -96,8 +100,13 @@ if __name__ == "__main__":
 
     t0 = 0
     t1 = 1
+    if desired_trajectory == "constant":
+        dt = 1e-3
+        t = np.arange(t0, t1, dt)
+        phi = phiN * np.ones_like(t)
+        phi_dot = np.zeros(len(t)-1)
 
-    if desired_trajectory == "homogeneous":
+    elif desired_trajectory == "homogeneous":
         dt = 1e-3
         t = np.arange(t0, t1, dt)
         phi = phiN * smoothstep2(t, x_min=t0, x_max=t1)
@@ -160,7 +169,8 @@ if __name__ == "__main__":
 
     elif desired_trajectory == "optimal_torque":
         # initial unknowns
-        dt = 4e-2
+        # dt = 4e-2
+        dt = 2e-2
         phi_dotN = 0
         _, t, phi, tau = optimal_control_pendulum(
             l, m, t1, phiN, phi_dotN, dt, g=g, phi0=phi0, phi_dot0=phi_dot0
@@ -181,10 +191,7 @@ if __name__ == "__main__":
         t[1:], phi_dot, axis=0, fill_value=0.0, bounds_error=False
     )
     angle_des = lambda t: np.array([phi_interp(t), phi_dot_interp(t)])
-    # controller gains
-    kp = 50
-    ki = 100
-    kd = 10
+    
     if feed_back == "PD":
         controller = PDcontroller(joint,
             kp, kd, angle_des
