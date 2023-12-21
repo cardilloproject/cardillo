@@ -36,7 +36,7 @@ if __name__ == "__main__":
 
     q20 = np.concatenate([np.array([0, 1, 1]), Spurrier(A_IK_basic(np.pi / 2).x())])
     rigid_body2 = Meshed(RigidBody)(
-        Path.joinpath(path.parent, "tippedisk.stl"), density=1, scale=3, q0=q20
+        Path.joinpath(path.parent, "_data/tippedisk.stl"), density=1, scale=3, q0=q20
     )
 
     q30 = np.concatenate([np.array([1, 1, 1]), Spurrier(A_IK_basic(-np.pi / 4).x())])
