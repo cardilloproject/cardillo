@@ -39,23 +39,25 @@ def Meshed(Base):
             #############################
             if isinstance(mesh_obj, trimesh.Trimesh):
                 trimesh_obj = mesh_obj
+
+                # primitives are converted to mesh
+                if hasattr(trimesh_obj, "to_mesh"):
+                    trimesh_mesh = trimesh_obj.to_mesh()
+                else:
+                    trimesh_mesh = trimesh_obj
             else:
-                trimesh_obj = trimesh.load_mesh(mesh_obj)
+                trimesh_mesh = trimesh.load_mesh(mesh_obj)
 
-            trimesh_obj.apply_transform(np.diag([scale, scale, scale, 1]))
-
-            # primitives are converted to mesh
-            if hasattr(trimesh_obj, "to_mesh"):
-                trimesh_obj = trimesh_obj.to_mesh()
+            trimesh_mesh.apply_transform(np.diag([scale, scale, scale, 1]))
 
             # check if mesh represents a valid volume
-            if not trimesh_obj.is_volume:
+            if not trimesh_mesh.is_volume:
                 print(
                     "Imported mesh does not represent a volume, i.e. one of the following properties are not fulfilled: watertight, consistent winding, outward facing normals."
                 )
                 # try to fill the wholes
-                trimesh_obj.fill_holes()
-                if not trimesh_obj.is_volume:
+                trimesh_mesh.fill_holes()
+                if not trimesh_mesh.is_volume:
                     print(
                         "Using mesh that is not a volume. Computed mass and moment of inertia might be unphyical."
                     )
@@ -66,7 +68,7 @@ def Meshed(Base):
             H_KM = np.eye(4)
             H_KM[:3, 3] = K_r_SP
             H_KM[:3, :3] = A_KM
-            self.K_visual_mesh = trimesh_obj.copy().apply_transform(H_KM)
+            self.K_visual_mesh = trimesh_mesh.copy().apply_transform(H_KM)
 
             # vectors (transposed) from S to vertices represented in body-fixed frame
             self.K_r_SQi_T = self.K_visual_mesh.vertices.view(np.ndarray).T

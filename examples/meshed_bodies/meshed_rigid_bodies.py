@@ -69,9 +69,8 @@ if __name__ == "__main__":
     system.add(Force(np.array([0, 0, -10 * rigid_body6.mass]), rigid_body6))
     system.assemble()
 
-    show_system(
-        system, system.t0, system.q0, origin_size=0.05
-    )  # this will end the execution of the file on MacOS!!
+    # this will end the execution of the file on MacOS!!
+    show_system(system, system.t0, system.q0, origin_size=0.05)
 
     sol = BackwardEuler(system, 5, 1e-1).solve()
 
@@ -93,4 +92,5 @@ if __name__ == "__main__":
         e.export_contr(rigid_body5)
         e.export_contr(rigid_body6)
 
+    # this will end the execution of the file on MacOS!!
     animate_system(system, sol.t, sol.q, t_factor=1, fps=10, origin_size=0.05)
