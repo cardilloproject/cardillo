@@ -256,7 +256,7 @@ class System:
         ]
         self.__M_contr = np.array(self.__M_contr)
         coo = CooMatrix((self.nu, self.nu))
-        for contr in self.__M_contr:
+        for contr in self.__M_contr[not self.I_M]:
             coo[contr.uDOF, contr.uDOF] = contr.M(self.t0, self.q0[contr.qDOF])
         self._M0 = coo.tocoo()
 
