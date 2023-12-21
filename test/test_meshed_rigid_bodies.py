@@ -13,6 +13,7 @@ from cardillo.discrete import (
     Cylinder,
     Sphere,
     Capsule,
+    Tetrahedron,
 )
 from cardillo.math import A_IK_basic, Spurrier
 from cardillo.solver import BackwardEuler
@@ -53,6 +54,9 @@ if __name__ == "__main__":
     q60 = np.concatenate([np.array([1, 0, 1]), Spurrier(A_IK_basic(-np.pi / 3).x())])
     rigid_body6 = Capsule(RigidBody)(radius=0.1, height=0.2, density=2, q0=q60)
 
+    q70 = np.concatenate([np.array([-1, 0, 1]), Spurrier(A_IK_basic(0).x())])
+    rigid_body7 = Tetrahedron(RigidBody)(edge=0.3, density=2, q0=q70)
+
     system = System()
     system.add(frame)
     system.add(rigid_body1)
@@ -61,12 +65,14 @@ if __name__ == "__main__":
     system.add(rigid_body4)
     system.add(rigid_body5)
     system.add(rigid_body6)
+    system.add(rigid_body7)
     system.add(Force(np.array([0, 0, -10 * rigid_body1.mass]), rigid_body1))
     system.add(Force(np.array([0, 0, -10 * rigid_body2.mass]), rigid_body2))
     system.add(Force(np.array([0, 0, -10 * rigid_body3.mass]), rigid_body3))
     system.add(Force(np.array([0, 0, -10 * rigid_body4.mass]), rigid_body4))
     system.add(Force(np.array([0, 0, -10 * rigid_body5.mass]), rigid_body5))
     system.add(Force(np.array([0, 0, -10 * rigid_body6.mass]), rigid_body6))
+    system.add(Force(np.array([0, 0, -10 * rigid_body7.mass]), rigid_body7))
     system.assemble()
 
     # this will end the execution of the file on MacOS!!
@@ -91,6 +97,7 @@ if __name__ == "__main__":
         e.export_contr(rigid_body4)
         e.export_contr(rigid_body5)
         e.export_contr(rigid_body6)
+        e.export_contr(rigid_body7)
 
     # this will end the execution of the file on MacOS!!
     animate_system(system, sol.t, sol.q, t_factor=1, fps=10, origin_size=0.05)

@@ -203,3 +203,30 @@ def Capsule(Base):
             super().__init__(mesh_obj=trimesh_obj, **kwargs)
 
     return _Capsule
+
+
+def Tetrahedron(Base):
+    MeshedBase = Meshed(Base)
+
+    class _Tetrahedron(MeshedBase):
+        def __init__(
+            self,
+            edge=1,
+            **kwargs,
+        ):
+            # see https://de.wikipedia.org/wiki/Tetraeder
+            h_D = edge * np.sqrt(3) / 2
+            h_P = edge * np.sqrt(2 / 3)
+            r_OM = np.array([0, h_D / 3, h_P / 4])
+            p1 = np.array([-edge / 2, 0, 0]) - r_OM
+            p2 = np.array([+edge / 2, 0, 0]) - r_OM
+            p3 = np.array([0, h_D, 0]) - r_OM
+            p4 = np.array([0, h_D / 3, h_P]) - r_OM
+            vertices = np.vstack((p1, p2, p3, p4))
+
+            faces = np.array([[0, 1, 3], [1, 2, 3], [2, 0, 3], [0, 2, 1]])
+
+            trimesh_obj = trimesh.Trimesh(vertices, faces)
+            super().__init__(mesh_obj=trimesh_obj, **kwargs)
+
+    return _Tetrahedron
