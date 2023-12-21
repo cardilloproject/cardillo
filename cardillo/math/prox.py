@@ -117,7 +117,7 @@ class Sphere:
             direction = arg / norm_arg
             factor = radius * (np.eye(nx) - np.outer(direction, direction)) / norm_arg
 
-            Jx = factor @ np.diag(rho)
+            Jx = factor * rho
             Jy = np.eye(nx) - factor
             Jz = self.r * direction.reshape((nx, nr))
 
