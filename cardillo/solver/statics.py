@@ -212,7 +212,7 @@ class Riks:
         la_arc0=1.0e-3,
         la_arc_span=np.array([0, 1], dtype=float),
         scale_exponent=0.5,
-        max_load_steps=10000,
+        max_load_steps=int(1e4),
         options=SolverOptions(),
     ):
         self.system = system
@@ -432,6 +432,7 @@ class Riks:
             xk1[-1] >= self.la_arc_span[0]
             and xk1[-1] <= self.la_arc_span[1]
             and load_step <= self.max_load_steps
+
         ):
             # increment number of steps
             i += 1
