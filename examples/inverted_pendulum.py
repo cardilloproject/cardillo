@@ -31,7 +31,7 @@ if __name__ == "__main__":
     feed_forward = [False, True][1]  # inverse dynamics for "homogeneous", no feed forward for "constant"
 
     # feed back controller
-    feed_back = [None, "PD", "PID"][1]
+    feed_back = [None, "PD", "PID"][2]
     # controller gains
     kp = 10
     ki = 5
