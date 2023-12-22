@@ -432,7 +432,6 @@ class Riks:
             xk1[-1] >= self.la_arc_span[0]
             and xk1[-1] <= self.la_arc_span[1]
             and load_step <= self.max_load_steps
-
         ):
             # increment number of steps
             i += 1

@@ -29,7 +29,7 @@ def column_buckling(
     reduced_integration=True,
 ):
     # geometry of the column
-    length = 1  
+    length = 1
 
     # cross section properties for visualization purposes
     width = 0.005
@@ -65,7 +65,6 @@ def column_buckling(
         reduced_integration=reduced_integration,
     )
 
-
     # left and right joint
     joint0 = Revolute(system.origin, column, axis=2, frame_ID2=(0,))
 
@@ -87,16 +86,17 @@ def column_buckling(
     # F12 = lambda t: smoothstep1(1.5 * t, 0.999, 1.001) * e2 * f_crit * 5e-3
     # force12 = Force(F12, column, frame_ID=(0.5,))
 
-
     # force at the beam's tip
     overload_factor = 0.3 + 0.01
     f_crit = np.pi**2 * EE * I3 / length**2
+
     def F1(t):
         if t > 0:
             F = -(0.95 + t * overload_factor) * e1 * f_crit
         else:
             F = e1 * 0
         return F
+
     force1 = Force(F1, column, frame_ID=(1,))
 
     F12 = lambda t: smoothstep1(t * overload_factor, 0.049, 0.05) * e2 * f_crit * 5e-3
@@ -109,10 +109,8 @@ def column_buckling(
     system.add(joint1)
     system.add(force1)
     system.add(force12)
-    system.assemble(
-        options=SolverOptions(compute_consistent_initial_conditions=False)
-    )
-    
+    system.assemble(options=SolverOptions(compute_consistent_initial_conditions=False))
+
     solver = Newton(
         system,
         n_load_steps=n_load_steps,
@@ -180,7 +178,10 @@ def column_buckling(
 
     plt.show()
 
+
 if __name__ == "__main__":
-    column_buckling(Rod=make_CosseratRod_Quat(mixed=True, constraints=[0, 1, 2]),
+    column_buckling(
+        Rod=make_CosseratRod_Quat(mixed=True, constraints=[0, 1, 2]),
         VTK_export=False,
-        n_load_steps=20,)
+        n_load_steps=20,
+    )
