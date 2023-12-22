@@ -5,8 +5,8 @@ from scipy.sparse.linalg import spsolve
 
 @dataclass
 class SolverOptions:
-    fixed_point_atol: float = 1e-8
-    fixed_point_rtol: float = 1e-8
+    fixed_point_atol: float = 1e-6
+    fixed_point_rtol: float = 1e-6
     fixed_point_max_iter: int = int(1e3)
     newton_atol: float = 1e-8
     newton_rtol: float = 1e-8

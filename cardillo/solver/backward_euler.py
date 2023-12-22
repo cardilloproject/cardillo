@@ -306,7 +306,7 @@ class BackwardEuler:
 
         return y1
 
-    def _solve_nonlinear_system(self, x0, y, lu, J_x):
+    def _solve_nonlinear_system(self, x0, y, lu):
         # eliminate round-off errors
         dx = np.zeros_like(x0)
 
@@ -320,14 +320,6 @@ class BackwardEuler:
             converged = error < 1
             if converged:
                 return x0 + dx, error, converged, 0
-
-            # # compute a steepest descent step
-            # dx -= J_x.T @ R_x
-            # R_x = self.R_x(x0 + dx, y)
-            # error = np.linalg.norm(R_x / scale) / scale.size**0.5
-            # converged = error < 1
-            # if converged:
-            #     return x0 + dx, error, converged, 0
 
             # simplified Newton
             for i in range(self.options.newton_max_iter):
@@ -423,7 +415,7 @@ class BackwardEuler:
                 error_newton,
                 converged_newton,
                 i_newton,
-            ) = self._solve_nonlinear_system(x0, y0, lu, J_x)
+            ) = self._solve_nonlinear_system(x0, y0, lu)
 
             # fixed-point loop
             converged = False
@@ -455,7 +447,7 @@ class BackwardEuler:
                             error_newton,
                             converged_newton,
                             i_newton,
-                        ) = self._solve_nonlinear_system(x0, y0, lu, J_x)
+                        ) = self._solve_nonlinear_system(x0, y0, lu)
 
             else:
                 converged = True
@@ -489,7 +481,7 @@ class BackwardEuler:
             (
                 dP_Nn1,
                 dP_Fn1,
-            ) = np.array_split(yn1, self.split_y)
+            ) = np.array_split(y0, self.split_y)
             qn1 = self.qn + dqn1
             un1 = self.un + dun1
 
@@ -510,7 +502,7 @@ class BackwardEuler:
 
             # update local variables for accepted time step
             self.xn = xn1.copy()
-            self.yn = yn1.copy()
+            self.yn = y0.copy()
             self.tn = tn1
             self.qn = qn1
             self.un = un1
