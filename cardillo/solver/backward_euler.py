@@ -306,7 +306,7 @@ class BackwardEuler:
 
         return y1
 
-    def _solve_nonlinear_system(self, x0, y, lu):
+    def _solve_nonlinear_system(self, x0, y, lu, J_x):
         # eliminate round-off errors
         dx = np.zeros_like(x0)
 
@@ -320,9 +320,6 @@ class BackwardEuler:
             converged = error < 1
             if converged:
                 return x0 + dx, error, converged, 0
-
-            # # Jacobian
-            # J_x = self.J_x(x0 + dx, y)
 
             # # compute a steepest descent step
             # dx -= J_x.T @ R_x
@@ -345,17 +342,13 @@ class BackwardEuler:
                 if converged:
                     break
         else:
-            options = self.options.copy()
-            options.error_function = (
-                lambda x: (np.linalg.norm(x / scale) / scale.size**0.5) < 1
-            )
             dx, converged, error, i, _ = fsolve(
                 lambda dx, y, *args: self.R_x(x0 + dx, y, *args),
                 dx,
                 jac=lambda dx, y, *args: self.J_x(x0 + dx, y, *args),
                 fun_args=(y,),
                 jac_args=(y,),
-                options=options,
+                options=self.options,
             )
             self.solver_summary.add_lu(i)
 
@@ -423,8 +416,6 @@ class BackwardEuler:
                 J_x = self.J_x(x0, y0)
                 lu = splu(J_x)
                 self.solver_summary.add_lu(1)
-            else:
-                lu = None
 
             # solve nonlinear system
             (
@@ -432,7 +423,7 @@ class BackwardEuler:
                 error_newton,
                 converged_newton,
                 i_newton,
-            ) = self._solve_nonlinear_system(x0, y0, lu)
+            ) = self._solve_nonlinear_system(x0, y0, lu, J_x)
 
             # fixed-point loop
             converged = False
@@ -464,7 +455,7 @@ class BackwardEuler:
                             error_newton,
                             converged_newton,
                             i_newton,
-                        ) = self._solve_nonlinear_system(x0, y0, lu)
+                        ) = self._solve_nonlinear_system(x0, y0, lu, J_x)
 
             else:
                 converged = True
