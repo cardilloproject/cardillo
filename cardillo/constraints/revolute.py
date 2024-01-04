@@ -22,10 +22,9 @@ class Revolute(PositionOrientationBase):
             (axis, self.plane_axes[1]),
         ]
 
-        # TODO: is this needed, or is it clear that the kinematic DOF quantity "l" of a revolute joint is its angle?
+        # aliases for nicer interface in post-processing
         self.angle = self.l
         self.angle_dot = self.l_dot
-        self.W_angle = lambda t, q: self.W_l(t, q).flatten()
 
         super().__init__(
             subsystem1,
