@@ -1,5 +1,5 @@
 import numpy as np
-from numpy.linalg import norm
+from cardillo.math import norm
 
 
 class TwoPointInteraction:

@@ -2,7 +2,7 @@ import numpy as np
 
 from cardillo.force_laws._base import ScalarForceLaw
     
-class SpringDamper(ScalarForceLaw):
+class KelvinVoigtElement(ScalarForceLaw):
     def __init__(self, subsystem, k, d, l_ref=None):
         super().__init__(subsystem)
         self.k = k

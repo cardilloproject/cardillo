@@ -1,3 +1,3 @@
 from .spring import Spring
-from .spring_damper import SpringDamper
+from .kelvin_voigt_element import KelvinVoigtElement
 from .maxwell_element import MaxwellElement

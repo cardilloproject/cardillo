@@ -33,9 +33,9 @@ if __name__ == "__main__":
     # feed back controller
     feed_back = [None, "PD", "PID"][2]
     # controller gains
-    kp = 10
-    ki = 5
-    kd = 2
+    kp = 50
+    ki = 100
+    kd = 1
 
     l = 1
     m = 1
@@ -209,7 +209,7 @@ if __name__ == "__main__":
     # simulation
     ############
 
-    t1 = 4
+    t1 = 6
     dt = 1e-3
     joint.reset()
     sol = Moreau(system, t1, dt).solve()

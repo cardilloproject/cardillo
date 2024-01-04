@@ -1,7 +1,5 @@
 import numpy as np
 
-
-
 class PIDcontroller:
     def __init__(self, subsystem, kp, ki, kd, tau):
 
