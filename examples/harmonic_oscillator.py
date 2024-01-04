@@ -6,9 +6,7 @@ from cardillo.solver import ScipyIVP, BackwardEuler
 from cardillo.discrete import PointMass
 from cardillo.forces import Force
 from cardillo.force_laws import KelvinVoigtElement
-from cardillo.forces import (
-    TwoPointInteraction
-)
+from cardillo.interactions import TwoPointInteraction
 
 if __name__ == "__main__":
     m = 1

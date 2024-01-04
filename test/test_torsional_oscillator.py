@@ -66,9 +66,14 @@ def run(Solver, **solver_kwargs):
     q0 = np.hstack((r_OP0, p))
     rigid_body = RigidBody(m, K_theta_S, q0, u0)
 
-    joint = Revolute(system.origin, rigid_body, rotation_axis,r_OB0=np.zeros(3),
-        A_IB0=A_IK0,)
-    
+    joint = Revolute(
+        system.origin,
+        rigid_body,
+        rotation_axis,
+        r_OB0=np.zeros(3),
+        A_IB0=A_IK0,
+    )
+
     spring = KelvinVoigtElement(joint, k, d, l_ref=g_ref)
     # joint = PDRotational(Revolute, Spring=LinearSpring, Damper=LinearDamper)(
     #     subsystem1=system.origin,

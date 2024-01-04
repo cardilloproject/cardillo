@@ -12,7 +12,6 @@ class TwoPointInteraction:
         K_r_SP1=np.zeros(3, dtype=float),
         K_r_SP2=np.zeros(3, dtype=float),
     ):
-
         self.subsystem1 = subsystem1
         self.frame_ID1 = frame_ID1
         self.K_r_SP1 = K_r_SP1
@@ -32,7 +31,7 @@ class TwoPointInteraction:
         self._nq = self._nq1 + self._nq2
         q01 = self.subsystem1.q0
         q02 = self.subsystem2.q0
-        self.q0 =  np.concatenate((q01[local_qDOF1], q02[local_qDOF2]))
+        self.q0 = np.concatenate((q01[local_qDOF1], q02[local_qDOF2]))
 
         uDOF1 = self.subsystem1.uDOF
         uDOF2 = self.subsystem2.uDOF
@@ -44,7 +43,7 @@ class TwoPointInteraction:
         self._nu = self._nu1 + self._nu2
         u01 = self.subsystem1.u0
         u02 = self.subsystem2.u0
-        self.u0 =  np.concatenate((u01[local_uDOF1], u02[local_uDOF2]))
+        self.u0 = np.concatenate((u01[local_uDOF1], u02[local_uDOF2]))
 
         self.r_OP1 = lambda t, q: self.subsystem1.r_OP(
             t, q[: self._nq1], self.frame_ID1, self.K_r_SP1
@@ -116,7 +115,7 @@ class TwoPointInteraction:
 
         nu1 = self._nu1
         l_dot_u = np.zeros(self._nu)
-        l_dot_u[:nu1] = -n @ self.J_P1(t, q) 
+        l_dot_u[:nu1] = -n @ self.J_P1(t, q)
         l_dot_u[nu1:] = n @ self.J_P2(t, q)
         return l_dot_u
 

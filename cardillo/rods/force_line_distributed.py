@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class Force_line_distributed:
     r"""Line distributed Force for rods"""
 
@@ -71,7 +72,9 @@ class Force_line_distributed:
 
             # multiply local force vector with variation of centerline
             for node in range(self.rod.nnodes_element_r):
-                he[self.rod.nodalDOF_element_r[node]] += self.rod.N_r[el, i, node] * he_qp
+                he[self.rod.nodalDOF_element_r[node]] += (
+                    self.rod.N_r[el, i, node] * he_qp
+                )
 
         return he
 

@@ -23,12 +23,12 @@ if __name__ == "__main__":
     only_unforced_dynmics = False
 
     # desired swing-up trajectory
-    desired_trajectory = ["constant", "homogeneous", "optimal_torque"][
-        2
-    ]  
+    desired_trajectory = ["constant", "homogeneous", "optimal_torque"][2]
 
     # feed forward method
-    feed_forward = [False, True][1]  # inverse dynamics for "homogeneous", no feed forward for "constant"
+    feed_forward = [False, True][
+        1
+    ]  # inverse dynamics for "homogeneous", no feed forward for "constant"
 
     # feed back controller
     feed_back = [None, "PD", "PID"][2]
@@ -104,7 +104,7 @@ if __name__ == "__main__":
         dt = 1e-3
         t = np.arange(t0, t1, dt)
         phi = phiN * np.ones_like(t)
-        phi_dot = np.zeros(len(t)-1)
+        phi_dot = np.zeros(len(t) - 1)
 
     elif desired_trajectory == "homogeneous":
         dt = 1e-3
@@ -191,16 +191,12 @@ if __name__ == "__main__":
         t[1:], phi_dot, axis=0, fill_value=0.0, bounds_error=False
     )
     angle_des = lambda t: np.array([phi_interp(t), phi_dot_interp(t)])
-    
+
     if feed_back == "PD":
-        controller = PDcontroller(joint,
-            kp, kd, angle_des
-        )
+        controller = PDcontroller(joint, kp, kd, angle_des)
         system.add(controller)
     elif feed_back == "PID":
-        controller = PIDcontroller( joint,
-            kp, ki, kd, angle_des
-        )
+        controller = PIDcontroller(joint, kp, ki, kd, angle_des)
         system.add(controller)
 
     system.assemble()

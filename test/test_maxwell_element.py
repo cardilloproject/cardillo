@@ -4,8 +4,7 @@ from scipy.integrate import solve_ivp
 
 from cardillo import System
 from cardillo.discrete import PointMass
-# from cardillo.forces import MaxwellElement as MaxwellElementFL
-from cardillo.forces import TwoPointInteraction
+from cardillo.interactions import TwoPointInteraction
 from cardillo.force_laws import MaxwellElement as MaxwellElementFL
 from cardillo.solver import BackwardEuler, Moreau, ScipyIVP, Rattle
 
@@ -155,9 +154,7 @@ class MaxwellElementForceElement:
         pm.name = "point mass"
         self.system.add(pm)
         tpi = TwoPointInteraction(self.system.origin, pm)
-        max = MaxwellElementFL(
-            tpi, stiffness, damping, l_ref=l0, q0=np.array([l_d0])
-        )
+        max = MaxwellElementFL(tpi, stiffness, damping, l_ref=l0, q0=np.array([l_d0]))
         max.name = "Maxwell-element"
         self.system.add(tpi, max)
         self.system.assemble()

@@ -10,7 +10,6 @@ class nPointInteraction:
         frame_ID_list=None,
         K_r_SP_list=None,
     ) -> None:
-
         # raise NotImplementedError("This class is not tested yet.")
         self.subsystems = subsystem_list
         self.n_subsystems = len(subsystem_list)

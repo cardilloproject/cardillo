@@ -44,7 +44,6 @@ class ActuatedPendulum:
 
 
 def optimal_control_pendulum(l, m, tN, phiN, phi_dotN, dt, g=9.81, phi0=0, phi_dot0=0):
-
     system = System()
     tau0 = 0
     system.add(ActuatedPendulum(l, m, tau0, g=g, phi0=phi0, phi_dot0=phi_dot0))
@@ -67,7 +66,9 @@ def optimal_control_pendulum(l, m, tN, phiN, phi_dotN, dt, g=9.81, phi0=0, phi_d
         R = [
             system.M(t[i], q[i]) @ (q[i + 1] - 2 * q[i] + q[i - 1]) / dt
             - dt * system.h(t[i], q[i], np.zeros_like(q[i]))
-            - dt * system.W_tau(t[i], q[i]) @ system.la_tau(t[i], q[i], np.zeros_like(q[i]))
+            - dt
+            * system.W_tau(t[i], q[i])
+            @ system.la_tau(t[i], q[i], np.zeros_like(q[i]))
             for i in np.arange(1, nt - 1)
         ]
         return np.array(R).flatten()
@@ -119,7 +120,6 @@ if __name__ == "__main__":
     ax.set_xlabel("t")
     ax.set_ylabel("tau")
     plt.show()
-
 
     ###########
     # animation
