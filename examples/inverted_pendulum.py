@@ -23,11 +23,11 @@ if __name__ == "__main__":
     only_unforced_dynmics = False
 
     # desired swing-up trajectory
-    desired_trajectory = ["constant", "homogeneous", "optimal_torque"][2]
+    desired_trajectory = ["constant", "homogeneous", "optimal_torque"][1]
 
     # feed forward method
     feed_forward = [False, True][
-        1
+        0
     ]  # inverse dynamics for "homogeneous", no feed forward for "constant"
 
     # feed back controller

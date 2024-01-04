@@ -18,22 +18,22 @@ class PIDcontroller:
         self.kd = kd
 
     def assembler_callback(self):
-        self.qDOF = np.concatenate([self.subsystem.qDOF, self.q_dotDOF])
+        self.qDOF = np.concatenate([self.q_dotDOF, self.subsystem.qDOF])
         self.uDOF = self.subsystem.uDOF
 
     def q_dot(self, t, q, u):
         return (
-            self.subsystem.l(t, q[:-1]) - self.tau(t)[0]
+            self.subsystem.l(t, q[1:]) - self.tau(t)[0]
         )  # TODO: wie machen wir das?? optionales tau argument für q_dot??
 
     def W_tau(self, t, q):
-        return self.subsystem.W_l(t, q[:-1])
+        return self.subsystem.W_l(t, q[1:])
 
     def la_tau(self, t, q, u):
         tau = self.tau(t)
-        integral_error = q[-1]
+        integral_error = q[0]
         return -(
             self.ki * integral_error
-            + self.kp * (self.subsystem.l(t, q[:-1]) - tau[0])
-            + self.kd * (self.subsystem.l_dot(t, q[:-1], u) - tau[1])
+            + self.kp * (self.subsystem.l(t, q[1:]) - tau[0])
+            + self.kd * (self.subsystem.l_dot(t, q[1:], u) - tau[1])
         )
