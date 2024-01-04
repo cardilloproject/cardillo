@@ -1,6 +1,6 @@
 import warnings
 import numpy as np
-from scipy.sparse import csc_array, eye, bmat
+from scipy.sparse import csc_array, coo_array, eye, bmat
 from scipy.sparse.linalg import splu
 from tqdm import tqdm
 
@@ -244,6 +244,17 @@ class BackwardEuler:
 
         return J
 
+    def J_y(self, xn1, yn1):
+        # fmt: off
+        return bmat([
+            [       coo_array((self.nq, self.nla_N)),      None],
+            [                              -self.W_N, -self.W_F],
+            [    coo_array((self.nla_g, self.nla_N)),      None],
+            [coo_array((self.nla_gamma, self.nla_N)),      None],
+            [    coo_array((self.nla_c, self.nla_N)),      None],
+        ])
+        # fmt: on
+
     def prox(self, x1, y0):
         (
             dqn1,
@@ -262,7 +273,6 @@ class BackwardEuler:
         qn1 = qn + dqn1
         un1 = un + dun1
 
-        # mu = self.system.mu
         prox_r_N = self.prox_r_N
         prox_r_F = self.prox_r_F
 
@@ -272,9 +282,8 @@ class BackwardEuler:
         # fixed-point update Signorini
         ##############################
         g_N = self.system.g_N(tn1, qn1)
-        y1[: self.split_y[0]] = -NegativeOrthant.prox(
-            (prox_r_N / self.dt) * g_N - dP_Nn1
-        )
+        dP_Nn1 = -NegativeOrthant.prox((prox_r_N / self.dt) * g_N - dP_Nn1)
+        y1[: self.split_y[0]] = dP_Nn1
 
         #############################
         # fixed-point update friction
@@ -297,8 +306,54 @@ class BackwardEuler:
 
         return y1
 
+    def _solve_nonlinear_system(self, x0, y, lu):
+        # eliminate round-off errors
+        dx = np.zeros_like(x0)
+
+        # newton tolerances
+        scale = self.options.newton_atol + np.abs(x0) * self.options.newton_rtol
+
+        if self.options.reuse_lu_decomposition:
+            # compute new residual and check convergence
+            R_x = self.R_x(x0 + dx, y)
+            error = np.linalg.norm(R_x / scale) / scale.size**0.5
+            converged = error < 1
+            if converged:
+                return x0 + dx, error, converged, 0
+
+            # simplified Newton
+            for i in range(self.options.newton_max_iter):
+                # Newton update
+                dx -= lu.solve(R_x)
+
+                # compute new residual and check convergence
+                R_x = self.R_x(x0 + dx, y)
+                error = np.linalg.norm(R_x / scale) / scale.size**0.5
+                converged = error < 1
+
+                if converged:
+                    break
+        else:
+            dx, converged, error, i, _ = fsolve(
+                lambda dx, y, *args: self.R_x(x0 + dx, y, *args),
+                dx,
+                jac=lambda dx, y, *args: self.J_x(x0 + dx, y, *args),
+                fun_args=(y,),
+                jac_args=(y,),
+                options=self.options,
+            )
+            self.solver_summary.add_lu(i)
+
+        if not converged:
+            if self.options.continue_with_unconverged:
+                warnings.warn("Newton is not converged but integration is continued")
+            else:
+                raise RuntimeError("Newton is not converged")
+
+        return x0 + dx, error, converged, i + 1
+
     def solve(self):
-        solver_summary = SolverSummary()
+        self.solver_summary = SolverSummary()
 
         # lists storing output variables
         t = [self.tn]
@@ -312,17 +367,31 @@ class BackwardEuler:
         P_N = [self.dt * self.la_Nn]
         P_F = [self.dt * self.la_Fn]
 
-        lu = None
-        n_lu = 0
+        J_x = self.J_x(self.xn, self.yn)
+        lu = splu(J_x)
+
         pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
         for _ in pbar:
             # only compute optimized prox-parameters once per time step
-            self.prox_r_N, self.prox_r_F = np.array_split(
-                estimate_prox_parameter(
-                    self.options.prox_scaling, bmat([[self.W_N, self.W_F]]), self.M
-                ),
-                [self.nla_N],
+            # self.prox_r_N, self.prox_r_F = np.array_split(
+            #     estimate_prox_parameter(
+            #         self.options.prox_scaling, bmat([[self.W_N, self.W_F]]), self.M
+            #     ),
+            #     [self.nla_N],
+            # )
+
+            A = -lu.solve(self.J_y(self.xn, self.yn).toarray())
+            # fmt: off
+            g_x = bmat([
+                [             self.system.g_N_q(self.tn, self.qn),       None],
+                [self.system.gamma_F_q(self.tn, self.qn, self.un), self.W_F.T],
+            ])
+            # fmt: on
+            prox_r = self.options.prox_scaling / np.abs(g_x @ A[: self.split_x[1]]).sum(
+                axis=1
             )
+            self.prox_r_N, self.prox_r_F = np.array_split(prox_r, self.split_y)
+            self.prox_r_N *= self.dt
 
             # perform a solver step
             tn1 = self.tn + self.dt
@@ -334,84 +403,36 @@ class BackwardEuler:
             x0 = self.xn.copy()
             y0 = self.yn.copy()
 
-            # solve nonlinear system with previous values
-            xn1 = x0.copy()
-            yn1 = y0.copy()
-
-            newton_scale = (
-                self.options.newton_atol + np.abs(xn1) * self.options.newton_rtol
-            )
+            # Jacobian and lu-decompositon
             if self.options.reuse_lu_decomposition:
-                # compute new residual and check convergence
-                R_newton = self.R_x(xn1, yn1)
-                error_newton = (
-                    np.linalg.norm(R_newton / newton_scale) / newton_scale.size**0.5
-                )
-                converged_newton = error_newton < 1
-                error_newton = np.max(np.absolute(R_newton))
-                converged_newton = error_newton < self.options.newton_atol
+                J_x = self.J_x(x0, y0)
+                lu = splu(J_x)
+                self.solver_summary.add_lu(1)
 
-                # Newton loop with inexact Jacobian
-                i_newton = 0
-                first_cyle = True
-                while not converged_newton:
-                    if lu is None or i_newton >= self.options.reuse_lu_max_iter:
-                        lu = splu(self.J_x(xn1, yn1))
-                        n_lu += 1
-                        solver_summary.add_lu(1)
-
-                        if first_cyle:
-                            first_cyle = False
-                            i_newton = 0
-
-                    i_newton += 1
-                    xn1 -= lu.solve(R_newton)
-                    R_newton = self.R_x(xn1, yn1)
-                    error_newton = (
-                        np.linalg.norm(R_newton / newton_scale)
-                        / newton_scale.size**0.5
-                    )
-                    converged_newton = error_newton < 1
-                    if converged_newton:
-                        break
-
-            else:
-                xn1, converged_newton, error_newton, i_newton, _ = fsolve(
-                    self.R_x,
-                    xn1,
-                    jac=self.J_x,
-                    fun_args=(yn1,),
-                    jac_args=(yn1,),
-                    options=self.options,
-                )
-                solver_summary.add_lu(i_newton)
+            # solve nonlinear system
+            (
+                xn1,
+                error_newton,
+                converged_newton,
+                i_newton,
+            ) = self._solve_nonlinear_system(x0, y0, lu)
 
             # fixed-point loop
             converged = False
-            n_state = self.nx - self.nla_g - self.nla_gamma
             if self.nla_N + self.nla_F > 0:
                 for i_fixed_point in range(self.options.fixed_point_max_iter):
                     # find proximal point
-                    yn1 = self.prox(xn1, yn1)
-
-                    if i_fixed_point > 0:
-                        # all other iterations convergence in smooth state (without Lagrange multipliers)
-                        f0 = x0[:n_state]
-                        f1 = xn1[:n_state]
-                    else:
-                        # first fixed-point iteration has to converge in percussions
-                        f0 = y0
-                        f1 = yn1
+                    yn1 = self.prox(xn1, y0)
 
                     # error measure, see Hairer1993, Section II.4
-                    diff = f1 - f0
+                    diff = yn1 - y0
                     sc = (
                         self.options.fixed_point_atol
-                        + np.maximum(np.abs(f0), np.abs(f1))
+                        + np.maximum(np.abs(yn1), np.abs(y0))
                         * self.options.fixed_point_rtol
                     )
                     error = np.linalg.norm(diff / sc) / sc.size**0.5
-                    converged = error < 1.0 and converged_newton
+                    converged = error < 1.0
 
                     if converged:
                         break
@@ -420,47 +441,18 @@ class BackwardEuler:
                         x0 = xn1.copy()
                         y0 = yn1.copy()
 
-                        # solve nonlinear system again
-                        if self.options.reuse_lu_decomposition:
-                            # compute new residual and check convergence
-                            R_newton = self.R_x(xn1, yn1)
-                            error_newton = np.max(np.absolute(R_newton))
-                            converged_newton = error_newton < self.options.newton_atol
+                        # solve nonlinear system
+                        (
+                            xn1,
+                            error_newton,
+                            converged_newton,
+                            i_newton,
+                        ) = self._solve_nonlinear_system(x0, y0, lu)
 
-                            # Newton loop with inexact Jacobian
-                            if not converged_newton:
-                                i_newton = 0
-                            while (not converged_newton) and (
-                                i_newton < self.options.newton_max_iter
-                            ):
-                                i_newton += 1
-                                # compute new Jacobian if requested
-                                if i_newton >= self.options.reuse_lu_max_iter:
-                                    lu = splu(self.J_x(xn1, yn1))
-                                    solver_summary.add_lu(1)
-                                    i_newton = 0
-
-                                xn1 -= lu.solve(R_newton)
-                                R_newton = self.R_x(xn1, yn1)
-                                error_newton = np.max(np.absolute(R_newton))
-                                converged_newton = (
-                                    error_newton < self.options.newton_atol
-                                )
-
-                        else:
-                            xn1, converged_newton, error_newton, i_newton, _ = fsolve(
-                                self.R_x,
-                                xn1,
-                                jac=self.J_x,
-                                fun_args=(yn1,),
-                                jac_args=(yn1,),
-                                options=self.options,
-                            )
-                            solver_summary.add_lu(i_newton)
             else:
                 converged = True
                 i_fixed_point = 0
-                diff = 0.0
+                error = 0
 
             if not converged:
                 if self.options.continue_with_unconverged:
@@ -470,13 +462,12 @@ class BackwardEuler:
                 else:
                     raise RuntimeError("fixed-point iteration is not converged")
 
-            fixed_point_absolute_error = np.max(np.abs(diff))
-            solver_summary.add_fixed_point(i_fixed_point, fixed_point_absolute_error)
-            solver_summary.add_newton(i_newton)
+            self.solver_summary.add_fixed_point(i_fixed_point, error)
+            self.solver_summary.add_newton(i_newton, error_newton)
 
             # update progress bar
             pbar.set_description(
-                f"t: {tn1:0.2e}s < {self.t1:0.2e}s; |x1 - x0|: {fixed_point_absolute_error:0.2e} (fixed-point: {i_fixed_point}/{self.options.fixed_point_max_iter}; newton: {i_newton}/{self.options.newton_max_iter})"
+                f"t: {tn1:0.2e}s < {self.t1:0.2e}s; |y1 - y0|_rel: {error:0.2e}; fixed-point: {i_fixed_point}/{self.options.fixed_point_max_iter}; |dx|_rel: {error_newton:0.2e}; newton: {i_newton}/{self.options.newton_max_iter}"
             )
 
             # compute state
@@ -490,7 +481,7 @@ class BackwardEuler:
             (
                 dP_Nn1,
                 dP_Fn1,
-            ) = np.array_split(yn1, self.split_y)
+            ) = np.array_split(y0, self.split_y)
             qn1 = self.qn + dqn1
             un1 = self.un + dun1
 
@@ -511,12 +502,12 @@ class BackwardEuler:
 
             # update local variables for accepted time step
             self.xn = xn1.copy()
-            self.yn = yn1.copy()
+            self.yn = y0.copy()
             self.tn = tn1
             self.qn = qn1
             self.un = un1
 
-        solver_summary.print()
+        self.solver_summary.print()
 
         # write solution
         return Solution(
