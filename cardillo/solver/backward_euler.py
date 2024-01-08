@@ -361,7 +361,7 @@ class BackwardEuler:
         return x0 + dx, error, converged, i + 1
 
     def solve(self):
-        self.solver_summary = SolverSummary()
+        self.solver_summary = SolverSummary("Backward Euler")
 
         # lists storing output variables
         t = [self.tn]

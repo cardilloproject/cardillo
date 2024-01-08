@@ -4,7 +4,7 @@ from scipy.sparse import bmat, csc_array
 from scipy.integrate import solve_ivp
 from tqdm import tqdm
 
-from cardillo.solver import Solution
+from cardillo.solver import Solution, SolverSummary
 
 
 class ScipyIVP:
@@ -123,6 +123,7 @@ class ScipyIVP:
         return u_dot, la_g, la_gamma, la_c
 
     def solve(self):
+        solver_summary = SolverSummary(f"Scipy solve_ivp with method '{self.method}'")
         sol = solve_ivp(
             self.eqm,
             self.t_eval[[0, -1]],
@@ -150,6 +151,7 @@ class ScipyIVP:
                 ti, qi, ui
             )
 
+        solver_summary.print()
         return Solution(
             self.system,
             t=t,

@@ -360,7 +360,7 @@ class Rattle:
         return y2n1p - self.y1n
 
     def solve(self):
-        solver_summary = SolverSummary()
+        solver_summary = SolverSummary("RATTLE")
 
         # lists storing output variables
         _, _, la_c0, P_g0, P_gamma0 = np.array_split(self.x1n, self.split_x1)
