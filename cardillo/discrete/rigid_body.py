@@ -10,6 +10,7 @@ from cardillo.math import (
     Exp_SO3_quat_p,
     T_SO3_inv_quat,
     T_SO3_inv_quat_P,
+    Spurrier,
 )
 
 
@@ -65,6 +66,13 @@ class RigidBody:
         self.r_OP_cache = LRUCache(maxsize=1)
         self.v_P_cache = LRUCache(maxsize=1)
         self.J_P_cache = LRUCache(maxsize=1)
+
+    #####################
+    # utility
+    #####################
+    @staticmethod
+    def pose2q(r_OS, A_IK):
+        return np.concatenate([r_OS, Spurrier(A_IK)])
 
     #####################
     # kinematic equations

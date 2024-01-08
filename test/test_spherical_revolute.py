@@ -12,12 +12,8 @@ from cardillo.constraints import (
     Revolute,
 )
 from cardillo.discrete import RigidBody
-from cardillo.forces import (
-    Force,
-    PDRotational,
-    LinearDamper,
-    LinearSpring,
-)
+from cardillo.forces import Force
+from cardillo.force_laws import KelvinVoigtElement
 from cardillo.solver import BackwardEuler, ScipyIVP
 
 
@@ -78,16 +74,10 @@ def run(joint, Solver, k=None, d=None, **solver_args):
             origin, RB1, axis=2, r_OB0=A_IprimeI @ r_OB1, A_IB0=A_IprimeI @ A_IB1
         )
     elif use_pdrotational_joint:
-        joint1 = PDRotational(Revolute, Spring=LinearSpring, Damper=LinearDamper)(
-            origin,
-            RB1,
-            axis=2,
-            r_OB0=A_IprimeI @ r_OB1,
-            A_IB0=A_IprimeI @ A_IB1,
-            k=k,
-            d=d,
-            g_ref=-alpha0,
+        joint1 = Revolute(
+            origin, RB1, axis=2, r_OB0=A_IprimeI @ r_OB1, A_IB0=A_IprimeI @ A_IB1
         )
+        pd_rotational1 = KelvinVoigtElement(joint1, k, d, l_ref=-alpha0)
 
     ############################################################################
     #                   Rigid Body 2
@@ -116,16 +106,10 @@ def run(joint, Solver, k=None, d=None, **solver_args):
             RB1, RB2, axis=2, r_OB0=A_IprimeI @ r_OB2, A_IB0=A_IprimeI @ A_IB2
         )
     elif use_pdrotational_joint:
-        joint2 = PDRotational(Revolute, Spring=LinearSpring, Damper=LinearDamper)(
-            RB1,
-            RB2,
-            axis=2,
-            r_OB0=A_IprimeI @ r_OB2,
-            A_IB0=A_IprimeI @ A_IB2,
-            k=k,
-            d=d,
-            g_ref=-beta0,
+        joint2 = Revolute(
+            RB1, RB2, axis=2, r_OB0=A_IprimeI @ r_OB2, A_IB0=A_IprimeI @ A_IB2
         )
+        pd_rotational2 = KelvinVoigtElement(joint2, k, d, l_ref=-beta0)
 
     ############################################################################
     #                   model
@@ -138,6 +122,8 @@ def run(joint, Solver, k=None, d=None, **solver_args):
     system.add(joint2)
     system.add(Force(lambda t: A_IprimeI @ np.array([0, -g * m, 0]), RB1))
     system.add(Force(lambda t: A_IprimeI @ np.array([0, -g * m, 0]), RB2))
+    if use_pdrotational_joint:
+        system.add(pd_rotational1, pd_rotational2)
 
     system.assemble()
 

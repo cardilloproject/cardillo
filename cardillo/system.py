@@ -20,8 +20,12 @@ properties.extend(["q_dot", "q_dot_q", "q_dot_u"])
 
 properties.extend(["g"])
 properties.extend(["gamma"])
+
 properties.extend(["c", "c_q", "c_u"])
 properties.extend(["g_S"])
+
+properties.extend(["la_tau"])
+properties.extend(["tau"])
 
 properties.extend(["g_N"])
 properties.extend(["gamma_F", "gamma_F_q"])
@@ -60,6 +64,8 @@ class System:
         self.nla_g = 0
         self.nla_gamma = 0
         self.nla_c = 0
+        self.nla_tau = 0
+        self.ntau = 0
         self.nla_S = 0
         self.nla_N = 0
         self.nla_F = 0
@@ -175,6 +181,8 @@ class System:
         self.nla_g = 0
         self.nla_gamma = 0
         self.nla_c = 0
+        self.nla_tau = 0
+        self.ntau = 0
         self.nla_S = 0
         self.nla_N = 0
         self.nla_F = 0
@@ -210,6 +218,21 @@ class System:
                 self.nu += contr.nu
                 u0.extend(contr.u0.tolist())
 
+            # if contribution has compliance contribution
+            if hasattr(contr, "nla_c"):
+                contr.la_cDOF = np.arange(0, contr.nla_c) + self.nla_c
+                self.nla_c += contr.nla_c
+
+            # if contribution of actuator forces
+            if hasattr(contr, "nla_tau"):
+                contr.la_tauDOF = np.arange(0, contr.nla_tau) + self.nla_tau
+                self.nla_tau += contr.nla_tau
+
+            # if contribution of control inputs
+            if hasattr(contr, "ntau"):
+                contr.tauDOF = np.arange(0, contr.ntau) + self.ntau
+                self.ntau += contr.ntau
+
             # if contribution has constraints on position level address constraint coordinates
             if hasattr(contr, "nla_g"):
                 contr.la_gDOF = np.arange(0, contr.nla_g) + self.nla_g
@@ -219,11 +242,6 @@ class System:
             if hasattr(contr, "nla_gamma"):
                 contr.la_gammaDOF = np.arange(0, contr.nla_gamma) + self.nla_gamma
                 self.nla_gamma += contr.nla_gamma
-
-            # if contribution has compliance contribution
-            if hasattr(contr, "nla_c"):
-                contr.la_cDOF = np.arange(0, contr.nla_c) + self.nla_c
-                self.nla_c += contr.nla_c
 
             # if contribution has stabilization conditions for the kinematic equation
             if hasattr(contr, "nla_S"):
@@ -383,6 +401,95 @@ class System:
             coo[contr.uDOF, contr.uDOF] = contr.h_u(t, q[contr.qDOF], u[contr.uDOF])
         return coo.asformat(format)
 
+    ############
+    # compliance
+    ############
+    def la_c(self, t, q, u):
+        la_c = np.zeros(self.nla_c, dtype=np.common_type(q, u))
+        for contr in self.__c_contr:
+            la_c[contr.la_cDOF] = contr.la_c(t, q[contr.qDOF], u[contr.uDOF])
+        return la_c
+
+    def c(self, t, q, u, la_c):
+        c = np.zeros(self.nla_c, dtype=np.common_type(q, u, la_c))
+        for contr in self.__c_contr:
+            c[contr.la_cDOF] = contr.c(
+                t, q[contr.qDOF], u[contr.uDOF], la_c[contr.la_cDOF]
+            )
+        return c
+
+    def c_q(self, t, q, u, la_c, format="coo"):
+        coo = CooMatrix((self.nla_c, self.nq))
+        for contr in self.__c_q_contr:
+            coo[contr.la_cDOF, contr.qDOF] = contr.c_q(
+                t, q[contr.qDOF], u[contr.uDOF], la_c[contr.la_cDOF]
+            )
+        return coo.asformat(format)
+
+    def c_u(self, t, q, u, la_c, format="coo"):
+        coo = CooMatrix((self.nla_c, self.nu))
+        for contr in self.__c_u_contr:
+            coo[contr.la_cDOF, contr.uDOF] = contr.c_u(
+                t, q[contr.qDOF], u[contr.uDOF], la_c[contr.la_cDOF]
+            )
+        return coo.asformat(format)
+
+    def c_la_c(self, format="coo"):
+        return self._c_la_c0.asformat(format)
+
+    def W_c(self, t, q, format="coo"):
+        coo = CooMatrix((self.nu, self.nla_c))
+        for contr in self.__c_contr:
+            coo[contr.uDOF, contr.la_cDOF] = contr.W_c(t, q[contr.qDOF])
+        return coo.asformat(format)
+
+    def Wla_c_q(self, t, q, la_c, format="coo"):
+        coo = CooMatrix((self.nu, self.nq))
+        for contr in self.__c_q_contr:
+            coo[contr.uDOF, contr.qDOF] = contr.Wla_c_q(
+                t, q[contr.qDOF], la_c[contr.la_cDOF]
+            )
+        return coo.asformat(format)
+
+    ###########
+    # actuators
+    ###########
+    def W_tau(self, t, q, format="coo"):
+        coo = CooMatrix((self.nu, self.nla_tau))
+        for contr in self.__la_tau_contr:
+            coo[contr.uDOF, contr.la_tauDOF] = contr.W_tau(t, q[contr.qDOF])
+        return coo.asformat(format)
+
+    def la_tau(self, t, q, u):
+        la_tau = np.zeros(self.nla_tau, dtype=np.common_type(q, u))
+        for contr in self.__la_tau_contr:
+            la_tau[contr.la_tauDOF] = contr.la_tau(t, q[contr.qDOF], u[contr.uDOF])
+        return la_tau
+
+    def tau(self, t):
+        tau = np.zeros(self.ntau)
+        for contr in self.__tau_contr:
+            tau[contr.tauDOF] = contr.tau(t)
+        return tau
+
+    def set_tau(self, tau):
+        if callable(tau):
+            for contr in self.__tau_contr:
+                contr.tau = lambda t: tau(t)[contr.tauDOF]
+        else:
+            for contr in self.__tau_contr:
+                contr.tau = lambda t: tau[contr.tauDOF]
+
+    def set_tau_from_dict(self, tau_dict):
+        raise NotImplementedError
+        # this is not tested!
+        for name, tau in tau_dict.items():
+            contr = self.contributions_map[name]
+            if callable(tau):
+                contr.tau = lambda t: tau(t)[contr.tauDOF]
+            else:
+                contr.tau = lambda t: tau[contr.tauDOF]
+
     #########################################
     # bilateral constraints on position level
     #########################################
@@ -538,56 +645,6 @@ class System:
         for contr in self.__gamma_contr:
             coo[contr.uDOF, contr.qDOF] = contr.Wla_gamma_q(
                 t, q[contr.qDOF], la_gamma[contr.la_gammaDOF]
-            )
-        return coo.asformat(format)
-
-    ############
-    # compliance
-    ############
-    def la_c(self, t, q, u):
-        la_c = np.zeros(self.nla_c, dtype=np.common_type(q, u))
-        for contr in self.__c_contr:
-            la_c[contr.la_cDOF] = contr.la_c(t, q[contr.qDOF], u[contr.uDOF])
-        return la_c
-
-    def c(self, t, q, u, la_c):
-        c = np.zeros(self.nla_c, dtype=np.common_type(q, u, la_c))
-        for contr in self.__c_contr:
-            c[contr.la_cDOF] = contr.c(
-                t, q[contr.qDOF], u[contr.uDOF], la_c[contr.la_cDOF]
-            )
-        return c
-
-    def c_q(self, t, q, u, la_c, format="coo"):
-        coo = CooMatrix((self.nla_c, self.nq))
-        for contr in self.__c_q_contr:
-            coo[contr.la_cDOF, contr.qDOF] = contr.c_q(
-                t, q[contr.qDOF], u[contr.uDOF], la_c[contr.la_cDOF]
-            )
-        return coo.asformat(format)
-
-    def c_u(self, t, q, u, la_c, format="coo"):
-        coo = CooMatrix((self.nla_c, self.nu))
-        for contr in self.__c_u_contr:
-            coo[contr.la_cDOF, contr.uDOF] = contr.c_u(
-                t, q[contr.qDOF], u[contr.uDOF], la_c[contr.la_cDOF]
-            )
-        return coo.asformat(format)
-
-    def c_la_c(self, format="coo"):
-        return self._c_la_c0.asformat(format)
-
-    def W_c(self, t, q, format="coo"):
-        coo = CooMatrix((self.nu, self.nla_c))
-        for contr in self.__c_contr:
-            coo[contr.uDOF, contr.la_cDOF] = contr.W_c(t, q[contr.qDOF])
-        return coo.asformat(format)
-
-    def Wla_c_q(self, t, q, la_c, format="coo"):
-        coo = CooMatrix((self.nu, self.nq))
-        for contr in self.__c_q_contr:
-            coo[contr.uDOF, contr.qDOF] = contr.Wla_c_q(
-                t, q[contr.qDOF], la_c[contr.la_cDOF]
             )
         return coo.asformat(format)
 

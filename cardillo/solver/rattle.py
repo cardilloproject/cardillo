@@ -423,7 +423,7 @@ class Rattle:
 
             fixed_point_absolute_error = np.max(np.abs(diff))
             solver_summary.add_fixed_point(i_fixed_point, fixed_point_absolute_error)
-            solver_summary.add_newton(i_newton)
+            solver_summary.add_newton(i_newton, error_newton)
 
             if not converged:
                 if self.options.continue_with_unconverged:
@@ -490,7 +490,7 @@ class Rattle:
 
             fixed_point_absolute_error = np.max(np.abs(diff))
             solver_summary.add_fixed_point(i_fixed_point, fixed_point_absolute_error)
-            solver_summary.add_newton(i_newton)
+            solver_summary.add_newton(i_newton, error_newton)
 
             if not converged:
                 if self.options.continue_with_unconverged:

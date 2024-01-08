@@ -8,17 +8,23 @@ class Revolute(PositionOrientationBase):
         subsystem1,
         subsystem2,
         axis,
+        angle0=0.0,
         r_OB0=None,
         A_IB0=None,
         frame_ID1=np.zeros(3),
         frame_ID2=np.zeros(3),
     ):
         self.axis = axis
+        self.angle0 = angle0
         self.plane_axes = np.roll([0, 1, 2], -axis)[1:]
         projection_pairs_rotation = [
             (axis, self.plane_axes[0]),
             (axis, self.plane_axes[1]),
         ]
+
+        # aliases for nicer interface in post-processing
+        self.angle = self.l
+        self.angle_dot = self.l_dot
 
         super().__init__(
             subsystem1,
@@ -47,7 +53,7 @@ class Revolute(PositionOrientationBase):
         else:
             raise RuntimeError("You should never be here!")
 
-    def angle(self, t, q):
+    def l(self, t, q):
         A_IB1 = self.A_IB1(t, q)
         A_IB2 = self.A_IB2(t, q)
 
@@ -71,7 +77,7 @@ class Revolute(PositionOrientationBase):
         self.previous_quadrant = quadrant
 
         # compute rotation angle without singularities
-        angle = self.n_full_rotations * 2 * np.pi
+        angle = self.angle0 + self.n_full_rotations * 2 * np.pi
         if quadrant == 1:
             angle += np.arctan(y / x)
         elif quadrant == 2:
@@ -83,11 +89,11 @@ class Revolute(PositionOrientationBase):
 
         return angle
 
-    def angle_dot(self, t, q, u):
+    def l_dot(self, t, q, u):
         e_c1 = self.A_IB1(t, q)[:, self.axis]
         return (self.Omega2(t, q, u) - self.Omega1(t, q, u)) @ e_c1
 
-    def angle_dot_q(self, t, q, u):
+    def l_dot_q(self, t, q, u):
         e_c1 = self.A_IB1(t, q)[:, self.axis]
         e_c1_q1 = self.A_IB1_q1(t, q)[:, self.axis]
 
@@ -99,11 +105,11 @@ class Revolute(PositionOrientationBase):
             ]
         )
 
-    def angle_dot_u(self, t, q, u):
+    def l_dot_u(self, t, q, u):
         e_c1 = self.A_IB1(t, q)[:, self.axis]
         return e_c1 @ np.concatenate([-self.J_R1(t, q), self.J_R2(t, q)], axis=1)
 
-    def angle_q(self, t, q):
+    def l_q(self, t, q):
         A_IB1 = self.A_IB1(t, q)
         A_IB2 = self.A_IB2(t, q)
         A_IB1_q1 = self.A_IB1_q1(t, q)
@@ -128,13 +134,13 @@ class Revolute(PositionOrientationBase):
 
         return (x * y_q - y * x_q) / (x**2 + y**2)
 
-    def W_angle(self, t, q):
+    def W_l(self, t, q):
         J_R1 = self.J_R1(t, q)
         J_R2 = self.J_R2(t, q)
         e_c1 = self.A_IB1(t, q)[:, self.axis]
-        return np.concatenate([-J_R1.T @ e_c1, J_R2.T @ e_c1])
+        return np.concatenate([-J_R1.T @ e_c1, J_R2.T @ e_c1]).reshape(self._nu, 1)
 
-    def W_angle_q(self, t, q):
+    def W_l_q(self, t, q):
         nq1 = self._nq1
         nu1 = self._nu1
 

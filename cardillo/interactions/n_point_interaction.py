@@ -2,44 +2,15 @@ import numpy as np
 from cardillo.math import norm
 
 
-class nElScalarForceTranslational:
+class nPointInteraction:
     def __init__(
         self,
         subsystem_list,
         connectivity,
-        force_law_spring=None,
-        force_law_damper=None,
         frame_ID_list=None,
         K_r_SP_list=None,
     ) -> None:
-        self.force_law_spring = force_law_spring
-        self.force_law_damper = force_law_damper
-
-        assert (self.force_law_spring is not None) or (
-            self.force_law_damper is not None
-        )
-
-        if self.force_law_spring is not None:
-            self.E_pot = lambda t, q: self.force_law_spring.E_pot(t, self._g(t, q))
-            if self.force_law_damper is not None:
-                self._la = lambda t, g, gamma: self.force_law_damper.la(
-                    t, gamma
-                ) + self.force_law_spring.la(t, g)
-                self._h = lambda t, q, u: self._f_spring(t, q) + self._f_damper(t, q, u)
-                self._h_q = lambda t, q, u: self._f_spring_q(t, q) + self._f_damper_q(
-                    t, q, u
-                )
-                self.h_u = lambda t, q, u: self._f_damper_u(t, q, u)
-            else:
-                self._la = lambda t, g, gamma: self.force_law_spring.la(t, g)
-                self._h = lambda t, q, u: self._f_spring(t, q)
-                self._h_q = lambda t, q, u: self._f_spring_q(t, q)
-        else:
-            self._la = lambda t, g, gamma: self.force_law_damper.la(t, gamma)
-            self._h = lambda t, q, u: self._f_damper(t, q, u)
-            self._h_q = lambda t, q, u: self._f_damper_q(t, q, u)
-            self.h_u = lambda t, q, u: self._f_damper_u(t, q, u)
-
+        # raise NotImplementedError("This class is not tested yet.")
         self.subsystems = subsystem_list
         self.n_subsystems = len(subsystem_list)
         self.frame_IDs = (
@@ -72,33 +43,6 @@ class nElScalarForceTranslational:
             self.uDOF = np.concatenate([self.uDOF, sys.uDOF[local_uDOFi]])
         self._nq.append(len(self.qDOF))
         self._nu.append(len(self.uDOF))
-
-        if self.force_law_spring is not None and self.force_law_spring.g_ref is None:
-            g_ref = 0
-            for i, j in self.connectivity:
-                sysj = self.subsystems[j]
-                sysi = self.subsystems[i]
-                frame_IDj = self.frame_IDs[j]
-                frame_IDi = self.frame_IDs[i]
-                g_ref += norm(
-                    sysj.r_OP(
-                        sysj.t0,
-                        sysj.q0[sysj.local_qDOF_P(frame_IDj)],
-                        frame_IDj,
-                        self.Ki_r_SPis[j],
-                    )
-                    - sysi.r_OP(
-                        sysi.t0,
-                        sysi.q0[sysi.local_qDOF_P(frame_IDi)],
-                        frame_IDi,
-                        self.Ki_r_SPis[i],
-                    )
-                )
-            self.force_law_spring.g_ref = g_ref
-            if self.force_law_spring.g_ref < 1e-6:
-                raise ValueError(
-                    "Computed g_ref from given subsystems is close to zero. Generalized force direction cannot be computed."
-                )
 
         self.nq_fun = lambda k: range(*self._nq[k : k + 2])
         self.nu_fun = lambda k: range(*self._nu[k : k + 2])
@@ -147,13 +91,13 @@ class nElScalarForceTranslational:
         n_qj = r_OPj_qj / gij - tmp @ r_OPj_qj
         return n_qi, n_qj
 
-    def _g(self, t, q):
+    def l(self, t, q):
         g = 0
         for i, j in self.connectivity:
             g += norm(self.r_OPk(t, q, j) - self.r_OPk(t, q, i))
         return g
 
-    def _g_q(self, t, q):
+    def l_q(self, t, q):
         g_q = np.zeros((self._nq[-1]), dtype=q.dtype)
         for i, j in self.connectivity:
             nij = self._nij(t, q, i, j)
@@ -161,7 +105,7 @@ class nElScalarForceTranslational:
             g_q[self.nq_fun(j)] += nij @ self.r_OPk_qk(t, q, j)
         return g_q
 
-    def _gamma(self, t, q, u):
+    def l_dot(self, t, q, u):
         gamma = 0
         for i, j in self.connectivity:
             gamma += self._nij(t, q, i, j) @ (
@@ -169,7 +113,7 @@ class nElScalarForceTranslational:
             )
         return gamma
 
-    def _gamma_q(self, t, q, u):
+    def l_dot_q(self, t, q, u):
         gamma_q = np.zeros((self._nq[-1]), dtype=np.common_type(q, u))
         for i, j in self.connectivity:
             nij_qi, nij_qj = self._nij_qij(t, q, i, j)
@@ -183,7 +127,7 @@ class nElScalarForceTranslational:
             )
         return gamma_q
 
-    def _W(self, t, q):
+    def W_l(self, t, q):
         W = np.zeros((self._nu[-1]), dtype=q.dtype)
         for i, j in self.connectivity:
             nij = self._nij(t, q, i, j)
@@ -191,7 +135,7 @@ class nElScalarForceTranslational:
             W[self.nu_fun(j)] += self.J_Pk(t, q, j).T @ nij
         return W
 
-    def _W_q(self, t, q):
+    def W_l_q(self, t, q):
         W_q = np.zeros((self._nu[-1], self._nq[-1]), dtype=q.dtype)
         for i, j in self.connectivity:
             nui, nui1, nuj, nuj1 = map(lambda k: self._nu[k], [i, i + 1, j, j + 1])
@@ -210,48 +154,14 @@ class nElScalarForceTranslational:
             W_q[nuj:nuj1, nqi:nqi1] += J_Pj.T @ nij_qi
         return W_q
 
-    def _f_spring(self, t, q):
-        return -self._W(t, q) * self.force_law_spring.la(t, self._g(t, q))
-
-    def _f_spring_q(self, t, q):
-        g = self._g(t, q)
-        f_spring_q = -self._W_q(t, q) * self.force_law_spring.la(
-            t, g
-        ) - self.force_law_spring.la_g(t, g) * np.outer(self._W(t, q), self._g_q(t, q))
-        return f_spring_q
-
-    def _f_damper(self, t, q, u):
-        return -self._W(t, q) * self.force_law_damper.la(t, self._gamma(t, q, u))
-
-    def _f_damper_q(self, t, q, u):
-        gamma = self._gamma(t, q, u)
-        f_damper_q = -self._W_q(t, q) * self.force_law_damper.la(
-            t, gamma
-        ) - self.force_law_damper.la_gamma(t, gamma) * np.outer(
-            self._W(t, q), self._gamma_q(t, q, u)
-        )
-        return f_damper_q
-
-    def _f_damper_u(self, t, q, u):
-        W = self._W(t, q)
-        return -self.force_law_damper.la_gamma(t, self._gamma(t, q, u)) * np.outer(W, W)
-
-    def h(self, t, q, u):
-        return self._h(t, q, u)
-
-    def h_q(self, t, q, u):
-        return self._h_q(t, q, u)
-
-    # E_pot and h_u defined in self.__init__ if necessary
-
     def export(self, sol_i, **kwargs):
         points = []
         for i, _ in enumerate(self.subsystems):
             points.append(self.r_OPk(sol_i.t, sol_i.q[self.qDOF], i))
 
         cells = [("line", self.connectivity)]
-        g = self._g(sol_i.t, sol_i.q[self.qDOF])
-        gamma = self._gamma(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])
+        g = self.l(sol_i.t, sol_i.q[self.qDOF])
+        gamma = self.l_dot(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])
         la = self._la(sol_i.t, g, gamma)
         point_data = dict(la=len(self.subsystems) * [la])  # , n=[n, -n])
         cell_data = dict(
