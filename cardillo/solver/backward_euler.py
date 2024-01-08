@@ -151,7 +151,12 @@ class BackwardEuler:
         self.W_F = self.system.W_F(tn1, qn1, format="csr")
         R_x[self.split_x[0] : self.split_x[1]] = (
             self.M @ dun1
-            - dt * self.system.h(tn1, qn1, un1)
+            - dt
+            * (
+                self.system.h(tn1, qn1, un1)
+                + self.system.W_tau(tn1, qn1, format="csr")
+                @ self.system.la_tau(tn1, qn1, un1)
+            )
             - self.system.W_g(tn1, qn1, format="csr") @ dP_gn1
             - self.system.W_gamma(tn1, qn1, format="csr") @ dP_gamman1
             - self.system.W_c(tn1, qn1, format="csr") @ dP_cn1
@@ -206,14 +211,17 @@ class BackwardEuler:
 
         Ru_dot_q_dot = (
             self.system.Mu_q(tn1, qn1, dun1)
-            - dt * self.system.h_q(tn1, qn1, un1)
+            - dt
+            * (self.system.h_q(tn1, qn1, un1) + self.system.Wla_tau_q(tn1, qn1, un1))
             - self.system.Wla_g_q(tn1, qn1, dP_gn1)
             - self.system.Wla_gamma_q(tn1, qn1, dP_gamman1)
             - self.system.Wla_c_q(tn1, qn1, dP_cn1)
             - self.system.Wla_N_q(tn1, qn1, dP_Nn1)
             - self.system.Wla_F_q(tn1, qn1, dP_Fn1)
         )
-        Ru_dot_u_dot = M - dt * self.system.h_u(tn1, qn1, un1)
+        Ru_dot_u_dot = M - dt * (
+            self.system.h_u(tn1, qn1, un1) + self.system.Wla_tau_u(tn1, qn1, un1)
+        )
 
         #######################
         # bilateral constraints
