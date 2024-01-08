@@ -54,11 +54,13 @@ class ScipyIVP:
 
         M = self.system.M(t, q)
         h = self.system.h(t, q, u)
+        W_tau = self.system.W_tau(t, q, format="csr")
+        la_tau = self.system.la_tau(t, q, u)
         W_g = self.system.W_g(t, q)
         g_dot_u = self.system.g_dot_u(t, q)
         W_gamma = self.system.W_gamma(t, q)
         gamma_u = self.system.gamma_u(t, q)
-        W_c = self.system.W_c(t, q)
+        W_c = self.system.W_c(t, q, format="csr")
         la_c = self.system.la_c(t, q, u)
         zeta_g = self.system.zeta_g(t, q, u)
         zeta_gamma = self.system.zeta_gamma(t, q, u)
@@ -69,7 +71,9 @@ class ScipyIVP:
                   [gamma_u, None,     None]], format="csc")
         # fmt: on
 
-        ula = spsolve(A, np.concatenate([h + W_c @ la_c, -zeta_g, -zeta_gamma]))
+        ula = spsolve(
+            A, np.concatenate([h + W_tau @ la_tau + W_c @ la_c, -zeta_g, -zeta_gamma])
+        )
 
         dx = np.zeros(self.nx)
         dx[: self.nq] = self.system.q_dot(t, q, u)
@@ -77,6 +81,8 @@ class ScipyIVP:
         return dx
 
     def la_g_la_gamma_la_c(self, t, q, u):
+        W_tau = self.system.W_tau(t, q, format="csr")
+        la_tau = self.system.la_tau(t, q, u)
         W_g = self.system.W_g(t, q, format="csc")
         W_gamma = self.system.W_gamma(t, q, format="csc")
         W_c = self.system.W_c(t, q, format="csr")
@@ -96,7 +102,7 @@ class ScipyIVP:
             MW_gamma = (spsolve(M, W_gamma)).reshape((self.nu, self.nla_gamma))
         else:
             MW_gamma = csc_array((self.nu, self.nla_gamma))
-        Mhla_c = spsolve(M, h + W_c @ la_c)
+        Mhla_c = spsolve(M, h + W_tau @ la_tau + W_c @ la_c)
 
         # fmt: off
         G = bmat([[g_dot_u @ MW_g, g_dot_u @ MW_gamma], \
@@ -111,7 +117,9 @@ class ScipyIVP:
         )
         la = spsolve(G, -mu)
         la_g, la_gamma = np.array_split(la, [self.nla_g])
-        u_dot = spsolve(M, h + W_g @ la_g + W_gamma @ la_gamma)
+        u_dot = spsolve(
+            M, h + W_tau @ la_tau + W_c @ la_c + W_g @ la_g + W_gamma @ la_gamma
+        )
         return u_dot, la_g, la_gamma, la_c
 
     def solve(self):
