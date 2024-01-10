@@ -186,7 +186,7 @@ def B_spline_basis1D(degree, derivative_order, knot_vector, knots, squeeze=True)
     degree : int
         polynomial degree of the shape functions
     derivative_order : int
-        numbe rof computed derivatives
+        number of computed derivatives
     knot_vector : numpy.ndarray
         knot vector.
     knots : numpy.ndarray or float

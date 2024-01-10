@@ -273,19 +273,20 @@ class System:
 
         # compute constant system parts
         # - parts of the mass matrix
-        I_constant_mass_matrix = np.array(
-            [
-                contr.constant_mass_matrix
-                if hasattr(contr, "constant_mass_matrix")
-                else False
-                for contr in self.__M_contr
-            ]
-        )
-        self.I_M = ~I_constant_mass_matrix
-        self.__M_contr = np.array(self.__M_contr)
         coo = CooMatrix((self.nu, self.nu))
-        for contr in self.__M_contr[I_constant_mass_matrix]:
-            coo[contr.uDOF, contr.uDOF] = contr.M(self.t0, self.q0[contr.qDOF])
+        if self.__M_contr:
+            I_constant_mass_matrix = np.array(
+                [
+                    contr.constant_mass_matrix
+                    if hasattr(contr, "constant_mass_matrix")
+                    else False
+                    for contr in self.__M_contr
+                ]
+            )
+            self.I_M = ~I_constant_mass_matrix
+            self.__M_contr = np.array(self.__M_contr)
+            for contr in self.__M_contr[I_constant_mass_matrix]:
+                coo[contr.uDOF, contr.uDOF] = contr.M(self.t0, self.q0[contr.qDOF])
         self._M0 = coo.tocoo()
 
         # - compliance matrix
