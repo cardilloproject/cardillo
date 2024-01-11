@@ -11,10 +11,6 @@ class PDcontroller(BaseActuator):
         self.W_tau = self.subsystem.W_l
         self.W_tau_q = self.subsystem.W_l_q
 
-    def assembler_callback(self):
-        self.qDOF = self.subsystem.qDOF
-        self.uDOF = self.subsystem.uDOF
-
     def la_tau(self, t, q, u):
         return -np.array(
             [

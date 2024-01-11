@@ -11,11 +11,17 @@ class BaseActuator:
         self.nla_tau = nla_tau
         self.ntau = ntau
 
+    def assembler_callback(self):
+        self.qDOF = self.subsystem.qDOF
+        self._nq = len(self.qDOF)
+        self.uDOF = self.subsystem.uDOF
+        self._nu = len(self.uDOF)
+
     def la_tau_q(self, t, q, u):
-        return np.zeros((self.nla_tau, len(q)))
+        return np.zeros((self.nla_tau, self._nq))
 
     def la_tau_u(self, t, q, u):
-        return np.zeros((self.nla_tau, len(u)))
+        return np.zeros((self.nla_tau, self._nu))
 
     def Wla_tau_q(self, t, q, u):
         return np.einsum(
