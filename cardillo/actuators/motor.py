@@ -1,22 +1,12 @@
 import numpy as np
+from cardillo.actuators._base import BaseActuator
 
 
-class Motor:
+class Motor(BaseActuator):
     def __init__(self, subsystem, tau):
-        if not callable(tau):
-            self.tau = lambda t: tau
-        else:
-            self.tau = tau
-        self.nla_tau = 1
-        self.ntau = 1
-
-        self.subsystem = subsystem
-
+        super().__init__(subsystem, tau, nla_tau=1, ntau=1)
         self.W_tau = self.subsystem.W_l
-
-    def assembler_callback(self):
-        self.qDOF = self.subsystem.qDOF
-        self.uDOF = self.subsystem.uDOF
+        self.W_tau_q = self.subsystem.W_l_q
 
     def la_tau(self, t, q, u):
-        return self.tau(t)
+        return np.array([self.tau(t)])

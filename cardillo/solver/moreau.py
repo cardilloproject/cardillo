@@ -246,7 +246,7 @@ class Moreau:
         )
 
     def solve(self):
-        solver_summary = SolverSummary()
+        solver_summary = SolverSummary("Moreau's mid-point rule")
 
         # lists storing output variables
         q = [self.qn]
