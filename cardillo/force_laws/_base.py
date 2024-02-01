@@ -6,6 +6,7 @@ class ScalarForceLaw:
         self.subsystem = subsystem
 
     def assembler_callback(self):
+        self.subsystem.assembler_callback()
         self.qDOF = self.subsystem.qDOF
         self.uDOF = self.subsystem.uDOF
 

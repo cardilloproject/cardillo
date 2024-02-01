@@ -12,6 +12,7 @@ class Frame:
         A_IK=np.eye(3),
         A_IK_t=None,
         A_IK_tt=None,
+        name="frame",
         **kwargs,
     ):
         self.r_OP__, self.r_OP_t__, self.r_OP_tt__ = check_time_derivatives(
@@ -25,6 +26,8 @@ class Frame:
         self.nu = 0
         self.q0 = np.array([])
         self.u0 = np.array([])
+
+        self.name = name
 
     #####################
     # kinematic equations

@@ -7,6 +7,7 @@ class PointMass:
         mass,
         q0=None,
         u0=None,
+        name="point_mass",
     ):
         self.nq = 3
         self.nu = 3
@@ -18,6 +19,8 @@ class PointMass:
 
         self.mass = mass
         self.__M = mass * np.eye(3)
+
+        self.name = name
 
     #####################
     # kinematic equations
@@ -45,6 +48,9 @@ class PointMass:
 
     def local_uDOF_P(self, frame_ID=None):
         return np.arange(self.nu)
+    
+    def A_IK(self, t, q, frame_ID=None):
+        return np.eye(3)
 
     def r_OP(self, t, q, frame_ID=None, K_r_SP=None):
         r = np.zeros(3, dtype=q.dtype)
