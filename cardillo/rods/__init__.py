@@ -6,3 +6,4 @@ from ._cross_section import (
 )
 from ._material_models import *
 from ._animate import animate_beam
+from .gauss import gauss

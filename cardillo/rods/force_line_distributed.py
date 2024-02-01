@@ -15,48 +15,50 @@ class Force_line_distributed:
         self.qDOF = self.rod.qDOF
         self.uDOF = self.rod.uDOF
 
-        # ####################################################
-        # # body force
-        # ####################################################
-        # def distributed_force1D_pot_el(self, force, t, qe, el):
-        #     Ve = 0.0
+    # TODO: implement potential energy
 
-        #     for i in range(self.nquadrature):
-        #         # extract reference state variables
-        #         qpi = self.qp[el, i]
-        #         qwi = self.qw[el, i]
-        #         Ji = self.J[el, i]
+    # ####################################################
+    # # body force
+    # ####################################################
+    # def distributed_force1D_pot_el(self, force, t, qe, el):
+    #     Ve = 0.0
 
-        #         # interpolate centerline position
-        #         r_C = np.zeros(3, dtype=float)
-        #         for node in range(self.nnodes_element_r):
-        #             r_C += self.N_r[el, i, node] * qe[self.nodalDOF_element_r[node]]
+    #     for i in range(self.nquadrature):
+    #         # extract reference state variables
+    #         qpi = self.qp[el, i]
+    #         qwi = self.qw[el, i]
+    #         Ji = self.J[el, i]
 
-        #         # compute potential value at given quadrature point
-        #         Ve -= (r_C @ force(t, qpi)) * Ji * qwi
+    #         # interpolate centerline position
+    #         r_C = np.zeros(3, dtype=float)
+    #         for node in range(self.nnodes_element_r):
+    #             r_C += self.N_r[el, i, node] * qe[self.nodalDOF_element_r[node]]
 
-        #     # for i in range(self.nquadrature_dyn):
-        #     #     # extract reference state variables
-        #     #     qpi = self.qp_dyn[el, i]
-        #     #     qwi = self.qw_dyn[el, i]
-        #     #     Ji = self.J_dyn[el, i]
+    #         # compute potential value at given quadrature point
+    #         Ve -= (r_C @ force(t, qpi)) * Ji * qwi
 
-        #     #     # interpolate centerline position
-        #     #     r_C = np.zeros(3, dtype=float)
-        #     #     for node in range(self.nnodes_element_r):
-        #     #         r_C += self.N_r_dyn[el, i, node] * qe[self.nodalDOF_element_r[node]]
+    #     # for i in range(self.nquadrature_dyn):
+    #     #     # extract reference state variables
+    #     #     qpi = self.qp_dyn[el, i]
+    #     #     qwi = self.qw_dyn[el, i]
+    #     #     Ji = self.J_dyn[el, i]
 
-        #     #     # compute potential value at given quadrature point
-        #     #     Ve -= (r_C @ force(t, qpi)) * Ji * qwi
+    #     #     # interpolate centerline position
+    #     #     r_C = np.zeros(3, dtype=float)
+    #     #     for node in range(self.nnodes_element_r):
+    #     #         r_C += self.N_r_dyn[el, i, node] * qe[self.nodalDOF_element_r[node]]
 
-        #     return Ve
+    #     #     # compute potential value at given quadrature point
+    #     #     Ve -= (r_C @ force(t, qpi)) * Ji * qwi
 
-        # def distributed_force1D_pot(self, t, q, force):
-        #     V = 0
-        #     for el in range(self.nelement):
-        #         qe = q[self.elDOF[el]]
-        #         V += self.distributed_force1D_pot_el(force, t, qe, el)
-        #     return V
+    #     return Ve
+
+    # def distributed_force1D_pot(self, t, q, force):
+    #     V = 0
+    #     for el in range(self.nelement):
+    #         qe = q[self.elDOF[el]]
+    #         V += self.distributed_force1D_pot_el(force, t, qe, el)
+    #     return V
 
     def h_el(self, t, el):
         he = np.zeros(self.rod.nu_element, dtype=float)
