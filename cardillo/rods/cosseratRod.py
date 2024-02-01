@@ -25,6 +25,7 @@ from cardillo.rods._base import (
 )
 from ._cross_section import CrossSectionInertias
 
+
 def make_CosseratRod(interpolation="Quaternion", mixed=True, constraints=None):
     if interpolation == "Quaternion":
         return make_CosseratRod_Quat(mixed=mixed, constraints=constraints)
@@ -32,7 +33,7 @@ def make_CosseratRod(interpolation="Quaternion", mixed=True, constraints=None):
         return make_CosseratRod_SE3(mixed=mixed, constraints=constraints)
     elif interpolation == "R12":
         return make_CosseratRod_R12(mixed=mixed, constraints=constraints)
-    
+
 
 def make_CosseratRod_Quat(mixed=True, constraints=None):
     if mixed == True:

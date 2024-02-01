@@ -5,7 +5,7 @@ from cardillo.rods import (
 )
 
 from cardillo.rods.cosseratRod import (
-    make_CosseratRod_Quat,
+    make_CosseratRod,
 )
 
 from cardillo.constraints import RigidConnection
@@ -405,7 +405,7 @@ if __name__ == "__main__":
     # load: Pure bending of a cantilever beam #
     ###########################################
     # cantilever(
-    #     Rod=make_CosseratRod_Quat(mixed=True),
+    #     Rod=make_CosseratRod(mixed=True),
     #     load_type="moment",
     #     VTK_export=True,
     # )
@@ -414,19 +414,19 @@ if __name__ == "__main__":
     # load: Cantilever beam subjected to constant end load #
     ########################################################
     # cantilever(
-    #     Rod=make_CosseratRod_Quat(mixed=True),
+    #     Rod=make_CosseratRod(mixed=True),
     #     load_type="constant_end_load",
     #     VTK_export=True,
     # )
 
     # cantilever(
-    #     Rod=make_CosseratRod_Quat(mixed=True, constraints=[1,2]),
+    #     Rod=make_CosseratRod(mixed=True, constraints=[1,2]),
     #     load_type="constant_end_load",
     #     VTK_export=True,
     # )
 
     # cantilever(
-    #     Rod=make_CosseratRod_Quat(mixed=True, constraints=[0,1,2]),
+    #     Rod=make_CosseratRod(mixed=True, constraints=[0,1,2]),
     #     load_type="constant_end_load",
     #     VTK_export=True,
     # )
@@ -435,7 +435,7 @@ if __name__ == "__main__":
     # load: Cantilever beam subject to follower end load #
     ######################################################
     cantilever(
-        Rod=make_CosseratRod_Quat(mixed=True),
+        Rod=make_CosseratRod(mixed=True),
         load_type="follower_end_load",
         VTK_export=True,
         n_load_steps=50,

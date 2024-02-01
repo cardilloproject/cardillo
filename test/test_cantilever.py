@@ -5,12 +5,7 @@ from cardillo.rods import (
     animate_beam,
 )
 
-from cardillo.rods.cosseratRod import (
-    make_CosseratRod_SE3,
-    make_CosseratRod_R12,
-    make_CosseratRod_Quat,
-    make_CosseratRod_R3SO3,
-)
+from cardillo.rods.cosseratRod import make_CosseratRod
 
 from cardillo.constraints import RigidConnection
 from cardillo.solver import Newton, SolverOptions
@@ -201,19 +196,23 @@ if __name__ == "__main__":
     # displacement-based formulation
 
     cantilever(
-        Rod=make_CosseratRod_Quat(mixed=False),
+        Rod=make_CosseratRod(interpolation="Quaternion", mixed=False),
         constitutive_law=Harsch2021,
         title="shear-deformable (blue): D-B quaternion interpolation",
     )
 
     cantilever(
-        Rod=make_CosseratRod_Quat(mixed=False, constraints=[1, 2]),
+        Rod=make_CosseratRod(
+            interpolation="Quaternion", mixed=False, constraints=[1, 2]
+        ),
         constitutive_law=Harsch2021,
         title="shear-rigid (green): constrained D-B quaternion interpolation",
     )
 
     cantilever(
-        Rod=make_CosseratRod_Quat(mixed=False, constraints=[0, 1, 2]),
+        Rod=make_CosseratRod(
+            interpolation="Quaternion", mixed=False, constraints=[0, 1, 2]
+        ),
         constitutive_law=Harsch2021,
         title="inextensible shear-rigid (red): constrained D-B quaternion interpolation",
     )
@@ -221,13 +220,17 @@ if __name__ == "__main__":
     # mixed formulation
     # For shear-rigid rods Harsch2021 and Simo1986 coincide.
     cantilever(
-        Rod=make_CosseratRod_Quat(mixed=True, constraints=[1, 2]),
+        Rod=make_CosseratRod(
+            interpolation="Quaternion", mixed=True, constraints=[1, 2]
+        ),
         constitutive_law=Simo1986,
         title="shear-rigid (green): constrained mixed quaternion interpolation",
     )
 
     cantilever(
-        Rod=make_CosseratRod_Quat(mixed=True, constraints=[0, 1, 2]),
+        Rod=make_CosseratRod(
+            interpolation="Quaternion", mixed=True, constraints=[0, 1, 2]
+        ),
         constitutive_law=Simo1986,
         title="inextensible shear-rigid (red): constrained mixed quaternion interpolation",
     )
@@ -237,30 +240,30 @@ if __name__ == "__main__":
     #####################
     # displacement-based formulation
     cantilever(
-        Rod=make_CosseratRod_SE3(mixed=False),
+        Rod=make_CosseratRod(interpolation="SE3", mixed=False),
         constitutive_law=Harsch2021,
         title="shear-deformable (blue): D-B SE3 interpolation",
     )
 
     cantilever(
-        Rod=make_CosseratRod_SE3(mixed=False, constraints=[1, 2]),
+        Rod=make_CosseratRod(interpolation="SE3", mixed=False, constraints=[1, 2]),
         constitutive_law=Harsch2021,
         title="shear-rigid (green): constrained D-B SE3 interpolation",
     )
     cantilever(
-        Rod=make_CosseratRod_SE3(mixed=False, constraints=[0, 1, 2]),
+        Rod=make_CosseratRod(interpolation="SE3", mixed=False, constraints=[0, 1, 2]),
         constitutive_law=Harsch2021,
         title="inextensible shear-rigid (red): constrained D-B SE3 interpolation",
     )
     # mixed formulation
     # For shear-rigid rods Harsch2021 and Simo1986 coincide.
     cantilever(
-        Rod=make_CosseratRod_SE3(mixed=True, constraints=[1, 2]),
+        Rod=make_CosseratRod(interpolation="SE3", mixed=True, constraints=[1, 2]),
         constitutive_law=Simo1986,
         title="shear-rigid (green): constrained mixed SE3 interpolation",
     )
     cantilever(
-        Rod=make_CosseratRod_SE3(mixed=True, constraints=[0, 1, 2]),
+        Rod=make_CosseratRod(interpolation="SE3", mixed=True, constraints=[0, 1, 2]),
         constitutive_law=Simo1986,
         title="inextensible shear-rigid (red): constrained mixed SE3 interpolation",
     )
@@ -270,29 +273,29 @@ if __name__ == "__main__":
     #####################
     # displacement-based formulation
     cantilever(
-        Rod=make_CosseratRod_R12(mixed=False),
+        Rod=make_CosseratRod(interpolation="R12", mixed=False),
         constitutive_law=Harsch2021,
         title="shear-deformable (blue): D-B R12 interpolation",
     )
     cantilever(
-        Rod=make_CosseratRod_R12(mixed=False, constraints=[1, 2]),
+        Rod=make_CosseratRod(interpolation="R12", mixed=False, constraints=[1, 2]),
         constitutive_law=Harsch2021,
         title="shear-rigid (green): constrained D-B R12 interpolation",
     )
     cantilever(
-        Rod=make_CosseratRod_R12(mixed=False, constraints=[0, 1, 2]),
+        Rod=make_CosseratRod(interpolation="R12", mixed=False, constraints=[0, 1, 2]),
         constitutive_law=Harsch2021,
         title="inextensible shear-rigid (red): constrained D-B R12 interpolation",
     )
     # mixed formulation
     # For shear-rigid rods Harsch2021 and Simo1986 coincide.
     cantilever(
-        Rod=make_CosseratRod_R12(mixed=True, constraints=[1, 2]),
+        Rod=make_CosseratRod(interpolation="R12", mixed=True, constraints=[1, 2]),
         constitutive_law=Simo1986,
         title="shear-rigid (green): constrained mixed R12 interpolation",
     )
     cantilever(
-        Rod=make_CosseratRod_R12(mixed=True, constraints=[0, 1, 2]),
+        Rod=make_CosseratRod(interpolation="R12", mixed=True, constraints=[0, 1, 2]),
         constitutive_law=Simo1986,
         title="inextensible shear-rigid (red): constrained mixed R12 interpolation",
     )
