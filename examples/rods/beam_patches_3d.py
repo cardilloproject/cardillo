@@ -5,7 +5,7 @@ from cardillo.rods import (
 )
 
 from cardillo.rods.cosseratRod import (
-    make_CosseratRod_Quat,
+    make_CosseratRod,
 )
 
 from cardillo.constraints import RigidConnection
@@ -211,4 +211,4 @@ def beam_patches_3d(
 
 
 if __name__ == "__main__":
-    beam_patches_3d(Rod=make_CosseratRod_Quat(mixed=True))
+    beam_patches_3d(Rod=make_CosseratRod())
