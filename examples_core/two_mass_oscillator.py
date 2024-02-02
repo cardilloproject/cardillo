@@ -13,7 +13,7 @@ if __name__ == "__main__":
     m = 1  # mass
     l0 = 1  # undeformed length of spring
     k = 100  # spring stiffness
-    d = 1  # damping constant
+    d = 2  # damping constant
 
     # initial condition
     stretch = 1.9  # initial stretch of spring
@@ -45,8 +45,8 @@ if __name__ == "__main__":
         TwoPointInteraction(
             mass1,
             mass2,
-            K_r_SP1=np.array([width / 2, 0, 0]),
-            K_r_SP2=np.array([-width / 2, 0, 0]),
+            K_r_SP1=np.array([0.5 * width, 0, 0]),
+            K_r_SP2=np.array([-0.5 * width, 0, 0]),
         ),
         k,
         d,
@@ -69,6 +69,7 @@ if __name__ == "__main__":
     sol = solver.solve()  # simulate system
     t = sol.t
     q = sol.q
+    u = sol.u
 
     # plot time evolution for x-coordinates
     x1 = [mass1.r_OP(ti, qi)[0] for ti, qi in zip(t, q[:, mass1.qDOF])]
@@ -84,13 +85,43 @@ if __name__ == "__main__":
 
     # plot time evolution of spring elongation
     l = [
-        spring_damper.subsystem.l(ti, qi)
-        for ti, qi in zip(t, q[:, spring_damper.subsystem.qDOF])
+        spring_damper.l(ti, qi)
+        for ti, qi in zip(t, q[:, spring_damper.qDOF])
     ]
     plt.plot(t, l)
     plt.title("Evolution of spring elongation")
     plt.xlabel("t")
     plt.ylabel("length")
+    plt.grid()
+    plt.show()
+
+     # plot time evolution of force of SD-element
+    f = [
+        spring_damper.force(ti, qi, ui)
+        for ti, qi, ui in zip(t, q[:, spring_damper.qDOF], u[:, spring_damper.uDOF])
+    ]
+    plt.plot(t, f)
+    plt.title("Evolution of scalar force of SD-element")
+    plt.xlabel("t")
+    plt.ylabel("force")
+    plt.grid()
+    plt.show()
+
+    # plot time evolution of energy
+    # potential energy
+    E_pot = np.array([
+        system.E_pot(ti, qi) for ti, qi in zip(t, q)
+    ])
+    E_kin = np.array([
+        system.E_kin(ti, qi, ui) for ti, qi, ui in zip(t, q, u)
+    ])
+    plt.plot(t, E_pot, label="$E_{pot}$")
+    plt.plot(t, E_kin, label="$E_{kin}$")
+    plt.plot(t, E_kin + E_pot, label="$E_{tot}$")
+    plt.title("Evolution of scalar force of SD-element")
+    plt.xlabel("t")
+    plt.ylabel("energy")
+    plt.legend()
     plt.grid()
     plt.show()
 
