@@ -48,7 +48,7 @@ class PointMass:
 
     def local_uDOF_P(self, frame_ID=None):
         return np.arange(self.nu)
-    
+
     def A_IK(self, t, q, frame_ID=None):
         return np.eye(3)
 

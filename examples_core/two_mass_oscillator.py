@@ -14,11 +14,11 @@ if __name__ == "__main__":
     m = 1
     l0 = 1
     stretch = 1.02
-    
+
     width = l0 / 2
     height = depth = width / 2
     box_dim = np.array([width, height, depth])
-    
+
     k = 1.0e2
     d = 2
 
@@ -35,14 +35,26 @@ if __name__ == "__main__":
     mass2 = Box(PointMass)(dimensions=box_dim, mass=m, q0=q20, u0=u20, name="mass 2")
 
     # spring-damper interaction
-    tp_interaction = TwoPointInteraction(mass1, mass2, K_r_SP1=np.array([width / 2, 0, 0]), K_r_SP2=np.array([-width / 2, 0, 0]), name="spring_damper")
-    spring_damper = KelvinVoigtElement(tp_interaction, k, d, l_ref=l0)
+
+    spring_damper = KelvinVoigtElement(
+        TwoPointInteraction(
+            mass1,
+            mass2,
+            K_r_SP1=np.array([width / 2, 0, 0]),
+            K_r_SP2=np.array([-width / 2, 0, 0]),
+        ),
+        k,
+        d,
+        l_ref=l0,
+        name="spring_damper",
+    )
 
     # floor
-    rectangle = Box(Frame)(dimensions=[5, 0.001, 5], name="floor", r_OP=np.array([0, -height / 2, 0]))
+    rectangle = Box(Frame)(
+        dimensions=[5, 0.001, 5], name="floor", r_OP=np.array([0, -height / 2, 0])
+    )
 
     # add contributions and assemble system
-    # system.add(mass1, mass2, tp_interaction, spring_damper, rectangle)
     system.add(mass1, mass2, spring_damper, rectangle)
     system.assemble()
 
@@ -54,14 +66,13 @@ if __name__ == "__main__":
     t = sol.t
     q = sol.q
 
-
     plt.plot(t, q[:, 0], "-r")
     plt.plot(t, q[:, 3], "--g")
     plt.grid()
 
     plt.show()
 
-        # VTK export
+    # VTK export
     path = Path(__file__)
     e = Export(path.parent, path.stem, True, 50, sol)
     for contr in system.contributions:

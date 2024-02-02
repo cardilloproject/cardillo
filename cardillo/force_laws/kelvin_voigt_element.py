@@ -4,11 +4,12 @@ from cardillo.force_laws._base import ScalarForceLaw
 
 
 class KelvinVoigtElement(ScalarForceLaw):
-    def __init__(self, subsystem, k, d, l_ref=None):
+    def __init__(self, subsystem, k, d, l_ref=None, name="kelvin_voigt_element"):
         super().__init__(subsystem)
         self.k = k
         self.d = d
         self.l_ref = l_ref
+        self.name = name
 
     def assembler_callback(self):
         super().assembler_callback()

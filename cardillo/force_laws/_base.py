@@ -43,3 +43,6 @@ class ScalarForceLaw:
 
     def la_l_dot(self, t, l, l_dot):
         return 0.0
+
+    def export(self, sol_i, **kwargs):
+        return self.subsystem.export(sol_i, **kwargs)
