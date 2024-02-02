@@ -9,6 +9,19 @@ class PointMass:
         u0=None,
         name="point_mass",
     ):
+        """Point mass with position coordinates in Cartesian coordinates.
+
+        Parameters
+        ----------
+        mass : float
+            Mass of point mass.
+        q0 : np.array(3)
+            Initial position coordinates at time t0.
+        u0 : np.array(3)
+            Initial velocity coordinates at time t0.
+        name : str
+            Name of point mass.
+        """
         self.nq = 3
         self.nu = 3
 
