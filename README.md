@@ -94,11 +94,11 @@ https://peps.python.org/pep-0008/#naming-conventions
 
 ### Import Conventions
 
-1. standard library imports
-2. local application/library specific Cardillo imports
+1. external library imports
+2. cardillo imports from outside module
+3. module imports
 
-within these groups order imports alphabetically.
-
+Within these groups order imports alphabetically.
 
 ### Useful links
 * [Information for MATLAB users](https://docs.scipy.org/doc/numpy/user/numpy-for-matlab-users.html).
