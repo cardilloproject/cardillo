@@ -35,20 +35,36 @@ class CosseratRod(RodExportBase, ABC):
         Parameters
         ----------
         cross_section: CrossSection
-            Cross-section properties: area, first and second moments of area.
-        material_model:
-        nelement:
-        polynomial_degree:
-        nquadrature:
-        Q:
-        q0:
-        u0:
-        nquadratur_dyn:
-        cross_section_inertias:
+            Geometric cross-section properties: area, first and second moments of area.
+        material_model: RodMaterialModel
+            Constitutive law of Cosserat rod which relates the rod strain measures K_Gamma and
+            K_Kappa with the contact forces K_n and couples K_m in the cross-section-fixed K-basis.
+        nelement: int
+            Number of rod elements.
+        polynomial_degree: int
+            Polynomial degree of ansatz and test functions.
+        nquadrature: int
+            Number of quadrature points.
+        Q: np.array(self.nq)
+            Generalized position coordinates of rod in a stress-free reference state. Q is a collection of nodal generalized position
+            coordinates, which are given by the Cartesian coordinates of the nodal centerline point r_OP_i in R^3 together with non-unit
+            quaternions p_i in R^4 representing the nodal cross-section orientation.
+        q0: np.array(self.nq)
+            Initial generalized position coordinates of rod at time t0.
+        u0: np.array(self.nu)
+            Initial generalized velocity coordinates of rod at time t0.
+            Generalized velocity coordinates u0 is a collection of the nodal generalized velocity coordinates, which are given
+            by the nodal centerlin velocity v_P_i in R^3 together with the cross-section angular velocity represented in
+            the cross-section-fixed K-basis K_omega_IK.
+        nquadratur_dyn: int
+            Number of quadrature points to integrate dynamical and external virtual work functionals.
+        cross_section_inertias: CrossSectionInertias
+            Inertia properties of cross-sections: Cross-section mass density and Cross-section inertia tensor represented in the cross-section-fixed K-Basis.
+
         """
         super().__init__(cross_section)
 
-        # beam properties
+        # rod properties
         self.material_model = material_model
         self.cross_section_inertias = cross_section_inertias
 

@@ -30,11 +30,11 @@ class UserDefinedCrossSection(CrossSection):
 
         Parameters
         ----------
-        area: float
+        area : float
             Area of the cross-section.
-        first_moment: np.ndarray (3,)
+        first_moment : np.ndarray (3,)
             Vector containing the first moments of area.
-        second_moment: np.ndarray (3, 3)
+        second_moment : np.ndarray (3, 3)
             Matrix containing the second moments of area.
         """
         self._area = area
@@ -60,7 +60,7 @@ class CircularCrossSection(CrossSection):
 
         Parameters
         ----------
-        radius: float
+        radius : float
             Radius of the cross-section
         """
         self._radius = radius
@@ -93,9 +93,9 @@ class RectangularCrossSection(CrossSection):
 
         Parameters:
         -----
-        width: float
+        width : float
             Cross-section dimension in in e_y^K-direction.
-        height: float
+        height : float
             Cross-section dimension in in e_z^K-direction.
         """
         self._width = width
@@ -144,13 +144,13 @@ class CrossSectionInertias:
 
         Parameters:
         -----
-        density: float
+        density : float
             Mass per unit reference volume of the rod.
-        cross_section: CrossSection
+        cross_section : CrossSection
             Cross-section object, which provides cross-section area and second moment of area.
-        A_rho0: float
+        A_rho0 : float
             Cross-section mass density, i.e., mass per unit reference length of rod.
-        K_I_rho0: np.array(3, 3)
+        K_I_rho0 : np.array(3, 3)
             Cross-section inertia tensor represented in the cross-section-fixed K-Basis.
 
         """

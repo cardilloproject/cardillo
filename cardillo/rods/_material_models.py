@@ -47,18 +47,18 @@ class Simo1986(RodMaterialModel):
 
         Parameters
         ----------
-        Ei: np.ndarray(3)
+        Ei : np.ndarray(3)
             E0: dilatational stiffness, i.e., rigidity with resepct to volumetric change.
             E1: shear stiffness in e_y^K-direction.
             E2: shear stiffness in e_z^K-direction.
-        Fi: np.ndarray(3)
+        Fi : np.ndarray(3)
             F0: torsional stiffness
             F1: flexural stiffness around e_y^K-direction.
             F2: flexural stiffness around e_z^K-direction.
 
         References
         ----------
-        Simo1986: https://doi.org/10.1016/0045-7825(86)90079-4
+        Simo1986 : https://doi.org/10.1016/0045-7825(86)90079-4
         """
 
         self.Ei = Ei
@@ -106,11 +106,11 @@ class Harsch2021(RodMaterialModel):
 
         Parameters
         ----------
-        Ei: np.ndarray(3)
+        Ei : np.ndarray(3)
             E0: extensional stiffness, i.e., stiffness in r_OP'-direction.
             E1: shear stiffness in e_y^K-direction.
             E2: shear stiffness in e_z^K-direction.
-        Fi: np.ndarray(3)
+        Fi : np.ndarray(3)
             F0: torsional stiffness
             F1: flexural stiffness around e_y^K-direction.
             F2: flexural stiffness around e_z^K-direction.
