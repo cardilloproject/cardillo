@@ -128,7 +128,7 @@ def make_CosseratRod_Quat(mixed=True, constraints=None):
                 r_OP += N[node] * r_OP_node
                 r_OP_xi += N_xi[node] * r_OP_node
 
-                Q_node = qe[self.nodalDOF_element_psi[node]]
+                Q_node = qe[self.nodalDOF_element_p[node]]
                 # Q_node = quats[i]
                 Q += N[node] * Q_node
                 Q_xi += N_xi[node] * Q_node
@@ -183,14 +183,14 @@ def make_CosseratRod_Quat(mixed=True, constraints=None):
                 r_OP_xi += N_r_xi[node] * r_OP_node
                 r_OP_xi_qe[:, nodalDOF_r] += N_r_xi[node] * np.eye(3, dtype=float)
 
-                nodalDOF_psi = self.nodalDOF_element_psi[node]
-                Q_node = qe[nodalDOF_psi]
+                nodalDOF_p = self.nodalDOF_element_p[node]
+                Q_node = qe[nodalDOF_p]
 
                 Q += N_r[node] * Q_node
-                Q_qe[:, nodalDOF_psi] += N_r[node] * np.eye(4, dtype=float)
+                Q_qe[:, nodalDOF_p] += N_r[node] * np.eye(4, dtype=float)
 
                 Q_xi += N_r_xi[node] * Q_node
-                Q_xi_qe[:, nodalDOF_psi] += N_r_xi[node] * np.eye(4, dtype=float)
+                Q_xi_qe[:, nodalDOF_p] += N_r_xi[node] * np.eye(4, dtype=float)
 
             # transformation matrix
             A_IK = Exp_SO3_quat(Q, normalize=True)
@@ -279,13 +279,13 @@ def make_CosseratRod_Quat(mixed=True, constraints=None):
         def A_IK(self, t, q, frame_ID):
             return self._eval(q, frame_ID[0])[1]
             # # evaluate shape functions
-            # N_psi, _ = self.basis_functions_psi(frame_ID[0])
+            # N_p, _ = self.basis_functions_p(frame_ID[0])
 
             # # interpolate orientation
             # A_IK = np.zeros((3, 3), dtype=q.dtype)
-            # for node in range(self.nnodes_element_psi):
-            #     A_IK += N_psi[node] * self.Exp_SO3_quat(
-            #         q[self.nodalDOF_element_psi[node]]
+            # for node in range(self.nnodes_element_p):
+            #     A_IK += N_p[node] * self.Exp_SO3_quat(
+            #         q[self.nodalDOF_element_p[node]]
             #     )
 
             # return A_IK
@@ -398,11 +398,11 @@ def make_CosseratRod_SE3(mixed=True, constraints=None):
         def _eval(self, qe, xi):
             # nodal unknowns
             r_OP0, r_OP1 = qe[self.nodalDOF_element_r]
-            psi0, psi1 = qe[self.nodalDOF_element_psi]
+            p0, p1 = qe[self.nodalDOF_element_p]
 
             # nodal transformations
-            A_IK0 = Exp_SO3_quat(psi0)
-            A_IK1 = Exp_SO3_quat(psi1)
+            A_IK0 = Exp_SO3_quat(p0)
+            A_IK1 = Exp_SO3_quat(p1)
             H_IK0 = SE3(A_IK0, r_OP0)
             H_IK1 = SE3(A_IK1, r_OP1)
 
@@ -450,38 +450,38 @@ def make_CosseratRod_SE3(mixed=True, constraints=None):
         def _deval(self, qe, xi):
             # extract nodal screws
             nodalDOF0 = np.concatenate(
-                (self.nodalDOF_element_r[0], self.nodalDOF_element_psi[0])
+                (self.nodalDOF_element_r[0], self.nodalDOF_element_p[0])
             )
             nodalDOF1 = np.concatenate(
-                (self.nodalDOF_element_r[1], self.nodalDOF_element_psi[1])
+                (self.nodalDOF_element_r[1], self.nodalDOF_element_p[1])
             )
             h0 = qe[nodalDOF0]
             r_OP0 = h0[:3]
-            psi0 = h0[3:]
+            p0 = h0[3:]
             h1 = qe[nodalDOF1]
             r_OP1 = h1[:3]
-            psi1 = h1[3:]
+            p1 = h1[3:]
 
             # nodal transformations
-            A_IK0 = Exp_SO3_quat(psi0)
-            A_IK1 = Exp_SO3_quat(psi1)
+            A_IK0 = Exp_SO3_quat(p0)
+            A_IK1 = Exp_SO3_quat(p1)
             H_IK0 = SE3(A_IK0, r_OP0)
             H_IK1 = SE3(A_IK1, r_OP1)
-            A_IK0_psi0 = Exp_SO3_quat_p(psi0)
-            A_IK1_psi1 = Exp_SO3_quat_p(psi1)
+            A_IK0_p0 = Exp_SO3_quat_p(p0)
+            A_IK1_p1 = Exp_SO3_quat_p(p1)
 
             H_IK0_h0 = np.zeros((4, 4, 7), dtype=float)
-            H_IK0_h0[:3, :3, 3:] = A_IK0_psi0
+            H_IK0_h0[:3, :3, 3:] = A_IK0_p0
             H_IK0_h0[:3, 3, :3] = np.eye(3, dtype=float)
             H_IK1_h1 = np.zeros((4, 4, 7), dtype=float)
-            H_IK1_h1[:3, :3, 3:] = A_IK1_psi1
+            H_IK1_h1[:3, :3, 3:] = A_IK1_p1
             H_IK1_h1[:3, 3, :3] = np.eye(3, dtype=float)
 
             # inverse transformation of first node
             H_IK0_inv = SE3inv(H_IK0)
             H_IK0_inv_h0 = np.zeros((4, 4, 7), dtype=float)
-            H_IK0_inv_h0[:3, :3, 3:] = A_IK0_psi0.transpose(1, 0, 2)
-            H_IK0_inv_h0[:3, 3, 3:] = -np.einsum("k,kij->ij", r_OP0, A_IK0_psi0)
+            H_IK0_inv_h0[:3, :3, 3:] = A_IK0_p0.transpose(1, 0, 2)
+            H_IK0_inv_h0[:3, 3, 3:] = -np.einsum("k,kij->ij", r_OP0, A_IK0_p0)
             H_IK0_inv_h0[:3, 3, :3] = -A_IK0.T
 
             # compute relative transformation
@@ -623,7 +623,7 @@ def make_CosseratRod_R12(mixed=True, constraints=None):
         def _eval(self, qe, xi):
             # evaluate shape functions
             N_r, N_r_xi = self.basis_functions_r(xi)
-            N_psi, N_psi_xi = self.basis_functions_psi(xi)
+            N_p, N_p_xi = self.basis_functions_p(xi)
 
             # interpolate position and tangent vector
             r_OP = np.zeros(3, dtype=qe.dtype)
@@ -636,10 +636,10 @@ def make_CosseratRod_R12(mixed=True, constraints=None):
             # interpolate transformation matrix and its derivative
             A_IK = np.zeros((3, 3), dtype=qe.dtype)
             A_IK_xi = np.zeros((3, 3), dtype=qe.dtype)
-            for node in range(self.nnodes_element_psi):
-                A_IK_node = Exp_SO3_quat(qe[self.nodalDOF_element_psi[node]])
-                A_IK += N_psi[node] * A_IK_node
-                A_IK_xi += N_psi_xi[node] * A_IK_node
+            for node in range(self.nnodes_element_p):
+                A_IK_node = Exp_SO3_quat(qe[self.nodalDOF_element_p[node]])
+                A_IK += N_p[node] * A_IK_node
+                A_IK_xi += N_p_xi[node] * A_IK_node
 
             # axial and shear strains
             K_Gamma_bar = A_IK.T @ r_OP_xi
@@ -664,7 +664,7 @@ def make_CosseratRod_R12(mixed=True, constraints=None):
         def _deval(self, qe, xi):
             # evaluate shape functions
             N_r, N_r_xi = self.basis_functions_r(xi)
-            N_psi, N_psi_xi = self.basis_functions_psi(xi)
+            N_p, N_p_xi = self.basis_functions_p(xi)
 
             # interpolate position and tangent vector + their derivatives
             r_OP = np.zeros(3, dtype=qe.dtype)
@@ -686,17 +686,17 @@ def make_CosseratRod_R12(mixed=True, constraints=None):
             A_IK_xi = np.zeros((3, 3), dtype=qe.dtype)
             A_IK_qe = np.zeros((3, 3, self.nq_element), dtype=qe.dtype)
             A_IK_xi_qe = np.zeros((3, 3, self.nq_element), dtype=qe.dtype)
-            for node in range(self.nnodes_element_psi):
-                nodalDOF_psi = self.nodalDOF_element_psi[node]
-                psi_node = qe[nodalDOF_psi]
-                A_IK_node = Exp_SO3_quat(psi_node)
-                A_IK_q_node = Exp_SO3_quat_p(psi_node)
+            for node in range(self.nnodes_element_p):
+                nodalDOF_p = self.nodalDOF_element_p[node]
+                p_node = qe[nodalDOF_p]
+                A_IK_node = Exp_SO3_quat(p_node)
+                A_IK_q_node = Exp_SO3_quat_p(p_node)
 
-                A_IK += N_psi[node] * A_IK_node
-                A_IK_qe[:, :, nodalDOF_psi] += N_psi[node] * A_IK_q_node
+                A_IK += N_p[node] * A_IK_node
+                A_IK_qe[:, :, nodalDOF_p] += N_p[node] * A_IK_q_node
 
-                A_IK_xi += N_psi_xi[node] * A_IK_node
-                A_IK_xi_qe[:, :, nodalDOF_psi] += N_psi_xi[node] * A_IK_q_node
+                A_IK_xi += N_p_xi[node] * A_IK_node
+                A_IK_xi_qe[:, :, nodalDOF_p] += N_p_xi[node] * A_IK_q_node
 
             # extract directors
             d1, d2, d3 = A_IK.T
@@ -774,25 +774,25 @@ def make_CosseratRod_R12(mixed=True, constraints=None):
 
         def A_IK(self, t, q, frame_ID):
             # evaluate shape functions
-            N_psi, _ = self.basis_functions_psi(frame_ID[0])
+            N_p, _ = self.basis_functions_p(frame_ID[0])
 
             # interpolate orientation
             A_IK = np.zeros((3, 3), dtype=q.dtype)
-            for node in range(self.nnodes_element_psi):
-                A_IK += N_psi[node] * Exp_SO3_quat(q[self.nodalDOF_element_psi[node]])
+            for node in range(self.nnodes_element_p):
+                A_IK += N_p[node] * Exp_SO3_quat(q[self.nodalDOF_element_p[node]])
 
             return A_IK
 
         def A_IK_q(self, t, q, frame_ID):
             # evaluate shape functions
-            N_psi, _ = self.basis_functions_psi(frame_ID[0])
+            N_p, _ = self.basis_functions_p(frame_ID[0])
 
             # interpolate centerline position and orientation
             A_IK_q = np.zeros((3, 3, self.nq_element), dtype=q.dtype)
-            for node in range(self.nnodes_element_psi):
-                nodalDOF_psi = self.nodalDOF_element_psi[node]
-                A_IK_q[:, :, nodalDOF_psi] += N_psi[node] * Exp_SO3_quat_p(
-                    q[nodalDOF_psi]
+            for node in range(self.nnodes_element_p):
+                nodalDOF_p = self.nodalDOF_element_p[node]
+                A_IK_q[:, :, nodalDOF_p] += N_p[node] * Exp_SO3_quat_p(
+                    q[nodalDOF_p]
                 )
 
             return A_IK_q
