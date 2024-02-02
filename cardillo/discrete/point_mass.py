@@ -9,7 +9,7 @@ class PointMass:
         u0=None,
         name="point_mass",
     ):
-        """Point mass with position coordinates in Cartesian coordinates.
+        """Point mass parametrized by center of mass in inertial basis.
 
         Parameters
         ----------
@@ -68,7 +68,7 @@ class PointMass:
     def r_OP(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
         r = np.zeros(3, dtype=q.dtype)
         r[: self.nq] = q
-        return r + K_r_SP # A_IK = np.eye(3)
+        return r + K_r_SP  # A_IK = np.eye(3)
 
     def r_OP_q(self, t, q, frame_ID=None, K_r_SP=None):
         return np.eye(3, self.nq)

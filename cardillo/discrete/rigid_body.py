@@ -1,6 +1,6 @@
-import numpy as np
 from cachetools import cachedmethod, LRUCache
 from cachetools.keys import hashkey
+import numpy as np
 
 from cardillo.math import (
     cross3,
@@ -15,31 +15,40 @@ from cardillo.math import (
 
 
 class RigidBody:
-    """Rigid body parametrized by center of mass in inertial base and unit 
-    quaternions for rotation. The angular velocities expressed in the 
-    body-fixed base are used as minimal velocities.
-    
-    Exponential function and kinematic differential equation are found in 
-    Egeland2002 (6.199), (6.329) and (6.330). The implementation below 
-    handles non-unit quaternions. After each successfull time step they are 
-    projected to be of unit length. Alternatively, the constraint can be added 
-    to the kinematic differential equations using g_S.
-
-    References
-    ----------
-    Nuetzi2016: https://www.research-collection.ethz.ch/handle/20.500.11850/117165 \\
-    Schweizer2015: https://www.research-collection.ethz.ch/handle/20.500.11850/101867 \\
-    Egenland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf
-
-    Args
-    ----------
-    mass:       mass of rigid body
-    K_Theta_S:  inertia of rigid body in body fixed K-frame
-    q0:         generalized coordinates at t0
-    u0:         generalized velocities at t0
-    """
-
     def __init__(self, mass, K_Theta_S, q0=None, u0=None):
+        """Rigid body parametrized by center of mass in inertial basis I_r_OP in
+        R^3 and non-unit quaternions p in R^4 for rotation, i.e., the 
+        generalized position coordinates are q = (I_r_OP, p) in R^7. The 
+        generalized velocity coordinates u = (I_v_S, K_omega_IK) in R^6 are 
+        composed of the velocity of the center of mass I_v_S in R^3 together 
+        with the angular velocity represented in the body-fixed K-basis 
+        K_omega_IK in R^3. 
+        
+        Exponential function and kinematic differential equation are found in 
+        Egeland2002 (6.199), (6.329) and (6.330). The implementation below 
+        handles non-unit quaternions. After each successfull time step they are 
+        projected to be of unit length. Alternatively, the constraint can be added 
+        to the kinematic differential equations using g_S.
+
+        Parameters
+        ----------
+        mass: float
+            Mass of rigid body
+        K_Theta_S:  np.array(3,3)
+            Inertia tensor represented w.r.t. body fixed K-system.
+        q0 : np.array(7)
+            Initial position coordinates at time t0.
+        u0 : np.array(6)
+            Initial velocity coordinates at time t0.
+        
+        References
+        ----------
+        Nuetzi2016: https://www.research-collection.ethz.ch/handle/20.500.11850/117165 \\
+        Schweizer2015: https://www.research-collection.ethz.ch/handle/20.500.11850/101867 \\
+        Egenland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf
+
+        """
+
         self.nq = 7
         self.nu = 6
         self.nla_S = 1
