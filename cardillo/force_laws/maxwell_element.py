@@ -1,7 +1,16 @@
 import numpy as np
 
+
 class MaxwellElement:
-    def __init__(self, subsystem, stiffness, viscosity, l_ref=None, q0=np.zeros(1), name="maxwell_element"):
+    def __init__(
+        self,
+        subsystem,
+        stiffness,
+        viscosity,
+        l_ref=None,
+        q0=np.zeros(1),
+        name="maxwell_element",
+    ):
         self.subsystem = subsystem
         self.k = stiffness
         self.eta = viscosity
@@ -34,14 +43,14 @@ class MaxwellElement:
     def q_ddot(self, t, q, u, u_dot):
         l_d_dot = self.q_dot(t, q, u)
         return (self.k / self.eta) * (self.subsystem.l_dot(t, q[1:], u) - l_d_dot)
-    
+
     def E_pot(self, t, q):
         l_d = q[0]
-        return 0.5 * self.k * (self.subsystem.l(t, q[1:]) - l_d - self.l_ref)**2
-    
+        return 0.5 * self.k * (self.subsystem.l(t, q[1:]) - l_d - self.l_ref) ** 2
+
     def force(self, t, q, u):
         l_d = q[0]
-        return - self.k * (self.subsystem.l(t, q[1:]) - l_d - self.l_ref)
+        return -self.k * (self.subsystem.l(t, q[1:]) - l_d - self.l_ref)
 
     def h(self, t, q, u):
         l_d = q[0]

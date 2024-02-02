@@ -46,13 +46,13 @@ class PointMass:
 
     def q_dot_u(self, t, q):
         return np.eye(self.nq)
-    
+
     #####################
     # kinetic energy
     #####################
     def E_kin(self, t, q, u):
         return 0.5 * self.mass * np.dot(u, u)
-    
+
     #####################
     # equations of motion
     #####################
