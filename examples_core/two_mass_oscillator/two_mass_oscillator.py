@@ -71,41 +71,39 @@ if __name__ == "__main__":
     q = sol.q
     u = sol.u
 
+    fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(10, 10))
     # plot time evolution for x-coordinates
     x1 = [mass1.r_OP(ti, qi)[0] for ti, qi in zip(t, q[:, mass1.qDOF])]
     x2 = [mass2.r_OP(ti, qi)[0] for ti, qi in zip(t, q[:, mass2.qDOF])]
-    plt.plot(t, x1, "-r", label="$x_1$")
-    plt.plot(t, x2, "-g", label="$x_2$")
-    plt.title("Evolution of positions")
-    plt.xlabel("t")
-    plt.ylabel("x")
-    plt.legend()
-    plt.grid()
-    plt.show()
+    ax[0, 0].plot(t, x1, "-r", label="$x_1$")
+    ax[0, 0].plot(t, x2, "-g", label="$x_2$")
+    ax[0, 0].set_title("Evolution of positions")
+    ax[0, 0].set_xlabel("t")
+    ax[0, 0].set_ylabel("x")
+    ax[0, 0].legend()
+    ax[0, 0].grid()
 
-    # plot time evolution of spring elongation
+    # plot time evolution of elongation of SD-element
     l = [
         spring_damper.l(ti, qi)
         for ti, qi in zip(t, q[:, spring_damper.qDOF])
     ]
-    plt.plot(t, l)
-    plt.title("Evolution of spring elongation")
-    plt.xlabel("t")
-    plt.ylabel("length")
-    plt.grid()
-    plt.show()
+    ax[0, 1].plot(t, l)
+    ax[0, 1].set_title("Evolution of elongation of SD-element")
+    ax[0, 1].set_xlabel("t")
+    ax[0, 1].set_ylabel("length")
+    ax[0, 1].grid()
 
      # plot time evolution of force of SD-element
     f = [
         spring_damper.force(ti, qi, ui)
         for ti, qi, ui in zip(t, q[:, spring_damper.qDOF], u[:, spring_damper.uDOF])
     ]
-    plt.plot(t, f)
-    plt.title("Evolution of scalar force of SD-element")
-    plt.xlabel("t")
-    plt.ylabel("force")
-    plt.grid()
-    plt.show()
+    ax[1, 0].plot(t, f)
+    ax[1, 0].set_title("Evolution of scalar force of SD-element")
+    ax[1, 0].set_xlabel("t")
+    ax[1, 0].set_ylabel("force")
+    ax[1, 0].grid()
 
     # plot time evolution of energy
     # potential energy
@@ -116,14 +114,15 @@ if __name__ == "__main__":
     E_kin = np.array([
         system.E_kin(ti, qi, ui) for ti, qi, ui in zip(t, q, u)
     ])
-    plt.plot(t, E_pot, label="$E_{pot}$")
-    plt.plot(t, E_kin, label="$E_{kin}$")
-    plt.plot(t, E_kin + E_pot, label="$E_{tot}$")
-    plt.title("Evolution of energies")
-    plt.xlabel("t")
-    plt.ylabel("energy")
-    plt.legend()
-    plt.grid()
+    ax[1, 1].plot(t, E_pot, label="$E_{pot}$")
+    ax[1, 1].plot(t, E_kin, label="$E_{kin}$")
+    ax[1, 1].plot(t, E_kin + E_pot, label="$E_{tot}$")
+    ax[1, 1].set_title("Evolution of energies")
+    ax[1, 1].set_xlabel("t")
+    ax[1, 1].set_ylabel("energy")
+    ax[1, 1].legend()
+    ax[1, 1].grid()
+    
     plt.show()
 
     # VTK export
