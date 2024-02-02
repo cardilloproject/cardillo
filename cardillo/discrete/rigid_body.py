@@ -15,7 +15,7 @@ from cardillo.math import (
 
 
 class RigidBody:
-    def __init__(self, mass, K_Theta_S, q0=None, u0=None):
+    def __init__(self, mass, K_Theta_S, q0=None, u0=None, name="rigid_body"):
         """Rigid body parametrized by center of mass in inertial basis I_r_OP in
         R^3 and non-unit quaternions p in R^4 for rotation, i.e., the 
         generalized position coordinates are q = (I_r_OP, p) in R^7. The 
@@ -40,6 +40,8 @@ class RigidBody:
             Initial position coordinates at time t0.
         u0 : np.array(6)
             Initial velocity coordinates at time t0.
+        name : str
+            Name of rigid body.
         
         References
         ----------
@@ -69,6 +71,8 @@ class RigidBody:
         self.__M = np.zeros((self.nu, self.nu), dtype=float)
         self.__M[:3, :3] = self.mass * np.eye(3, dtype=float)
         self.__M[3:, 3:] = self.K_Theta_S
+
+        self.name = name
 
         self.A_IK_cache = LRUCache(maxsize=1)
         self.A_IK_q_cache = LRUCache(maxsize=1)

@@ -1,6 +1,7 @@
 import numpy as np
-from cardillo.utility.check_time_derivatives import check_time_derivatives
+
 from cardillo.math import skew2ax
+from cardillo.utility.check_time_derivatives import check_time_derivatives
 
 
 class Frame:
@@ -15,6 +16,25 @@ class Frame:
         name="frame",
         **kwargs,
     ):
+        """Frame parameterized by time dependent position and orientation.
+
+        Parameters
+        ----------
+        r_OP : np.array(3) (callable/non-callable)
+            Frame position.
+        r_OP_t : np.array(3) (callable/non-callable)
+            Frame velocity.
+        r_OP_tt : np.array(3) (callable/non-callable)
+            Frame acceleration.
+        A_IK : np.array(3, 3) (callable/non-callable)
+            Frame orientation.
+        A_IK_t : np.array(3, 3) (callable/non-callable)
+            Time derivative of frame orientation.
+        A_IK_tt : np.array(3, 3) (callable/non-callable)
+            Second time derivative of frame orientation.
+        name : str
+            Name of frame.
+        """
         self.r_OP__, self.r_OP_t__, self.r_OP_tt__ = check_time_derivatives(
             r_OP, r_OP_t, r_OP_tt
         )

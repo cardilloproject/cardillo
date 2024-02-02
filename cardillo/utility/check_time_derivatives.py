@@ -2,6 +2,28 @@ import numpy as np
 
 
 def check_time_derivatives(f, f_t, f_tt, eps=1.0e-6):
+    """Generates time callable functions and first and second time derivatives.
+    Does not check for consistency.
+
+    Parameters
+    ----------
+    f : np.array()
+        Callable/not-callable function f.
+    f_t : np.array(n) (callable/non-callable)
+        Callable/not-callable time derivative f_t.
+    f_tt : np.array(n) (callable/non-callable)
+        Callable/not-callable second time derivative f_tt.
+
+    Returns
+    -------
+    f__ : np.array() callable
+        Callable function f.
+    f_t__ :
+        Callable time derivative f_t.
+    f_tt__ :
+        Callable second time derivative f_tt.
+
+    """
     if not callable(f):
         f__ = lambda t: f
         f_t__ = lambda t: np.zeros_like(f)

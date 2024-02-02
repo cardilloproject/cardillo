@@ -18,16 +18,16 @@ def Meshed(Base):
 
             Parameters
             ----------
-            mesh_obj:
-                file-like object defining source of mesh or instance of trimesh
+            mesh_obj :
+                File-like object defining source of mesh or instance of trimesh
                 defining the mesh
-            density: float or None
-                mass density for the computation of the inertia properties of the
+            Density : float or None
+                Mass density for the computation of the inertia properties of the
                 mesh. If set to None, user specified mass and K_Theta_S are used.
-            K_r_SP: np.ndarray (3,)
-                offset center of mass (S) from STL origin (P) in body fixed K-frame
+            K_r_SP : np.ndarray (3,)
+                Offset center of mass (S) from STL origin (P) in body fixed K-frame.
             A_KM: np.ndarray (3, 3)
-                tansformation from mesh-fixed frame (M) to body-fixed frame (K)
+                Tansformation from mesh-fixed frame (M) to body-fixed frame (K).
             scale: float
                 factor scaling the mesh after import.
             """
