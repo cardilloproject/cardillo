@@ -112,13 +112,14 @@ if __name__ == "__main__":
     E_pot = np.array([
         system.E_pot(ti, qi) for ti, qi in zip(t, q)
     ])
+    # kinetic energy
     E_kin = np.array([
         system.E_kin(ti, qi, ui) for ti, qi, ui in zip(t, q, u)
     ])
     plt.plot(t, E_pot, label="$E_{pot}$")
     plt.plot(t, E_kin, label="$E_{kin}$")
     plt.plot(t, E_kin + E_pot, label="$E_{tot}$")
-    plt.title("Evolution of scalar force of SD-element")
+    plt.title("Evolution of energies")
     plt.xlabel("t")
     plt.ylabel("energy")
     plt.legend()
