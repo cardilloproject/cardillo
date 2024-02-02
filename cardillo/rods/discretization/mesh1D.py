@@ -1,9 +1,10 @@
 import numpy as np
 from scipy.sparse.linalg import spsolve
 
-from cardillo.rods.lagrange import lagrange_basis1D
-from cardillo.rods.gauss import gauss, lobatto
 from cardillo.utility.coo_matrix import CooMatrix
+
+from .lagrange import lagrange_basis1D
+from .gauss import gauss, lobatto
 
 
 class Mesh1D:

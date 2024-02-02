@@ -1,18 +1,18 @@
-import numpy as np
 from abc import ABC, abstractmethod
-import warnings
-
 from cachetools import cachedmethod, LRUCache
 from cachetools.keys import hashkey
+import numpy as np
+import warnings
 
-from cardillo.rods._base_export import RodExportBase
-from ._cross_section import CrossSectionInertias
 from cardillo.math.algebra import norm, cross3, ax2skew
-from cardillo.math.rotations import Log_SO3_quat, T_SO3_inv_quat, T_SO3_inv_quat_P
 from cardillo.math.approx_fprime import approx_fprime
+from cardillo.math.rotations import Log_SO3_quat, T_SO3_inv_quat, T_SO3_inv_quat_P
 from cardillo.utility.coo_matrix import CooMatrix
-from cardillo.rods.lagrange import LagrangeKnotVector
-from cardillo.rods.mesh1D import Mesh1D
+
+from ._base_export import RodExportBase
+from ._cross_section import CrossSectionInertias
+from .discretization.lagrange import LagrangeKnotVector
+from .discretization.mesh1D import Mesh1D
 
 
 class CosseratRod(RodExportBase, ABC):
@@ -30,8 +30,22 @@ class CosseratRod(RodExportBase, ABC):
         cross_section_inertias=CrossSectionInertias(),
         **kwargs,
     ):
-        """Base class for Petrov-Galerkin Cosserat rod formulations that uses quaternions for the parametrization of the nodal orientations."""
+        """Base class for Petrov-Galerkin Cosserat rod formulations with quaternions for the nodal orientation parametrization.
 
+        Parameters
+        ----------
+        cross_section: CrossSection
+            Cross-section properties: area, first and second moments of area.
+        material_model:
+        nelement:
+        polynomial_degree:
+        nquadrature:
+        Q:
+        q0:
+        u0:
+        nquadratur_dyn:
+        cross_section_inertias:
+        """
         super().__init__(cross_section)
 
         # beam properties
