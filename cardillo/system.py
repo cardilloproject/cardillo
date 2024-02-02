@@ -7,6 +7,7 @@ from cardillo.utility.coo_matrix import CooMatrix
 from cardillo.discrete.frame import Frame
 from cardillo.discrete.meshed import Axis
 from cardillo.solver import consistent_initial_conditions
+from cardillo.visualization import Export
 
 properties = []
 
@@ -167,6 +168,12 @@ class System:
         self.assemble(**kwargs)
         return system_copy
 
+    def export(self, path, folder_name, solution, overwrite=True, fps=50):
+        e = Export(path, folder_name, overwrite, fps, solution)
+        for contr in self.contributions:
+            if hasattr(contr, "export"):
+                e.export_contr(contr, file_name=contr.name)
+       
     def get_contribution_list(self, contr):
         return getattr(self, f"_{self.__class__.__name__}__{contr}_contr")
 

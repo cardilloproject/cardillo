@@ -20,7 +20,7 @@ if __name__ == "__main__":
     box_dim = np.array([width, height, depth])
 
     k = 1.0e2
-    d = 2
+    d = 0
 
     system = System()
 
@@ -74,7 +74,4 @@ if __name__ == "__main__":
 
     # VTK export
     path = Path(__file__)
-    e = Export(path.parent, path.stem, True, 50, sol)
-    for contr in system.contributions:
-        if hasattr(contr, "export"):
-            e.export_contr(contr, file_name=contr.name)
+    system.export(path.parent, path.stem, sol)
