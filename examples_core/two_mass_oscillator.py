@@ -1,42 +1,47 @@
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 from pathlib import Path
 
-
 from cardillo import System
-from cardillo.solver import ScipyIVP, BackwardEuler
 from cardillo.discrete import Box, PointMass, Frame
-from cardillo.force_laws import KelvinVoigtElement
+from cardillo.force_laws import KelvinVoigtElement as SpringDamper
 from cardillo.interactions import TwoPointInteraction
-from cardillo.visualization import Export
+from cardillo.solver import ScipyIVP
 
 if __name__ == "__main__":
-    m = 1
-    l0 = 1
-    stretch = 1.02
+    # system parameters
+    m = 1  # mass
+    l0 = 1  # undeformed length of spring
+    k = 100  # spring stiffness
+    d = 1  # damping constant
 
-    width = l0 / 2
-    height = depth = width / 2
+    # initial condition
+    stretch = 1.9  # initial stretch of spring
+
+    # simulation parameters
+    t0 = 0  # initial time
+    t1 = 3  # final time
+
+    # dimensions of boxes
+    width = l0
+    height = depth = 0.5 * width
     box_dim = np.array([width, height, depth])
 
-    k = 1.0e2
-    d = 0
-
-    system = System()
+    # initialize system
+    system = System(t0=t0)
 
     # mass 1
-    q10 = np.array([0, 0, 0])
+    q10 = np.array([- 0.5 * (stretch * l0 + width), 0, 0])
     u10 = np.zeros(3)
     mass1 = Box(PointMass)(dimensions=box_dim, mass=m, q0=q10, u0=u10, name="mass 1")
 
     # mass 2
-    q20 = np.array([stretch * l0 + width, 0, 0])
+    q20 = np.array([0.5 * (stretch * l0 + width), 0, 0])
     u20 = np.zeros(3)
     mass2 = Box(PointMass)(dimensions=box_dim, mass=m, q0=q20, u0=u20, name="mass 2")
 
     # spring-damper interaction
-
-    spring_damper = KelvinVoigtElement(
+    spring_damper = SpringDamper(
         TwoPointInteraction(
             mass1,
             mass2,
@@ -49,27 +54,44 @@ if __name__ == "__main__":
         name="spring_damper",
     )
 
-    # floor
+    # floor (only for visualization purposes)
     rectangle = Box(Frame)(
-        dimensions=[5, 0.001, 5], name="floor", r_OP=np.array([0, -height / 2, 0])
+        dimensions=[5, 0.001, 2 * depth], r_OP=np.array([0, -0.5 * height, 0]), name="floor"
     )
 
     # add contributions and assemble system
     system.add(mass1, mass2, spring_damper, rectangle)
     system.assemble()
 
-    t0 = 0
-    t1 = 2
-    dt = 1.0e-2
-    solver = ScipyIVP(system, t1, dt, method="BDF")
-    sol = solver.solve()
+    # simulation
+    dt = 1.0e-2  # time step
+    solver = ScipyIVP(system, t1, dt)  # create solver
+    sol = solver.solve()  # simulate system
     t = sol.t
     q = sol.q
 
-    plt.plot(t, q[:, 0], "-r")
-    plt.plot(t, q[:, 3], "--g")
+    # plot time evolution for x-coordinates
+    x1 = [mass1.r_OP(ti, qi)[0] for ti, qi in zip(t, q[:, mass1.qDOF])]
+    x2 = [mass2.r_OP(ti, qi)[0] for ti, qi in zip(t, q[:, mass2.qDOF])]
+    plt.plot(t, x1, "-r", label="$x_1$")
+    plt.plot(t, x2, "-g", label="$x_2$")
+    plt.title("Evolution of positions")
+    plt.xlabel("t")
+    plt.ylabel("x")
+    plt.legend()
     plt.grid()
+    plt.show()
 
+    # plot time evolution of spring elongation
+    l = [
+        spring_damper.subsystem.l(ti, qi)
+        for ti, qi in zip(t, q[:, spring_damper.subsystem.qDOF])
+    ]
+    plt.plot(t, l)
+    plt.title("Evolution of spring elongation")
+    plt.xlabel("t")
+    plt.ylabel("length")
+    plt.grid()
     plt.show()
 
     # VTK export
