@@ -30,15 +30,18 @@ class CosseratRod(RodExportBase, ABC):
         cross_section_inertias=CrossSectionInertias(),
         **kwargs,
     ):
-        """Base class for Petrov-Galerkin Cosserat rod formulations with quaternions for the nodal orientation parametrization.
+        """Base class for Petrov-Galerkin Cosserat rod formulations with 
+        quaternions for the nodal orientation parametrization.
 
         Parameters
         ----------
         cross_section: CrossSection
-            Geometric cross-section properties: area, first and second moments of area.
+            Geometric cross-section properties: area, first and second moments 
+            of area.
         material_model: RodMaterialModel
-            Constitutive law of Cosserat rod which relates the rod strain measures K_Gamma and
-            K_Kappa with the contact forces K_n and couples K_m in the cross-section-fixed K-basis.
+            Constitutive law of Cosserat rod which relates the rod strain 
+            measures K_Gamma and K_Kappa with the contact forces K_n and couples
+            K_m in the cross-section-fixed K-basis.
         nelement: int
             Number of rod elements.
         polynomial_degree: int
@@ -46,20 +49,27 @@ class CosseratRod(RodExportBase, ABC):
         nquadrature: int
             Number of quadrature points.
         Q: np.array(self.nq)
-            Generalized position coordinates of rod in a stress-free reference state. Q is a collection of nodal generalized position
-            coordinates, which are given by the Cartesian coordinates of the nodal centerline point r_OP_i in R^3 together with non-unit
-            quaternions p_i in R^4 representing the nodal cross-section orientation.
+            Generalized position coordinates of rod in a stress-free reference 
+            state. Q is a collection of nodal generalized position coordinates, 
+            which are given by the Cartesian coordinates of the nodal centerline 
+            point r_OP_i in R^3 together with non-unit quaternions p_i in R^4 
+            representing the nodal cross-section orientation.
         q0: np.array(self.nq)
             Initial generalized position coordinates of rod at time t0.
         u0: np.array(self.nu)
-            Initial generalized velocity coordinates of rod at time t0.
-            Generalized velocity coordinates u0 is a collection of the nodal generalized velocity coordinates, which are given
-            by the nodal centerlin velocity v_P_i in R^3 together with the cross-section angular velocity represented in
-            the cross-section-fixed K-basis K_omega_IK.
+            Initial generalized velocity coordinates of rod at time t0. 
+            Generalized velocity coordinates u0 is a collection of the nodal 
+            generalized velocity coordinates, which are given by the nodal 
+            centerline velocity v_P_i in R^3 together with the cross-section 
+            angular velocity represented in the cross-section-fixed K-basis 
+            K_omega_IK.
         nquadratur_dyn: int
-            Number of quadrature points to integrate dynamical and external virtual work functionals.
+            Number of quadrature points to integrate dynamical and external 
+            virtual work functionals.
         cross_section_inertias: CrossSectionInertias
-            Inertia properties of cross-sections: Cross-section mass density and Cross-section inertia tensor represented in the cross-section-fixed K-Basis.
+            Inertia properties of cross-sections: Cross-section mass density and 
+            Cross-section inertia tensor represented in the cross-section-fixed 
+            K-Basis.
 
         """
         super().__init__(cross_section)
@@ -81,9 +91,9 @@ class CosseratRod(RodExportBase, ABC):
         self._eval_cache = LRUCache(maxsize=nquadrature + 10)
         self._deval_cache = LRUCache(maxsize=nquadrature + 10)
 
-        ######################################################
-        # discretization parameters centerline and orientation
-        ######################################################
+        ##############################################################
+        # discretization parameters centerline (r) and orientation (p)
+        ##############################################################
         self.polynomial_degree_r = polynomial_degree
         self.polynomial_degree_p = polynomial_degree
         self.knot_vector_r = LagrangeKnotVector(self.polynomial_degree_r, nelement)
@@ -133,42 +143,50 @@ class CosseratRod(RodExportBase, ABC):
         self.nnodes_element_r = self.mesh_r.nnodes_per_element
         self.nnodes_element_p = self.mesh_p.nnodes_per_element
 
-        # total number of generalized coordinates and velocities
+        # total number of generalized position coordinates
         self.nq_r = self.mesh_r.nq
         self.nq_p = self.mesh_p.nq
         self.nq = self.nq_r + self.nq_p
 
+        # total number of generalized velocity coordinates
         self.nu_r = self.mesh_r.nu
         self.nu_p = self.mesh_p.nu
         self.nu = self.nu_r + self.nu_p
 
-        # number of generalized coordinates and velocities per element
+        # number of generalized position coordinates per element
         self.nq_element_r = self.mesh_r.nq_per_element
         self.nq_element_p = self.mesh_p.nq_per_element
         self.nq_element = self.nq_element_r + self.nq_element_p
 
+        # number of generalized velocity coordinates per element
         self.nu_element_r = self.mesh_r.nu_per_element
         self.nu_element_p = self.mesh_p.nu_per_element
         self.nu_element = self.nu_element_r + self.nu_element_p
 
         # global element connectivity
-        # qe = q[elDOF[e]] "q^e = C_e,q q"
+        # qe = q[elDOF_*[e]] "q^e = C_q,e q"
         self.elDOF_r = self.mesh_r.elDOF
         self.elDOF_p = self.mesh_p.elDOF + self.nq_r
+        # ue = u[elDOF_*_u[e]] "u^e = C_u,e u"
+        # TODO: maybe rename to elDOF_u_r and elDOF_u_p
         self.elDOF_r_u = self.mesh_r.elDOF_u
         self.elDOF_p_u = self.mesh_p.elDOF_u + self.nu_r
 
         # global nodal connectivity
         self.nodalDOF_r = self.mesh_r.nodalDOF
         self.nodalDOF_p = self.mesh_p.nodalDOF + self.nq_r
+        # TODO: maybe rename to nodalDOF_u_r and nodalDOF_u_r
         self.nodalDOF_r_u = self.mesh_r.nodalDOF_u
         self.nodalDOF_p_u = self.mesh_p.nodalDOF_u + self.nu_r
 
         # nodal connectivity on element level
-        # r_OP_i^e = C_r,i^e * C_e,q q = C_r,i^e * q^e
-        # r_OPi = qe[nodelDOF_element_r[i]]
+        # r_OP_i^e = C_r,i^e * C_q,e q = C_r,i^e * q^e
+        # r_OPi = qe[nodalDOF_element_r[i]]
         self.nodalDOF_element_r = self.mesh_r.nodalDOF_element
         self.nodalDOF_element_p = self.mesh_p.nodalDOF_element + self.nq_element_r
+        # TODO: maybe rename it: switch r and u and p and u.
+        # v_P_i^e = C_u,i^e * C_u,e q = C_u,i^e * u^e
+        # v_Pi = ue[nodalDOF_element_r[i]]
         self.nodalDOF_element_r_u = self.mesh_r.nodalDOF_element_u
         self.nodalDOF_element_p_u = (
             self.mesh_p.nodalDOF_element_u + self.nu_element_r
