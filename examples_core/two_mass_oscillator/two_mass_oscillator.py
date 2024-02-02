@@ -128,4 +128,4 @@ if __name__ == "__main__":
 
     # VTK export
     path = Path(__file__)
-    system.export(path.parent, path.stem, sol)
+    system.export(path.parent, "vtk", sol)
