@@ -1,24 +1,25 @@
-import matplotlib.pyplot as plt
+from matplotlib import pyplot as plt
 import numpy as np
 from pathlib import Path
 
 from cardillo import System
-from cardillo.discrete import RigidBody, Frame, Meshed
-from cardillo.solver import ScipyIVP
-from cardillo.math import Spurrier, A_IK_basic, cross3
 from cardillo.constraints import Revolute
+from cardillo.discrete import RigidBody, Frame, Meshed
 from cardillo.forces import Force
+from cardillo.math import Spurrier, A_IK_basic, cross3
+from cardillo.solver import ScipyIVP
 
 if __name__ == "__main__":
-    # read directory name of this file
-    dir_name = Path(__file__).parent
+    ############
+    # parameters
+    ############
 
     # gravitational acceleration
     g = np.array([0, 0, -10])
 
     # initial conditions
-    phi10 = np.pi + np.pi / 6
-    phi20 = np.pi + np.pi / 4
+    phi10 = np.pi / 6
+    phi20 = np.pi / 4
     phi1_dot0 = 0
     phi2_dot0 = 0
 
@@ -31,6 +32,10 @@ if __name__ == "__main__":
     ###########
     # base link
     ###########
+    # read directory name of this file
+    dir_name = Path(__file__).parent
+
+    # create base link and add it to system
     base_link = Meshed(Frame)(
         mesh_obj=Path(dir_name, "stl", "base_link.stl"),
         K_r_SP=np.array([-3.0299e-03, -2.6279e-13, -2.9120e-02]),
@@ -39,7 +44,7 @@ if __name__ == "__main__":
         A_IK=np.eye(3),
         name="base_link",
     )
-
+    system.add(base_link)
     ########
     # link 1
     ########
@@ -47,18 +52,18 @@ if __name__ == "__main__":
     # position of joint 1
     r_OJ1 = np.array([3.0573e-03, -2.6279e-13, 5.8800e-03])
 
-    # kinematics of link 1
+    # kinematics and initial conditions of link 1
     K1_r_J1S1 = np.array([8.6107e-03, 2.1727e-06, 3.6012e-02])
-    A_IK1 = A_IK_basic(phi10).x()
+    A_IK1 = A_IK_basic(np.pi + phi10).x()
     r_J1S1 = A_IK1 @ K1_r_J1S1
     r_OS1 = r_OJ1 + r_J1S1
-
-    K_Omega1 = np.array([phi1_dot0, 0, 0])
-    v_S1 = A_IK1 @ cross3(K_Omega1, K1_r_J1S1)
+    K1_Omega1 = np.array([phi1_dot0, 0, 0])
+    v_S1 = A_IK1 @ cross3(K1_Omega1, K1_r_J1S1)
 
     q0 = np.hstack([r_OS1, Spurrier(A_IK1)])
-    u0 = np.hstack([v_S1, K_Omega1])
+    u0 = np.hstack([v_S1, K1_Omega1])
 
+    # create link 1
     link1 = Meshed(RigidBody)(
         mesh_obj=Path(dir_name, "stl", "link1.stl"),
         K_r_SP=np.array([-8.6107e-03, -2.1727e-06, -3.6012e-02]),
@@ -79,11 +84,15 @@ if __name__ == "__main__":
     # gravity for link 1
     gravity1 = Force(link1.mass * g, link1, name="gravity_link1")
 
+    # add contributions to the system
+    system.add( link1, gravity1)
+
     #########
     # joint 1
     #########
 
-    joint1 = Revolute(base_link, link1, axis=0, r_OB0=r_OJ1, name="joint1")
+    joint1 = Revolute(base_link, link1, axis=0, r_OB0=r_OJ1, angle0=phi10, name="joint1")
+    system.add(joint1)
 
     ########
     # link 2
@@ -92,11 +101,11 @@ if __name__ == "__main__":
     # position of joint 2
     K1_r_J1J2 = np.array([2.3e-02, 7.05451171e-24, 1.0e-01])
     r_OJ2 = r_OJ1 + A_IK1 @ K1_r_J1J2
-    v_J2 = A_IK1 @ cross3(K_Omega1, K1_r_J1J2)
+    v_J2 = A_IK1 @ cross3(K1_Omega1, K1_r_J1J2)
 
     # kinematics of link 2
     K2_r_J2S2 = np.array([-5.0107e-03, 1.9371e-10, 1.0088e-01])
-    A_IK2 = A_IK_basic(phi20).x()
+    A_IK2 = A_IK_basic(np.pi + phi20).x()
     r_J2S2 = A_IK2 @ K2_r_J2S2
     r_OS2 = r_OJ2 + r_J2S2
 
@@ -126,23 +135,58 @@ if __name__ == "__main__":
     # gravity for link 2
     gravity2 = Force(link2.mass * g, link2, name="gravity_link2")
 
+    # add contributions to the system
+    system.add(link2, gravity2)
     #########
     # joint 2
     #########
 
-    joint2 = Revolute(link1, link2, axis=0, r_OB0=r_OJ2, name="joint2")
+    joint2 = Revolute(link1, link2, axis=0, r_OB0=r_OJ2, angle0=phi20, name="joint2")
+    system.add(joint2)
 
-    # add all contributions and assemble system
-    system.add(base_link, link1, joint1, gravity1, link2, gravity2, joint2)
+    # assemble system
     system.assemble()
 
+    ############
     # simulation
+    ############
     dt = 1.0e-2  # time step
     solver = ScipyIVP(system, t1, dt)  # create solver
     sol = solver.solve()  # simulate system
+
+    # read solution
     t = sol.t
     q = sol.q
     u = sol.u
 
+    #################
+    # post-processing
+    #################
+
+    fig, ax = plt.subplots(nrows=2, ncols=1, figsize=(8, 6))
+    
+    # plot time evolution for angles 
+    phi1 = [joint1.angle(ti, qi) for ti, qi in zip(t, q[:, joint1.qDOF])]
+    phi2 = [joint2.angle(ti, qi) for ti, qi in zip(t, q[:, joint2.qDOF])]
+    ax[0].plot(t, phi1, "-r", label="$\\varphi_1$")
+    ax[0].plot(t, phi2, "-g", label="$\\varphi_2$")
+    ax[0].set_xlabel("t")
+    ax[0].set_ylabel("angle")
+    ax[0].legend()
+    ax[0].grid()
+
+    # plot time evolution for angular velocities
+    phi1_dot = [joint1.angle_dot(ti, qi, ui) for ti, qi, ui in zip(t, q[:, joint1.qDOF], u[:, joint1.uDOF])]
+    phi2_dot = [joint2.angle_dot(ti, qi, ui) for ti, qi, ui in zip(t, q[:, joint2.qDOF], u[:, joint2.uDOF])]
+    ax[1].plot(t, phi1_dot, "-r", label="$\\dot{\\varphi}_1$")
+    ax[1].plot(t, phi2_dot, "-g", label="$\\dot{\\varphi}_2$")
+    ax[1].set_xlabel("t")
+    ax[1].set_ylabel("angular velocity")
+    ax[1].legend()
+    ax[1].grid()
+
+    plt.show()
+
+    # vtk-export
     system.export(dir_name, "vtk", sol)
-    exit()
+
