@@ -4,13 +4,16 @@ from numpy import einsum, zeros
 class Force:
     r"""Force implementation."""
 
-    def __init__(self, force, subsystem, frame_ID=zeros(3), K_r_SP=zeros(3)):
+    def __init__(
+        self, force, subsystem, frame_ID=zeros(3), K_r_SP=zeros(3), name="force"
+    ):
         if not callable(force):
             self.force = lambda t: force
         else:
             self.force = force
         self.subsystem = subsystem
         self.frame_ID = frame_ID
+        self.name = name
         self.r_OP = lambda t, q: subsystem.r_OP(t, q, frame_ID, K_r_SP)
         self.J_P = lambda t, q: subsystem.J_P(t, q, frame_ID, K_r_SP)
         self.J_P_q = lambda t, q: subsystem.J_P_q(t, q, frame_ID, K_r_SP)

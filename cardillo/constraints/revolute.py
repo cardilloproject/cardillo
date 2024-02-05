@@ -13,7 +13,9 @@ class Revolute(PositionOrientationBase):
         A_IB0=None,
         frame_ID1=np.zeros(3),
         frame_ID2=np.zeros(3),
+        name="revolute_joint",
     ):
+        self.name = name
         self.axis = axis
         self.angle0 = angle0
         self.plane_axes = np.roll([0, 1, 2], -axis)[1:]

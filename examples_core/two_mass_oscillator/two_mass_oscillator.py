@@ -31,7 +31,7 @@ if __name__ == "__main__":
     system = System(t0=t0)
 
     # mass 1
-    q10 = np.array([- 0.5 * (stretch * l0 + width), 0, 0])
+    q10 = np.array([-0.5 * (stretch * l0 + width), 0, 0])
     u10 = np.zeros(3)
     mass1 = Box(PointMass)(dimensions=box_dim, mass=m, q0=q10, u0=u10, name="mass 1")
 
@@ -56,7 +56,9 @@ if __name__ == "__main__":
 
     # floor (only for visualization purposes)
     rectangle = Box(Frame)(
-        dimensions=[5, 0.001, 2 * depth], r_OP=np.array([0, -0.5 * height, 0]), name="floor"
+        dimensions=[5, 0.001, 2 * depth],
+        r_OP=np.array([0, -0.5 * height, 0]),
+        name="floor",
     )
 
     # add contributions and assemble system
@@ -84,17 +86,14 @@ if __name__ == "__main__":
     ax[0, 0].grid()
 
     # plot time evolution of elongation of SD-element
-    l = [
-        spring_damper.l(ti, qi)
-        for ti, qi in zip(t, q[:, spring_damper.qDOF])
-    ]
+    l = [spring_damper.l(ti, qi) for ti, qi in zip(t, q[:, spring_damper.qDOF])]
     ax[0, 1].plot(t, l)
     ax[0, 1].set_title("Evolution of elongation of SD-element")
     ax[0, 1].set_xlabel("t")
     ax[0, 1].set_ylabel("length")
     ax[0, 1].grid()
 
-     # plot time evolution of force of SD-element
+    # plot time evolution of force of SD-element
     f = [
         spring_damper.force(ti, qi, ui)
         for ti, qi, ui in zip(t, q[:, spring_damper.qDOF], u[:, spring_damper.uDOF])
@@ -107,13 +106,9 @@ if __name__ == "__main__":
 
     # plot time evolution of energy
     # potential energy
-    E_pot = np.array([
-        system.E_pot(ti, qi) for ti, qi in zip(t, q)
-    ])
+    E_pot = np.array([system.E_pot(ti, qi) for ti, qi in zip(t, q)])
     # kinetic energy
-    E_kin = np.array([
-        system.E_kin(ti, qi, ui) for ti, qi, ui in zip(t, q, u)
-    ])
+    E_kin = np.array([system.E_kin(ti, qi, ui) for ti, qi, ui in zip(t, q, u)])
     ax[1, 1].plot(t, E_pot, label="$E_{pot}$")
     ax[1, 1].plot(t, E_kin, label="$E_{kin}$")
     ax[1, 1].plot(t, E_kin + E_pot, label="$E_{tot}$")
@@ -122,7 +117,7 @@ if __name__ == "__main__":
     ax[1, 1].set_ylabel("energy")
     ax[1, 1].legend()
     ax[1, 1].grid()
-    
+
     plt.show()
 
     # VTK export
