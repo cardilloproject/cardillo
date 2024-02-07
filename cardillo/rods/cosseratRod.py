@@ -94,8 +94,8 @@ def make_CosseratRod_Quat(mixed=True, constraints=None):
             L,
             r_OP=np.zeros(3, dtype=float),
             A_IK=np.eye(3, dtype=float),
-            v_P=np.zeros(3, dtype=float),
-            K_omega_IK=np.zeros(3, dtype=float),
+            v_P0=np.zeros(3, dtype=float),
+            K_omega_IK0=np.zeros(3, dtype=float),
         ):
             return CosseratRod.straight_initial_configuration(
                 polynomial_degree,
@@ -106,8 +106,8 @@ def make_CosseratRod_Quat(mixed=True, constraints=None):
                 L,
                 r_OP,
                 A_IK,
-                v_P,
-                K_omega_IK,
+                v_P0,
+                K_omega_IK0,
             )
 
         @cachedmethod(
@@ -276,8 +276,8 @@ def make_CosseratRod_Quat(mixed=True, constraints=None):
                 K_Kappa_bar_qe,
             )
 
-        def A_IK(self, t, q, frame_ID):
-            return self._eval(q, frame_ID[0])[1]
+        def A_IK(self, t, qe, frame_ID):
+            return self._eval(qe, frame_ID[0])[1]
             # # evaluate shape functions
             # N_p, _ = self.basis_functions_p(frame_ID[0])
 
@@ -290,9 +290,9 @@ def make_CosseratRod_Quat(mixed=True, constraints=None):
 
             # return A_IK
 
-        def A_IK_q(self, t, q, frame_ID):
+        def A_IK_q(self, t, qe, frame_ID):
             # return approx_fprime(q, lambda q: self.A_IK(t, q, frame_ID))
-            return self._deval(q, frame_ID[0])[5]
+            return self._deval(qe, frame_ID[0])[5]
 
     return CosseratRod_Quat
 
@@ -387,8 +387,8 @@ def make_CosseratRod_SE3(mixed=True, constraints=None):
                 polynomial_degree=1,
                 r_OP=r_OP,
                 A_IK=A_IK,
-                v_P=v_P,
-                K_omega_IK=K_omega_IK,
+                v_P0=v_P,
+                K_omega_IK0=K_omega_IK,
             )
 
         @cachedmethod(
@@ -555,11 +555,11 @@ def make_CosseratRod_SE3(mixed=True, constraints=None):
                 K_Kappa_bar_qe,
             )
 
-        def A_IK(self, t, q, frame_ID):
-            return self._eval(q, frame_ID[0])[1]
+        def A_IK(self, t, qe, frame_ID):
+            return self._eval(qe, frame_ID[0])[1]
 
-        def A_IK_q(self, t, q, frame_ID):
-            return self._deval(q, frame_ID[0])[5]
+        def A_IK_q(self, t, qe, frame_ID):
+            return self._deval(qe, frame_ID[0])[5]
 
     return CosseratRod_SE3
 
@@ -772,18 +772,18 @@ def make_CosseratRod_R12(mixed=True, constraints=None):
                 K_Kappa_bar_qe,
             )
 
-        def A_IK(self, t, q, frame_ID):
+        def A_IK(self, t, qe, frame_ID):
             # evaluate shape functions
             N_p, _ = self.basis_functions_p(frame_ID[0])
 
             # interpolate orientation
             A_IK = np.zeros((3, 3), dtype=q.dtype)
             for node in range(self.nnodes_element_p):
-                A_IK += N_p[node] * Exp_SO3_quat(q[self.nodalDOF_element_p[node]])
+                A_IK += N_p[node] * Exp_SO3_quat(qe[self.nodalDOF_element_p[node]])
 
             return A_IK
 
-        def A_IK_q(self, t, q, frame_ID):
+        def A_IK_q(self, t, qe, frame_ID):
             # evaluate shape functions
             N_p, _ = self.basis_functions_p(frame_ID[0])
 
@@ -791,9 +791,7 @@ def make_CosseratRod_R12(mixed=True, constraints=None):
             A_IK_q = np.zeros((3, 3, self.nq_element), dtype=q.dtype)
             for node in range(self.nnodes_element_p):
                 nodalDOF_p = self.nodalDOF_element_p[node]
-                A_IK_q[:, :, nodalDOF_p] += N_p[node] * Exp_SO3_quat_p(
-                    q[nodalDOF_p]
-                )
+                A_IK_q[:, :, nodalDOF_p] += N_p[node] * Exp_SO3_quat_p(qe[nodalDOF_p])
 
             return A_IK_q
 

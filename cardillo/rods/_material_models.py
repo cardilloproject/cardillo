@@ -47,11 +47,11 @@ class Simo1986(RodMaterialModel):
 
         Parameters
         ----------
-        Ei : np.ndarray(3)
+        Ei : np.ndarray (3,)
             E0: dilatational stiffness, i.e., rigidity with resepct to volumetric change.
             E1: shear stiffness in e_y^K-direction.
             E2: shear stiffness in e_z^K-direction.
-        Fi : np.ndarray(3)
+        Fi : np.ndarray (3,)
             F0: torsional stiffness
             F1: flexural stiffness around e_y^K-direction.
             F2: flexural stiffness around e_z^K-direction.
