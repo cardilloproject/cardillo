@@ -1249,8 +1249,7 @@ class CosseratRodMixed(CosseratRod):
             K-Basis.
         idx_mixed : array_like
             Set of numbers between 0 and 5 to indicate which stress
-            contributions obtain an independent field. Complement of idx_mixed
-            should be constraint forces.
+            contributions obtain an independent field.
             0 : n_1 axial force.
             1 : n_2 shear force in e_y^K-direction.
             2 : n_3 shear force in e_z^K-direction.
