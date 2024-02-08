@@ -728,7 +728,7 @@ class CosseratRod(RodExportBase, ABC):
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF_u = self.elDOF_u[el]
-            coo[elDOF_u, elDOF] = self.f_int_el_qe(q[elDOF], el)
+            coo[elDOF_u, elDOF]  = self.f_int_el_qe(q[elDOF], el)
         return coo
 
     def h_u(self, t, q, u):
@@ -1692,7 +1692,7 @@ def make_CosseratRodConstrained(mixed, constraints):
         CosseratRodBase = CosseratRodMixed
         idx = np.arange(6)
         idx_constraints = np.array(constraints)
-        idx_mixed = idx[~np.isin(idx, idx_constraints)]
+        idx_mixed = np.setdiff1d(idx, idx_constraints)
     else:
         CosseratRodBase = CosseratRod
         idx_mixed = None
@@ -1711,6 +1711,48 @@ def make_CosseratRodConstrained(mixed, constraints):
             nquadrature_dyn=None,
             cross_section_inertias=CrossSectionInertias(),
         ):
+            """Base class for Petrov-Galerkin Cosserat rod formulations with 
+            additional constraints with quaternions for the nodal orientation 
+            parametrization.
+
+            Parameters
+            ----------
+            cross_section : CrossSection
+                Geometric cross-section properties: area, first and second moments
+                of area.
+            material_model : RodMaterialModel
+                Constitutive law of Cosserat rod which relates the rod strain
+                measures K_Gamma and K_Kappa with the contact forces K_n and couples
+                K_m in the cross-section-fixed K-basis.
+            nelement : int
+                Number of rod elements.
+            polynomial_degree : int
+                Polynomial degree of ansatz and test functions.
+            nquadrature : int
+                Number of quadrature points.
+            Q : np.ndarray (self.nq,)
+                Generalized position coordinates of rod in a stress-free reference
+                state. Q is a collection of nodal generalized position coordinates,
+                which are given by the Cartesian coordinates of the nodal centerline
+                point r_OP_i in R^3 together with non-unit quaternions p_i in R^4
+                representing the nodal cross-section orientation.
+            q0 : np.ndarray (self.nq,)
+                Initial generalized position coordinates of rod at time t0.
+            u0 : np.ndarray (self.nu,)
+                Initial generalized velocity coordinates of rod at time t0.
+                Generalized velocity coordinates u0 is a collection of the nodal
+                generalized velocity coordinates, which are given by the nodal
+                centerline velocity v_P_i in R^3 together with the cross-section
+                angular velocity represented in the cross-section-fixed K-basis
+                K_omega_IK.
+            nquadrature_dyn : int
+                Number of quadrature points to integrate dynamical and external
+                virtual work functionals.
+            cross_section_inertias : CrossSectionInertias
+                Inertia properties of cross-sections: Cross-section mass density and
+                Cross-section inertia tensor represented in the cross-section-fixed
+                K-Basis.
+            """
             super().__init__(
                 cross_section,
                 material_model,
@@ -1725,28 +1767,32 @@ def make_CosseratRodConstrained(mixed, constraints):
                 idx_mixed=idx_mixed,
             )
 
+            ##################################################################
+            # discretization parameters internal constraint forces and moments
+            ##################################################################
             self.constraints = np.array(constraints)
             self.constraints_gamma = self.constraints[(self.constraints < 3)]
             self.nconstraints_gamma = len(self.constraints_gamma)
+            # construct a sieve for the constraint force field la_g to span the internal
+            # force, i.e., K_n = K_n_la_g_sieve @ la_g
             self.K_n_la_g_sieve = np.zeros((3, self.nconstraints_gamma))
             for i, gammai in enumerate(self.constraints_gamma):
                 self.K_n_la_g_sieve[gammai, i] = 1
 
             self.constraints_kappa = self.constraints[(self.constraints >= 3)] - 3
             self.nconstraints_kappa = len(self.constraints_kappa)
+            # construct a sieve for the constraint force field la_g to span the internal
+            # moment, i.e., K_m = K_m_la_g_sieve @ la_g
             self.K_m_la_g_sieve = np.zeros((3, self.nconstraints_kappa))
             for i, kappai in enumerate(self.constraints_kappa):
                 self.K_m_la_g_sieve[kappai, i] = 1
 
-            #######################################################
-            # discretization parameters internal forces and moments
-            #######################################################
             self.polynomial_degree_la_g = polynomial_degree - 1
             self.knot_vector_la_g = LagrangeKnotVector(
                 self.polynomial_degree_la_g, nelement
             )
 
-            # build mesh objects
+            # build mesh for internal constraint force and moment field
             self.mesh_la_g = Mesh1D(
                 self.knot_vector_la_g,
                 nquadrature,
@@ -1773,8 +1819,8 @@ def make_CosseratRodConstrained(mixed, constraints):
             self.elDOF_la_g = self.mesh_la_g.elDOF
 
             # global nodal connectivity
-            # TODO: Take care of self.nla_c for the mixed formulation
-            self.nodalDOF_la_g = self.mesh_la_g.nodalDOF + self.nq_r + self.nq_p
+            # TODO: Take care of self.nla_c for the mixed formulation. Not yet correct.
+            # self.nodalDOF_la_g = self.mesh_la_g.nodalDOF + self.nq_r + self.nq_p
 
             # nodal connectivity on element level
             self.nodalDOF_element_la_g = self.mesh_la_g.nodalDOF_element
@@ -1788,21 +1834,7 @@ def make_CosseratRodConstrained(mixed, constraints):
             # evaluate shape functions at specific xi
             self.basis_functions_la_g = self.mesh_la_g.eval_basis
 
-        def eval_constraint_stresses(self, la_g, xi):
-            el = self.element_number(xi)
-            la_ge = la_g[self.elDOF_la_g[el]]
-            # TODO: lets see how to avoid the flatten
-            N_la_ge = self.basis_functions_la_g(xi).flatten()
-            la_gg = np.zeros(self.nconstraints_gamma + self.nconstraints_kappa)
 
-            for node in range(self.nnodes_element_la_g):
-                la_g_node = la_ge[self.nodalDOF_element_la_g[node]]
-                la_gg += N_la_ge[node] * la_g_node
-
-            K_n_c = self.K_n_la_g_sieve @ la_gg[: self.nconstraints_gamma]
-            K_m_c = self.K_m_la_g_sieve @ la_gg[self.nconstraints_gamma :]
-
-            return K_n_c, K_m_c
 
         def g(self, t, q):
             g = np.zeros(self.nla_g, dtype=q.dtype)
@@ -2051,5 +2083,24 @@ def make_CosseratRodConstrained(mixed, constraints):
 
         def g_ddot(self, t, q, u):
             raise NotImplementedError
+
+        ##############################
+        # stress and strain evaluation
+        ##############################
+        def eval_constraint_stresses(self, la_g, xi):
+            el = self.element_number(xi)
+            la_ge = la_g[self.elDOF_la_g[el]]
+            # TODO: lets see how to avoid the flatten
+            N_la_ge = self.basis_functions_la_g(xi).flatten()
+            la_gg = np.zeros(self.nconstraints_gamma + self.nconstraints_kappa)
+
+            for node in range(self.nnodes_element_la_g):
+                la_g_node = la_ge[self.nodalDOF_element_la_g[node]]
+                la_gg += N_la_ge[node] * la_g_node
+
+            K_n_c = self.K_n_la_g_sieve @ la_gg[: self.nconstraints_gamma]
+            K_m_c = self.K_m_la_g_sieve @ la_gg[self.nconstraints_gamma :]
+
+            return K_n_c, K_m_c
 
     return CosseratRodConstrained
