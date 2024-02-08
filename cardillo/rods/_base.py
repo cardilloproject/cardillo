@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from cachetools import cachedmethod, LRUCache
 from cachetools.keys import hashkey
 import numpy as np
+from scipy.sparse.linalg import spsolve
 import warnings
 
 from cardillo.math.algebra import norm, cross3, ax2skew
@@ -73,6 +74,7 @@ class CosseratRod(RodExportBase, ABC):
             K-Basis.
 
         """
+        # call base class for all export properties
         super().__init__(cross_section)
 
         # rod properties
@@ -1245,11 +1247,20 @@ class CosseratRodMixed(CosseratRod):
             Inertia properties of cross-sections: Cross-section mass density and
             Cross-section inertia tensor represented in the cross-section-fixed
             K-Basis.
-        idx_mixed : np.ndarray
-
+        idx_mixed : array_like
+            Set of numbers between 0 and 5 to indicate which stress
+            contributions obtain an independent field. Complement of idx_mixed
+            should be constraint forces. 
+            0 : n_1 axial force.
+            1 : n_2 shear force in e_y^K-direction.
+            2 : n_3 shear force in e_z^K-direction.
+            3 : m_1 torsion.
+            4 : m_2 bending moment around e_y^K-direction.
+            5 : m_3 bending moment around e_z^K-direction.
 
         """
 
+        # call base class CosseratRod
         super().__init__(
             cross_section,
             material_model,
@@ -1269,12 +1280,16 @@ class CosseratRodMixed(CosseratRod):
         self.idx_mixed = np.array(idx_mixed)
         self.idx_n = self.idx_mixed[(self.idx_mixed < 3)]
         self.nmixed_n = len(self.idx_n)
+        # construct a sieve for the mixed force field la_c to span the internal
+        # force, i.e., K_n = K_n_la_c_sieve @ la_c
         self.K_n_la_c_sieve = np.zeros((3, self.nmixed_n))
         for i, ni in enumerate(self.idx_n):
             self.K_n_la_c_sieve[ni, i] = 1
 
         self.idx_m = self.idx_mixed[(self.idx_mixed >= 3)] - 3
         self.nmixed_m = len(self.idx_m)
+        # construct a sieve for the mixed force field la_c to span the internal
+        # moment, i.e., K_m = K_m_la_c_sieve @ la_c
         self.K_m_la_c_sieve = np.zeros((3, self.nmixed_m))
         for i, mi in enumerate(self.idx_m):
             self.K_m_la_c_sieve[mi, i] = 1
@@ -1284,7 +1299,7 @@ class CosseratRodMixed(CosseratRod):
             self.polynomial_degree_la_c, nelement
         )
 
-        # build mesh objects
+        # build mesh for internal force and moment field
         self.mesh_la_c = Mesh1D(
             self.knot_vector_la_c,
             nquadrature,
@@ -1319,94 +1334,75 @@ class CosseratRodMixed(CosseratRod):
         # shape functions and their first derivatives
         self.N_la_c = self.mesh_la_c.N
 
-        # TODO: Dummy initial values for compliance
-        self.la_c0 = np.zeros(self.nla_c, dtype=float)
-
         # evaluate shape functions at specific xi
         self.basis_functions_la_c = self.mesh_la_c.eval_basis
 
-    ###############################
-    # potential and internal forces
-    ###############################
-    # # TODO:
-    # def E_pot(self, t, q):
-    #     E_pot = 0.0
-    #     for el in range(self.nelement):
-    #         elDOF = self.elDOF[el]
-    #         E_pot += self.E_pot_el(q[elDOF], el)
-    #     return E_pot
+    def assembler_callback(self):
+        super().assembler_callback()
+        self._c_la_c_coo()
 
-    # # TODO:
-    # def E_pot_el(self, qe, el):
-    #     E_pot_el = 0.0
+    ########################################
+    # total complementary potential energies
+    ########################################
+    # TODO: If there is a demand, add it to system.
+    def E_comp_pot(self, t, la_c):
+        E_comp_pot = 0.0
+        for el in range(self.nelement):
+            elDOF_la_c = self.elDOF_la_c[el]
+            E_comp_pot += self.E_pot_el(la_c[elDOF_la_c], el)
+        return E_comp_pot
 
-    #     for i in range(self.nquadrature):
-    #         # extract reference state variables
-    #         qpi = self.qp[el, i]
-    #         qwi = self.qw[el, i]
-    #         Ji = self.J[el, i]
-    #         K_Gamma0 = self.K_Gamma0[el, i]
-    #         K_Kappa0 = self.K_Kappa0[el, i]
+    def E_comp_pot_el(self, la_ce, el):
+        E_comp_pot_el = 0.0
 
-    #         # evaluate required quantities
-    #         _, _, K_Gamma_bar, K_Kappa_bar = self._eval(qe, qpi)
+        for i in range(self.nquadrature):
+            # extract reference state variables
+            qpi = self.qp[el, i]
+            qwi = self.qw[el, i]
+            Ji = self.J[el, i]
 
-    #         # axial and shear strains
-    #         K_Gamma = K_Gamma_bar / Ji
+            la_c = np.zeros(self.mesh_la_c.dim_q, dtype=la_ce.dtype)
+            # interpolation of internal forces and moments
+            for node in range(self.nnodes_element_la_c):
+                la_c_node = la_ce[self.nodalDOF_element_la_c[node]]
+                la_c += self.N_la_c[el, i, node] * la_c_node
 
-    #         # torsional and flexural strains
-    #         K_Kappa = K_Kappa_bar / Ji
+            K_n = self.K_n_la_c_sieve @ la_c[: self.nmixed_n]
+            K_m = self.K_m_la_c_sieve @ la_c[self.nmixed_n :]
+            
+            # evaluate complementary strain energy function
+            E_comp_pot_el += (
+                self.material_model.complementary_potential(K_n, K_m)
+                * Ji
+                * qwi
+            )
 
-    #         # evaluate strain energy function
-    #         E_pot_el += (
-    #             self.material_model.potential(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
-    #             * Ji
-    #             * qwi
-    #         )
+        return E_comp_pot_el
+    
+    #########################################
+    # equations of motion
+    #########################################
+    def h(self, t, q, u):
+        # h required to overwrite function of base class. 
+        h = np.zeros(self.nu, dtype=np.common_type(q, u))
+        for el in range(self.nelement):
+            elDOF = self.elDOF[el]
+            elDOF_u = self.elDOF_u[el]
+            h[elDOF_u] -= self.f_gyr_el(t, q[elDOF], u[elDOF_u], el)
+        return h
 
-    #     return E_pot_el
-
-    def eval_stresses(self, t, q, la_c, xi):
-        el = self.element_number(xi)
-        la_ce = la_c[self.elDOF_la_c[el]]
-        # TODO: lets see how to avoid the flatten
-        N_la_ce = self.basis_functions_la_c(xi).flatten()
-        la_cc = np.zeros(len(self.idx_mixed))
-
-        for node in range(self.nnodes_element_la_c):
-            la_c_node = la_ce[self.nodalDOF_element_la_c[node]]
-            la_cc += N_la_ce[node] * la_c_node
-
-        K_n = self.K_n_la_c_sieve @ la_cc[: self.nmixed_n]
-        K_m = self.K_m_la_c_sieve @ la_cc[self.nmixed_n :]
-
-        return K_n, K_m
-
-    def eval_strains(self, t, q, la_c, xi):
-        K_n, K_m = self.eval_stresses(t, q, la_c, xi)
-        el = self.element_number(xi)
-        Qe = self.Q[self.elDOF[el]]
-
-        _, _, K_Gamma_bar0, K_Kappa_bar0 = self._eval(Qe, xi)
-
-        J = norm(K_Gamma_bar0)
-        K_Gamma0 = K_Gamma_bar0 / J
-        K_Kappa0 = K_Kappa_bar0 / J
-
-        C_n_inv = self.material_model.C_n_inv
-        C_m_inv = self.material_model.C_m_inv
-
-        K_Gamma = C_n_inv @ K_n + K_Gamma0
-        K_Kappa = C_m_inv @ K_m + K_Kappa0
-
-        return K_Gamma - K_Gamma0, K_Kappa - K_Kappa0
-
-    ##########################
-    # compliance contributions
-    ##########################
-    # TODO: implement me
+    def h_q(self, t, q, u):
+        # h_q required to overwrite function of base class. 
+        coo = CooMatrix((self.nu, self.nq))
+        return coo
+    
+    # h_u is implmented in base class.
+    ############
+    # compliance 
+    ############
     def la_c(self, t, q, u):
-        raise NotImplementedError
+        # TODO: implement affine part independently and invert matrix element wise
+        return spsolve(self.c_la_c().tocsr(), self.c(t, q, u, np.zeros(self.nla_c)))
 
     def c(self, t, q, u, la_c):
         c = np.zeros(self.nla_c, dtype=np.common_type(q, u, la_c))
@@ -1417,13 +1413,14 @@ class CosseratRodMixed(CosseratRod):
         return c
 
     def c_el(self, qe, la_ce, el):
+        # TODO: check for speed up by using constant c_la_c matrices
         c_el = np.zeros(self.nla_c_element, dtype=np.common_type(qe, la_ce))
 
         for i in range(self.nquadrature):
             # extract reference state variables
             qpi = self.qp[el, i]
             qwi = self.qw[el, i]
-            J = self.J[el, i]
+            Ji = self.J[el, i]
             K_Gamma0 = self.K_Gamma0[el, i]
             K_Kappa0 = self.K_Kappa0[el, i]
 
@@ -1447,8 +1444,8 @@ class CosseratRodMixed(CosseratRod):
             # TODO: Store K_Gamma_bar0 and K_Kappa_bar0
             c_qp = np.concatenate(
                 (
-                    (J * C_n_inv @ K_n - (K_Gamma_bar - J * K_Gamma0)),
-                    (J * C_m_inv @ K_m - (K_Kappa_bar - J * K_Kappa0)),
+                    (Ji * C_n_inv @ K_n - (K_Gamma_bar - Ji * K_Gamma0)),
+                    (Ji * C_m_inv @ K_m - (K_Kappa_bar - Ji * K_Kappa0)),
                 )
             )
 
@@ -1460,18 +1457,20 @@ class CosseratRodMixed(CosseratRod):
         return c_el
 
     def c_la_c(self):
-        coo = CooMatrix((self.nla_c, self.nla_c))
+        return self.__c_la_c
+    
+    def _c_la_c_coo(self):
+        self.__c_la_c = CooMatrix((self.nla_c, self.nla_c))
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF_la_c = self.elDOF_la_c[el]
-            coo[elDOF_la_c, elDOF_la_c] = self.c_la_c_el(el)
-        return coo
+            self.__c_la_c[elDOF_la_c, elDOF_la_c] = self.c_la_c_el(el)
 
     def c_la_c_el(self, el):
         c_la_c_el = np.zeros((self.nla_c_element, self.nla_c_element))
         for i in range(self.nquadrature):
             qwi = self.qw[el, i]
-            J = self.J[el, i]
+            Ji = self.J[el, i]
 
             C_n_inv = self.material_model.C_n_inv
             C_m_inv = self.material_model.C_m_inv
@@ -1490,7 +1489,7 @@ class CosseratRodMixed(CosseratRod):
                         self.N_la_c[el, i, node_la_c1]
                         * C_inv_sliced
                         * self.N_la_c[el, i, node_la_c2]
-                        * J
+                        * Ji
                         * qwi
                     )
 
@@ -1501,26 +1500,17 @@ class CosseratRodMixed(CosseratRod):
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF_la_c = self.elDOF_la_c[el]
-            coo[elDOF_la_c, elDOF] = self.c_q_el(q[elDOF], la_c[elDOF_la_c], el)
+            coo[elDOF_la_c, elDOF] = self.c_el_qe(q[elDOF], la_c[elDOF_la_c], el)
         return coo
 
-    def c_q_el(self, qe, la_ce, el):
-        if not hasattr(self, "_deval"):
-            warnings.warn(
-                "Class derived from CosseratRod does not implement _deval. We use a numerical Jacobian!"
-            )
-            return approx_fprime(
-                qe, lambda qe: self.c_el(qe, la_ce, el), method="3-point", eps=1e-6
-            )
-
-        c_q_el = np.zeros(
+    def c_el_qe(self, qe, la_ce, el):
+        c_el_qe = np.zeros(
             (self.nla_c_element, self.nq_element), dtype=np.common_type(qe, la_ce)
         )
         for i in range(self.nquadrature):
             # extract reference state variables
             qpi = self.qp[el, i]
             qwi = self.qw[el, i]
-            J = self.J[el, i]
 
             # evaluate required quantities
             (
@@ -1538,11 +1528,11 @@ class CosseratRodMixed(CosseratRod):
 
             for node in range(self.nnodes_element_la_c):
                 nodalDOF_la_c = self.nodalDOF_element_la_c[node]
-                c_q_el[nodalDOF_la_c, :] -= (
+                c_el_qe[nodalDOF_la_c, :] -= (
                     self.N_la_c[el, i, node] * delta_strains_qe[self.idx_mixed, :] * qwi
                 )
 
-        return c_q_el
+        return c_el_qe
 
     def W_c(self, t, q):
         coo = CooMatrix((self.nu, self.nla_c))
@@ -1607,19 +1597,11 @@ class CosseratRodMixed(CosseratRod):
             elDOF = self.elDOF[el]
             elDOF_u = self.elDOF_u[el]
             elDOF_la_c = self.elDOF_la_c[el]
-            coo[elDOF_u, elDOF] = self.Wla_c_q_el(q[elDOF], la_c[elDOF_la_c], el)
+            coo[elDOF_u, elDOF] = self.Wla_c_el_qe(q[elDOF], la_c[elDOF_la_c], el)
         return coo
 
-    def Wla_c_q_el(self, qe, la_ce, el):
-        if not hasattr(self, "_deval"):
-            warnings.warn(
-                "Class derived from CosseratRod does not implement _deval. We use a numerical Jacobian!"
-            )
-            return approx_fprime(
-                qe, lambda qe: self.W_c_el(qe, el) @ la_ce, method="3-point", eps=1e-6
-            )
-
-        Wla_c_q_el = np.zeros(
+    def Wla_c_el_qe(self, qe, la_ce, el):
+        Wla_c_el_qe = np.zeros(
             (self.nu_element, self.nq_element), dtype=np.common_type(qe, la_ce)
         )
 
@@ -1627,7 +1609,6 @@ class CosseratRodMixed(CosseratRod):
             # extract reference state variables
             qpi = self.qp[el, i]
             qwi = self.qw[el, i]
-            J = self.J[el, i]
 
             # evaluate required quantities
             (
@@ -1652,44 +1633,58 @@ class CosseratRodMixed(CosseratRod):
             K_m = self.K_m_la_c_sieve @ la_c[self.nmixed_n :]
 
             for node in range(self.nnodes_element_r):
-                Wla_c_q_el[self.nodalDOF_element_r_u[node], :] -= (
+                Wla_c_el_qe[self.nodalDOF_element_r_u[node], :] -= (
                     self.N_r_xi[el, i, node]
                     * qwi
                     * (np.einsum("ikj,k->ij", A_IK_qe, K_n))
                 )
 
             for node in range(self.nnodes_element_p):
-                Wla_c_q_el[self.nodalDOF_element_p_u[node], :] += (
+                Wla_c_el_qe[self.nodalDOF_element_p_u[node], :] += (
                     self.N_p[el, i, node]
                     * qwi
                     * (-ax2skew(K_n) @ K_Gamma_bar_qe - ax2skew(K_m) @ K_Kappa_bar_qe)
                 )
 
-        return Wla_c_q_el
+        return Wla_c_el_qe
 
-    #########################################
-    # equations of motion
-    #########################################
-    def h(self, t, q, u):
-        h = np.zeros(self.nu, dtype=np.common_type(q, u))
-        for el in range(self.nelement):
-            elDOF = self.elDOF[el]
-            elDOF_u = self.elDOF_u[el]
-            h[elDOF_u] -= self.f_gyr_el(t, q[elDOF], u[elDOF_u], el)
-        return h
+    ##############################
+    # stress and strain evaluation
+    ##############################
+    def eval_stresses(self, t, q, la_c, xi):
+        el = self.element_number(xi)
+        la_ce = la_c[self.elDOF_la_c[el]]
+        # TODO: lets see how to avoid the flatten
+        N_la_ce = self.basis_functions_la_c(xi).flatten()
+        la_cc = np.zeros(len(self.idx_mixed))
 
-    def h_q(self, t, q, u):
-        # h_q required to overwrite function of parent class
-        coo = CooMatrix((self.nu, self.nq))
-        return coo
+        for node in range(self.nnodes_element_la_c):
+            la_c_node = la_ce[self.nodalDOF_element_la_c[node]]
+            la_cc += N_la_ce[node] * la_c_node
 
-    def h_u(self, t, q, u):
-        coo = CooMatrix((self.nu, self.nu))
-        for el in range(self.nelement):
-            elDOF = self.elDOF[el]
-            elDOF_u = self.elDOF_u[el]
-            coo[elDOF_u, elDOF_u] = -self.f_gyr_el_ue(t, q[elDOF], u[elDOF_u], el)
-        return coo
+        K_n = self.K_n_la_c_sieve @ la_cc[: self.nmixed_n]
+        K_m = self.K_m_la_c_sieve @ la_cc[self.nmixed_n :]
+
+        return K_n, K_m
+
+    def eval_strains(self, t, q, la_c, xi):
+        K_n, K_m = self.eval_stresses(t, q, la_c, xi)
+        el = self.element_number(xi)
+        Qe = self.Q[self.elDOF[el]]
+
+        _, _, K_Gamma_bar0, K_Kappa_bar0 = self._eval(Qe, xi)
+
+        J = norm(K_Gamma_bar0)
+        K_Gamma0 = K_Gamma_bar0 / J
+        K_Kappa0 = K_Kappa_bar0 / J
+
+        C_n_inv = self.material_model.C_n_inv
+        C_m_inv = self.material_model.C_m_inv
+
+        K_Gamma = C_n_inv @ K_n + K_Gamma0
+        K_Kappa = C_m_inv @ K_m + K_Kappa0
+
+        return K_Gamma - K_Gamma0, K_Kappa - K_Kappa0
 
 
 def make_CosseratRodConstrained(mixed, constraints):
