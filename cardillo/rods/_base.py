@@ -1078,20 +1078,20 @@ class CosseratRod(RodExportBase, ABC):
 
         # angular velocity and acceleration in K-frame
         K_Omega = self.K_Omega(t, qe, ue, frame_ID)
-        K_p = self.K_p(t, qe, ue, ue_dot, frame_ID)
+        K_Psi = self.K_Psi(t, qe, ue, ue_dot, frame_ID)
 
         # rigid body formular
         return a_S + A_IK @ (
-            cross3(K_p, K_r_SP) + cross3(K_Omega, cross3(K_Omega, K_r_SP))
+            cross3(K_Psi, K_r_SP) + cross3(K_Omega, cross3(K_Omega, K_r_SP))
         )
 
     def a_P_q(self, t, qe, ue, ue_dot, frame_ID, K_r_SP=None):
         K_Omega = self.K_Omega(t, qe, ue, frame_ID)
-        K_p = self.K_p(t, qe, ue, ue_dot, frame_ID)
+        K_Psi = self.K_Psi(t, qe, ue, ue_dot, frame_ID)
         a_P_q = np.einsum(
             "ijk,j->ik",
             self.A_IK_q(t, qe, frame_ID),
-            cross3(K_p, K_r_SP) + cross3(K_Omega, cross3(K_Omega, K_r_SP)),
+            cross3(K_Psi, K_r_SP) + cross3(K_Omega, cross3(K_Omega, K_r_SP)),
         )
         return a_P_q
 
@@ -1134,13 +1134,13 @@ class CosseratRod(RodExportBase, ABC):
         return np.zeros((3, self.nu_element, self.nq_element), dtype=float)
 
     def K_Psi(self, t, qe, ue, ue_dot, frame_ID):
-        """Since we use Petrov-Galerkin method we only interpoalte the nodal
+        """Since we use Petrov-Galerkin method we only interpolate the nodal
         time derivative of the angular velocities in the K-frame.
         """
-        N_psi, _ = self.basis_functions_psi(frame_ID[0])
+        N_p, _ = self.basis_functions_p(frame_ID[0])
         K_Psi = np.zeros(3, dtype=np.common_type(qe, ue, ue_dot))
-        for node in range(self.nnodes_element_psi):
-            K_Psi += N_psi[node] * ue_dot[self.nodalDOF_element_psi_u[node]]
+        for node in range(self.nnodes_element_p):
+            K_Psi += N_p[node] * ue_dot[self.nodalDOF_element_p_u[node]]
         return K_Psi
 
     def K_Psi_q(self, t, qe, ue, ue_dot, frame_ID):
@@ -2040,8 +2040,7 @@ def make_CosseratRodConstrained(mixed, constraints):
             return Wla_g_q_el
 
         def g_dot(self, t, q, u):
-            raise NotImplementedError
-            return self.W_g(t, q).toarray.T @ u
+            return self.W_g(t, q).toarray().T @ u
 
         def g_dot_u(self, t, q):
             W_g = self.W_g(t, q)
@@ -2054,8 +2053,14 @@ def make_CosseratRodConstrained(mixed, constraints):
         def g_dot_q(self, t, q, u):
             raise NotImplementedError
 
-        def g_ddot(self, t, q, u):
-            raise NotImplementedError
+        def g_ddot(self, t, q, u, u_dot):
+            # Check for already moving initial conditions
+            g_ddot = np.zeros(self.nla_g, dtype=q.dtype)
+            g_ddot += self.W_g(t, q).toarray().T @ u_dot
+            W_g_T_q = approx_fprime(q, lambda q1: self.W_g(t, q1).toarray().T)
+            q_dot = self.q_dot(t, q, u)
+            g_ddot += np.einsum("ijk, k->ij", W_g_T_q, q_dot) @ u
+            return g_ddot
 
         ##############################
         # stress and strain evaluation
