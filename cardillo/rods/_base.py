@@ -728,7 +728,7 @@ class CosseratRod(RodExportBase, ABC):
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF_u = self.elDOF_u[el]
-            coo[elDOF_u, elDOF]  = self.f_int_el_qe(q[elDOF], el)
+            coo[elDOF_u, elDOF] = self.f_int_el_qe(q[elDOF], el)
         return coo
 
     def h_u(self, t, q, u):
@@ -1132,7 +1132,7 @@ class CosseratRod(RodExportBase, ABC):
 
     def K_J_R_q(self, t, qe, frame_ID):
         return np.zeros((3, self.nu_element, self.nq_element), dtype=float)
-    
+
     def K_Psi(self, t, qe, ue, ue_dot, frame_ID):
         """Since we use Petrov-Galerkin method we only interpoalte the nodal
         time derivative of the angular velocities in the K-frame.
@@ -1152,7 +1152,7 @@ class CosseratRod(RodExportBase, ABC):
     ##############################
     # stress and strain evaluation
     ##############################
-    def eval_stresses(self, t, q, la_c, xi):
+    def eval_stresses(self, t, q, la_c, la_g, xi):
         el = self.element_number(xi)
         Qe = self.Q[self.elDOF[el]]
         qe = q[self.elDOF[el]]
@@ -1173,7 +1173,7 @@ class CosseratRod(RodExportBase, ABC):
 
         return K_n, K_m
 
-    def eval_strains(self, t, q, la_c, xi):
+    def eval_strains(self, t, q, la_c, la_g, xi):
         el = self.element_number(xi)
         Qe = self.Q[self.elDOF[el]]
         qe = q[self.elDOF[el]]
@@ -1250,7 +1250,7 @@ class CosseratRodMixed(CosseratRod):
         idx_mixed : array_like
             Set of numbers between 0 and 5 to indicate which stress
             contributions obtain an independent field. Complement of idx_mixed
-            should be constraint forces. 
+            should be constraint forces.
             0 : n_1 axial force.
             1 : n_2 shear force in e_y^K-direction.
             2 : n_3 shear force in e_z^K-direction.
@@ -1369,21 +1369,19 @@ class CosseratRodMixed(CosseratRod):
 
             K_n = self.K_n_la_c_sieve @ la_c[: self.nmixed_n]
             K_m = self.K_m_la_c_sieve @ la_c[self.nmixed_n :]
-            
+
             # evaluate complementary strain energy function
             E_comp_pot_el += (
-                self.material_model.complementary_potential(K_n, K_m)
-                * Ji
-                * qwi
+                self.material_model.complementary_potential(K_n, K_m) * Ji * qwi
             )
 
         return E_comp_pot_el
-    
+
     #########################################
     # equations of motion
     #########################################
     def h(self, t, q, u):
-        # h required to overwrite function of base class. 
+        # h required to overwrite function of base class.
         h = np.zeros(self.nu, dtype=np.common_type(q, u))
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
@@ -1392,13 +1390,13 @@ class CosseratRodMixed(CosseratRod):
         return h
 
     def h_q(self, t, q, u):
-        # h_q required to overwrite function of base class. 
+        # h_q required to overwrite function of base class.
         coo = CooMatrix((self.nu, self.nq))
         return coo
-    
+
     # h_u is implmented in base class.
     ############
-    # compliance 
+    # compliance
     ############
     def la_c(self, t, q, u):
         # TODO: implement affine part independently and invert matrix element wise
@@ -1458,7 +1456,7 @@ class CosseratRodMixed(CosseratRod):
 
     def c_la_c(self):
         return self.__c_la_c
-    
+
     def _c_la_c_coo(self):
         self.__c_la_c = CooMatrix((self.nla_c, self.nla_c))
         for el in range(self.nelement):
@@ -1651,7 +1649,7 @@ class CosseratRodMixed(CosseratRod):
     ##############################
     # stress and strain evaluation
     ##############################
-    def eval_stresses(self, t, q, la_c, xi):
+    def eval_stresses(self, t, q, la_c, la_g, xi):
         el = self.element_number(xi)
         la_ce = la_c[self.elDOF_la_c[el]]
         # TODO: lets see how to avoid the flatten
@@ -1667,8 +1665,8 @@ class CosseratRodMixed(CosseratRod):
 
         return K_n, K_m
 
-    def eval_strains(self, t, q, la_c, xi):
-        K_n, K_m = self.eval_stresses(t, q, la_c, xi)
+    def eval_strains(self, t, q, la_c, la_g, xi):
+        K_n, K_m = self.eval_stresses(t, q, la_c, la_g, xi)
         el = self.element_number(xi)
         Qe = self.Q[self.elDOF[el]]
 
@@ -1711,8 +1709,8 @@ def make_CosseratRodConstrained(mixed, constraints):
             nquadrature_dyn=None,
             cross_section_inertias=CrossSectionInertias(),
         ):
-            """Base class for Petrov-Galerkin Cosserat rod formulations with 
-            additional constraints with quaternions for the nodal orientation 
+            """Base class for Petrov-Galerkin Cosserat rod formulations with
+            additional constraints with quaternions for the nodal orientation
             parametrization.
 
             Parameters
@@ -1834,8 +1832,9 @@ def make_CosseratRodConstrained(mixed, constraints):
             # evaluate shape functions at specific xi
             self.basis_functions_la_g = self.mesh_la_g.eval_basis
 
-
-
+        #########################################
+        # bilateral constraints on position level
+        #########################################
         def g(self, t, q):
             g = np.zeros(self.nla_g, dtype=q.dtype)
             for el in range(self.nelement):
@@ -1845,14 +1844,13 @@ def make_CosseratRodConstrained(mixed, constraints):
             return g
 
         def g_el(self, qe, el):
-            # TODO: check this after you have slept
             g_el = np.zeros(self.nla_g_element, dtype=qe.dtype)
 
             for i in range(self.nquadrature):
                 # extract reference state variables
                 qpi = self.qp[el, i]
                 qwi = self.qw[el, i]
-                J = self.J[el, i]
+                Ji = self.J[el, i]
                 K_Gamma0 = self.K_Gamma0[el, i]
                 K_Kappa0 = self.K_Kappa0[el, i]
 
@@ -1862,8 +1860,8 @@ def make_CosseratRodConstrained(mixed, constraints):
                 # TODO: Store K_Gamma_bar0 and K_Kappa_bar0
                 delta_strains = np.concatenate(
                     [
-                        (K_Gamma_bar - J * K_Gamma0) * qwi,
-                        (K_Kappa_bar - J * K_Kappa0) * qwi,
+                        (K_Gamma_bar - Ji * K_Gamma0) * qwi,
+                        (K_Kappa_bar - Ji * K_Kappa0) * qwi,
                     ]
                 )
 
@@ -1883,20 +1881,11 @@ def make_CosseratRodConstrained(mixed, constraints):
             return coo
 
         def g_q_el(self, qe, el):
-            if not hasattr(self, "_deval"):
-                warnings.warn(
-                    "Class derived from CosseratRod does not implement _deval. We use a numerical Jacobian!"
-                )
-                return approx_fprime(
-                    qe, lambda qe: self.g_el(qe, el), method="3-point", eps=1e-6
-                )
-
             g_q_el = np.zeros((self.nla_g_element, self.nq_element), dtype=qe.dtype)
             for i in range(self.nquadrature):
                 # extract reference state variables
                 qpi = self.qp[el, i]
                 qwi = self.qw[el, i]
-                J = self.J[el, i]
 
                 # evaluate required quantities
                 (
@@ -2000,17 +1989,6 @@ def make_CosseratRodConstrained(mixed, constraints):
             return coo
 
         def Wla_g_q_el(self, qe, la_ge, el):
-            if not hasattr(self, "_deval"):
-                warnings.warn(
-                    "Class derived from CosseratRod does not implement _deval. We use a numerical Jacobian!"
-                )
-                return approx_fprime(
-                    qe,
-                    lambda qe: self.W_g_el(qe, el) @ la_ge,
-                    method="3-point",
-                    eps=1e-6,
-                )
-
             Wla_g_q_el = np.zeros(
                 (self.nu_element, self.nq_element), dtype=np.common_type(qe, la_ge)
             )
@@ -2019,7 +1997,7 @@ def make_CosseratRodConstrained(mixed, constraints):
                 # extract reference state variables
                 qpi = self.qp[el, i]
                 qwi = self.qw[el, i]
-                J = self.J[el, i]
+                Ji = self.J[el, i]
 
                 # evaluate required quantities
                 (
@@ -2060,10 +2038,6 @@ def make_CosseratRodConstrained(mixed, constraints):
                         )
                     )
 
-            # Wla_g_q_el_num = approx_fprime(qe, lambda qe: self.W_g_el(qe, el) @ la_ge, method="cs", eps=1e-6)
-            # error = np.linalg.norm(Wla_g_q_el - Wla_g_q_el_num)
-            # print(error)
-
             return Wla_g_q_el
 
         def g_dot(self, t, q, u):
@@ -2087,7 +2061,13 @@ def make_CosseratRodConstrained(mixed, constraints):
         ##############################
         # stress and strain evaluation
         ##############################
-        def eval_constraint_stresses(self, la_g, xi):
+        def eval_stresses(self, t, q, la_c, la_g, xi):
+            K_n = np.zeros(3)
+            K_m = np.zeros(3)
+            K_n_impressed, K_m_impressed = super().eval_stresses(t, q, la_c, la_g, xi)
+            K_n[self.constraints_gamma] += K_n_impressed[self.constraints_gamma]
+            K_m[self.constraints_kappa] += K_m_impressed[self.constraints_kappa]
+
             el = self.element_number(xi)
             la_ge = la_g[self.elDOF_la_g[el]]
             # TODO: lets see how to avoid the flatten
@@ -2101,6 +2081,9 @@ def make_CosseratRodConstrained(mixed, constraints):
             K_n_c = self.K_n_la_g_sieve @ la_gg[: self.nconstraints_gamma]
             K_m_c = self.K_m_la_g_sieve @ la_gg[self.nconstraints_gamma :]
 
-            return K_n_c, K_m_c
+            K_n += K_n_c
+            K_m += K_m_c
+
+            return K_n, K_m
 
     return CosseratRodConstrained

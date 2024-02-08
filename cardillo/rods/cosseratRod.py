@@ -777,7 +777,7 @@ def make_CosseratRod_R12(mixed=True, constraints=None):
             N_p, _ = self.basis_functions_p(frame_ID[0])
 
             # interpolate orientation
-            A_IK = np.zeros((3, 3), dtype=q.dtype)
+            A_IK = np.zeros((3, 3), dtype=qe.dtype)
             for node in range(self.nnodes_element_p):
                 A_IK += N_p[node] * Exp_SO3_quat(qe[self.nodalDOF_element_p[node]])
 
@@ -788,7 +788,7 @@ def make_CosseratRod_R12(mixed=True, constraints=None):
             N_p, _ = self.basis_functions_p(frame_ID[0])
 
             # interpolate centerline position and orientation
-            A_IK_q = np.zeros((3, 3, self.nq_element), dtype=q.dtype)
+            A_IK_q = np.zeros((3, 3, self.nq_element), dtype=qe.dtype)
             for node in range(self.nnodes_element_p):
                 nodalDOF_p = self.nodalDOF_element_p[node]
                 A_IK_q[:, :, nodalDOF_p] += N_p[node] * Exp_SO3_quat_p(qe[nodalDOF_p])
