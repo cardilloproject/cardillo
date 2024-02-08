@@ -863,7 +863,7 @@ class CosseratRod(RodExportBase, ABC):
                     * (ax2skew(K_Kappa_bar) @ K_m_qe - ax2skew(K_m) @ K_Kappa_bar_qe)
                 )
 
-            return f_int_el_qe
+        return f_int_el_qe
 
     def f_gyr_el(self, t, qe, ue, el):
         f_gyr_el = np.zeros(self.nu_element, dtype=np.common_type(qe, ue))
