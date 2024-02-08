@@ -36,38 +36,38 @@ class CosseratRod(RodExportBase, ABC):
 
         Parameters
         ----------
-        cross_section: CrossSection
+        cross_section : CrossSection
             Geometric cross-section properties: area, first and second moments
             of area.
         material_model: RodMaterialModel
             Constitutive law of Cosserat rod which relates the rod strain
             measures K_Gamma and K_Kappa with the contact forces K_n and couples
             K_m in the cross-section-fixed K-basis.
-        nelement: int
+        nelement : int
             Number of rod elements.
-        polynomial_degree: int
+        polynomial_degree : int
             Polynomial degree of ansatz and test functions.
-        nquadrature: int
+        nquadrature : int
             Number of quadrature points.
-        Q: np.ndarray (self.nq,)
+        Q : np.ndarray (self.nq,)
             Generalized position coordinates of rod in a stress-free reference
             state. Q is a collection of nodal generalized position coordinates,
             which are given by the Cartesian coordinates of the nodal centerline
             point r_OP_i in R^3 together with non-unit quaternions p_i in R^4
             representing the nodal cross-section orientation.
-        q0: np.ndarray (self.nq,)
+        q0 : np.ndarray (self.nq,)
             Initial generalized position coordinates of rod at time t0.
-        u0: np.ndarray (self.nu,)
+        u0 : np.ndarray (self.nu,)
             Initial generalized velocity coordinates of rod at time t0.
             Generalized velocity coordinates u0 is a collection of the nodal
             generalized velocity coordinates, which are given by the nodal
             centerline velocity v_P_i in R^3 together with the cross-section
             angular velocity represented in the cross-section-fixed K-basis
             K_omega_IK.
-        nquadrature_dyn: int
+        nquadrature_dyn : int
             Number of quadrature points to integrate dynamical and external
             virtual work functionals.
-        cross_section_inertias: CrossSectionInertias
+        cross_section_inertias : CrossSectionInertias
             Inertia properties of cross-sections: Cross-section mass density and
             Cross-section inertia tensor represented in the cross-section-fixed
             K-Basis.
@@ -1130,6 +1130,22 @@ class CosseratRod(RodExportBase, ABC):
 
     def K_J_R_q(self, t, qe, frame_ID):
         return np.zeros((3, self.nu_element, self.nq_element), dtype=float)
+    
+    def K_Psi(self, t, qe, ue, ue_dot, frame_ID):
+        """Since we use Petrov-Galerkin method we only interpoalte the nodal
+        time derivative of the angular velocities in the K-frame.
+        """
+        N_psi, _ = self.basis_functions_psi(frame_ID[0])
+        K_Psi = np.zeros(3, dtype=np.common_type(qe, ue, ue_dot))
+        for node in range(self.nnodes_element_psi):
+            K_Psi += N_psi[node] * ue_dot[self.nodalDOF_element_psi_u[node]]
+        return K_Psi
+
+    def K_Psi_q(self, t, qe, ue, ue_dot, frame_ID):
+        return np.zeros((3, self.nq_element), dtype=float)
+
+    def K_Psi_u(self, t, qe, ue, ue_dot, frame_ID):
+        return np.zeros((3, self.nu_element), dtype=float)
 
     ##############################
     # stress and strain evaluation
@@ -1189,8 +1205,50 @@ class CosseratRodMixed(CosseratRod):
         cross_section_inertias=CrossSectionInertias(),
         idx_mixed=np.arange(6),
     ):
-        """Base class for Petrov-Galerkin Cosserat rod formulations that uses
-        quaternions for the parametrization of the nodal orientations."""
+        """Base class for mixed Petrov-Galerkin Cosserat rod formulations with
+        quaternions for the nodal orientation parametrization.
+
+        Parameters
+        ----------
+        cross_section : CrossSection
+            Geometric cross-section properties: area, first and second moments
+            of area.
+        material_model : RodMaterialModel
+            Constitutive law of Cosserat rod which relates the rod strain
+            measures K_Gamma and K_Kappa with the contact forces K_n and couples
+            K_m in the cross-section-fixed K-basis.
+        nelement : int
+            Number of rod elements.
+        polynomial_degree : int
+            Polynomial degree of ansatz and test functions.
+        nquadrature : int
+            Number of quadrature points.
+        Q : np.ndarray (self.nq,)
+            Generalized position coordinates of rod in a stress-free reference
+            state. Q is a collection of nodal generalized position coordinates,
+            which are given by the Cartesian coordinates of the nodal centerline
+            point r_OP_i in R^3 together with non-unit quaternions p_i in R^4
+            representing the nodal cross-section orientation.
+        q0 : np.ndarray (self.nq,)
+            Initial generalized position coordinates of rod at time t0.
+        u0 : np.ndarray (self.nu,)
+            Initial generalized velocity coordinates of rod at time t0.
+            Generalized velocity coordinates u0 is a collection of the nodal
+            generalized velocity coordinates, which are given by the nodal
+            centerline velocity v_P_i in R^3 together with the cross-section
+            angular velocity represented in the cross-section-fixed K-basis
+            K_omega_IK.
+        nquadrature_dyn : int
+            Number of quadrature points to integrate dynamical and external
+            virtual work functionals.
+        cross_section_inertias : CrossSectionInertias
+            Inertia properties of cross-sections: Cross-section mass density and
+            Cross-section inertia tensor represented in the cross-section-fixed
+            K-Basis.
+        idx_mixed : np.ndarray
+
+
+        """
 
         super().__init__(
             cross_section,
