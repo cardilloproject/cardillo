@@ -3,6 +3,30 @@ from cardillo.constraints._base import PositionOrientationBase
 
 
 class Revolute(PositionOrientationBase):
+    r"""Constraint representation of revolute joint.
+
+        Parameters
+        ----------
+        subsystem1 : object
+            RigidBody or CosseratRod
+        subsystem2 : object
+            RigidBody or CosseratRod
+        axis : int
+            Integer number between 0 and 2 to indicate which axis is the free rotation axis.
+            0 : e_x^B-direction.
+            1 : e_y^B-direction.
+            2 : e_z^B-direction.
+        angle0 : float
+            Value of the joint angle in initial configuration q0.
+        r_OB0 : np.ndarray (3,)
+            Initial position vector of joint.
+        A_IB0 : np.ndarray (3, 3)
+            Initial orientation of joint basis. Defines axis of rotation together with 'axis'.
+        frame_ID1 : #TODO
+        frame_ID2 : #TODO
+        name : str
+            Name of contribution.
+        """
     def __init__(
         self,
         subsystem1,
