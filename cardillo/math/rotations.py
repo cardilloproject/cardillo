@@ -405,6 +405,7 @@ class A_IK_basic:
         self.sp = np.sin(phi)
         self.cp = np.cos(phi)
 
+    @property
     def x(self) -> np.ndarray:
         """Rotation around x-axis."""
         # fmt: off
@@ -413,6 +414,7 @@ class A_IK_basic:
                          [0, self.sp,  self.cp]])
         # fmt: on
 
+    @property
     def dx(self) -> np.ndarray:
         """Derivative of Rotation around x-axis."""
         # fmt: off
@@ -421,6 +423,7 @@ class A_IK_basic:
                          [0,  self.cp, -self.sp]])
         # fmt: on
 
+    @property
     def y(self) -> np.ndarray:
         """Rotation around y-axis."""
         # fmt: off
@@ -429,6 +432,7 @@ class A_IK_basic:
                          [-self.sp, 0, self.cp]])
         # fmt: on
 
+    @property
     def dy(self) -> np.ndarray:
         """Derivative of Rotation around y-axis."""
         # fmt: off
@@ -437,6 +441,7 @@ class A_IK_basic:
                          [-self.cp, 0, -self.sp]])
         # fmt: on
 
+    @property
     def z(self) -> np.ndarray:
         """Rotation around z-axis."""
         # fmt: off
@@ -445,6 +450,7 @@ class A_IK_basic:
                          [      0,        0, 1]])
         # fmt: on
 
+    @property
     def dz(self) -> np.ndarray:
         """Derivative of Rotation around z-axis."""
         # fmt: off
