@@ -2,9 +2,18 @@ import numpy as np
 
 
 class Force_line_distributed:
-    r"""Line distributed Force for rods"""
-
     def __init__(self, force, rod):
+        r"""Line distributed dead load for rods
+
+        Parameters
+        ----------
+        force : np.ndarray (3,)
+            Force w.r.t. inertial I-basis as a callable function in time t and
+            rod position xi.
+        rod : CosseratRod
+            Cosserat rod from Cardillo.
+
+        """
         if not callable(force):
             self.force = lambda t, xi: force
         else:
@@ -15,48 +24,43 @@ class Force_line_distributed:
         self.qDOF = self.rod.qDOF
         self.uDOF = self.rod.uDOF
 
-        # ####################################################
-        # # body force
-        # ####################################################
-        # def distributed_force1D_pot_el(self, force, t, qe, el):
-        #     Ve = 0.0
+    ##################
+    # potential energy
+    ##################
+    def E_pot(self, t, q):
+        E_pot = 0
+        for el in range(self.nelement):
+            qe = q[self.elDOF[el]]
+            E_pot += self.E_pot_el(t, qe, el)
+        return E_pot
 
-        #     for i in range(self.nquadrature):
-        #         # extract reference state variables
-        #         qpi = self.qp[el, i]
-        #         qwi = self.qw[el, i]
-        #         Ji = self.J[el, i]
+    def E_pot_el(self, t, qe, el):
+        # TODO: nullify with initial configuration q0
+        E_pot_el = 0.0
 
-        #         # interpolate centerline position
-        #         r_C = np.zeros(3, dtype=float)
-        #         for node in range(self.nnodes_element_r):
-        #             r_C += self.N_r[el, i, node] * qe[self.nodalDOF_element_r[node]]
+        for i in range(self.rod.nquadrature):
+            # extract reference state variables
+            qpi = self.rod.qp[el, i]
+            qwi = self.rod.qw[el, i]
+            Ji = self.rod.J[el, i]
 
-        #         # compute potential value at given quadrature point
-        #         Ve -= (r_C @ force(t, qpi)) * Ji * qwi
+            # interpolate centerline position
+            r_OS = np.zeros(3, dtype=float)
+            for node in range(self.nnodes_element_r):
+                r_OS += self.N_r[el, i, node] * qe[self.nodalDOF_element_r[node]]
 
-        #     # for i in range(self.nquadrature_dyn):
-        #     #     # extract reference state variables
-        #     #     qpi = self.qp_dyn[el, i]
-        #     #     qwi = self.qw_dyn[el, i]
-        #     #     Ji = self.J_dyn[el, i]
+            E_pot_el -= (r_OS @ self.force(t, qpi)) * Ji * qwi
 
-        #     #     # interpolate centerline position
-        #     #     r_C = np.zeros(3, dtype=float)
-        #     #     for node in range(self.nnodes_element_r):
-        #     #         r_C += self.N_r_dyn[el, i, node] * qe[self.nodalDOF_element_r[node]]
+        return E_pot_el
 
-        #     #     # compute potential value at given quadrature point
-        #     #     Ve -= (r_C @ force(t, qpi)) * Ji * qwi
-
-        #     return Ve
-
-        # def distributed_force1D_pot(self, t, q, force):
-        #     V = 0
-        #     for el in range(self.nelement):
-        #         qe = q[self.elDOF[el]]
-        #         V += self.distributed_force1D_pot_el(force, t, qe, el)
-        #     return V
+    #####################
+    # equations of motion
+    #####################
+    def h(self, t, q, u):
+        h = np.zeros(self.rod.nu, dtype=np.common_type(q, u))
+        for el in range(self.rod.nelement):
+            h[self.rod.elDOF_u[el]] += self.h_el(t, el)
+        return h
 
     def h_el(self, t, el):
         he = np.zeros(self.rod.nu_element, dtype=float)
@@ -77,12 +81,6 @@ class Force_line_distributed:
                 )
 
         return he
-
-    def h(self, t, q, u):
-        h = np.zeros(self.rod.nu, dtype=np.common_type(q, u))
-        for el in range(self.rod.nelement):
-            h[self.rod.elDOF_u[el]] += self.h_el(t, el)
-        return h
 
     def h_q(self, t, q, u):
         return None
