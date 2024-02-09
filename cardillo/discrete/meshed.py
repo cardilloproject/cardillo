@@ -3,6 +3,20 @@ import trimesh
 
 
 def Meshed(Base):
+    """Generate an object (typically with Base `Frame` or `RigidBody`)
+    from a given Trimesh object.
+
+    Parameters
+    ----------
+    Base :  object 
+        Cardillo object Frame, RigidBody or Pointmass
+    
+    Returns
+    -------
+    out : object
+        Meshed version of Base object
+    
+    """
     class _Meshed(Base):
         def __init__(
             self,
@@ -25,11 +39,13 @@ def Meshed(Base):
                 Mass density for the computation of the inertia properties of the
                 mesh. If set to None, user specified mass and K_Theta_S are used.
             K_r_SP : np.ndarray (3,)
-                Offset center of mass (S) from STL origin (P) in body fixed K-frame.
+                Offset center of mass (S) from STL origin (P) in body fixed K-basis.
             A_KM: np.ndarray (3, 3)
-                Tansformation from mesh-fixed frame (M) to body-fixed frame (K).
+                Tansformation from mesh-fixed basis (M) to body-fixed basis (K).
             scale: float
-                factor scaling the mesh after import.
+                Factor scaling the mesh after import.
+            kwargs: dict,
+                Arguments of parent class (Base) as keyword arguments
             """
             self.K_r_SP = K_r_SP
             self.A_KM = A_KM

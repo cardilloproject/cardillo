@@ -6,7 +6,7 @@ from cardillo import System
 from cardillo.constraints import Revolute
 from cardillo.discrete import RigidBody, Frame, Meshed
 from cardillo.forces import Force
-from cardillo.math import Spurrier, A_IK_basic, cross3
+from cardillo.math import A_IK_basic, cross3
 from cardillo.solver import ScipyIVP
 
 if __name__ == "__main__":
@@ -18,8 +18,8 @@ if __name__ == "__main__":
     g = np.array([0, 0, -10])
 
     # initial conditions
-    phi10 = np.pi / 6
-    phi20 = np.pi / 4
+    phi10 = np.pi / 4
+    phi20 = np.pi / 3
     phi1_dot0 = 0
     phi2_dot0 = 0
 
@@ -140,7 +140,7 @@ if __name__ == "__main__":
 
     # add contributions to the system
     system.add(link2, gravity2)
-    
+
     #########
     # joint 2
     #########
