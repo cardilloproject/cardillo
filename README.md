@@ -92,6 +92,14 @@ https://peps.python.org/pep-0008/#naming-conventions
 **exceptions**:
 * mechanics beats convention, e.g., `A_IK`instead of `a_ik` or `Exp_SO3` instead of `eps_so3`
 
+### Import Conventions
+
+1. external library imports
+2. cardillo imports from outside module
+3. module imports
+
+Within these groups order imports alphabetically.
+
 ### Useful links
 * [Information for MATLAB users](https://docs.scipy.org/doc/numpy/user/numpy-for-matlab-users.html).
 

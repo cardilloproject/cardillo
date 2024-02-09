@@ -1,6 +1,7 @@
 # TODO: Discuss if all solvers use relative tolerances.
 class SolverSummary:
-    def __init__(self):
+    def __init__(self, solver_name):
+        self.solver_name = solver_name
         self.fixed_point_n_iter_list = []
         self.fixed_point_abs_errors = []
         self.newton_n_iter_list = []
@@ -17,6 +18,7 @@ class SolverSummary:
     def print(self):
         print("-" * 80)
         print("Solver summary:")
+        print(f" - solver name: {self.solver_name}")
         if self.fixed_point_n_iter_list:
             print(
                 f" - fixed-point iterations: max = {max(self.fixed_point_n_iter_list)}, avg = {sum(self.fixed_point_n_iter_list) / float(len(self.fixed_point_n_iter_list)):.2f}"
