@@ -20,10 +20,12 @@ class Sphere2Plane:
         anisotropy=np.ones(2),
         frame_ID=np.zeros(3),
         K_r_SP=np.zeros(3),
+        name="sphere_to_plane_contact"
     ):
         self.frame = frame
         self.subsystem = subsystem
         self.r = r
+        self.name = name
 
         self.nla_N = 1
         self.e_N = np.zeros(self.nla_N) if e_N is None else e_N * np.ones(self.nla_N)
@@ -32,6 +34,7 @@ class Sphere2Plane:
             self.A = np.diag(anisotropy)
             self.nla_F = 2 * self.nla_N
             self.gamma_F = self.__gamma_F
+            self.gamma_F_q = self.__gamma_F_q
             self.e_F = (
                 np.zeros(self.nla_F) if e_F is None else e_F * np.ones(self.nla_F)
             )
@@ -180,7 +183,7 @@ class Sphere2Plane:
         v_C = self.v_P(t, q, u) + self.r * cross3(self.n, self.Omega(t, q, u))
         return self.A.T @ self.t1t2 @ v_C
 
-    def gamma_F_q(self, t, q, u):
+    def __gamma_F_q(self, t, q, u):
         # return approx_fprime(q, lambda q: self.gamma_F(t, q, u))
         v_C_q = self.v_P_q(t, q, u) + self.r * ax2skew(self.n) @ self.Omega_q(t, q, u)
         return self.A.T @ self.t1t2 @ v_C_q
