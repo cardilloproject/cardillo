@@ -45,6 +45,7 @@ if __name__ == "__main__":
         name="base_link",
     )
     system.add(base_link)
+
     ########
     # link 1
     ########
@@ -60,7 +61,7 @@ if __name__ == "__main__":
     K1_Omega1 = np.array([phi1_dot0, 0, 0])
     v_S1 = A_IK1 @ cross3(K1_Omega1, K1_r_J1S1)
 
-    q0 = np.hstack([r_OS1, Spurrier(A_IK1)])
+    q0 = RigidBody.pose2q(r_OS1, A_IK1)
     u0 = np.hstack([v_S1, K1_Omega1])
 
     # create link 1
@@ -85,13 +86,15 @@ if __name__ == "__main__":
     gravity1 = Force(link1.mass * g, link1, name="gravity_link1")
 
     # add contributions to the system
-    system.add( link1, gravity1)
+    system.add(link1, gravity1)
 
     #########
     # joint 1
     #########
 
-    joint1 = Revolute(base_link, link1, axis=0, r_OB0=r_OJ1, angle0=phi10, name="joint1")
+    joint1 = Revolute(
+        base_link, link1, axis=0, r_OB0=r_OJ1, angle0=phi10, name="joint1"
+    )
     system.add(joint1)
 
     ########
@@ -112,7 +115,7 @@ if __name__ == "__main__":
     K_Omega2 = np.array([phi2_dot0, 0, 0])
     v_S2 = v_J2 + A_IK2 @ cross3(K_Omega2, K2_r_J2S2)
 
-    q0 = np.hstack([r_OS2, Spurrier(A_IK2)])
+    q0 = RigidBody.pose2q(r_OS2, A_IK2)
     u0 = np.hstack([v_S2, K_Omega2])
 
     link2 = Meshed(RigidBody)(
@@ -137,6 +140,7 @@ if __name__ == "__main__":
 
     # add contributions to the system
     system.add(link2, gravity2)
+    
     #########
     # joint 2
     #########
@@ -164,8 +168,8 @@ if __name__ == "__main__":
     #################
 
     fig, ax = plt.subplots(nrows=2, ncols=1, figsize=(8, 6))
-    
-    # plot time evolution for angles 
+
+    # plot time evolution for angles
     phi1 = [joint1.angle(ti, qi) for ti, qi in zip(t, q[:, joint1.qDOF])]
     phi2 = [joint2.angle(ti, qi) for ti, qi in zip(t, q[:, joint2.qDOF])]
     ax[0].plot(t, phi1, "-r", label="$\\varphi_1$")
@@ -176,8 +180,14 @@ if __name__ == "__main__":
     ax[0].grid()
 
     # plot time evolution for angular velocities
-    phi1_dot = [joint1.angle_dot(ti, qi, ui) for ti, qi, ui in zip(t, q[:, joint1.qDOF], u[:, joint1.uDOF])]
-    phi2_dot = [joint2.angle_dot(ti, qi, ui) for ti, qi, ui in zip(t, q[:, joint2.qDOF], u[:, joint2.uDOF])]
+    phi1_dot = [
+        joint1.angle_dot(ti, qi, ui)
+        for ti, qi, ui in zip(t, q[:, joint1.qDOF], u[:, joint1.uDOF])
+    ]
+    phi2_dot = [
+        joint2.angle_dot(ti, qi, ui)
+        for ti, qi, ui in zip(t, q[:, joint2.qDOF], u[:, joint2.uDOF])
+    ]
     ax[1].plot(t, phi1_dot, "-r", label="$\\dot{\\varphi}_1$")
     ax[1].plot(t, phi2_dot, "-g", label="$\\dot{\\varphi}_2$")
     ax[1].set_xlabel("t")
@@ -189,4 +199,3 @@ if __name__ == "__main__":
 
     # vtk-export
     system.export(dir_name, "vtk", sol)
-
