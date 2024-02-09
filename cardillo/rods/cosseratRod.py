@@ -132,8 +132,8 @@ def make_CosseratRod_Quat(mixed=True, constraints=None):
             basis,
             nelement,
             L,
-            r_OP=np.zeros(3, dtype=float),
-            A_IK=np.eye(3, dtype=float),
+            r_OP0=np.zeros(3, dtype=float),
+            A_IK0=np.eye(3, dtype=float),
             v_P0=np.zeros(3, dtype=float),
             K_omega_IK0=np.zeros(3, dtype=float),
         ):
@@ -144,19 +144,19 @@ def make_CosseratRod_Quat(mixed=True, constraints=None):
                 basis,
                 nelement,
                 L,
-                r_OP,
-                A_IK,
+                r_OP0,
+                A_IK0,
                 v_P0,
                 K_omega_IK0,
             )
 
         @cachedmethod(
             lambda self: self._eval_cache,
-            key=lambda self, qe, xi: hashkey(*qe, xi),
+            key=lambda self, qe, xi, N, N_xi: hashkey(*qe, xi),
         )
-        def _eval(self, qe, xi):
+        def _eval(self, qe, xi, N, N_xi):
             # evaluate shape functions
-            N, N_xi = self.basis_functions_r(xi)
+            # N, N_xi = self.basis_functions_r(xi)
 
             # interpolate
             r_OP = np.zeros(3, dtype=qe.dtype)
@@ -185,11 +185,11 @@ def make_CosseratRod_Quat(mixed=True, constraints=None):
 
         @cachedmethod(
             lambda self: self._deval_cache,
-            key=lambda self, qe, xi: hashkey(*qe, xi),
+            key=lambda self, qe, xi, N, N_xi: hashkey(*qe, xi),
         )
-        def _deval(self, qe, xi):
+        def _deval(self, qe, xi, N, N_xi):
             # evaluate shape functions
-            N_r, N_r_xi = self.basis_functions_r(xi)
+            # N, N_xi = self.basis_functions_r(xi)
 
             # interpolate
             r_OP = np.zeros(3, dtype=qe.dtype)
@@ -206,20 +206,20 @@ def make_CosseratRod_Quat(mixed=True, constraints=None):
                 nodalDOF_r = self.nodalDOF_element_r[node]
                 r_OP_node = qe[nodalDOF_r]
 
-                r_OP += N_r[node] * r_OP_node
-                r_OP_qe[:, nodalDOF_r] += N_r[node] * np.eye(3, dtype=float)
+                r_OP += N[node] * r_OP_node
+                r_OP_qe[:, nodalDOF_r] += N[node] * np.eye(3, dtype=float)
 
-                r_OP_xi += N_r_xi[node] * r_OP_node
-                r_OP_xi_qe[:, nodalDOF_r] += N_r_xi[node] * np.eye(3, dtype=float)
+                r_OP_xi += N_xi[node] * r_OP_node
+                r_OP_xi_qe[:, nodalDOF_r] += N_xi[node] * np.eye(3, dtype=float)
 
                 nodalDOF_p = self.nodalDOF_element_p[node]
                 p_node = qe[nodalDOF_p]
 
-                p += N_r[node] * p_node
-                p_qe[:, nodalDOF_p] += N_r[node] * np.eye(4, dtype=float)
+                p += N[node] * p_node
+                p_qe[:, nodalDOF_p] += N[node] * np.eye(4, dtype=float)
 
-                p_xi += N_r_xi[node] * p_node
-                p_xi_qe[:, nodalDOF_p] += N_r_xi[node] * np.eye(4, dtype=float)
+                p_xi += N_xi[node] * p_node
+                p_xi_qe[:, nodalDOF_p] += N_xi[node] * np.eye(4, dtype=float)
 
             # transformation matrix
             A_IK = Exp_SO3_quat(p, normalize=True)
@@ -258,7 +258,8 @@ def make_CosseratRod_Quat(mixed=True, constraints=None):
             )
 
         def A_IK(self, t, qe, frame_ID):
-            return self._eval(qe, frame_ID[0])[1]
+            N, N_xi = self.basis_functions_r(frame_ID[0])
+            return self._eval(qe, frame_ID[0], N, N_xi)[1]
             # # evaluate shape functions
             # N_p, _ = self.basis_functions_p(frame_ID[0])
 
@@ -273,7 +274,8 @@ def make_CosseratRod_Quat(mixed=True, constraints=None):
 
         def A_IK_q(self, t, qe, frame_ID):
             # return approx_fprime(q, lambda q: self.A_IK(t, q, frame_ID))
-            return self._deval(qe, frame_ID[0])[5]
+            N, N_xi = self.basis_functions_r(frame_ID[0])
+            return self._deval(qe, frame_ID[0], N, N_xi)[5]
 
     return CosseratRod_Quat
 
@@ -324,11 +326,11 @@ def make_CosseratRod_SE3(mixed=True, constraints=None):
         def straight_configuration(
             nelement,
             L,
-            r_OP=np.zeros(3, dtype=float),
-            A_IK=np.eye(3, dtype=float),
+            r_OP0=np.zeros(3, dtype=float),
+            A_IK0=np.eye(3, dtype=float),
             **kwargs,
         ):
-            return CosseratRod.straight_configuration(nelement, L, 1, r_OP, A_IK)
+            return CosseratRod.straight_configuration(nelement, L, 1, r_OP0, A_IK0)
 
         @staticmethod
         def deformed_configuration(
@@ -338,8 +340,8 @@ def make_CosseratRod_SE3(mixed=True, constraints=None):
             ddcurve,
             xi1,
             polynomial_degree=1,
-            r_OP=np.zeros(3, dtype=float),
-            A_IK=np.eye(3, dtype=float),
+            r_OP0=np.zeros(3, dtype=float),
+            A_IK0=np.eye(3, dtype=float),
         ):
             return CosseratRod.deformed_configuration(
                 nelement,
@@ -348,16 +350,16 @@ def make_CosseratRod_SE3(mixed=True, constraints=None):
                 ddcurve,
                 xi1,
                 polynomial_degree=1,
-                r_OP=r_OP,
-                A_IK=A_IK,
+                r_OP0=r_OP0,
+                A_IK0=A_IK0,
             )
 
         @staticmethod
         def straight_initial_configuration(
             nelement,
             L,
-            r_OP=np.zeros(3, dtype=float),
-            A_IK=np.eye(3, dtype=float),
+            r_OP0=np.zeros(3, dtype=float),
+            A_IK0=np.eye(3, dtype=float),
             v_P=np.zeros(3, dtype=float),
             K_omega_IK=np.zeros(3, dtype=float),
             **kwargs,
@@ -366,17 +368,17 @@ def make_CosseratRod_SE3(mixed=True, constraints=None):
                 nelement,
                 L,
                 polynomial_degree=1,
-                r_OP=r_OP,
-                A_IK=A_IK,
+                r_OP0=r_OP0,
+                A_IK0=A_IK0,
                 v_P0=v_P,
                 K_omega_IK0=K_omega_IK,
             )
 
         @cachedmethod(
             lambda self: self._eval_cache,
-            key=lambda self, qe, xi: hashkey(*qe, xi),
+            key=lambda self, qe, xi, N, N_xi: hashkey(*qe, xi),
         )
-        def _eval(self, qe, xi):
+        def _eval(self, qe, xi, N, N_xi):
             # nodal unknowns
             r_OP0, r_OP1 = qe[self.nodalDOF_element_r]
             p0, p1 = qe[self.nodalDOF_element_p]
@@ -426,9 +428,9 @@ def make_CosseratRod_SE3(mixed=True, constraints=None):
 
         @cachedmethod(
             lambda self: self._deval_cache,
-            key=lambda self, qe, xi: hashkey(*qe, xi),
+            key=lambda self, qe, xi, N, N_xi: hashkey(*qe, xi),
         )
-        def _deval(self, qe, xi):
+        def _deval(self, qe, xi, N, N_xi):
             # extract nodal screws
             nodalDOF0 = np.concatenate(
                 (self.nodalDOF_element_r[0], self.nodalDOF_element_p[0])
@@ -537,10 +539,12 @@ def make_CosseratRod_SE3(mixed=True, constraints=None):
             )
 
         def A_IK(self, t, qe, frame_ID):
-            return self._eval(qe, frame_ID[0])[1]
+            N, N_xi = None, None
+            return self._eval(qe, frame_ID[0], N, N_xi)[1]
 
         def A_IK_q(self, t, qe, frame_ID):
-            return self._deval(qe, frame_ID[0])[5]
+            N, N_xi = None, None
+            return self._deval(qe, frame_ID[0], N, N_xi)[5]
 
     return CosseratRod_SE3
 
@@ -599,28 +603,27 @@ def make_CosseratRod_R12(mixed=True, constraints=None):
         # returns interpolated positions, orientations and strains at xi in [0,1]
         @cachedmethod(
             lambda self: self._eval_cache,
-            key=lambda self, qe, xi: hashkey(*qe, xi),
+            key=lambda self, qe, xi, N, N_xi: hashkey(*qe, xi),
         )
-        def _eval(self, qe, xi):
+        def _eval(self, qe, xi, N, N_xi):
             # evaluate shape functions
-            N_r, N_r_xi = self.basis_functions_r(xi)
-            N_p, N_p_xi = self.basis_functions_p(xi)
+            # N, N_xi = self.basis_functions_r(xi)
 
             # interpolate position and tangent vector
             r_OP = np.zeros(3, dtype=qe.dtype)
             r_OP_xi = np.zeros(3, dtype=qe.dtype)
             for node in range(self.nnodes_element_r):
                 r_OP_node = qe[self.nodalDOF_element_r[node]]
-                r_OP += N_r[node] * r_OP_node
-                r_OP_xi += N_r_xi[node] * r_OP_node
+                r_OP += N[node] * r_OP_node
+                r_OP_xi += N_xi[node] * r_OP_node
 
             # interpolate transformation matrix and its derivative
             A_IK = np.zeros((3, 3), dtype=qe.dtype)
             A_IK_xi = np.zeros((3, 3), dtype=qe.dtype)
             for node in range(self.nnodes_element_p):
                 A_IK_node = Exp_SO3_quat(qe[self.nodalDOF_element_p[node]])
-                A_IK += N_p[node] * A_IK_node
-                A_IK_xi += N_p_xi[node] * A_IK_node
+                A_IK += N[node] * A_IK_node
+                A_IK_xi += N_xi[node] * A_IK_node
 
             # axial and shear strains
             K_Gamma_bar = A_IK.T @ r_OP_xi
@@ -640,12 +643,11 @@ def make_CosseratRod_R12(mixed=True, constraints=None):
 
         @cachedmethod(
             lambda self: self._deval_cache,
-            key=lambda self, qe, xi: hashkey(*qe, xi),
+            key=lambda self, qe, xi, N, N_xi: hashkey(*qe, xi),
         )
-        def _deval(self, qe, xi):
+        def _deval(self, qe, xi, N, N_xi):
             # evaluate shape functions
-            N_r, N_r_xi = self.basis_functions_r(xi)
-            N_p, N_p_xi = self.basis_functions_p(xi)
+            # N, N_xi = self.basis_functions_r(xi)
 
             # interpolate position and tangent vector + their derivatives
             r_OP = np.zeros(3, dtype=qe.dtype)
@@ -656,11 +658,11 @@ def make_CosseratRod_R12(mixed=True, constraints=None):
                 nodalDOF_r = self.nodalDOF_element_r[node]
                 r_OP_node = qe[nodalDOF_r]
 
-                r_OP += N_r[node] * r_OP_node
-                r_OP_qe[:, nodalDOF_r] += N_r[node] * np.eye(3, dtype=float)
+                r_OP += N[node] * r_OP_node
+                r_OP_qe[:, nodalDOF_r] += N[node] * np.eye(3, dtype=float)
 
-                r_OP_xi += N_r_xi[node] * r_OP_node
-                r_OP_xi_qe[:, nodalDOF_r] += N_r_xi[node] * np.eye(3, dtype=float)
+                r_OP_xi += N_xi[node] * r_OP_node
+                r_OP_xi_qe[:, nodalDOF_r] += N_xi[node] * np.eye(3, dtype=float)
 
             # interpolate transformation matrix and its derivative + their derivatives
             A_IK = np.zeros((3, 3), dtype=qe.dtype)
@@ -673,11 +675,11 @@ def make_CosseratRod_R12(mixed=True, constraints=None):
                 A_IK_node = Exp_SO3_quat(p_node)
                 A_IK_q_node = Exp_SO3_quat_p(p_node)
 
-                A_IK += N_p[node] * A_IK_node
-                A_IK_qe[:, :, nodalDOF_p] += N_p[node] * A_IK_q_node
+                A_IK += N[node] * A_IK_node
+                A_IK_qe[:, :, nodalDOF_p] += N[node] * A_IK_q_node
 
-                A_IK_xi += N_p_xi[node] * A_IK_node
-                A_IK_xi_qe[:, :, nodalDOF_p] += N_p_xi[node] * A_IK_q_node
+                A_IK_xi += N_xi[node] * A_IK_node
+                A_IK_xi_qe[:, :, nodalDOF_p] += N_xi[node] * A_IK_q_node
 
             # extract directors
             d1, d2, d3 = A_IK.T
