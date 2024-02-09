@@ -108,3 +108,9 @@ Within these groups order imports alphabetically.
 
 ### Further information
 go to [this folder](man)
+
+### RGB codes for paraview
+TU/e red: R200, G33, B37
+FAU grey: R140, G159, B177
+green: R0, G255, B0
+blue: R0, G0, B127
