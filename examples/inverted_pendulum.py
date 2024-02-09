@@ -11,7 +11,7 @@ from cardillo.discrete import RigidBody
 from cardillo.constraints import Revolute
 from cardillo.forces import Force
 from cardillo.actuators import Motor, PDcontroller, PIDcontroller
-from cardillo.solver import Moreau
+from cardillo.solver import Moreau, BackwardEuler, Rattle, ScipyIVP
 
 from cardillo.math import A_IK_basic, cross3
 from cardillo.math import smoothstep2
@@ -27,11 +27,11 @@ if __name__ == "__main__":
 
     # feed forward method
     feed_forward = [False, True][
-        0
+        1
     ]  # inverse dynamics for "homogeneous", no feed forward for "constant"
 
     # feed back controller
-    feed_back = [None, "PD", "PID"][2]
+    feed_back = [None, "PD", "PID"][1]
     # controller gains
     kp = 50
     ki = 100
@@ -206,9 +206,12 @@ if __name__ == "__main__":
     ############
 
     t1 = 6
-    dt = 1e-3
+    dt = 1e-2
     joint.reset()
-    sol = Moreau(system, t1, dt).solve()
+    # sol = Moreau(system, t1, dt).solve()
+    # sol = BackwardEuler(system, t1, dt).solve()
+    # sol = Rattle(system, t1, dt).solve()
+    sol = ScipyIVP(system, t1, dt).solve()
 
     joint.reset()
     angle = []

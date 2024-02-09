@@ -1,8 +1,9 @@
-import numpy as np
 from abc import ABC, abstractmethod
+import numpy as np
 
-from cardillo.discretization.bezier import L2_projection_Bezier_curve
-from cardillo.rods._cross_section import (
+from cardillo.utility.bezier import L2_projection_Bezier_curve
+
+from ._cross_section import (
     CrossSection,
     CircularCrossSection,
     RectangularCrossSection,

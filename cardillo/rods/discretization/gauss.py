@@ -11,10 +11,10 @@ def gauss(nQP, interval=np.array([-1, 1])):
 
     Parameters
     ----------
-    nGP : int
-        Number of desired gauss points.
+    nQP : int
+        Number of desired quadrature points.
     interval : numpy.ndarray
-        Interval [a, b] onto which the gauss points should be transformed.
+        Interval [a, b] onto which the Quadrature points should be transformed.
         Default interval is [-1, 1].
 
     Returns
@@ -42,8 +42,8 @@ def lobatto(nQP, interval=np.array([-1, 1])):
 
     Parameters
     ----------
-    nGP : int
-        Number of desired gauss points.
+    nQP : int
+        Number of desired quadrature points.
     interval : numpy.ndarray
         Interval [a, b] onto which the gauss points should be transformed.
         Default interval is [-1, 1].
@@ -63,7 +63,7 @@ def lobatto(nQP, interval=np.array([-1, 1])):
         gp = np.array([-1, 0, 1], dtype=float)
         wp = np.array([1, 4, 1], dtype=float) / 3
     elif nQP == 4:
-        sqrt15 = sqrt(1 / 4)
+        sqrt15 = sqrt(1 / 5)
         gp = np.array([-1, -sqrt15, sqrt15, 1], dtype=float)
         wp = np.array([1, 5, 5, 1], dtype=float) / 6
     elif nQP == 5:

@@ -178,7 +178,14 @@ class Rattle:
         ########################
         R[self.split_x1[0] : self.split_x1[1]] = (
             self.Mn @ (un12 - un)
-            - 0.5 * dt * (self.system.h(tn, qn, un12) + self.W_cn @ la_c1)
+            - 0.5
+            * dt
+            * (
+                self.system.h(tn, qn, un12)
+                + self.system.W_tau(tn, qn, format="csr")
+                @ self.system.la_tau(tn, qn, un12)
+                + self.W_cn @ la_c1
+            )
             - (
                 self.W_gn @ P_g1
                 + self.W_gamman @ P_gamma1
@@ -276,7 +283,14 @@ class Rattle:
 
         R[: self.split_x2[0]] = (
             self.Mn @ (un1 - un12)
-            - 0.5 * dt * (self.system.h(tn1, qn1, un12) + self.W_cn @ self.la_c2)
+            - 0.5
+            * dt
+            * (
+                self.system.h(tn1, qn1, un12)
+                + self.system.W_tau(tn1, qn1, format="csr")
+                @ self.system.la_tau(tn1, qn1, un12)
+                + self.W_cn @ self.la_c2
+            )
             - (
                 self.W_gn @ P_g2
                 + self.W_gamman @ P_gamma2
@@ -346,7 +360,7 @@ class Rattle:
         return y2n1p - self.y1n
 
     def solve(self):
-        solver_summary = SolverSummary()
+        solver_summary = SolverSummary("RATTLE")
 
         # lists storing output variables
         _, _, la_c0, P_g0, P_gamma0 = np.array_split(self.x1n, self.split_x1)
