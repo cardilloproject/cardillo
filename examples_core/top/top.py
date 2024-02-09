@@ -8,7 +8,7 @@ from cardillo.discrete import RigidBody, Frame, Meshed, Box
 from cardillo.forces import Force
 from cardillo.contacts import Sphere2Plane
 from cardillo.math import A_IK_basic, cross3
-from cardillo.solver import Moreau, BackwardEuler
+from cardillo.solver import Moreau
 
 if __name__ == "__main__":
     ############
@@ -94,30 +94,6 @@ if __name__ == "__main__":
     #################
     # post-processing
     #################
-
-    # fig, ax = plt.subplots(nrows=2, ncols=1, figsize=(8, 6))
-
-    # # plot time evolution for angles
-    # phi1 = [joint1.angle(ti, qi) for ti, qi in zip(t, q[:, joint1.qDOF])]
-    # phi2 = [joint2.angle(ti, qi) for ti, qi in zip(t, q[:, joint2.qDOF])]
-    # ax[0].plot(t, phi1, "-r", label="$\\varphi_1$")
-    # ax[0].plot(t, phi2, "-g", label="$\\varphi_2$")
-    # ax[0].set_xlabel("t")
-    # ax[0].set_ylabel("angle")
-    # ax[0].legend()
-    # ax[0].grid()
-
-    # # plot time evolution for angular velocities
-    # phi1_dot = [joint1.angle_dot(ti, qi, ui) for ti, qi, ui in zip(t, q[:, joint1.qDOF], u[:, joint1.uDOF])]
-    # phi2_dot = [joint2.angle_dot(ti, qi, ui) for ti, qi, ui in zip(t, q[:, joint2.qDOF], u[:, joint2.uDOF])]
-    # ax[1].plot(t, phi1_dot, "-r", label="$\\dot{\\varphi}_1$")
-    # ax[1].plot(t, phi2_dot, "-g", label="$\\dot{\\varphi}_2$")
-    # ax[1].set_xlabel("t")
-    # ax[1].set_ylabel("angular velocity")
-    # ax[1].legend()
-    # ax[1].grid()
-
-    # plt.show()
 
     # vtk-export
     system.export(dir_name, "vtk", sol)
