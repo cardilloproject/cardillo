@@ -85,6 +85,44 @@ if __name__ == "__main__":
     # post-processing
     #################
 
+    fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(10, 7))
+    # plot time evolution for x-coordinate
+    x = [ball.r_OP(ti, qi)[0] for ti, qi in zip(t, q[:, ball.qDOF])]
+    # TODO: can we plot the rotation angle  around y-axis?
+    ax[0, 0].plot(t, x, "-r", label="$x$")
+    ax[0, 0].set_title("Evolution of horizontal position")
+    ax[0, 0].set_xlabel("t")
+    ax[0, 0].set_ylabel("x")
+    ax[0, 0].grid()
+
+    # plot time evolution for z-coordinate
+    z = [ball.r_OP(ti, qi)[2] for ti, qi in zip(t, q[:, ball.qDOF])]
+    ax[0, 1].plot(t, z, "-g", label="$z$")
+    ax[0, 1].set_title("Evolution of height")
+    ax[0, 1].set_xlabel("t")
+    ax[0, 1].set_ylabel("z")
+    ax[0, 1].grid()
+
+    # plot time evolution of x-velocity
+    v_x = [ball.v_P(ti, qi, ui)[0] for ti, qi, ui in zip(t, q[:, ball.qDOF], u[:, ball.uDOF])]
+    # TODO: can we plot the rotation angle  around y-axis?
+    ax[1, 0].plot(t, v_x, "-r", label="$v_x$")
+    ax[1, 0].set_title("Evolution of horizontal velocity")
+    ax[1, 0].set_xlabel("t")
+    ax[1, 0].set_ylabel("v_x")
+    ax[1, 0].grid()
+
+    # plot time evolution of z-velocity
+    v_z = [ball.v_P(ti, qi, ui)[2] for ti, qi, ui in zip(t, q[:, ball.qDOF], u[:, ball.uDOF])]
+    ax[1, 1].plot(t, v_z, "-g", label="$z$")
+    ax[1, 1].set_title("Evolution of vertical velocity")
+    ax[1, 1].set_xlabel("t")
+    ax[1, 1].set_ylabel("v_z")
+    ax[1, 1].grid()
+
+    plt.tight_layout()
+    plt.show()
+
     # vtk-export
     dir_name = Path(__file__).parent
     system.export(dir_name, "vtk", sol)

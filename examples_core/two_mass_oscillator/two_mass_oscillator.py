@@ -73,7 +73,7 @@ if __name__ == "__main__":
     q = sol.q
     u = sol.u
 
-    fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(10, 10))
+    fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(10, 7))
     # plot time evolution for x-coordinates
     x1 = [mass1.r_OP(ti, qi)[0] for ti, qi in zip(t, q[:, mass1.qDOF])]
     x2 = [mass2.r_OP(ti, qi)[0] for ti, qi in zip(t, q[:, mass2.qDOF])]
@@ -118,6 +118,7 @@ if __name__ == "__main__":
     ax[1, 1].legend()
     ax[1, 1].grid()
 
+    plt.tight_layout()
     plt.show()
 
     # VTK export
