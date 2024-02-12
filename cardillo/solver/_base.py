@@ -19,6 +19,17 @@ def consistent_initial_conditions(
     slice_active_contacts=True,
     options=SolverOptions(),
 ):
+    '''Checks consistency of initial conditions with constraints on position and velocity level and finds initial accelerations and constraint/contact forces.
+    
+    Parameters
+    ----------
+    system : cardillo.System
+        System for which the consistent initial conditions are computed.
+    slice_active_contacts : bool
+        Slice friction forces to contemplate only those corresponding to active normal contact.
+    options : cardillo.solver.SolverOptions
+        Solver options for the computations of the constraint/contact forces.
+    '''
     t0 = system.t0
     q0 = system.q0
     u0 = system.u0
@@ -78,6 +89,7 @@ def consistent_initial_conditions(
     B_F, global_active_friction_laws = compute_I_F(
         B_N, system, slice=slice_active_contacts
     )
+    # TODO: Is there a case where slice=False??
 
     gamma_F = system.gamma_F(t0, q0, u0)[B_F]
     W_N = system.W_N(t0, q0, format="csc")[:, B_N]
