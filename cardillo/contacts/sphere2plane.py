@@ -14,14 +14,39 @@ class Sphere2Plane:
         frame,
         subsystem,
         mu,
-        r=0,
         e_N=None,
         e_F=None,
-        anisotropy=np.ones(2),
         frame_ID=np.zeros(3),
         K_r_SP=np.zeros(3),
+        r=0,
+        anisotropy=np.ones(2),
         name="sphere_to_plane_contact"
     ):
+        """Contact between a sphere and a plane modelled as unilateral constraint with set-valued Coulomb friction.
+
+        Parameters
+        ----------
+        frame : cardillo.discrete.Frame
+            Frame that defines the plane. e_z-axis of frame is plane's normal direction. Origin of frame is point on plane.
+        subsystem : object
+            Subsystem containing the point around which the spherical contact surface is defined.
+        mu : float
+            Frictional coefficient
+        e_N : float
+            Restitution coefficient for Newton-like impact law in normal direction.
+        e_N : float
+            Restitution coefficient for Newton-like impact law for friction.
+        frame_ID : TODO
+        K_r_SP : np.ndarray (3,)
+            Position of center of sphere (P) with respect to the center of mass/reference point TODO (S) of the subsystem in the body-fixed K-basis. 
+        r : float
+            Radius of spherical contact surface. Possible values are in [0, inf]. 
+        anisotropy : np.ndarray (2,)
+            Scaling factors for stretching the friction force reservoir in e_x and e_y-direction of the 'frame'.
+            anisotropy=(1,1) corresponds to a circular force reservoir, i.e., isotropic Coulomb friction.
+        name : str
+            Name of frame.
+        """
         self.frame = frame
         self.subsystem = subsystem
         self.r = r

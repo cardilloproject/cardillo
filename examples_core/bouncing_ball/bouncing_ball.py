@@ -6,7 +6,6 @@ from cardillo import System
 from cardillo.discrete import RigidBody, Sphere, Box, Frame
 from cardillo.forces import Force
 from cardillo.contacts import Sphere2Plane
-from cardillo.math import A_IK_basic, cross3
 from cardillo.solver import Moreau
 
 if __name__ == "__main__":
