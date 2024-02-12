@@ -63,8 +63,8 @@ if __name__ == "__main__":
         name="floor",
     )
 
-    tip2plane = Sphere2Plane(floor, ball, mu=mu, r=radius, e_N=e_N, e_F=e_F)
-    system.add(floor, tip2plane)
+    ball2plane = Sphere2Plane(floor, ball, mu=mu, r=radius, e_N=e_N, e_F=e_F)
+    system.add(floor, ball2plane)
 
     # assemble system
     system.assemble()
@@ -80,6 +80,9 @@ if __name__ == "__main__":
     t = sol.t
     q = sol.q
     u = sol.u
+    P_N = sol.P_N
+    P_F = sol.P_F
+
 
     #################
     # post-processing
@@ -118,6 +121,44 @@ if __name__ == "__main__":
     ax[1, 1].set_title("Evolution of vertical velocity")
     ax[1, 1].set_xlabel("t")
     ax[1, 1].set_ylabel("v_z")
+    ax[1, 1].grid()
+
+    plt.tight_layout()
+    plt.show()
+
+    # second figure plotting percussions
+    fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(10, 7))
+    # plot time evolution for x-coordinate
+    x = [ball.r_OP(ti, qi)[0] for ti, qi in zip(t, q[:, ball.qDOF])]
+    # TODO: can we plot the rotation angle  around y-axis?
+    ax[0, 0].plot(t, x, "-r", label="$x$")
+    ax[0, 0].set_title("Evolution of horizontal position")
+    ax[0, 0].set_xlabel("t")
+    ax[0, 0].set_ylabel("x")
+    ax[0, 0].grid()
+
+    # plot time evolution for z-coordinate
+    z = [ball.r_OP(ti, qi)[2] for ti, qi in zip(t, q[:, ball.qDOF])]
+    ax[0, 1].plot(t, z, "-g", label="$z$")
+    ax[0, 1].set_title("Evolution of height")
+    ax[0, 1].set_xlabel("t")
+    ax[0, 1].set_ylabel("z")
+    ax[0, 1].grid()
+
+    # plot time evolution of discrete friction percussion
+    P_Fx = P_F[:, ball2plane.la_FDOF[0]]
+    ax[1, 0].plot(t, P_Fx, "-r", label="$P_Fx$")
+    ax[1, 0].set_title("Evolution of discrete friction percussion")
+    ax[1, 0].set_xlabel("t")
+    ax[1, 0].set_ylabel("P_Fx")
+    ax[1, 0].grid()
+
+    # plot time evolution of discrete normal percussion
+    # TODO: How do we name this thing? incremental normal percussion?
+    ax[1, 1].plot(t, P_N, "-g", label="$P_N$")
+    ax[1, 1].set_title("Evolution of discrete normal percussion")
+    ax[1, 1].set_xlabel("t")
+    ax[1, 1].set_ylabel("P_N")
     ax[1, 1].grid()
 
     plt.tight_layout()
