@@ -19,6 +19,7 @@ class Sphere2Sphere:
         e_F=None,
         frame_ID1=np.zeros(3, dtype=float),
         frame_ID2=np.zeros(3, dtype=float),
+        name="sphere_to_sphere_contact",
     ):
         self.subsystem1 = subsystem1
         self.frame_ID1 = frame_ID1

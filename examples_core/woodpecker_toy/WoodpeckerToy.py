@@ -4,6 +4,8 @@
 import numpy as np
 
 from cardillo.math.prox import Sphere
+
+
 class WoodpeckerToy:
     def __init__(self, q0, u0):
         # dimensions
