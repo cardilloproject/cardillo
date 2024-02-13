@@ -257,7 +257,9 @@ class CosseratRod(RodExportBase, ABC):
                 qpi = self.qp[el, i]
 
                 # evaluate required quantities
-                _, _, K_Gamma_bar, K_Kappa_bar = self._eval(qe, qpi, N = self.N_r[el, i], N_xi = self.N_r_xi[el, i])
+                _, _, K_Gamma_bar, K_Kappa_bar = self._eval(
+                    qe, qpi, N=self.N_r[el, i], N_xi=self.N_r_xi[el, i]
+                )
 
                 # length of reference tangential vector
                 J = norm(K_Gamma_bar)
@@ -531,7 +533,9 @@ class CosseratRod(RodExportBase, ABC):
             K_Kappa0 = self.K_Kappa0[el, i]
 
             # evaluate required quantities
-            _, _, K_Gamma_bar, K_Kappa_bar = self._eval(qe, qpi, N = self.N_r[el, i], N_xi = self.N_r_xi[el, i])
+            _, _, K_Gamma_bar, K_Kappa_bar = self._eval(
+                qe, qpi, N=self.N_r[el, i], N_xi=self.N_r_xi[el, i]
+            )
 
             # axial and shear strains
             K_Gamma = K_Gamma_bar / Ji
@@ -751,7 +755,9 @@ class CosseratRod(RodExportBase, ABC):
             K_Kappa0 = self.K_Kappa0[el, i]
 
             # evaluate required quantities
-            _, A_IK, K_Gamma_bar, K_Kappa_bar = self._eval(qe, qpi, N = self.N_r[el, i], N_xi = self.N_r_xi[el, i])
+            _, A_IK, K_Gamma_bar, K_Kappa_bar = self._eval(
+                qe, qpi, N=self.N_r[el, i], N_xi=self.N_r_xi[el, i]
+            )
 
             # axial and shear strains
             K_Gamma = K_Gamma_bar / J
@@ -806,7 +812,7 @@ class CosseratRod(RodExportBase, ABC):
                 A_IK_qe,
                 K_Gamma_bar_qe,
                 K_Kappa_bar_qe,
-            ) = self._deval(qe, qpi, N = self.N_r[el, i], N_xi = self.N_r_xi[el, i])
+            ) = self._deval(qe, qpi, N=self.N_r[el, i], N_xi=self.N_r_xi[el, i])
 
             # axial and shear strains
             K_Gamma = K_Gamma_bar / Ji
@@ -1424,7 +1430,9 @@ class CosseratRodMixed(CosseratRod):
             K_Kappa0 = self.K_Kappa0[el, i]
 
             # evaluate required quantities
-            _, _, K_Gamma_bar, K_Kappa_bar = self._eval(qe, qpi, N = self.N_r[el, i], N_xi = self.N_r_xi[el, i])
+            _, _, K_Gamma_bar, K_Kappa_bar = self._eval(
+                qe, qpi, N=self.N_r[el, i], N_xi=self.N_r_xi[el, i]
+            )
 
             la_c = np.zeros(self.mesh_la_c.dim_q, dtype=la_ce.dtype)
             # interpolation of internal forces and moments
@@ -1521,7 +1529,7 @@ class CosseratRodMixed(CosseratRod):
                 _,
                 K_Gamma_bar_qe,
                 K_Kappa_bar_qe,
-            ) = self._deval(qe, qpi, N = self.N_r[el, i], N_xi = self.N_r_xi[el, i])
+            ) = self._deval(qe, qpi, N=self.N_r[el, i], N_xi=self.N_r_xi[el, i])
 
             delta_strains_qe = np.vstack((K_Gamma_bar_qe, K_Kappa_bar_qe))
 
@@ -1551,7 +1559,9 @@ class CosseratRodMixed(CosseratRod):
             qwi = self.qw[el, i]
 
             # evaluate required quantities
-            _, A_IK, K_Gamma_bar, K_Kappa_bar = self._eval(qe, qpi, N = self.N_r[el, i], N_xi = self.N_r_xi[el, i])
+            _, A_IK, K_Gamma_bar, K_Kappa_bar = self._eval(
+                qe, qpi, N=self.N_r[el, i], N_xi=self.N_r_xi[el, i]
+            )
 
             ############################
             # virtual work contributions
@@ -1619,7 +1629,7 @@ class CosseratRodMixed(CosseratRod):
                 A_IK_qe,
                 K_Gamma_bar_qe,
                 K_Kappa_bar_qe,
-            ) = self._deval(qe, qpi, N = self.N_r[el, i], N_xi = self.N_r_xi[el, i])
+            ) = self._deval(qe, qpi, N=self.N_r[el, i], N_xi=self.N_r_xi[el, i])
 
             # interpolation of the n and m
             la_c = np.zeros(self.mesh_la_c.dim_q, dtype=qe.dtype)
@@ -1857,7 +1867,9 @@ def make_CosseratRodConstrained(mixed, constraints):
                 K_Kappa0 = self.K_Kappa0[el, i]
 
                 # evaluate required quantities
-                _, _, K_Gamma_bar, K_Kappa_bar = self._eval(qe, qpi, N = self.N_r[el, i], N_xi = self.N_r_xi[el, i])
+                _, _, K_Gamma_bar, K_Kappa_bar = self._eval(
+                    qe, qpi, N=self.N_r[el, i], N_xi=self.N_r_xi[el, i]
+                )
 
                 # TODO: Store K_Gamma_bar0 and K_Kappa_bar0
                 delta_strains = np.concatenate(
@@ -1899,7 +1911,7 @@ def make_CosseratRodConstrained(mixed, constraints):
                     _,
                     K_Gamma_bar_qe,
                     K_Kappa_bar_qe,
-                ) = self._deval(qe, qpi, N = self.N_r[el, i], N_xi = self.N_r_xi[el, i])
+                ) = self._deval(qe, qpi, N=self.N_r[el, i], N_xi=self.N_r_xi[el, i])
 
                 delta_strains_qe = np.vstack((K_Gamma_bar_qe, K_Kappa_bar_qe))
 
@@ -1931,7 +1943,9 @@ def make_CosseratRodConstrained(mixed, constraints):
                 qwi = self.qw[el, i]
 
                 # evaluate required quantities
-                _, A_IK, K_Gamma_bar, K_Kappa_bar = self._eval(qe, qpi, N = self.N_r[el, i], N_xi = self.N_r_xi[el, i])
+                _, A_IK, K_Gamma_bar, K_Kappa_bar = self._eval(
+                    qe, qpi, N=self.N_r[el, i], N_xi=self.N_r_xi[el, i]
+                )
 
                 ############################
                 # virtual work contributions
@@ -2011,7 +2025,7 @@ def make_CosseratRodConstrained(mixed, constraints):
                     A_IK_qe,
                     K_Gamma_bar_qe,
                     K_Kappa_bar_qe,
-                ) = self._deval(qe, qpi, N = self.N_r[el, i], N_xi = self.N_r_xi[el, i])
+                ) = self._deval(qe, qpi, N=self.N_r[el, i], N_xi=self.N_r_xi[el, i])
 
                 # interpolation of the n and m
                 la_g = np.zeros(self.mesh_la_g.dim_q, dtype=qe.dtype)

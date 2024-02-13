@@ -20,7 +20,7 @@ class Sphere2Plane:
         K_r_SP=np.zeros(3),
         r=0,
         anisotropy=np.ones(2),
-        name="sphere_to_plane_contact"
+        name="sphere_to_plane_contact",
     ):
         """Contact between a sphere and a plane modelled as unilateral constraint with set-valued Coulomb friction.
 
@@ -38,9 +38,9 @@ class Sphere2Plane:
             Restitution coefficient for Newton-like impact law for friction.
         frame_ID : TODO
         K_r_SP : np.ndarray (3,)
-            Position of center of sphere (P) with respect to the center of mass/reference point TODO (S) of the subsystem in the body-fixed K-basis. 
+            Position of center of sphere (P) with respect to the center of mass/reference point TODO (S) of the subsystem in the body-fixed K-basis.
         r : float
-            Radius of spherical contact surface. Possible values are in [0, inf]. 
+            Radius of spherical contact surface. Possible values are in [0, inf].
         anisotropy : np.ndarray (2,)
             Scaling factors for stretching the friction force reservoir in e_x and e_y-direction of the 'frame'.
             anisotropy=(1,1) corresponds to a circular force reservoir, i.e., isotropic Coulomb friction.

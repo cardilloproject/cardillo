@@ -19,8 +19,8 @@ def consistent_initial_conditions(
     slice_active_contacts=True,
     options=SolverOptions(),
 ):
-    '''Checks consistency of initial conditions with constraints on position and velocity level and finds initial accelerations and constraint/contact forces.
-    
+    """Checks consistency of initial conditions with constraints on position and velocity level and finds initial accelerations and constraint/contact forces.
+
     Parameters
     ----------
     system : cardillo.System
@@ -29,7 +29,7 @@ def consistent_initial_conditions(
         Slice friction forces to contemplate only those corresponding to active normal contact.
     options : cardillo.solver.SolverOptions
         Solver options for the computations of the constraint/contact forces.
-    '''
+    """
     t0 = system.t0
     q0 = system.q0
     u0 = system.u0
@@ -262,7 +262,7 @@ def compute_I_F(I_N, system, slice=True):
             n_N = len(i_N)
             if n_N > 0:  # normal force dependence
                 i_N_global = np.array(i_N, dtype=int) + nla_N_global
-                
+
                 # only add friction if normal force is active
                 if not slice or (i_N_global[0] in I_N):
                     i_N_local = np.arange(n_N) + nla_N_local

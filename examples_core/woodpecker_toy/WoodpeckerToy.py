@@ -3,9 +3,9 @@
 
 import numpy as np
 
-class WoodpeckerToy():
+from cardillo.math.prox import Sphere
+class WoodpeckerToy:
     def __init__(self, q0, u0):
-
         # dimensions
         self.nq = 3
         self.nu = 3
@@ -37,9 +37,21 @@ class WoodpeckerToy():
 
         # contact
         self.mu = 0.3
-        self.e_N =np.array([0.5, 0, 0])
-        self.e_F=np.zeros(3)
+        self.e_N = np.array([0.5, 0, 0])
+        self.e_F = np.zeros(3)
+        # fmt: off
+        self.friction_laws = [
+            ([0], [0], Sphere(self.mu)), # Coulomb
+            ([1], [1], Sphere(self.mu)), # Coulomb
+            ([2], [2], Sphere(self.mu)), # Coulomb
+        ]
+        # fmt: on
 
+    #####################
+    # kinematic equation
+    #####################
+    def q_dot(self, t, q, u):
+        return u
 
     #####################
     # equations of motion
@@ -75,11 +87,12 @@ class WoodpeckerToy():
     # normal contacts
     #################
     def g_N(self, t, q):
+        y, phi_M, phi_S = q
         return np.array(
             [
-                self.l_M + self.l_G - self.l_S - self.r_0,
-                self.r_M - self.r_0,
-                self.r_M - self.r_0,
+                self.l_M + self.l_G - self.l_S - self.r_0 - self.h_S * phi_S,
+                self.r_M - self.r_0 + self.h_M * phi_M,
+                self.r_M - self.r_0 - self.h_M * phi_M,
             ]
         )
 
@@ -90,9 +103,12 @@ class WoodpeckerToy():
         W_N[1, 2] = -self.h_M
         return W_N
 
-    #################
+    def g_N_dot(self, t, q, u):
+        return self.W_N(t, q).T @ u
+
+    ##########
     # friction
-    #################
+    ##########
     def W_F(self, t, q):
         W_F = np.zeros((self.nu, self.nla_F))
         W_F[0, 0] = 1
@@ -103,3 +119,6 @@ class WoodpeckerToy():
         W_F[0, 2] = 1
         W_F[1, 2] = self.r_M
         return W_F
+
+    def gamma_F(self, t, q, u):
+        return self.W_F(t, q).T @ u

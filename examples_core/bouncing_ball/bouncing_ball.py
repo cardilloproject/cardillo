@@ -12,14 +12,14 @@ if __name__ == "__main__":
     ############
     # parameters
     ############
-    
+
     # radius of ball
     radius = 0.05
 
     # contact parameters
-    e_N = 0.75 # restitution coefficient in normal direction
-    e_F = 0.0 # restitution coefficient in tangent direction
-    mu = 0.5 # frictional coefficient
+    e_N = 0.75  # restitution coefficient in normal direction
+    e_F = 0.0  # restitution coefficient in tangent direction
+    mu = 0.5  # frictional coefficient
 
     # density of ball
     density = 1
@@ -28,7 +28,7 @@ if __name__ == "__main__":
     g = np.array([0, 0, -10])
 
     # initial conditions
-    r_OS0 = np.array([-.75, 0, 8 * radius])
+    r_OS0 = np.array([-0.75, 0, 8 * radius])
     v_S0 = np.array([1, 0, 0])
     K_Omega0 = np.array([0, -25, 0])
 
@@ -41,7 +41,7 @@ if __name__ == "__main__":
     #####
     # top
     #####
-    
+
     q0 = RigidBody.pose2q(r_OS0, np.eye(3))
     u0 = np.hstack([v_S0, K_Omega0])
 
@@ -82,7 +82,6 @@ if __name__ == "__main__":
     P_N = sol.P_N
     P_F = sol.P_F
 
-
     #################
     # post-processing
     #################
@@ -106,7 +105,10 @@ if __name__ == "__main__":
     ax[0, 1].grid()
 
     # plot time evolution of x-velocity
-    v_x = [ball.v_P(ti, qi, ui)[0] for ti, qi, ui in zip(t, q[:, ball.qDOF], u[:, ball.uDOF])]
+    v_x = [
+        ball.v_P(ti, qi, ui)[0]
+        for ti, qi, ui in zip(t, q[:, ball.qDOF], u[:, ball.uDOF])
+    ]
     # TODO: can we plot the rotation angle  around y-axis?
     ax[1, 0].plot(t, v_x, "-r", label="$v_x$")
     ax[1, 0].set_title("Evolution of horizontal velocity")
@@ -115,7 +117,10 @@ if __name__ == "__main__":
     ax[1, 0].grid()
 
     # plot time evolution of z-velocity
-    v_z = [ball.v_P(ti, qi, ui)[2] for ti, qi, ui in zip(t, q[:, ball.qDOF], u[:, ball.uDOF])]
+    v_z = [
+        ball.v_P(ti, qi, ui)[2]
+        for ti, qi, ui in zip(t, q[:, ball.qDOF], u[:, ball.uDOF])
+    ]
     ax[1, 1].plot(t, v_z, "-g", label="$z$")
     ax[1, 1].set_title("Evolution of vertical velocity")
     ax[1, 1].set_xlabel("t")

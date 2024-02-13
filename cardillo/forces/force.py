@@ -4,18 +4,18 @@ from numpy import einsum, zeros
 class Force:
     r"""Force represented w.r.t. I-basis
 
-        Parameters
-        ----------
-        force : np.ndarray (3,)
-            Force w.r.t. inertial I-basis as a callable function of time t.
-        subsystem : object
-            Object on which force acts.
-        frame_ID : #TODO
-        K_r_SP : np.ndarray (3,)
-            Position vector of point of attack (P) w.r.t. center of mass (S) in body-fixed K-basis.
-        name : str
-            Name of contribution.
-        """
+    Parameters
+    ----------
+    force : np.ndarray (3,)
+        Force w.r.t. inertial I-basis as a callable function of time t.
+    subsystem : object
+        Object on which force acts.
+    frame_ID : #TODO
+    K_r_SP : np.ndarray (3,)
+        Position vector of point of attack (P) w.r.t. center of mass (S) in body-fixed K-basis.
+    name : str
+        Name of contribution.
+    """
 
     def __init__(
         self, force, subsystem, frame_ID=zeros(3), K_r_SP=zeros(3), name="force"
@@ -55,18 +55,18 @@ class Force:
 class K_Force:
     r"""Force represented w.r.t. body-fixed K-basis
 
-        Parameters
-        ----------
-        force : np.ndarray (3,)
-            Force w.r.t. body-fixed K-basis as a callable function of time t.
-        subsystem : object
-            Object on which force acts.
-        frame_ID : #TODO
-        K_r_SP : np.ndarray (3,)
-            Position vector of point of attack (P) w.r.t. center of mass (S) in body-fixed K-basis.
-        name : str
-            Name of contribution.
-        """
+    Parameters
+    ----------
+    force : np.ndarray (3,)
+        Force w.r.t. body-fixed K-basis as a callable function of time t.
+    subsystem : object
+        Object on which force acts.
+    frame_ID : #TODO
+    K_r_SP : np.ndarray (3,)
+        Position vector of point of attack (P) w.r.t. center of mass (S) in body-fixed K-basis.
+    name : str
+        Name of contribution.
+    """
 
     def __init__(self, force, subsystem, frame_ID=zeros(3), K_r_SP=zeros(3)):
         if not callable(force):

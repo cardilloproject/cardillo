@@ -41,11 +41,11 @@ class System:
     Parameters
     ----------
     t0 : float
-        Initial time of the initial state of the system. 
+        Initial time of the initial state of the system.
     origin_size: float
-        Origin size for trimesh visualization. 
+        Origin size for trimesh visualization.
         If origin_size>0, the origin of the system is added as trimesh.axis with the specified origin size. Otherwise the system origin is just a cardillo frame.
-    
+
     Notes
     -----
 
@@ -92,13 +92,13 @@ class System:
         self.add(self.origin)
 
     def add(self, *contrs):
-        '''Adds contributions to the system.
-        
+        """Adds contributions to the system.
+
         Parameters
         ----------
         contrs : object or list
             Single object or list of objects to add to the system.
-        '''
+        """
         for contr in contrs:
             if not contr in self.contributions:
                 self.contributions.append(contr)
@@ -198,15 +198,15 @@ class System:
                 contr.reset()
 
     def assemble(self, *args, **kwargs):
-        '''Assembles the system, i.e., counts degrees of freedom, sets connectivities and assembles global initial state.
-        
+        """Assembles the system, i.e., counts degrees of freedom, sets connectivities and assembles global initial state.
+
         Parameters
         ----------
         slice_active_contacts : bool
             When computing consistent initial conditions, slice friction forces to contemplate only those corresponding to active normal contact.
         options : cardillo.solver.SolverOptions
             Solver options for the computation of the constraint/contact forces.
-        '''
+        """
         self.nq = 0
         self.nu = 0
         self.nla_g = 0

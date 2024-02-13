@@ -18,8 +18,8 @@ if __name__ == "__main__":
     g = np.array([0, 0, -10])
 
     # initial conditions
-    phi0 = np.deg2rad(5)   # inclination angle
-    omega_z0 = 200    # angular velocity in e_z^K-direction
+    phi0 = np.deg2rad(5)  # inclination angle
+    omega_z0 = 200  # angular velocity in e_z^K-direction
 
     # simulation parameters
     t1 = 3  # final time
@@ -50,7 +50,7 @@ if __name__ == "__main__":
 
     K_Omega = np.array([0, 0, omega_z0])
     v_S = cross3(A_IK @ K_Omega, r_OS)
-    
+
     q0 = RigidBody.pose2q(r_OS, A_IK)
     u0 = np.hstack([v_S, K_Omega])
 

@@ -8,15 +8,16 @@ def Meshed(Base):
 
     Parameters
     ----------
-    Base :  object 
+    Base :  object
         Cardillo object Frame, RigidBody or Pointmass
-    
+
     Returns
     -------
     out : object
         Meshed version of Base object
-    
+
     """
+
     class _Meshed(Base):
         def __init__(
             self,
