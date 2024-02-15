@@ -56,19 +56,6 @@ class ScalarForceLaw(ABC):
     def la_c(self, t, q, u):
         return self._la_c(t, self.l(t, q), self.l_dot(t, q, u))
 
-    # def la_c_q(self, t, q, u):
-    #     return self.la_l(t, self.l(t, q), self.l_dot(t, q, u)) * self.subsystem.l_q(
-    #         t, q
-    #     ) + self.la_l_dot(
-    #         t, self.l(t, q), self.l_dot(t, q, u)
-    #     ) * self.subsystem.l_dot_q(
-    #         t, q
-    #     )
-
-    # def la_c_u(self, t, q, u):
-    #     return self.la_l_dot(
-    #         t, self.l(t, q), self.l_dot(t, q, u)
-    #     ) * self.subsystem.l_dot_q(t, q, u)
     def c(self, t, q, u, la_c):
         return self._c(t, self.l(t, q), self.l_dot(t, q, u), la_c)
 
@@ -84,16 +71,13 @@ class ScalarForceLaw(ABC):
             t, q, u
         )
 
-    # def c_la_c(self):
-    #     return self._c_la_c()
-
     def W_c(self, t, q):
         return self.subsystem.W_l(t, q).reshape(self.subsystem._nu, self.nla_c)
 
     def Wla_c_q(self, t, q, la_c):
         return la_c * self.subsystem.W_l_q(
             t, q
-        )  # .reshape(self.subsystem._nu, self.subsystem._nq)
+        )  
 
     def export(self, sol_i, **kwargs):
         return self.subsystem.export(sol_i, **kwargs)
