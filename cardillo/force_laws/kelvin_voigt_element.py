@@ -16,14 +16,26 @@ class KelvinVoigtElement(ScalarForceLaw):
         if self.l_ref is None:
             self.l_ref = self.subsystem.l(self.subsystem.t0, self.subsystem.q0)
 
-    def e_pot(self, t, l):
+    def _E_pot(self, t, l):
         return 0.5 * self.k * (l - self.l_ref) ** 2
 
-    def la(self, t, l, l_dot):
+    def _la_c(self, t, l, l_dot):
         return -self.k * (l - self.l_ref) - self.d * l_dot
 
-    def la_l(self, t, l, l_dot):
+    def _la_c_l(self, t, l, l_dot):
         return -self.k
 
-    def la_l_dot(self, t, l, l_dot):
+    def _la_c_l_dot(self, t, l, l_dot):
         return -self.d
+
+    def _c(self, t, l, l_dot, la_c):
+        return la_c / self.k + (l - self.l_ref) + (self.d / self.k) * l_dot
+
+    def _c_l(self, t, l, l_dot, la_c):
+        return 1
+
+    def _c_l_dot(self, t, l, l_dot, la_c):
+        return self.d / self.k
+
+    def c_la_c(self):
+        return 1 / self.k

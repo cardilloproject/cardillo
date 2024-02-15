@@ -34,6 +34,7 @@ class Sphere2Sphere:
         if mu > 0:
             self.nla_F = 2 * self.nla_N
             self.gamma_F = self.__gamma_F
+            self.gamma_F_q = self.__gamma_F_q
             self.e_F = (
                 np.zeros(self.nla_F) if e_F is None else e_F * np.ones(self.nla_F)
             )
@@ -311,7 +312,7 @@ class Sphere2Sphere:
             dtype=np.common_type(q, u),
         )
 
-    def gamma_F_q(self, t, q, u):
+    def __gamma_F_q(self, t, q, u):
         return approx_fprime(q, lambda q: self.gamma_F(t, q, u))
 
     def gamma_F_u(self, t, q):

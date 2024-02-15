@@ -6,7 +6,8 @@ from cardillo import System
 from cardillo.discrete import RigidBody, Sphere, Box, Frame
 from cardillo.forces import Force
 from cardillo.contacts import Sphere2Plane, Sphere2Sphere
-from cardillo.solver import Moreau, BackwardEuler
+from cardillo.solver import Moreau, BackwardEuler, SolverOptions
+from cardillo.math import A_IK_basic
 
 if __name__ == "__main__":
     ############
@@ -17,9 +18,9 @@ if __name__ == "__main__":
     radius = 0.05
 
     # contact parameters
-    e_N = 0.5  # restitution coefficient in normal direction
+    e_N = 0  # restitution coefficient in normal direction
     e_F = 0.0  # restitution coefficient in tangent direction
-    mu = 0.2  # frictional coefficient
+    mu = 0  # frictional coefficient
 
     # density of ball
     density = 1
@@ -28,11 +29,11 @@ if __name__ == "__main__":
     g = np.array([0, 0, -10])
 
     # initial conditions
-    height = 5 * radius
-    nx = 3
-    ny = 3
-    nz = 3
-    offset = 2 * radius
+    height = 8 * radius
+    nx = 2
+    ny = 2
+    nz = 8
+    offset = 0.3 * radius
 
     # simulation parameters
     t1 = 1  # final time
@@ -51,12 +52,7 @@ if __name__ == "__main__":
     for i in range(nx):
         for j in range(ny):
             for k in range(nz):
-                r_OS = (
-                    r_OS0
-                    + (1 - 0.2 * k) * i * offset_x
-                    + (1 - 0.2 * k) * j * offset_y
-                    + k * offset_z
-                )
+                r_OS = r_OS0 + i * offset_x + j * offset_y + k * offset_z
                 q0 = RigidBody.pose2q(r_OS, np.eye(3))
                 balls.append(
                     Sphere(RigidBody)(
@@ -73,8 +69,7 @@ if __name__ == "__main__":
 
     # floor
     floor = Box(Frame)(
-        dimensions=[2, 2, 0.0001],
-        name="floor",
+        dimensions=[2, 2, 0.0001], name="floor", A_IK=A_IK_basic(np.deg2rad(30)).y
     )
     system.add(floor)  # (only for visualization purposes)
 
@@ -106,7 +101,13 @@ if __name__ == "__main__":
     # simulation
     ############
     dt = 1.0e-3  # time step
-    solver = Moreau(system, t1, dt)  # create solver
+    # solver = Moreau(system, t1, dt)  # create solver
+    solver = BackwardEuler(
+        system,
+        t1,
+        dt,
+        options=SolverOptions(fixed_point_atol=1e-7, fixed_point_rtol=1e-7),
+    )  # create solver
     sol = solver.solve()  # simulate system
 
     # vtk-export
