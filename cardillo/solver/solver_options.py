@@ -15,7 +15,7 @@ class SolverOptions:
     reuse_lu_max_iter: int = 4
     error_function: callable = lambda x: max(abs(x))
     prox_scaling: float = 1.0
-    continue_with_unconverged: bool = True
+    continue_with_unconverged: bool = False
     linear_solver: callable = spsolve
     numerical_jacobian_method: bool | str = False
     numerical_jacobian_eps: float = 1e-6

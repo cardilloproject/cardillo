@@ -75,9 +75,7 @@ class ScalarForceLaw(ABC):
         return self.subsystem.W_l(t, q).reshape(self.subsystem._nu, self.nla_c)
 
     def Wla_c_q(self, t, q, la_c):
-        return la_c * self.subsystem.W_l_q(
-            t, q
-        )  
+        return la_c * self.subsystem.W_l_q(t, q)
 
     def export(self, sol_i, **kwargs):
         return self.subsystem.export(sol_i, **kwargs)
@@ -88,6 +86,7 @@ class ScalarForceLaw_h(ABC):
         self.subsystem = subsystem
         self.l = self.subsystem.l
         self.l_dot = self.subsystem.l_dot
+        self.la_c = self.force
 
     def assembler_callback(self):
         self.subsystem.assembler_callback()
@@ -122,7 +121,7 @@ class ScalarForceLaw_h(ABC):
         ) + self.la_l_dot(
             t, self.l(t, q), self.l_dot(t, q, u)
         ) * self.subsystem.l_dot_q(
-            t, q
+            t, q, u
         )
 
     def force_u(self, t, q, u):

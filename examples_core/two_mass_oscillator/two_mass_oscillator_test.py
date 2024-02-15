@@ -4,7 +4,11 @@ from pathlib import Path
 
 from cardillo import System
 from cardillo.discrete import Box, PointMass, Frame
-from cardillo.force_laws import KelvinVoigtElement as SpringDamper
+
+# from cardillo.force_laws import KelvinVoigtElement as SpringDamper
+from cardillo.force_laws.kelvin_voigt_element import (
+    KelvinVoigtElement_h as SpringDamper,
+)
 from cardillo.interactions import TwoPointInteraction
 from cardillo.solver import ScipyIVP, BackwardEuler, Rattle
 
