@@ -21,6 +21,29 @@ class Sphere2Sphere:
         frame_ID2=np.zeros(3, dtype=float),
         name="sphere_to_sphere_contact",
     ):
+        """Contact between two spheres modelled as unilateral constraint with set-valued Coulomb friction.
+
+        Parameters
+        ----------
+        subsystem1 : object
+            Sphere 1
+        subsystem2 : object
+            Sphere 2
+        radius1 : float
+            Radius of subsystem1
+        radius2 : float
+            Radius of subsystem2
+        mu : float
+            Frictional coefficient
+        e_N : float
+            Restitution coefficient for Newton-like impact law in normal direction.
+        e_N : float
+            Restitution coefficient for Newton-like impact law for friction.
+        frame_ID1 : TODO
+        frame_ID2 : TODO
+        name : str
+            Name of contribution.
+        """
         self.subsystem1 = subsystem1
         self.frame_ID1 = frame_ID1
         self.radius1 = radius1

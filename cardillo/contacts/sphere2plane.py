@@ -45,7 +45,7 @@ class Sphere2Plane:
             Scaling factors for stretching the friction force reservoir in e_x and e_y-direction of the 'frame'.
             anisotropy=(1,1) corresponds to a circular force reservoir, i.e., isotropic Coulomb friction.
         name : str
-            Name of frame.
+            Name of contribution.
         """
         self.frame = frame
         self.subsystem = subsystem
