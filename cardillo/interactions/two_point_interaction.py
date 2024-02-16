@@ -7,8 +7,8 @@ class TwoPointInteraction:
         self,
         subsystem1,
         subsystem2,
-        frame_ID1=np.zeros(3, dtype=float),
-        frame_ID2=np.zeros(3, dtype=float),
+        frame_ID1=None,
+        frame_ID2=None,
         K_r_SP1=np.zeros(3, dtype=float),
         K_r_SP2=np.zeros(3, dtype=float),
     ):
