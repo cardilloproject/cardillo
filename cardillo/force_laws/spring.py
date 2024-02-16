@@ -2,10 +2,9 @@ import numpy as np
 
 from ._base import ScalarForceLaw
 
-
 class Spring(ScalarForceLaw):
-    def __init__(self, subsystem, k, l_ref=None, name="linear_spring"):
-        super().__init__(subsystem)
+    def __init__(self, subsystem, k, l_ref=None, compliance_form=True, name="linear_spring"):
+        super().__init__(subsystem, compliance_form)
         self.k = k
         self.l_ref = l_ref
         self.name = name
