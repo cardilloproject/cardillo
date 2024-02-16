@@ -14,8 +14,8 @@ class FixedDistance:
         self,
         subsystem1,
         subsystem2,
-        frame_ID1=np.zeros(3),
-        frame_ID2=np.zeros(3),
+        frame_ID1=None,
+        frame_ID2=None,
         K1_r_P1B1=np.zeros(3),
         K2_r_P2B2=np.zeros(3),
     ):

@@ -8,8 +8,8 @@ class Spherical(PositionOrientationBase):
         subsystem1,
         subsystem2,
         r_OB0,
-        frame_ID1=np.zeros(3),
-        frame_ID2=np.zeros(3),
+        frame_ID1=None,
+        frame_ID2=None,
     ):
         super().__init__(
             subsystem1,
