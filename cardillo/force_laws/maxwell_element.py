@@ -2,6 +2,23 @@ import numpy as np
 
 
 class MaxwellElement:
+    r"""Scalar force law consisting of a linear spring and a linear damper acting in series.
+
+        Parameters
+        ----------
+        subsystem : object
+            Object providing the interface for a scalar force law, e.g., Revolute, TwoPointInteraction
+        stiffness : float
+            Stiffness of spring.
+        viscosity : float
+            Viscosity of linear damper.
+        l_ref : float
+            Undeformed elongation of linear spring.
+        q0 : np.ndarray(1,)
+            Initial elongation of linear damper.
+        name : str
+            Name of contribution.
+        """
     def __init__(
         self,
         subsystem,

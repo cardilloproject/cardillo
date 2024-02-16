@@ -13,6 +13,23 @@ class TwoPointInteraction:
         K_r_SP2=np.zeros(3, dtype=float),
         name="two_point_interaction",
     ):
+        r"""Interface for scalar force interaction between two points. Provides distance between the points, its time derivatives and the generalized force direction of the scalar force acting along the connection line between the two points.
+
+        Parameters
+        ----------
+        subsystem1 : object
+            Object containing first point of interaction (P1)
+        subsystem1 : object
+            Object containing second point of interaction (P2)
+        frame_ID1 : #TODO
+        frame_ID2 : #TODO
+        K_r_SP1 : np.ndarray (3,)
+            Position vector of first point (P1) w.r.t. center of mass (S) in body-fixed K-basis of subsystem1.
+        K_r_SP2 : np.ndarray (3,)
+            Position vector of second point (P2) w.r.t. center of mass (S) in body-fixed K-basis of subsystem2.
+        name : str
+            Name of contribution.
+        """
         self.subsystem1 = subsystem1
         self.frame_ID1 = frame_ID1
         self.K_r_SP1 = K_r_SP1
