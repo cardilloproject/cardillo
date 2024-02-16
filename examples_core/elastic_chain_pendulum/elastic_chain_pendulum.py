@@ -6,10 +6,8 @@ from cardillo import System
 from cardillo.discrete import Sphere, PointMass, Frame
 from cardillo.forces import Force
 
-# from cardillo.force_laws import KelvinVoigtElement as SpringDamper
-from cardillo.force_laws.kelvin_voigt_element import (
-    KelvinVoigtElement_h as SpringDamper,
-)
+from cardillo.force_laws import KelvinVoigtElement as SpringDamper
+
 from cardillo.interactions import TwoPointInteraction
 from cardillo.solver import ScipyIVP, BackwardEuler, Rattle, SolverOptions
 
@@ -22,9 +20,10 @@ if __name__ == "__main__":
 
     n_particles = 20  # number of particles
 
-    gravity = np.array([0, 0, -10])
+    gravity = np.array([0, 0, -10])  # gravity
 
     # simulation parameters
+    compliance_form = True  # use compliance formulation for force element, i.e., force is Lagrange multiplier la_c.
     t0 = 0  # initial time
     t1 = 3  # final time
 
@@ -52,6 +51,7 @@ if __name__ == "__main__":
             k,
             d,
             l_ref=l0,
+            compliance_form=compliance_form,
             name="spring_damper_0",
         )
     )
@@ -63,6 +63,7 @@ if __name__ == "__main__":
                 k,
                 d,
                 l_ref=l0,
+                compliance_form=compliance_form,
                 name="spring_damper_" + str(i + 1),
             )
         )
@@ -70,10 +71,10 @@ if __name__ == "__main__":
     system.assemble()
 
     # simulation
-    dt = 5.0e-3  # time step
+    dt = 1e-2  # time step
     # solver = ScipyIVP(system, t1, dt)  # create solver
     solver = BackwardEuler(
-        system, t1, dt, options=SolverOptions(newton_max_iter=500)
+        system, t1, dt, options=SolverOptions(newton_max_iter=50)
     )  # create solver
     # solver = Rattle(system, t1, dt)  # create solver
     sol = solver.solve()  # simulate system
