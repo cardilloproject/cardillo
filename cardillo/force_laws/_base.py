@@ -112,4 +112,3 @@ class ScalarForceLaw(ABC):
 
     def export(self, sol_i, **kwargs):
         return self.subsystem.export(sol_i, **kwargs)
-
