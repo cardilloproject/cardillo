@@ -1,15 +1,14 @@
-import matplotlib.pyplot as plt
 import numpy as np
 from pathlib import Path
 
 from cardillo import System
-from cardillo.discrete import Sphere, PointMass, Frame
+from cardillo.discrete import Sphere, PointMass
 from cardillo.forces import Force
 
 from cardillo.force_laws import KelvinVoigtElement as SpringDamper
 
 from cardillo.interactions import TwoPointInteraction
-from cardillo.solver import ScipyIVP, BackwardEuler, Rattle, SolverOptions
+from cardillo.solver import BackwardEuler, SolverOptions
 
 if __name__ == "__main__":
     # system parameters
@@ -72,11 +71,9 @@ if __name__ == "__main__":
 
     # simulation
     dt = 1e-2  # time step
-    # solver = ScipyIVP(system, t1, dt)  # create solver
     solver = BackwardEuler(
         system, t1, dt, options=SolverOptions(newton_max_iter=50)
     )  # create solver
-    # solver = Rattle(system, t1, dt)  # create solver
     sol = solver.solve()  # simulate system
     t = sol.t
     q = sol.q
