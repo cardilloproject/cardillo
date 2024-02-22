@@ -9,23 +9,31 @@ from cardillo.interactions import TwoPointInteraction
 from cardillo.solver import ScipyIVP
 
 if __name__ == "__main__":
+    ###################
     # system parameters
+    ###################
     m = 1  # mass
     l0 = 1  # undeformed length of spring
     k = 100  # spring stiffness
     d = 2  # damping constant
 
-    # initial condition
-    stretch = 1.9  # initial stretch of spring
-
-    # simulation parameters
-    t0 = 0  # initial time
-    t1 = 3  # final time
-
     # dimensions of boxes
     width = l0
     height = depth = 0.5 * width
     box_dim = np.array([width, height, depth])
+
+    #######################
+    # simulation parameters
+    #######################
+    t0 = 0  # initial time
+    t1 = 3  # final time
+
+    # initial condition
+    stretch = 1.9  # initial stretch of spring
+    
+    #################
+    # assemble system
+    #################
 
     # initialize system
     system = System(t0=t0)
@@ -65,7 +73,10 @@ if __name__ == "__main__":
     system.add(mass1, mass2, spring_damper, rectangle)
     system.assemble()
 
+    ############
     # simulation
+    ############
+
     dt = 1.0e-2  # time step
     solver = ScipyIVP(system, t1, dt)  # create solver
     sol = solver.solve()  # simulate system
@@ -73,6 +84,9 @@ if __name__ == "__main__":
     q = sol.q
     u = sol.u
 
+    ##############
+    # plot results
+    ##############
     fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(10, 7))
     # plot time evolution for x-coordinates
     x1 = [mass1.r_OP(ti, qi)[0] for ti, qi in zip(t, q[:, mass1.qDOF])]
@@ -121,6 +135,8 @@ if __name__ == "__main__":
     plt.tight_layout()
     plt.show()
 
+    ############
     # VTK export
+    ############
     path = Path(__file__)
     system.export(path.parent, "vtk", sol)
