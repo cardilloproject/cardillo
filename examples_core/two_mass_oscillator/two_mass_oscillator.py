@@ -30,7 +30,7 @@ if __name__ == "__main__":
 
     # initial condition
     stretch = 1.9  # initial stretch of spring
-    
+
     #################
     # assemble system
     #################

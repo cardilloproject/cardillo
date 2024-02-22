@@ -6,7 +6,6 @@ from pathlib import Path
 from cardillo.solver import load_solution
 
 if __name__ == "__main__":
-
     ###############
     # load solution
     ###############
@@ -27,7 +26,11 @@ if __name__ == "__main__":
     ###########################
 
     # export list of partilces
-    particles = [particle for name, particle in system.contributions_map.items() if "mass" in name]
+    particles = [
+        particle
+        for name, particle in system.contributions_map.items()
+        if "mass" in name
+    ]
     n_particles = len(particles)
     l0 = system.contributions_map["spring_damper_0"].l_ref
 

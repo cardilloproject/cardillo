@@ -33,7 +33,6 @@ if __name__ == "__main__":
     #################
     system = System(t0=t0)
 
-    
     # add particles as point masses and add gravity for each
     particles = []
     offset = np.array([l0, 0, 0])
@@ -88,4 +87,3 @@ if __name__ == "__main__":
     ###############
     path = Path(__file__)
     save_solution(sol, Path(path.parent, "elastic_chain_solution.pkl"))
-   
