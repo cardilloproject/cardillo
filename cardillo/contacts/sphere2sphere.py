@@ -17,8 +17,8 @@ class Sphere2Sphere:
         mu,
         e_N=None,
         e_F=None,
-        frame_ID1=np.zeros(3, dtype=float),
-        frame_ID2=np.zeros(3, dtype=float),
+        frame_ID1=None,
+        frame_ID2=None,
     ):
         self.subsystem1 = subsystem1
         self.frame_ID1 = frame_ID1

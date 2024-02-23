@@ -18,7 +18,7 @@ class Sphere2Plane:
         e_N=None,
         e_F=None,
         anisotropy=np.ones(2),
-        frame_ID=np.zeros(3),
+        frame_ID=None,
         K_r_SP=np.zeros(3),
     ):
         self.frame = frame

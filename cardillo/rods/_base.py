@@ -956,12 +956,12 @@ class CosseratRod(RodExportBase, ABC):
     # interactions with other bodies and the environment
     ####################################################
     def elDOF_P(self, frame_ID):
-        xi = frame_ID[0]
+        xi = frame_ID
         el = self.element_number(xi)
         return self.elDOF[el]
 
     def elDOF_P_u(self, frame_ID):
-        xi = frame_ID[0]
+        xi = frame_ID
         el = self.element_number(xi)
         return self.elDOF_u[el]
 
@@ -975,14 +975,14 @@ class CosseratRod(RodExportBase, ABC):
     # r_OP / A_IK contribution
     ##########################
     def r_OP(self, t, qe, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
-        N, N_xi = self.basis_functions_r(frame_ID[0])
-        r_OS, A_IK, _, _ = self._eval(qe, frame_ID[0], N, N_xi)
+        N, N_xi = self.basis_functions_r(frame_ID)
+        r_OS, A_IK, _, _ = self._eval(qe, frame_ID, N, N_xi)
         return r_OS + A_IK @ K_r_SP
 
     # TODO: Think of a faster version than using _deval
     def r_OP_q(self, t, qe, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
         # evaluate required quantities
-        N, N_xi = self.basis_functions_r(frame_ID[0])
+        N, N_xi = self.basis_functions_r(frame_ID)
         (
             r_OS,
             A_IK,
@@ -992,12 +992,12 @@ class CosseratRod(RodExportBase, ABC):
             A_IK_q,
             _,
             _,
-        ) = self._deval(qe, frame_ID[0], N, N_xi)
+        ) = self._deval(qe, frame_ID, N, N_xi)
 
         return r_OS_q + np.einsum("ijk,j->ik", A_IK_q, K_r_SP)
 
     def v_P(self, t, qe, ue, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
-        N, _ = self.basis_functions_r(frame_ID[0])
+        N, _ = self.basis_functions_r(frame_ID)
 
         # interpolate A_IK and angular velocity in K-frame
         A_IK = self.A_IK(t, qe, frame_ID)
@@ -1014,7 +1014,7 @@ class CosseratRod(RodExportBase, ABC):
 
     def v_P_q(self, t, qe, ue, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
         # evaluate shape functions
-        N, _ = self.basis_functions_r(frame_ID[0])
+        N, _ = self.basis_functions_r(frame_ID)
 
         # interpolate derivative of A_IK and angular velocity in K-frame
         A_IK_q = self.A_IK_q(t, qe, frame_ID)
@@ -1031,7 +1031,7 @@ class CosseratRod(RodExportBase, ABC):
 
     def J_P(self, t, qe, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
         # evaluate required nodal shape functions
-        N, _ = self.basis_functions_r(frame_ID[0])
+        N, _ = self.basis_functions_r(frame_ID)
 
         # transformation matrix
         A_IK = self.A_IK(t, qe, frame_ID)
@@ -1050,7 +1050,7 @@ class CosseratRod(RodExportBase, ABC):
 
     def J_P_q(self, t, qe, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
         # evaluate required nodal shape functions
-        N, _ = self.basis_functions_r(frame_ID[0])
+        N, _ = self.basis_functions_r(frame_ID)
 
         K_r_SP_tilde = ax2skew(K_r_SP)
         A_IK_q = self.A_IK_q(t, qe, frame_ID)
@@ -1066,7 +1066,7 @@ class CosseratRod(RodExportBase, ABC):
         return J_P_q
 
     def a_P(self, t, qe, ue, ue_dot, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
-        N, _ = self.basis_functions_r(frame_ID[0])
+        N, _ = self.basis_functions_r(frame_ID)
 
         # interpolate orientation
         A_IK = self.A_IK(t, qe, frame_ID)
@@ -1101,7 +1101,7 @@ class CosseratRod(RodExportBase, ABC):
             ax2skew(cross3(K_Omega, K_r_SP)) + ax2skew(K_Omega) @ ax2skew(K_r_SP)
         )
 
-        N, _ = self.basis_functions_r(frame_ID[0])
+        N, _ = self.basis_functions_r(frame_ID)
         a_P_u = np.zeros((3, self.nu_element), dtype=float)
         for node in range(self.nnodes_element_r):
             a_P_u[:, self.nodalDOF_element_p_u[node]] += N[node] * local
@@ -1112,7 +1112,7 @@ class CosseratRod(RodExportBase, ABC):
         """Since we use Petrov-Galerkin method we only interpolate the nodal
         angular velocities in the K-frame.
         """
-        N_p, _ = self.basis_functions_p(frame_ID[0])
+        N_p, _ = self.basis_functions_p(frame_ID)
         K_Omega = np.zeros(3, dtype=np.common_type(qe, ue))
         for node in range(self.nnodes_element_p):
             K_Omega += N_p[node] * ue[self.nodalDOF_element_p_u[node]]
@@ -1122,7 +1122,7 @@ class CosseratRod(RodExportBase, ABC):
         return np.zeros((3, self.nq_element), dtype=float)
 
     def K_J_R(self, t, qe, frame_ID):
-        N_p, _ = self.basis_functions_p(frame_ID[0])
+        N_p, _ = self.basis_functions_p(frame_ID)
         K_J_R = np.zeros((3, self.nu_element), dtype=float)
         for node in range(self.nnodes_element_p):
             K_J_R[:, self.nodalDOF_element_p_u[node]] += N_p[node] * np.eye(
@@ -1137,7 +1137,7 @@ class CosseratRod(RodExportBase, ABC):
         """Since we use Petrov-Galerkin method we only interpolate the nodal
         time derivative of the angular velocities in the K-frame.
         """
-        N, _ = self.basis_functions_p(frame_ID[0])
+        N, _ = self.basis_functions_p(frame_ID)
         K_Psi = np.zeros(3, dtype=np.common_type(qe, ue, ue_dot))
         for node in range(self.nnodes_element_p):
             K_Psi += N[node] * ue_dot[self.nodalDOF_element_p_u[node]]

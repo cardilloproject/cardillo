@@ -11,8 +11,8 @@ class Revolute(PositionOrientationBase):
         angle0=0.0,
         r_OB0=None,
         A_IB0=None,
-        frame_ID1=np.zeros(3),
-        frame_ID2=np.zeros(3),
+        frame_ID1=None,
+        frame_ID2=None,
     ):
         self.axis = axis
         self.angle0 = angle0
