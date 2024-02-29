@@ -16,8 +16,8 @@ class RigidConnection(PositionOrientationBase):
         super().__init__(
             subsystem1,
             subsystem2,
-            r_OB0=None,
-            A_IB0=None,
+            r_OJ0=None,
+            A_IJ0=None,
             projection_pairs_rotation=[(0, 1), (1, 2), (2, 0)],
             frame_ID1=frame_ID1,
             frame_ID2=frame_ID2,

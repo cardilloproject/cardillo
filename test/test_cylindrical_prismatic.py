@@ -60,11 +60,11 @@ def run(
     e_tt = lambda t: -amplitude * omega * omega * np.cos(omega * t)
 
     n1 = np.random.rand(3)
-    r_OB = lambda t: e(t) * n1
-    r_OB_t = lambda t: e_t(t) * n1
-    r_OB_tt = lambda t: e_tt(t) * n1
+    r_OJ = lambda t: e(t) * n1
+    r_OJ_t = lambda t: e_t(t) * n1
+    r_OJ_tt = lambda t: e_tt(t) * n1
 
-    r_OB0 = r_OB(0)
+    r_OJ0 = r_OJ(0)
 
     n2 = np.random.rand(3)
 
@@ -85,13 +85,13 @@ def run(
         "jik,j,k->i", T_SO3_psi(psi(t)), psi_t(t), psi_t(t)
     )
 
-    A_IB = lambda t: Exp_SO3(psi(t))
-    A_IB_t = lambda t: ax2skew(omega_IB(t)) @ A_IB(t)
-    A_IB_tt = lambda t: ax2skew(omega_IB_t(t)) @ A_IB(t) + ax2skew(
+    A_IJ = lambda t: Exp_SO3(psi(t))
+    A_IJ_t = lambda t: ax2skew(omega_IB(t)) @ A_IJ(t)
+    A_IJ_tt = lambda t: ax2skew(omega_IB_t(t)) @ A_IJ(t) + ax2skew(
         omega_IB(t)
-    ) @ A_IB_t(t)
+    ) @ A_IJ_t(t)
 
-    A_IB0 = A_IB(0)
+    A_IJ0 = A_IJ(0)
 
     ##########################
     # other initial conditions
@@ -113,27 +113,27 @@ def run(
     system = System()
 
     frame = Frame(
-        r_OP=r_OB,
-        r_OP_t=r_OB_t,
-        r_OP_tt=r_OB_tt,
-        A_IK=A_IB,
-        A_IK_t=A_IB_t,
-        A_IK_tt=A_IB_tt,
+        r_OP=r_OJ,
+        r_OP_t=r_OJ_t,
+        r_OP_tt=r_OJ_tt,
+        A_IK=A_IJ,
+        A_IK_t=A_IJ_t,
+        A_IK_tt=A_IJ_tt,
     )
 
-    B0_omega_IB0 = A_IB0.T @ omega_IB(0)
+    B0_omega_IB0 = A_IJ0.T @ omega_IB(0)
     v_P0 = (
-        r_OB_t(0) + A_IB0 @ np.array([0, 0, z_dot0]) + A_IB_t(0) @ np.array([0, 0, z0])
+        r_OJ_t(0) + A_IJ0 @ np.array([0, 0, z_dot0]) + A_IJ_t(0) @ np.array([0, 0, z0])
     )
 
-    q0 = np.array([*r_OB0, *Spurrier(A_IB0)])
+    q0 = np.array([*r_OJ0, *Spurrier(A_IJ0)])
     u0 = np.array([*v_P0, *B0_omega_IB0])
     RB1 = RigidBody(m, B_Theta_C, q0, u0)
 
     rigid_connection = RigidConnection(frame, RB1)
 
-    A_IK0 = A_IB0
-    r_OC0 = r_OB0 + A_IK0 @ np.array([0.5 * l, 0, z0])
+    A_IK0 = A_IJ0
+    r_OC0 = r_OJ0 + A_IK0 @ np.array([0.5 * l, 0, z0])
 
     K0_omega_IK0 = A_IK0.T @ omega_IB(0) + np.array([0, 0, alpha_dot0])
     v_C0 = v_P0 + A_IK0 @ cross3(K0_omega_IK0, np.array([0.5 * l, 0, 0]))
@@ -187,12 +187,12 @@ def run(
     ############################################################################
     zs = np.array(
         [
-            A_IB(ti)[:, 2] @ (RB2.r_OP(ti, qi[RB2.qDOF]) - r_OB(ti))
+            A_IJ(ti)[:, 2] @ (RB2.r_OP(ti, qi[RB2.qDOF]) - r_OJ(ti))
             for (ti, qi) in zip(t, q)
         ]
     )
 
-    A_BK = np.array([A_IB(ti).T @ RB2.A_IK(ti, qi[RB2.qDOF]) for (ti, qi) in zip(t, q)])
+    A_BK = np.array([A_IJ(ti).T @ RB2.A_IK(ti, qi[RB2.qDOF]) for (ti, qi) in zip(t, q)])
     alphas = np.array([Log_SO3(A_BKi)[-1] for A_BKi in A_BK])
     # remove jumps of Log_SO(3)
     for i in range(1, len(alphas)):
@@ -214,8 +214,8 @@ def run(
 
         e1, e2, e3 = np.eye(3)
 
-        _A_IB = A_IB(t)
-        e_x_B, e_y_B, e_z_B = _A_IB.T
+        _A_IJ = A_IJ(t)
+        e_x_B, e_y_B, e_z_B = _A_IJ.T
 
         A_BK = np.array(
             [
@@ -225,7 +225,7 @@ def run(
             ],
             dtype=float,
         )
-        A_KI = A_BK.T @ _A_IB.T
+        A_KI = A_BK.T @ _A_IJ.T
 
         J_C = np.zeros((3, 2), dtype=float)
         J_C[:, 0] = e_z_B
@@ -239,19 +239,19 @@ def run(
         _omega_IB = omega_IB(t)
 
         B_r_BS = z * e3 + 0.5 * l * (ca * e1 + sa * e2)
-        r_BS = _A_IB @ B_r_BS
+        r_BS = _A_IJ @ B_r_BS
         B_r_BS_dot = z_dot * e3 + 0.5 * l * alpha_dot * (ca * e2 - sa * e1)
 
         nu_C_dot = (
-            r_OB_tt(t)
-            + 2 * cross3(_omega_IB, _A_IB @ B_r_BS_dot)
-            - _A_IB @ (0.5 * l * alpha_dot**2 * (ca * e1 + sa * e2))
+            r_OJ_tt(t)
+            + 2 * cross3(_omega_IB, _A_IJ @ B_r_BS_dot)
+            - _A_IJ @ (0.5 * l * alpha_dot**2 * (ca * e1 + sa * e2))
             + cross3(omega_IB_t(t), r_BS)
             + cross3(_omega_IB, cross3(_omega_IB, r_BS))
         )
 
         K_nu_R_dot = A_KI @ omega_IB_t(t) + alpha_dot * cross3(
-            _A_IB.T @ omega_IB(t), e3
+            _A_IJ.T @ omega_IB(t), e3
         )
 
         h = -J_C.T @ (m * nu_C_dot + m * g * e3) - K_J_R.T @ B_Theta_C @ K_nu_R_dot
@@ -324,12 +324,12 @@ def run(
         ti = t_ref[i]
         z, alpha = y_ref[:2, i]
 
-        _r_OB = r_OB(ti)
+        _r_OJ = r_OJ(ti)
 
-        _A_IB = A_IB(ti)
-        e_x_B, e_y_B, e_z_B = _A_IB.T
+        _A_IJ = A_IJ(ti)
+        e_x_B, e_y_B, e_z_B = _A_IJ.T
 
-        r_OP = _r_OB + z * e_z_B
+        r_OP = _r_OJ + z * e_z_B
         r_OC = r_OP + 0.5 * l * (np.cos(alpha) * e_x_B + np.sin(alpha) * e_y_B)
         r_OQ = r_OP + l * (np.cos(alpha) * e_x_B + np.sin(alpha) * e_y_B)
         x, y, z = np.array([r_OP, r_OC, r_OQ]).T
@@ -338,9 +338,9 @@ def run(
         rod.set_ydata(y)
         rod.set_3d_properties(z)
 
-        r0 = _r_OB + diff * e_z_B
-        r1 = _r_OB - diff * e_z_B
-        x, y, z = np.array([r0, _r_OB, r1]).T
+        r0 = _r_OJ + diff * e_z_B
+        r1 = _r_OJ - diff * e_z_B
+        x, y, z = np.array([r0, _r_OJ, r1]).T
 
         axis.set_xdata(x)
         axis.set_ydata(y)

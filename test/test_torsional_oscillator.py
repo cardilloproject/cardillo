@@ -70,8 +70,8 @@ def run(Solver, **solver_kwargs):
         system.origin,
         rigid_body,
         rotation_axis,
-        r_OB0=np.zeros(3),
-        A_IB0=A_IK0,
+        r_OJ0=np.zeros(3),
+        A_IJ0=A_IK0,
     )
 
     spring = KelvinVoigtElement(joint, k, d, l_ref=g_ref)
@@ -79,8 +79,8 @@ def run(Solver, **solver_kwargs):
     #     subsystem1=system.origin,
     #     subsystem2=rigid_body,
     #     axis=rotation_axis,
-    #     r_OB0=np.zeros(3),
-    #     A_IB0=A_IK0,
+    #     r_OJ0=np.zeros(3),
+    #     A_IJ0=A_IK0,
     #     k=k,
     #     d=d,
     #     g_ref=g_ref,

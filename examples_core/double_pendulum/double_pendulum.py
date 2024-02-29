@@ -93,7 +93,7 @@ if __name__ == "__main__":
     #########
 
     joint1 = Revolute(
-        base_link, link1, axis=0, r_OB0=r_OJ1, angle0=phi10, name="joint1"
+        base_link, link1, axis=0, r_OJ0=r_OJ1, angle0=phi10, name="joint1"
     )
     system.add(joint1)
 
@@ -145,7 +145,7 @@ if __name__ == "__main__":
     # joint 2
     #########
 
-    joint2 = Revolute(link1, link2, axis=0, r_OB0=r_OJ2, angle0=phi20, name="joint2")
+    joint2 = Revolute(link1, link2, axis=0, r_OJ0=r_OJ2, angle0=phi20, name="joint2")
     system.add(joint2)
 
     # assemble system

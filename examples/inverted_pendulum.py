@@ -61,7 +61,7 @@ if __name__ == "__main__":
     pendulum.name = "pendulum"
 
     joint = Revolute(
-        system.origin, pendulum, axis=2, angle0=phi0, A_IB0=A_IK_basic(-np.pi / 2).z()
+        system.origin, pendulum, axis=2, angle0=phi0, A_IJ0=A_IK_basic(-np.pi / 2).z()
     )
     joint.name = "revolute joint"
 

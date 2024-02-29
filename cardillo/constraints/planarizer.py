@@ -8,8 +8,8 @@ class Planarizer(ProjectedPositionOrientationBase):
         subsystem1,
         subsystem2,
         axis,
-        r_OB0=None,
-        A_IB0=None,
+        r_OJ0=None,
+        A_IJ0=None,
         frame_ID1=None,
         frame_ID2=None,
     ):
@@ -27,8 +27,8 @@ class Planarizer(ProjectedPositionOrientationBase):
         super().__init__(
             subsystem1,
             subsystem2,
-            r_OB0=r_OB0,
-            A_IB0=A_IB0,
+            r_OJ0=r_OJ0,
+            A_IJ0=A_IJ0,
             constrained_axes_translation=[axis],
             projection_pairs_rotation=projection_pairs_rotation,
             frame_ID1=frame_ID1,

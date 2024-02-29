@@ -48,9 +48,9 @@ if __name__ == "__main__":
     alpha0 = pi / 2
     alpha_dot0 = 0
 
-    r_OB1 = np.zeros(3)
-    A_IB1 = np.eye(3)
-    origin = Frame(r_OP=r_OB1, A_IK=A_IB1)
+    r_OJ1 = np.zeros(3)
+    A_IJ1 = np.eye(3)
+    origin = Frame(r_OP=r_OJ1, A_IK=A_IJ1)
     A_IK10 = A_IK_basic(alpha0).z()
     r_OC10 = -0.5 * l * A_IK10[:, 1]
     omega01 = np.array([0, 0, alpha_dot0])
@@ -70,9 +70,9 @@ if __name__ == "__main__":
         RB1 = RigidBodyAxisAngle(m, B_Theta_C, q01, u01)
 
     if use_spherical_joint:
-        joint1 = Spherical(origin, RB1, r_OB1)
+        joint1 = Spherical(origin, RB1, r_OJ1)
     else:
-        joint1 = Revolute(origin, RB1, r_OB1, A_IB1)
+        joint1 = Revolute(origin, RB1, r_OJ1, A_IJ1)
 
     ############################################################################
     #                   Rigid Body 2
@@ -80,13 +80,13 @@ if __name__ == "__main__":
     beta0 = 0
     beta_dot0 = 0
 
-    r_OB2 = -l * A_IK10[:, 1]
-    A_IB2 = A_IK10
+    r_OJ2 = -l * A_IK10[:, 1]
+    A_IJ2 = A_IK10
     A_IK20 = A_IK10 @ A_IK_basic(beta0).z()
     r_B2S2 = -0.5 * l * A_IK20[:, 1]
-    r_OC20 = r_OB2 + r_B2S2
+    r_OC20 = r_OJ2 + r_B2S2
     omega02 = np.array([0, 0, alpha_dot0 + beta_dot0])
-    vB2 = cross3(omega01, r_OB2)
+    vB2 = cross3(omega01, r_OJ2)
     vS2 = vB2 + cross3(omega02, r_B2S2)
     u02 = np.concatenate([vS2, omega02])
 
@@ -103,9 +103,9 @@ if __name__ == "__main__":
         RB2 = RigidBodyAxisAngle(m, B_Theta_C, q02, u02)
 
     if use_spherical_joint:
-        joint2 = Spherical(RB1, RB2, r_OB2)
+        joint2 = Spherical(RB1, RB2, r_OJ2)
     else:
-        joint2 = Revolute(RB1, RB2, r_OB2, A_IB2)
+        joint2 = Revolute(RB1, RB2, r_OJ2, A_IJ2)
 
     ############################################################################
     #                   model

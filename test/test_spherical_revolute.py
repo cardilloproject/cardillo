@@ -41,8 +41,8 @@ def run(joint, Solver, k=None, d=None, **solver_args):
     alpha0 = pi / 2
     alpha_dot0 = 0
 
-    r_OB1 = np.zeros(3)
-    A_IB1 = np.eye(3)
+    r_OJ1 = np.zeros(3)
+    A_IJ1 = np.eye(3)
     A_IK10 = A_IK_basic(alpha0).z()
     r_OC10 = -0.5 * l * A_IK10[:, 1]
     K1_omega01 = np.array([0, 0, alpha_dot0])
@@ -51,8 +51,8 @@ def run(joint, Solver, k=None, d=None, **solver_args):
     p01 = Spurrier(A_IprimeI @ A_IK10)
     q01 = np.concatenate([A_IprimeI @ r_OC10, p01])
     u01 = np.concatenate([A_IprimeI @ vS1, K1_omega01])
-    origin = Frame(r_OP=A_IprimeI @ r_OB1, A_IK=A_IprimeI @ A_IB1)
-    # origin = Frame(r_OP=r_OB1, A_IK=A_IB1)
+    origin = Frame(r_OP=A_IprimeI @ r_OJ1, A_IK=A_IprimeI @ A_IJ1)
+    # origin = Frame(r_OP=r_OJ1, A_IK=A_IJ1)
     RB1 = RigidBody(m, B_Theta_C, q01, u01)
 
     if joint == "Spherical":
@@ -68,14 +68,14 @@ def run(joint, Solver, k=None, d=None, **solver_args):
         )
 
     if use_spherical_joint:
-        joint1 = Spherical(origin, RB1, r_OB0=A_IprimeI @ r_OB1)
+        joint1 = Spherical(origin, RB1, r_OJ0=A_IprimeI @ r_OJ1)
     elif use_revolute_joint:
         joint1 = Revolute(
-            origin, RB1, axis=2, r_OB0=A_IprimeI @ r_OB1, A_IB0=A_IprimeI @ A_IB1
+            origin, RB1, axis=2, r_OJ0=A_IprimeI @ r_OJ1, A_IJ0=A_IprimeI @ A_IJ1
         )
     elif use_pdrotational_joint:
         joint1 = Revolute(
-            origin, RB1, axis=2, r_OB0=A_IprimeI @ r_OB1, A_IB0=A_IprimeI @ A_IB1
+            origin, RB1, axis=2, r_OJ0=A_IprimeI @ r_OJ1, A_IJ0=A_IprimeI @ A_IJ1
         )
         pd_rotational1 = KelvinVoigtElement(joint1, k, d, l_ref=-alpha0)
 
@@ -85,13 +85,13 @@ def run(joint, Solver, k=None, d=None, **solver_args):
     beta0 = -pi / 4
     beta_dot0 = 0
 
-    r_OB2 = -l * A_IK10[:, 1]
-    A_IB2 = A_IK10
+    r_OJ2 = -l * A_IK10[:, 1]
+    A_IJ2 = A_IK10
     A_IK20 = A_IK10 @ A_IK_basic(beta0).z()
     r_B2S2 = -0.5 * l * A_IK20[:, 1]
-    r_OC20 = r_OB2 + r_B2S2
+    r_OC20 = r_OJ2 + r_B2S2
     K2_omega02 = np.array([0, 0, alpha_dot0 + beta_dot0])
-    vB2 = cross3(K1_omega01, r_OB2)
+    vB2 = cross3(K1_omega01, r_OJ2)
     vS2 = vB2 + cross3(K2_omega02, r_B2S2)
 
     p02 = Spurrier(A_IprimeI @ A_IK20)
@@ -100,14 +100,14 @@ def run(joint, Solver, k=None, d=None, **solver_args):
     RB2 = RigidBody(m, B_Theta_C, q02, u02)
 
     if use_spherical_joint:
-        joint2 = Spherical(RB1, RB2, r_OB0=A_IprimeI @ r_OB2)
+        joint2 = Spherical(RB1, RB2, r_OJ0=A_IprimeI @ r_OJ2)
     elif use_revolute_joint:
         joint2 = Revolute(
-            RB1, RB2, axis=2, r_OB0=A_IprimeI @ r_OB2, A_IB0=A_IprimeI @ A_IB2
+            RB1, RB2, axis=2, r_OJ0=A_IprimeI @ r_OJ2, A_IJ0=A_IprimeI @ A_IJ2
         )
     elif use_pdrotational_joint:
         joint2 = Revolute(
-            RB1, RB2, axis=2, r_OB0=A_IprimeI @ r_OB2, A_IB0=A_IprimeI @ A_IB2
+            RB1, RB2, axis=2, r_OJ0=A_IprimeI @ r_OJ2, A_IJ0=A_IprimeI @ A_IJ2
         )
         pd_rotational2 = KelvinVoigtElement(joint2, k, d, l_ref=-beta0)
 
