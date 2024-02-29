@@ -28,9 +28,9 @@ if __name__ == "__main__":
     g = np.array([0, 0, -10])
 
     # initial conditions
-    r_OS0 = np.array([-0.75, 0, 8 * radius])
-    v_S0 = np.array([1, 0, 0])
-    K_Omega0 = np.array([0, -25, 0])
+    r_OC0 = np.array([-0.75, 0, 8 * radius])
+    v_C0 = np.array([1, 0, 0])
+    B_Omega0 = np.array([0, -25, 0])
 
     # simulation parameters
     t1 = 3  # final time
@@ -42,8 +42,8 @@ if __name__ == "__main__":
     # top
     #####
 
-    q0 = RigidBody.pose2q(r_OS0, np.eye(3))
-    u0 = np.hstack([v_S0, K_Omega0])
+    q0 = RigidBody.pose2q(r_OC0, np.eye(3))
+    u0 = np.hstack([v_C0, B_Omega0])
 
     ball = Sphere(RigidBody)(
         radius=radius,

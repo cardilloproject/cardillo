@@ -162,18 +162,18 @@ def sim():
         def boundary(self, t, q, num=100):
             x, y, phi = q[self.qDOF]
             # fmt: off
-            A_IK = np.array([
+            A_IB = np.array([
                 [np.cos(phi), -np.sin(phi)], 
                 [np.sin(phi),  np.cos(phi)]
             ])
             # fmt: on
 
             thetas = np.linspace(0, 2 * np.pi, num=num, endpoint=True)
-            r_SP = A_IK @ np.array([self.a * np.sin(thetas), self.b * np.cos(thetas)])
-            r_OS = np.array([x, y])
-            r_OPs = r_OS[:, None] + r_SP
+            r_CP = A_IB @ np.array([self.a * np.sin(thetas), self.b * np.cos(thetas)])
+            r_OC = np.array([x, y])
+            r_OPs = r_OC[:, None] + r_CP
 
-            return np.concatenate((r_OS[:, None], r_OPs), axis=1)
+            return np.concatenate((r_OC[:, None], r_OPs), axis=1)
 
     # a = 1
     # b = 0.1

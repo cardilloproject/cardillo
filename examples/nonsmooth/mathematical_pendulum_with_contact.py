@@ -93,9 +93,9 @@ class MathematicalPendulumCartesianContact:
 
     def h(self, t, q, u):
         f_g = np.array([0, -self.m * self.grav], dtype=np.common_type(q, u))
-        r_OS = q[:3]
-        g = norm(r_OS)
-        n = r_OS / g
+        r_OC = q[:3]
+        g = norm(r_OC)
+        n = r_OC / g
         k = 1.0e2
         # k = 1.0e3
         # k = 1.0e4

@@ -269,8 +269,8 @@ def test_volume():
             self.p = p
             self.q = q
             self.r = r
-            self.vtk_cell_type = "VTK_BEZIER_HEXAHEDRON"
-            # self.vtk_cell_type = "VTK_LAGRANGE_HEXAHEDRON"
+            self.vtk_cell_type = "VTB_BEZIER_HEXAHEDRON"
+            # self.vtk_cell_type = "VTB_LAGRANGE_HEXAHEDRON"
 
         def split_vtk(self, P):
             """Rearranges either a Point Array with dimensions

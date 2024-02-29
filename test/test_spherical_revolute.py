@@ -4,7 +4,7 @@ from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-from cardillo.math import A_IK_basic, cross3, Spurrier, Exp_SO3
+from cardillo.math import A_IB_basic, cross3, Spurrier, Exp_SO3
 from cardillo import System
 from cardillo.discrete import Frame
 from cardillo.constraints import (
@@ -25,7 +25,7 @@ def run(joint, Solver, k=None, d=None, **solver_args):
 
     A = 1 / 4 * m * r**2 + 1 / 12 * m * l**2
     C = 1 / 2 * m * r**2
-    K_theta_S = np.diag(np.array([A, C, A]))
+    B_Theta_C = np.diag(np.array([A, C, A]))
 
     use_spherical_joint = use_revolute_joint = use_pdrotational_joint = False
 
@@ -41,19 +41,19 @@ def run(joint, Solver, k=None, d=None, **solver_args):
     alpha0 = pi / 2
     alpha_dot0 = 0
 
-    r_OB1 = np.zeros(3)
-    A_IB1 = np.eye(3)
-    A_IK10 = A_IK_basic(alpha0).z()
-    r_OS10 = -0.5 * l * A_IK10[:, 1]
-    K1_omega01 = np.array([0, 0, alpha_dot0])
-    vS1 = cross3(K1_omega01, r_OS10)
+    r_OJ1 = np.zeros(3)
+    A_IJ1 = np.eye(3)
+    A_IB10 = A_IB_basic(alpha0).z()
+    r_OC10 = -0.5 * l * A_IB10[:, 1]
+    B1_omega01 = np.array([0, 0, alpha_dot0])
+    vS1 = cross3(B1_omega01, r_OC10)
 
-    p01 = Spurrier(A_IprimeI @ A_IK10)
-    q01 = np.concatenate([A_IprimeI @ r_OS10, p01])
-    u01 = np.concatenate([A_IprimeI @ vS1, K1_omega01])
-    origin = Frame(r_OP=A_IprimeI @ r_OB1, A_IK=A_IprimeI @ A_IB1)
-    # origin = Frame(r_OP=r_OB1, A_IK=A_IB1)
-    RB1 = RigidBody(m, K_theta_S, q01, u01)
+    p01 = Spurrier(A_IprimeI @ A_IB10)
+    q01 = np.concatenate([A_IprimeI @ r_OC10, p01])
+    u01 = np.concatenate([A_IprimeI @ vS1, B1_omega01])
+    origin = Frame(r_OP=A_IprimeI @ r_OJ1, A_IB=A_IprimeI @ A_IJ1)
+    # origin = Frame(r_OP=r_OJ1, A_IB=A_IJ1)
+    RB1 = RigidBody(m, B_Theta_C, q01, u01)
 
     if joint == "Spherical":
         use_spherical_joint = True
@@ -68,14 +68,14 @@ def run(joint, Solver, k=None, d=None, **solver_args):
         )
 
     if use_spherical_joint:
-        joint1 = Spherical(origin, RB1, r_OB0=A_IprimeI @ r_OB1)
+        joint1 = Spherical(origin, RB1, r_OJ0=A_IprimeI @ r_OJ1)
     elif use_revolute_joint:
         joint1 = Revolute(
-            origin, RB1, axis=2, r_OB0=A_IprimeI @ r_OB1, A_IB0=A_IprimeI @ A_IB1
+            origin, RB1, axis=2, r_OJ0=A_IprimeI @ r_OJ1, A_IJ0=A_IprimeI @ A_IJ1
         )
     elif use_pdrotational_joint:
         joint1 = Revolute(
-            origin, RB1, axis=2, r_OB0=A_IprimeI @ r_OB1, A_IB0=A_IprimeI @ A_IB1
+            origin, RB1, axis=2, r_OJ0=A_IprimeI @ r_OJ1, A_IJ0=A_IprimeI @ A_IJ1
         )
         pd_rotational1 = KelvinVoigtElement(joint1, k, d, l_ref=-alpha0)
 
@@ -85,29 +85,29 @@ def run(joint, Solver, k=None, d=None, **solver_args):
     beta0 = -pi / 4
     beta_dot0 = 0
 
-    r_OB2 = -l * A_IK10[:, 1]
-    A_IB2 = A_IK10
-    A_IK20 = A_IK10 @ A_IK_basic(beta0).z()
-    r_B2S2 = -0.5 * l * A_IK20[:, 1]
-    r_OS20 = r_OB2 + r_B2S2
-    K2_omega02 = np.array([0, 0, alpha_dot0 + beta_dot0])
-    vB2 = cross3(K1_omega01, r_OB2)
-    vS2 = vB2 + cross3(K2_omega02, r_B2S2)
+    r_OJ2 = -l * A_IB10[:, 1]
+    A_IJ2 = A_IB10
+    A_IB20 = A_IB10 @ A_IB_basic(beta0).z()
+    r_B2S2 = -0.5 * l * A_IB20[:, 1]
+    r_OC20 = r_OJ2 + r_B2S2
+    B2_omega02 = np.array([0, 0, alpha_dot0 + beta_dot0])
+    vB2 = cross3(B1_omega01, r_OJ2)
+    vS2 = vB2 + cross3(B2_omega02, r_B2S2)
 
-    p02 = Spurrier(A_IprimeI @ A_IK20)
-    q02 = np.concatenate([A_IprimeI @ r_OS20, p02])
-    u02 = np.concatenate([A_IprimeI @ vS2, K2_omega02])
-    RB2 = RigidBody(m, K_theta_S, q02, u02)
+    p02 = Spurrier(A_IprimeI @ A_IB20)
+    q02 = np.concatenate([A_IprimeI @ r_OC20, p02])
+    u02 = np.concatenate([A_IprimeI @ vS2, B2_omega02])
+    RB2 = RigidBody(m, B_Theta_C, q02, u02)
 
     if use_spherical_joint:
-        joint2 = Spherical(RB1, RB2, r_OB0=A_IprimeI @ r_OB2)
+        joint2 = Spherical(RB1, RB2, r_OJ0=A_IprimeI @ r_OJ2)
     elif use_revolute_joint:
         joint2 = Revolute(
-            RB1, RB2, axis=2, r_OB0=A_IprimeI @ r_OB2, A_IB0=A_IprimeI @ A_IB2
+            RB1, RB2, axis=2, r_OJ0=A_IprimeI @ r_OJ2, A_IJ0=A_IprimeI @ A_IJ2
         )
     elif use_pdrotational_joint:
         joint2 = Revolute(
-            RB1, RB2, axis=2, r_OB0=A_IprimeI @ r_OB2, A_IB0=A_IprimeI @ A_IB2
+            RB1, RB2, axis=2, r_OJ0=A_IprimeI @ r_OJ2, A_IJ0=A_IprimeI @ A_IJ2
         )
         pd_rotational2 = KelvinVoigtElement(joint2, k, d, l_ref=-beta0)
 
@@ -158,15 +158,15 @@ def run(joint, Solver, k=None, d=None, **solver_args):
         x_S1, y_S1, z_S1 = RB1.r_OP(t, q[RB1.qDOF])
         x_S2, y_S2, z_S2 = RB2.r_OP(t, q[RB2.qDOF])
 
-        A_IK1 = RB1.A_IK(t, q[RB1.qDOF])
-        d11 = A_IK1[:, 0]
-        d21 = A_IK1[:, 1]
-        d31 = A_IK1[:, 2]
+        A_IB1 = RB1.A_IB(t, q[RB1.qDOF])
+        d11 = A_IB1[:, 0]
+        d21 = A_IB1[:, 1]
+        d31 = A_IB1[:, 2]
 
-        A_IK2 = RB2.A_IK(t, q[RB2.qDOF])
-        d12 = A_IK2[:, 0]
-        d22 = A_IK2[:, 1]
-        d32 = A_IK2[:, 2]
+        A_IB2 = RB2.A_IB(t, q[RB2.qDOF])
+        d12 = A_IB2[:, 0]
+        d22 = A_IB2[:, 1]
+        d32 = A_IB2[:, 2]
 
         (COM,) = ax.plot([x_0, x_S1, x_S2], [y_0, y_S1, y_S2], [z_0, z_S1, z_S2], "-ok")
         (d11_,) = ax.plot(
@@ -211,18 +211,18 @@ def run(joint, Solver, k=None, d=None, **solver_args):
     def update(t, q, COM, d11_, d21_, d31_, d12_, d22_, d32_):
         # def update(t, q, COM, d11_, d21_, d31_):
         x_0, y_0, z_0 = origin.r_OP(t)
-        x_S1, y_S1, z_S1 = RB1.r_OP(t, q[RB1.qDOF], K_r_SP=np.array([0, -l / 2, 0]))
-        x_S2, y_S2, z_S2 = RB2.r_OP(t, q[RB2.qDOF], K_r_SP=np.array([0, -l / 2, 0]))
+        x_S1, y_S1, z_S1 = RB1.r_OP(t, q[RB1.qDOF], B_r_CP=np.array([0, -l / 2, 0]))
+        x_S2, y_S2, z_S2 = RB2.r_OP(t, q[RB2.qDOF], B_r_CP=np.array([0, -l / 2, 0]))
 
-        A_IK1 = RB1.A_IK(t, q[RB1.qDOF])
-        d11 = A_IK1[:, 0]
-        d21 = A_IK1[:, 1]
-        d31 = A_IK1[:, 2]
+        A_IB1 = RB1.A_IB(t, q[RB1.qDOF])
+        d11 = A_IB1[:, 0]
+        d21 = A_IB1[:, 1]
+        d31 = A_IB1[:, 2]
 
-        A_IK2 = RB2.A_IK(t, q[RB2.qDOF])
-        d12 = A_IK2[:, 0]
-        d22 = A_IK2[:, 1]
-        d32 = A_IK2[:, 2]
+        A_IB2 = RB2.A_IB(t, q[RB2.qDOF])
+        d12 = A_IB2[:, 0]
+        d22 = A_IB2[:, 1]
+        d32 = A_IB2[:, 2]
 
         COM.set_data([x_0, x_S1, x_S2], [y_0, y_S1, y_S2])
         COM.set_3d_properties([z_0, z_S1, z_S2])

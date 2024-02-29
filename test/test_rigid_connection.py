@@ -3,7 +3,7 @@ from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-from cardillo.math import A_IK_basic, axis_angle2quat, cross3
+from cardillo.math import A_IB_basic, axis_angle2quat, cross3
 from cardillo import System
 from cardillo.discrete import Frame, RigidBody
 from cardillo.constraints import Revolute, RigidConnection
@@ -18,8 +18,8 @@ def run(revolute_joint_used=False):
     theta = 1 / 12 * m * (L**2)
     theta_O = theta + m * (L**2) / 4
     theta1 = theta2 = 1 / 12 * m / 2 * (L**2) / 4
-    # K_theta_S = theta * np.eye(3)
-    K_theta_S1 = K_theta_S2 = theta1 * np.diag((1, 1e-8, 1))
+    # B_Theta_C = theta * np.eye(3)
+    B_theta_C1 = B_theta_C2 = theta1 * np.diag((1, 1e-8, 1))
     g = 9.81
     omega = 10
     A = L / 10
@@ -47,24 +47,24 @@ def run(revolute_joint_used=False):
     v_P = lambda t: np.array([e_t(t), 0, 0])
     a_P = lambda t: np.array([e_tt(t), 0, 0])
 
-    K_r_SP = np.array([0, L / 2, 0])  # center of mass single rigid body
-    K_r_SP1 = np.array([0, L / 4, 0])  # center of mass half rigid body 1
-    K_r_SP2 = np.array([0, 3 * L / 4, 0])  # center of mass half rigid body 2
+    B_r_CP = np.array([0, L / 2, 0])  # center of mass single rigid body
+    B_r_CP1 = np.array([0, L / 4, 0])  # center of mass half rigid body 1
+    B_r_CP2 = np.array([0, 3 * L / 4, 0])  # center of mass half rigid body 2
 
     phi0 = 0.5
     phi_dot0 = 0
-    K_omega0 = np.array([0, 0, phi_dot0])
-    A_IK0 = A_IK_basic(phi0).z()
+    B_omega0 = np.array([0, 0, phi_dot0])
+    A_IB0 = A_IB_basic(phi0).z()
 
     # single rigid body
-    r_OS0 = r_OP(0) - A_IK0 @ K_r_SP
-    v_S0 = v_P(0) + A_IK0 @ (cross3(K_omega0, K_r_SP))
+    r_OC0 = r_OP(0) - A_IB0 @ B_r_CP
+    v_C0 = v_P(0) + A_IB0 @ (cross3(B_omega0, B_r_CP))
 
     # connected rigid bodies
-    r_OS10 = r_OP(0) - A_IK0 @ K_r_SP1
-    v_S10 = v_P(0) + A_IK0 @ (cross3(K_omega0, K_r_SP1))
-    r_OS20 = r_OP(0) - A_IK0 @ K_r_SP2
-    v_S20 = v_P(0) + A_IK0 @ (cross3(K_omega0, K_r_SP2))
+    r_OC10 = r_OP(0) - A_IB0 @ B_r_CP1
+    v_C10 = v_P(0) + A_IB0 @ (cross3(B_omega0, B_r_CP1))
+    r_OC20 = r_OP(0) - A_IB0 @ B_r_CP2
+    v_C20 = v_P(0) + A_IB0 @ (cross3(B_omega0, B_r_CP2))
 
     system = System()
 
@@ -72,12 +72,12 @@ def run(revolute_joint_used=False):
     system.add(frame)
 
     p0 = axis_angle2quat(np.array([0, 0, 1]), phi0)
-    q10 = np.concatenate((r_OS10, p0))
-    q20 = np.concatenate((r_OS20, p0))
-    u10 = np.concatenate((v_S10, K_omega0))
-    u20 = np.concatenate((v_S20, K_omega0))
-    RB1 = RigidBody(m / 2, K_theta_S1, q0=q10, u0=u10)
-    RB2 = RigidBody(m / 2, K_theta_S2, q0=q20, u0=u20)
+    q10 = np.concatenate((r_OC10, p0))
+    q20 = np.concatenate((r_OC20, p0))
+    u10 = np.concatenate((v_C10, B_omega0))
+    u20 = np.concatenate((v_C20, B_omega0))
+    RB1 = RigidBody(m / 2, B_theta_C1, q0=q10, u0=u10)
+    RB2 = RigidBody(m / 2, B_theta_C2, q0=q20, u0=u20)
 
     if revolute_joint_used:
         joint = Revolute(frame, RB1, 2, r_OP(0), np.eye(3))
@@ -136,18 +136,18 @@ def run(revolute_joint_used=False):
         x_0, y_0, z_0 = r_OP(t)
         x_S1, y_S1, z_S1 = RB1.r_OP(t, q[RB1.qDOF])
         x_S2, y_S2, z_S2 = RB2.r_OP(t, q[RB2.qDOF])
-        x_RC, y_RC, z_RC = RB1.r_OP(t, q[RB1.qDOF], K_r_SP=K_r_SP1)
-        x_RB2, y_RB2, z_RB2 = RB2.r_OP(t, q[RB2.qDOF], K_r_SP=K_r_SP1)
+        x_RC, y_RC, z_RC = RB1.r_OP(t, q[RB1.qDOF], B_r_CP=B_r_CP1)
+        x_RB2, y_RB2, z_RB2 = RB2.r_OP(t, q[RB2.qDOF], B_r_CP=B_r_CP1)
 
-        A_IK1 = RB1.A_IK(t, q[RB1.qDOF])
-        d11 = A_IK1[:, 0]
-        d21 = A_IK1[:, 1]
-        d31 = A_IK1[:, 2]
+        A_IB1 = RB1.A_IB(t, q[RB1.qDOF])
+        d11 = A_IB1[:, 0]
+        d21 = A_IB1[:, 1]
+        d31 = A_IB1[:, 2]
 
-        A_IK2 = RB2.A_IK(t, q[RB2.qDOF])
-        d12 = A_IK2[:, 0]
-        d22 = A_IK2[:, 1]
-        d32 = A_IK2[:, 2]
+        A_IB2 = RB2.A_IB(t, q[RB2.qDOF])
+        d12 = A_IB2[:, 0]
+        d22 = A_IB2[:, 1]
+        d32 = A_IB2[:, 2]
 
         (rb,) = ax.plot(
             [x_0, x_RC, x_RB2], [y_0, y_RC, y_RB2], [z_0, z_RC, z_RB2], "-k"
@@ -196,20 +196,20 @@ def run(revolute_joint_used=False):
         # def update(t, q, COM, d11_, d21_, d31_):
         x_0, y_0, z_0 = r_OP(t)
         # TODO is this -L/2?
-        x_S1, y_S1, z_S1 = RB1.r_OP(t, q[RB1.qDOF], K_r_SP=np.array([0, -L / 2, 0]))
-        x_S2, y_S2, z_S2 = RB2.r_OP(t, q[RB2.qDOF], K_r_SP=np.array([0, -L / 2, 0]))
-        x_RC, y_RC, z_RC = RB1.r_OP(t, q[RB1.qDOF], K_r_SP=K_r_SP1)
-        x_RB2, y_RB2, z_RB2 = RB2.r_OP(t, q[RB2.qDOF], K_r_SP=K_r_SP1)
+        x_S1, y_S1, z_S1 = RB1.r_OP(t, q[RB1.qDOF], B_r_CP=np.array([0, -L / 2, 0]))
+        x_S2, y_S2, z_S2 = RB2.r_OP(t, q[RB2.qDOF], B_r_CP=np.array([0, -L / 2, 0]))
+        x_RC, y_RC, z_RC = RB1.r_OP(t, q[RB1.qDOF], B_r_CP=B_r_CP1)
+        x_RB2, y_RB2, z_RB2 = RB2.r_OP(t, q[RB2.qDOF], B_r_CP=B_r_CP1)
 
-        A_IK1 = RB1.A_IK(t, q[RB1.qDOF])
-        d11 = A_IK1[:, 0]
-        d21 = A_IK1[:, 1]
-        d31 = A_IK1[:, 2]
+        A_IB1 = RB1.A_IB(t, q[RB1.qDOF])
+        d11 = A_IB1[:, 0]
+        d21 = A_IB1[:, 1]
+        d31 = A_IB1[:, 2]
 
-        A_IK2 = RB2.A_IK(t, q[RB2.qDOF])
-        d12 = A_IK2[:, 0]
-        d22 = A_IK2[:, 1]
-        d32 = A_IK2[:, 2]
+        A_IB2 = RB2.A_IB(t, q[RB2.qDOF])
+        d12 = A_IB2[:, 0]
+        d22 = A_IB2[:, 1]
+        d32 = A_IB2[:, 2]
 
         rb.set_data([x_0, x_RC, x_RB2], [y_0, y_RC, y_RB2])
         rb.set_3d_properties([z_0, z_RC, z_RB2])
@@ -282,12 +282,12 @@ def run(revolute_joint_used=False):
     )
     x_ = []
     y_ = []
-    r_OS = np.zeros((3, len(q[:, 0])))
-    r_OS1 = np.zeros((3, len(q[:, 0])))
+    r_OC = np.zeros((3, len(q[:, 0])))
+    r_OC1 = np.zeros((3, len(q[:, 0])))
     for i, ti in enumerate(t):
-        r_OS = q[i, :3] - (RB1.A_IK(ti, q[i, :7]) @ K_r_SP1)
-        x_.append(r_OS[0])
-        y_.append(r_OS[1])
+        r_OC = q[i, :3] - (RB1.A_IB(ti, q[i, :7]) @ B_r_CP1)
+        x_.append(r_OC[0])
+        y_.append(r_OC[1])
     fig, ax = plt.subplots(2, 1)
     ax[0].plot(t, x_, "--gx")
     ax[1].plot(t, y_, "--gx")
@@ -299,8 +299,8 @@ def run(revolute_joint_used=False):
 
     # fig, ax = plt.subplots(1, 1)
     # # delta_phi = [abs(norm(quat2axis_angle(qi[RB1.qDOF[3:]])) - norm(quat2axis_angle(qi[RB2.qDOF[3:]])) ) for qi in q]
-    # n1 = [np.linalg.norm(RB1.A_IK(ti, qi[RB1.qDOF])) for ti, qi in zip(sol.t, q)]
-    # n2 = [np.linalg.norm(RB2.A_IK(ti, qi[RB2.qDOF])) for ti, qi in zip(sol.t, q)]
+    # n1 = [np.linalg.norm(RB1.A_IB(ti, qi[RB1.qDOF])) for ti, qi in zip(sol.t, q)]
+    # n2 = [np.linalg.norm(RB2.A_IB(ti, qi[RB2.qDOF])) for ti, qi in zip(sol.t, q)]
     # ax.plot(sol.t, n1)
     # ax.plot(sol.t, n2)
 

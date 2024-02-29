@@ -525,6 +525,6 @@ def vtk_sphere(radius):
         cell:       connectivity of Bezier Hexahedron cell
         point_data: additional data needed for Bezier Hexahedron cell
     """
-    cell = ("VTK_BEZIER_HEXAHEDRON", connectivity)
+    cell = ("VTB_BEZIER_HEXAHEDRON", connectivity)
     point_data = {"RationalWeights": weights}
     return radius * points, cell, point_data

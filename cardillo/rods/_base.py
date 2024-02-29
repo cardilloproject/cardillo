@@ -42,8 +42,8 @@ class CosseratRod(RodExportBase, ABC):
             of area.
         material_model: RodMaterialModel
             Constitutive law of Cosserat rod which relates the rod strain
-            measures K_Gamma and K_Kappa with the contact forces K_n and couples
-            K_m in the cross-section-fixed K-basis.
+            measures B_Gamma and B_Kappa with the contact forces B_n and couples
+            B_m in the cross-section-fixed K-basis.
         nelement : int
             Number of rod elements.
         polynomial_degree : int
@@ -64,7 +64,7 @@ class CosseratRod(RodExportBase, ABC):
             generalized velocity coordinates, which are given by the nodal
             centerline velocity v_P_i in R^3 together with the cross-section
             angular velocity represented in the cross-section-fixed K-basis
-            K_omega_IK.
+            B_omega_IK.
         nquadrature_dyn : int
             Number of quadrature points to integrate dynamical and external
             virtual work functionals.
@@ -245,9 +245,9 @@ class CosseratRod(RodExportBase, ABC):
         self.J = np.zeros((self.nelement, self.nquadrature), dtype=float)
         self.J_dyn = np.zeros((self.nelement, self.nquadrature_dyn), dtype=float)
         # dilatation and shear strains of the reference configuration
-        self.K_Gamma0 = np.zeros((self.nelement, self.nquadrature, 3), dtype=float)
+        self.B_Gamma0 = np.zeros((self.nelement, self.nquadrature, 3), dtype=float)
         # curvature of the reference configuration
-        self.K_Kappa0 = np.zeros((self.nelement, self.nquadrature, 3), dtype=float)
+        self.B_Kappa0 = np.zeros((self.nelement, self.nquadrature, 3), dtype=float)
 
         for el in range(self.nelement):
             qe = self.Q[self.elDOF[el]]
@@ -257,33 +257,33 @@ class CosseratRod(RodExportBase, ABC):
                 qpi = self.qp[el, i]
 
                 # evaluate required quantities
-                _, _, K_Gamma_bar, K_Kappa_bar = self._eval(
+                _, _, B_Gamma_bar, B_Kappa_bar = self._eval(
                     qe, qpi, N=self.N_r[el, i], N_xi=self.N_r_xi[el, i]
                 )
 
                 # length of reference tangential vector
-                J = norm(K_Gamma_bar)
+                J = norm(B_Gamma_bar)
 
                 # dilatation and shear strains
-                K_Gamma = K_Gamma_bar / J
+                B_Gamma = B_Gamma_bar / J
 
                 # torsional and flexural strains
-                K_Kappa = K_Kappa_bar / J
+                B_Kappa = B_Kappa_bar / J
 
                 # safe precomputed quantities for later
                 self.J[el, i] = J
-                self.K_Gamma0[el, i] = K_Gamma
-                self.K_Kappa0[el, i] = K_Kappa
+                self.B_Gamma0[el, i] = B_Gamma
+                self.B_Kappa0[el, i] = B_Kappa
 
             for i in range(self.nquadrature_dyn):
                 # current quadrature point
                 qpi = self.qp_dyn[el, i]
                 N, N_xi = self.basis_functions_r(qpi)
                 # evaluate required quantities
-                _, _, K_Gamma_bar, K_Kappa_bar = self._eval(qe, qpi, N, N_xi)
+                _, _, B_Gamma_bar, B_Kappa_bar = self._eval(qe, qpi, N, N_xi)
 
                 # length of reference tangential vector
-                self.J_dyn[el, i] = norm(K_Gamma_bar)
+                self.J_dyn[el, i] = norm(B_Gamma_bar)
 
     @staticmethod
     def straight_configuration(
@@ -291,7 +291,7 @@ class CosseratRod(RodExportBase, ABC):
         L,
         polynomial_degree=1,
         r_OP0=np.zeros(3, dtype=float),
-        A_IK0=np.eye(3, dtype=float),
+        A_IB0=np.eye(3, dtype=float),
     ):
         """Compute generalized position coordinates for straight configuration."""
         nnodes = polynomial_degree * nelement + 1
@@ -301,13 +301,13 @@ class CosseratRod(RodExportBase, ABC):
         z0 = np.zeros(nnodes)
         r_OP = np.vstack((x0, y0, z0))
         for i in range(nnodes):
-            r_OP[:, i] = r_OP0 + A_IK0 @ r_OP[:, i]
+            r_OP[:, i] = r_OP0 + A_IB0 @ r_OP[:, i]
 
         # reshape generalized coordinates to nodal ordering
         q_r = r_OP.reshape(-1, order="C")
 
-        # extract quaternion from orientation A_IK0
-        p = Log_SO3_quat(A_IK0)
+        # extract quaternion from orientation A_IB0
+        p = Log_SO3_quat(A_IB0)
         q_p = np.repeat(p, nnodes)
 
         return np.concatenate([q_r, q_p])
@@ -321,7 +321,7 @@ class CosseratRod(RodExportBase, ABC):
         xi1,
         polynomial_degree,
         r_OP0=np.zeros(3, dtype=float),
-        A_IK0=np.eye(3, dtype=float),
+        A_IB0=np.eye(3, dtype=float),
     ):
         """Compute generalized position coordinates for a pre-curved rod along curve r_OP."""
         nnodes_r = polynomial_degree * nelement + 1
@@ -335,13 +335,13 @@ class CosseratRod(RodExportBase, ABC):
         p0 = np.zeros((4, nnodes_r))
 
         for i, xii in enumerate(xis):
-            r0[:, i] = r_OP0 + A_IK0 @ r_OP(xii)
+            r0[:, i] = r_OP0 + A_IB0 @ r_OP(xii)
             A_K0K = np.zeros((3, 3))
             A_K0K[:, 0] = r_OP_xi(xii) / norm(r_OP_xi(xii))
             A_K0K[:, 1] = r_OP_xixi(xii) / norm(r_OP_xixi(xii))
             A_K0K[:, 2] = cross3(A_K0K[:, 0], A_K0K[:, 1])
-            A_IK = A_IK0 @ A_K0K
-            p0[:, i] = Log_SO3_quat(A_IK)
+            A_IB = A_IB0 @ A_K0K
+            p0[:, i] = Log_SO3_quat(A_IB)
 
         # check for the right quaternion hemisphere
         for i in range(nnodes_r - 1):
@@ -361,9 +361,9 @@ class CosseratRod(RodExportBase, ABC):
         L,
         polynomial_degree=1,
         r_OP0=np.zeros(3, dtype=float),
-        A_IK0=np.eye(3, dtype=float),
+        A_IB0=np.eye(3, dtype=float),
         v_P0=np.zeros(3, dtype=float),
-        K_omega_IK0=np.zeros(3, dtype=float),
+        B_omega_IK0=np.zeros(3, dtype=float),
     ):
         """ "Compute initial generalized position and velocity coordinates for straight configuration"""
         nnodes = polynomial_degree * nelement + 1
@@ -374,13 +374,13 @@ class CosseratRod(RodExportBase, ABC):
 
         r_OP = np.vstack((x0, y0, z0))
         for i in range(nnodes):
-            r_OP[:, i] = r_OP0 + A_IK0 @ r_OP[:, i]
+            r_OP[:, i] = r_OP0 + A_IB0 @ r_OP[:, i]
 
         # reshape generalized coordinates to nodal ordering
         q_r = r_OP.reshape(-1, order="C")
 
-        # extract quaternion from orientation A_IK0
-        p = Log_SO3_quat(A_IK0)
+        # extract quaternion from orientation A_IB0
+        p = Log_SO3_quat(A_IB0)
         q_p = np.repeat(p, nnodes)
 
         ################################
@@ -389,13 +389,13 @@ class CosseratRod(RodExportBase, ABC):
         # centerline velocities
         v_P = np.zeros_like(r_OP, dtype=float)
         for i in range(nnodes):
-            v_P[:, i] = v_P0 + cross3(A_IK0 @ K_omega_IK0, (r_OP[:, i] - r_OP0))
+            v_P[:, i] = v_P0 + cross3(A_IB0 @ B_omega_IK0, (r_OP[:, i] - r_OP0))
 
         # reshape generalized velocity coordinates to nodal ordering
         u_r = v_P.reshape(-1, order="C")
 
         # all nodes share the same angular velocity
-        u_p = np.repeat(K_omega_IK0, nnodes)
+        u_p = np.repeat(B_omega_IK0, nnodes)
 
         q0 = np.concatenate([q_r, q_p])
         u0 = np.concatenate([u_r, u_p])
@@ -419,29 +419,29 @@ class CosseratRod(RodExportBase, ABC):
     ##################
     @abstractmethod
     def _eval(self, qe, xi, N, N_xi):
-        """Compute (r_OP, A_IK, K_Gamma_bar, K_Kappa_bar)."""
+        """Compute (r_OP, A_IB, B_Gamma_bar, B_Kappa_bar)."""
         ...
 
     @abstractmethod
     def _deval(self, qe, xi, N, N_xi):
         """Compute
         * r_OP
-        * A_IK
-        * K_Gamma_bar
-        * K_Kappa_bar
+        * A_IB
+        * B_Gamma_bar
+        * B_Kappa_bar
         * r_OP_qe
-        * A_IK_qe
-        * K_Gamma_bar_qe
-        * K_Kappa_bar_qe
+        * A_IB_qe
+        * B_Gamma_bar_qe
+        * B_Kappa_bar_qe
         """
         ...
 
     @abstractmethod
-    def A_IK(self, t, qe, frame_ID):
+    def A_IB(self, t, qe, xi):
         ...
 
     @abstractmethod
-    def A_IK_q(self, t, qe, frame_ID):
+    def A_IB_q(self, t, qe, xi):
         ...
 
     def assembler_callback(self):
@@ -464,8 +464,8 @@ class CosseratRod(RodExportBase, ABC):
             nodalDOF_p = self.nodalDOF_p[node]
             nodalDOF_p_u = self.nodalDOF_p_u[node]
             p = q[nodalDOF_p]
-            K_omega_IK = u[nodalDOF_p_u]
-            q_dot[nodalDOF_p] = T_SO3_inv_quat(p, normalize=False) @ K_omega_IK
+            B_omega_IK = u[nodalDOF_p_u]
+            q_dot[nodalDOF_p] = T_SO3_inv_quat(p, normalize=False) @ B_omega_IK
 
         return q_dot
 
@@ -477,12 +477,12 @@ class CosseratRod(RodExportBase, ABC):
             nodalDOF_p = self.nodalDOF_p[node]
             nodalDOF_p_u = self.nodalDOF_p_u[node]
             p = q[nodalDOF_p]
-            K_omega_IK = u[nodalDOF_p_u]
+            B_omega_IK = u[nodalDOF_p_u]
 
             coo[nodalDOF_p, nodalDOF_p] = np.einsum(
                 "ijk,j->ik",
                 T_SO3_inv_quat_P(p, normalize=False),
-                K_omega_IK,
+                B_omega_IK,
             )
 
         return coo
@@ -529,23 +529,23 @@ class CosseratRod(RodExportBase, ABC):
             qpi = self.qp[el, i]
             qwi = self.qw[el, i]
             Ji = self.J[el, i]
-            K_Gamma0 = self.K_Gamma0[el, i]
-            K_Kappa0 = self.K_Kappa0[el, i]
+            B_Gamma0 = self.B_Gamma0[el, i]
+            B_Kappa0 = self.B_Kappa0[el, i]
 
             # evaluate required quantities
-            _, _, K_Gamma_bar, K_Kappa_bar = self._eval(
+            _, _, B_Gamma_bar, B_Kappa_bar = self._eval(
                 qe, qpi, N=self.N_r[el, i], N_xi=self.N_r_xi[el, i]
             )
 
             # axial and shear strains
-            K_Gamma = K_Gamma_bar / Ji
+            B_Gamma = B_Gamma_bar / Ji
 
             # torsional and flexural strains
-            K_Kappa = K_Kappa_bar / Ji
+            B_Kappa = B_Kappa_bar / Ji
 
             # evaluate strain energy function
             E_pot_el += (
-                self.material_model.potential(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
+                self.material_model.potential(B_Gamma, B_Gamma0, B_Kappa, B_Kappa0)
                 * Ji
                 * qwi
             )
@@ -576,9 +576,9 @@ class CosseratRod(RodExportBase, ABC):
             for node in range(self.nnodes_element_r):
                 v_P += self.N_r_dyn[el, i, node] * ue[self.nodalDOF_element_r_u[node]]
 
-            K_omega_IK = np.zeros(3, dtype=float)
+            B_omega_IK = np.zeros(3, dtype=float)
             for node in range(self.nnodes_element_p):
-                K_omega_IK += (
+                B_omega_IK += (
                     self.N_p_dyn[el, i, node] * ue[self.nodalDOF_element_p_u[node]]
                 )
 
@@ -590,7 +590,7 @@ class CosseratRod(RodExportBase, ABC):
             # first part delta_phi (I_rho0 omega_dot + omega_tilde I_rho0 omega)
             E_kin_el += (
                 0.5
-                * (K_omega_IK @ self.cross_section_inertias.K_I_rho0 @ K_omega_IK)
+                * (B_omega_IK @ self.cross_section_inertias.B_I_rho0 @ B_omega_IK)
                 * Ji
                 * qwi
             )
@@ -652,18 +652,18 @@ class CosseratRod(RodExportBase, ABC):
                 r_OP += self.N_r_dyn[el, i, node] * qe[self.nodalDOF_element_r[node]]
                 v_P += self.N_r_dyn[el, i, node] * ue[self.nodalDOF_element_r_u[node]]
 
-            K_omega_IK = np.zeros(3, dtype=float)
+            B_omega_IK = np.zeros(3, dtype=float)
             for node in range(self.nnodes_element_p):
-                K_omega_IK += (
+                B_omega_IK += (
                     self.N_p_dyn[el, i, node] * ue[self.nodalDOF_element_p_u[node]]
                 )
 
-            A_IK = self.A_IK(t, qe, (qpi,))
+            A_IB = self.A_IB(t, qe, (qpi,))
 
             angular_momentum_el += (
                 (
                     cross3(r_OP, v_P) * self.cross_section_inertias.A_rho0
-                    + A_IK @ (self.cross_section_inertias.K_I_rho0 @ K_omega_IK)
+                    + A_IB @ (self.cross_section_inertias.B_I_rho0 @ B_omega_IK)
                 )
                 * Ji
                 * qwi
@@ -706,7 +706,7 @@ class CosseratRod(RodExportBase, ABC):
                     )
 
             # first part delta_phi (I_rho0 omega_dot + omega_tilde I_rho0 omega)
-            M_el_p_p = self.cross_section_inertias.K_I_rho0 * Ji * qwi
+            M_el_p_p = self.cross_section_inertias.B_I_rho0 * Ji * qwi
             for node_a in range(self.nnodes_element_p):
                 nodalDOF_a = self.nodalDOF_element_p_u[node_a]
                 for node_b in range(self.nnodes_element_p):
@@ -751,41 +751,41 @@ class CosseratRod(RodExportBase, ABC):
             qpi = self.qp[el, i]
             qwi = self.qw[el, i]
             J = self.J[el, i]
-            K_Gamma0 = self.K_Gamma0[el, i]
-            K_Kappa0 = self.K_Kappa0[el, i]
+            B_Gamma0 = self.B_Gamma0[el, i]
+            B_Kappa0 = self.B_Kappa0[el, i]
 
             # evaluate required quantities
-            _, A_IK, K_Gamma_bar, K_Kappa_bar = self._eval(
+            _, A_IB, B_Gamma_bar, B_Kappa_bar = self._eval(
                 qe, qpi, N=self.N_r[el, i], N_xi=self.N_r_xi[el, i]
             )
 
             # axial and shear strains
-            K_Gamma = K_Gamma_bar / J
+            B_Gamma = B_Gamma_bar / J
 
             # torsional and flexural strains
-            K_Kappa = K_Kappa_bar / J
+            B_Kappa = B_Kappa_bar / J
 
             # compute contact forces and couples from partial derivatives of
             # the strain energy function w.r.t. strain measures
-            K_n = self.material_model.K_n(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
-            K_m = self.material_model.K_m(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
+            B_n = self.material_model.B_n(B_Gamma, B_Gamma0, B_Kappa, B_Kappa0)
+            B_m = self.material_model.B_m(B_Gamma, B_Gamma0, B_Kappa, B_Kappa0)
 
             ############################
             # virtual work contributions
             ############################
             for node in range(self.nnodes_element_r):
                 f_int_el[self.nodalDOF_element_r_u[node]] -= (
-                    self.N_r_xi[el, i, node] * A_IK @ K_n * qwi
+                    self.N_r_xi[el, i, node] * A_IB @ B_n * qwi
                 )
 
             for node in range(self.nnodes_element_p):
                 f_int_el[self.nodalDOF_element_p_u[node]] -= (
-                    self.N_p_xi[el, i, node] * K_m * qwi
+                    self.N_p_xi[el, i, node] * B_m * qwi
                 )
 
                 f_int_el[self.nodalDOF_element_p_u[node]] += (
                     self.N_p[el, i, node]
-                    * (cross3(K_Gamma_bar, K_n) + cross3(K_Kappa_bar, K_m))
+                    * (cross3(B_Gamma_bar, B_n) + cross3(B_Kappa_bar, B_m))
                     * qwi
                 )
 
@@ -799,48 +799,48 @@ class CosseratRod(RodExportBase, ABC):
             qpi = self.qp[el, i]
             qwi = self.qw[el, i]
             Ji = self.J[el, i]
-            K_Gamma0 = self.K_Gamma0[el, i]
-            K_Kappa0 = self.K_Kappa0[el, i]
+            B_Gamma0 = self.B_Gamma0[el, i]
+            B_Kappa0 = self.B_Kappa0[el, i]
 
             # evaluate required quantities
             (
                 r_OP,
-                A_IK,
-                K_Gamma_bar,
-                K_Kappa_bar,
+                A_IB,
+                B_Gamma_bar,
+                B_Kappa_bar,
                 r_OP_qe,
-                A_IK_qe,
-                K_Gamma_bar_qe,
-                K_Kappa_bar_qe,
+                A_IB_qe,
+                B_Gamma_bar_qe,
+                B_Kappa_bar_qe,
             ) = self._deval(qe, qpi, N=self.N_r[el, i], N_xi=self.N_r_xi[el, i])
 
             # axial and shear strains
-            K_Gamma = K_Gamma_bar / Ji
-            K_Gamma_qe = K_Gamma_bar_qe / Ji
+            B_Gamma = B_Gamma_bar / Ji
+            B_Gamma_qe = B_Gamma_bar_qe / Ji
 
             # torsional and flexural strains
-            K_Kappa = K_Kappa_bar / Ji
-            K_Kappa_qe = K_Kappa_bar_qe / Ji
+            B_Kappa = B_Kappa_bar / Ji
+            B_Kappa_qe = B_Kappa_bar_qe / Ji
 
             # compute contact forces and couples from partial derivatives of
             # the strain energy function w.r.t. strain measures
-            K_n = self.material_model.K_n(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
-            K_n_K_Gamma = self.material_model.K_n_K_Gamma(
-                K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
+            B_n = self.material_model.B_n(B_Gamma, B_Gamma0, B_Kappa, B_Kappa0)
+            B_n_B_Gamma = self.material_model.B_n_B_Gamma(
+                B_Gamma, B_Gamma0, B_Kappa, B_Kappa0
             )
-            K_n_K_Kappa = self.material_model.K_n_K_Kappa(
-                K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
+            B_n_B_Kappa = self.material_model.B_n_B_Kappa(
+                B_Gamma, B_Gamma0, B_Kappa, B_Kappa0
             )
-            K_n_qe = K_n_K_Gamma @ K_Gamma_qe + K_n_K_Kappa @ K_Kappa_qe
+            B_n_qe = B_n_B_Gamma @ B_Gamma_qe + B_n_B_Kappa @ B_Kappa_qe
 
-            K_m = self.material_model.K_m(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
-            K_m_K_Gamma = self.material_model.K_m_K_Gamma(
-                K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
+            B_m = self.material_model.B_m(B_Gamma, B_Gamma0, B_Kappa, B_Kappa0)
+            B_m_B_Gamma = self.material_model.B_m_B_Gamma(
+                B_Gamma, B_Gamma0, B_Kappa, B_Kappa0
             )
-            K_m_K_Kappa = self.material_model.K_m_K_Kappa(
-                K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
+            B_m_B_Kappa = self.material_model.B_m_B_Kappa(
+                B_Gamma, B_Gamma0, B_Kappa, B_Kappa0
             )
-            K_m_qe = K_m_K_Gamma @ K_Gamma_qe + K_m_K_Kappa @ K_Kappa_qe
+            B_m_qe = B_m_B_Gamma @ B_Gamma_qe + B_m_B_Kappa @ B_Kappa_qe
 
             ############################
             # virtual work contributions
@@ -849,24 +849,24 @@ class CosseratRod(RodExportBase, ABC):
                 f_int_el_qe[self.nodalDOF_element_r[node], :] -= (
                     self.N_r_xi[el, i, node]
                     * qwi
-                    * (np.einsum("ikj,k->ij", A_IK_qe, K_n) + A_IK @ K_n_qe)
+                    * (np.einsum("ikj,k->ij", A_IB_qe, B_n) + A_IB @ B_n_qe)
                 )
 
             for node in range(self.nnodes_element_p):
                 f_int_el_qe[self.nodalDOF_element_p_u[node], :] += (
                     self.N_p[el, i, node]
                     * qwi
-                    * (ax2skew(K_Gamma_bar) @ K_n_qe - ax2skew(K_n) @ K_Gamma_bar_qe)
+                    * (ax2skew(B_Gamma_bar) @ B_n_qe - ax2skew(B_n) @ B_Gamma_bar_qe)
                 )
 
                 f_int_el_qe[self.nodalDOF_element_p_u[node], :] -= (
-                    self.N_p_xi[el, i, node] * qwi * K_m_qe
+                    self.N_p_xi[el, i, node] * qwi * B_m_qe
                 )
 
                 f_int_el_qe[self.nodalDOF_element_p_u[node], :] += (
                     self.N_p[el, i, node]
                     * qwi
-                    * (ax2skew(K_Kappa_bar) @ K_m_qe - ax2skew(K_m) @ K_Kappa_bar_qe)
+                    * (ax2skew(B_Kappa_bar) @ B_m_qe - ax2skew(B_m) @ B_Kappa_bar_qe)
                 )
 
         return f_int_el_qe
@@ -876,15 +876,15 @@ class CosseratRod(RodExportBase, ABC):
 
         for i in range(self.nquadrature_dyn):
             # interpoalte angular velocity
-            K_Omega = np.zeros(3, dtype=np.common_type(qe, ue))
+            B_Omega = np.zeros(3, dtype=np.common_type(qe, ue))
             for node in range(self.nnodes_element_p):
-                K_Omega += (
+                B_Omega += (
                     self.N_p_dyn[el, i, node] * ue[self.nodalDOF_element_p_u[node]]
                 )
 
             # vector of gyroscopic forces
             f_gyr_el_p = (
-                cross3(K_Omega, self.cross_section_inertias.K_I_rho0 @ K_Omega)
+                cross3(B_Omega, self.cross_section_inertias.B_I_rho0 @ B_Omega)
                 * self.J_dyn[el, i]
                 * self.qw_dyn[el, i]
             )
@@ -902,9 +902,9 @@ class CosseratRod(RodExportBase, ABC):
 
         for i in range(self.nquadrature_dyn):
             # interpoalte angular velocity
-            K_Omega = np.zeros(3, dtype=float)
+            B_Omega = np.zeros(3, dtype=float)
             for node in range(self.nnodes_element_p):
-                K_Omega += (
+                B_Omega += (
                     self.N_p_dyn[el, i, node] * ue[self.nodalDOF_element_p_u[node]]
                 )
 
@@ -912,8 +912,8 @@ class CosseratRod(RodExportBase, ABC):
             f_gyr_u_el_p = (
                 (
                     (
-                        ax2skew(K_Omega) @ self.cross_section_inertias.K_I_rho0
-                        - ax2skew(self.cross_section_inertias.K_I_rho0 @ K_Omega)
+                        ax2skew(B_Omega) @ self.cross_section_inertias.B_I_rho0
+                        - ax2skew(self.cross_section_inertias.B_I_rho0 @ B_Omega)
                     )
                 )
                 * self.J_dyn[el, i]
@@ -961,106 +961,106 @@ class CosseratRod(RodExportBase, ABC):
     ####################################################
     # interactions with other bodies and the environment
     ####################################################
-    def elDOF_P(self, frame_ID):
-        xi = frame_ID
+    def elDOF_P(self, xi):
+        xi = xi
         el = self.element_number(xi)
         return self.elDOF[el]
 
-    def elDOF_P_u(self, frame_ID):
-        xi = frame_ID
+    def elDOF_P_u(self, xi):
+        xi = xi
         el = self.element_number(xi)
         return self.elDOF_u[el]
 
-    def local_qDOF_P(self, frame_ID):
-        return self.elDOF_P(frame_ID)
+    def local_qDOF_P(self, xi):
+        return self.elDOF_P(xi)
 
-    def local_uDOF_P(self, frame_ID):
-        return self.elDOF_P_u(frame_ID)
+    def local_uDOF_P(self, xi):
+        return self.elDOF_P_u(xi)
 
     ##########################
-    # r_OP / A_IK contribution
+    # r_OP / A_IB contribution
     ##########################
-    def r_OP(self, t, qe, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
-        N, N_xi = self.basis_functions_r(frame_ID)
-        r_OS, A_IK, _, _ = self._eval(qe, frame_ID, N, N_xi)
-        return r_OS + A_IK @ K_r_SP
+    def r_OP(self, t, qe, xi, B_r_CP=np.zeros(3, dtype=float)):
+        N, N_xi = self.basis_functions_r(xi)
+        r_OC, A_IB, _, _ = self._eval(qe, xi, N, N_xi)
+        return r_OC + A_IB @ B_r_CP
 
     # TODO: Think of a faster version than using _deval
-    def r_OP_q(self, t, qe, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
+    def r_OP_q(self, t, qe, xi, B_r_CP=np.zeros(3, dtype=float)):
         # evaluate required quantities
-        N, N_xi = self.basis_functions_r(frame_ID)
+        N, N_xi = self.basis_functions_r(xi)
         (
-            r_OS,
-            A_IK,
+            r_OC,
+            A_IB,
             _,
             _,
-            r_OS_q,
-            A_IK_q,
+            r_OC_q,
+            A_IB_q,
             _,
             _,
-        ) = self._deval(qe, frame_ID, N, N_xi)
+        ) = self._deval(qe, xi, N, N_xi)
 
-        return r_OS_q + np.einsum("ijk,j->ik", A_IK_q, K_r_SP)
+        return r_OC_q + np.einsum("ijk,j->ik", A_IB_q, B_r_CP)
 
-    def v_P(self, t, qe, ue, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
-        N, _ = self.basis_functions_r(frame_ID)
+    def v_P(self, t, qe, ue, xi, B_r_CP=np.zeros(3, dtype=float)):
+        N, _ = self.basis_functions_r(xi)
 
-        # interpolate A_IK and angular velocity in K-frame
-        A_IK = self.A_IK(t, qe, frame_ID)
-        K_Omega = np.zeros(3, dtype=np.common_type(qe, ue))
+        # interpolate A_IB and angular velocity in K-frame
+        A_IB = self.A_IB(t, qe, xi)
+        B_Omega = np.zeros(3, dtype=np.common_type(qe, ue))
         for node in range(self.nnodes_element_p):
-            K_Omega += N[node] * ue[self.nodalDOF_element_p_u[node]]
+            B_Omega += N[node] * ue[self.nodalDOF_element_p_u[node]]
 
         # centerline velocity
-        v_S = np.zeros(3, dtype=np.common_type(qe, ue))
+        v_C = np.zeros(3, dtype=np.common_type(qe, ue))
         for node in range(self.nnodes_element_r):
-            v_S += N[node] * ue[self.nodalDOF_element_r[node]]
+            v_C += N[node] * ue[self.nodalDOF_element_r[node]]
 
-        return v_S + A_IK @ cross3(K_Omega, K_r_SP)
+        return v_C + A_IB @ cross3(B_Omega, B_r_CP)
 
-    def v_P_q(self, t, qe, ue, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
+    def v_P_q(self, t, qe, ue, xi, B_r_CP=np.zeros(3, dtype=float)):
         # evaluate shape functions
-        N, _ = self.basis_functions_r(frame_ID)
+        N, _ = self.basis_functions_r(xi)
 
-        # interpolate derivative of A_IK and angular velocity in K-frame
-        A_IK_q = self.A_IK_q(t, qe, frame_ID)
-        K_Omega = np.zeros(3, dtype=np.common_type(qe, ue))
+        # interpolate derivative of A_IB and angular velocity in K-frame
+        A_IB_q = self.A_IB_q(t, qe, xi)
+        B_Omega = np.zeros(3, dtype=np.common_type(qe, ue))
         for node in range(self.nnodes_element_p):
-            K_Omega += N[node] * ue[self.nodalDOF_element_p_u[node]]
+            B_Omega += N[node] * ue[self.nodalDOF_element_p_u[node]]
 
         v_P_q = np.einsum(
             "ijk,j->ik",
-            A_IK_q,
-            cross3(K_Omega, K_r_SP),
+            A_IB_q,
+            cross3(B_Omega, B_r_CP),
         )
         return v_P_q
 
-    def J_P(self, t, qe, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
+    def J_P(self, t, qe, xi, B_r_CP=np.zeros(3, dtype=float)):
         # evaluate required nodal shape functions
-        N, _ = self.basis_functions_r(frame_ID)
+        N, _ = self.basis_functions_r(xi)
 
         # transformation matrix
-        A_IK = self.A_IK(t, qe, frame_ID)
+        A_IB = self.A_IB(t, qe, xi)
 
-        # skew symmetric matrix of K_r_SP
-        K_r_SP_tilde = ax2skew(K_r_SP)
+        # skew symmetric matrix of B_r_CP
+        B_r_CP_tilde = ax2skew(B_r_CP)
 
         # interpolate centerline and axis angle contributions
         J_P = np.zeros((3, self.nu_element), dtype=qe.dtype)
         for node in range(self.nnodes_element_r):
             J_P[:, self.nodalDOF_element_r[node]] += N[node] * np.eye(3)
         for node in range(self.nnodes_element_p):
-            J_P[:, self.nodalDOF_element_p_u[node]] -= N[node] * A_IK @ K_r_SP_tilde
+            J_P[:, self.nodalDOF_element_p_u[node]] -= N[node] * A_IB @ B_r_CP_tilde
 
         return J_P
 
-    def J_P_q(self, t, qe, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
+    def J_P_q(self, t, qe, xi, B_r_CP=np.zeros(3, dtype=float)):
         # evaluate required nodal shape functions
-        N, _ = self.basis_functions_r(frame_ID)
+        N, _ = self.basis_functions_r(xi)
 
-        K_r_SP_tilde = ax2skew(K_r_SP)
-        A_IK_q = self.A_IK_q(t, qe, frame_ID)
-        prod = np.einsum("ijl,jk", A_IK_q, K_r_SP_tilde)
+        B_r_CP_tilde = ax2skew(B_r_CP)
+        A_IB_q = self.A_IB_q(t, qe, xi)
+        prod = np.einsum("ijl,jk", A_IB_q, B_r_CP_tilde)
 
         # interpolate axis angle contributions since centerline contributon is
         # zero
@@ -1071,88 +1071,88 @@ class CosseratRod(RodExportBase, ABC):
 
         return J_P_q
 
-    def a_P(self, t, qe, ue, ue_dot, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
-        N, _ = self.basis_functions_r(frame_ID)
+    def a_P(self, t, qe, ue, ue_dot, xi, B_r_CP=np.zeros(3, dtype=float)):
+        N, _ = self.basis_functions_r(xi)
 
         # interpolate orientation
-        A_IK = self.A_IK(t, qe, frame_ID)
+        A_IB = self.A_IB(t, qe, xi)
 
         # centerline acceleration
-        a_S = np.zeros(3, dtype=np.common_type(qe, ue, ue_dot))
+        a_C = np.zeros(3, dtype=np.common_type(qe, ue, ue_dot))
         for node in range(self.nnodes_element_r):
-            a_S += N[node] * ue_dot[self.nodalDOF_element_r[node]]
+            a_C += N[node] * ue_dot[self.nodalDOF_element_r[node]]
 
         # angular velocity and acceleration in K-frame
-        K_Omega = self.K_Omega(t, qe, ue, frame_ID)
-        K_Psi = self.K_Psi(t, qe, ue, ue_dot, frame_ID)
+        B_Omega = self.B_Omega(t, qe, ue, xi)
+        B_Psi = self.B_Psi(t, qe, ue, ue_dot, xi)
 
         # rigid body formular
-        return a_S + A_IK @ (
-            cross3(K_Psi, K_r_SP) + cross3(K_Omega, cross3(K_Omega, K_r_SP))
+        return a_C + A_IB @ (
+            cross3(B_Psi, B_r_CP) + cross3(B_Omega, cross3(B_Omega, B_r_CP))
         )
 
-    def a_P_q(self, t, qe, ue, ue_dot, frame_ID, K_r_SP=None):
-        K_Omega = self.K_Omega(t, qe, ue, frame_ID)
-        K_Psi = self.K_Psi(t, qe, ue, ue_dot, frame_ID)
+    def a_P_q(self, t, qe, ue, ue_dot, xi, B_r_CP=None):
+        B_Omega = self.B_Omega(t, qe, ue, xi)
+        B_Psi = self.B_Psi(t, qe, ue, ue_dot, xi)
         a_P_q = np.einsum(
             "ijk,j->ik",
-            self.A_IK_q(t, qe, frame_ID),
-            cross3(K_Psi, K_r_SP) + cross3(K_Omega, cross3(K_Omega, K_r_SP)),
+            self.A_IB_q(t, qe, xi),
+            cross3(B_Psi, B_r_CP) + cross3(B_Omega, cross3(B_Omega, B_r_CP)),
         )
         return a_P_q
 
-    def a_P_u(self, t, qe, ue, ue_dot, frame_ID, K_r_SP=None):
-        K_Omega = self.K_Omega(t, qe, ue, frame_ID)
-        local = -self.A_IK(t, qe, frame_ID) @ (
-            ax2skew(cross3(K_Omega, K_r_SP)) + ax2skew(K_Omega) @ ax2skew(K_r_SP)
+    def a_P_u(self, t, qe, ue, ue_dot, xi, B_r_CP=None):
+        B_Omega = self.B_Omega(t, qe, ue, xi)
+        local = -self.A_IB(t, qe, xi) @ (
+            ax2skew(cross3(B_Omega, B_r_CP)) + ax2skew(B_Omega) @ ax2skew(B_r_CP)
         )
 
-        N, _ = self.basis_functions_r(frame_ID)
+        N, _ = self.basis_functions_r(xi)
         a_P_u = np.zeros((3, self.nu_element), dtype=float)
         for node in range(self.nnodes_element_r):
             a_P_u[:, self.nodalDOF_element_p_u[node]] += N[node] * local
 
         return a_P_u
 
-    def K_Omega(self, t, qe, ue, frame_ID):
+    def B_Omega(self, t, qe, ue, xi):
         """Since we use Petrov-Galerkin method we only interpolate the nodal
         angular velocities in the K-frame.
         """
-        N_p, _ = self.basis_functions_p(frame_ID)
-        K_Omega = np.zeros(3, dtype=np.common_type(qe, ue))
+        N_p, _ = self.basis_functions_p(xi)
+        B_Omega = np.zeros(3, dtype=np.common_type(qe, ue))
         for node in range(self.nnodes_element_p):
-            K_Omega += N_p[node] * ue[self.nodalDOF_element_p_u[node]]
-        return K_Omega
+            B_Omega += N_p[node] * ue[self.nodalDOF_element_p_u[node]]
+        return B_Omega
 
-    def K_Omega_q(self, t, qe, ue, frame_ID):
+    def B_Omega_q(self, t, qe, ue, xi):
         return np.zeros((3, self.nq_element), dtype=float)
 
-    def K_J_R(self, t, qe, frame_ID):
-        N_p, _ = self.basis_functions_p(frame_ID)
-        K_J_R = np.zeros((3, self.nu_element), dtype=float)
+    def B_J_R(self, t, qe, xi):
+        N_p, _ = self.basis_functions_p(xi)
+        B_J_R = np.zeros((3, self.nu_element), dtype=float)
         for node in range(self.nnodes_element_p):
-            K_J_R[:, self.nodalDOF_element_p_u[node]] += N_p[node] * np.eye(
+            B_J_R[:, self.nodalDOF_element_p_u[node]] += N_p[node] * np.eye(
                 3, dtype=float
             )
-        return K_J_R
+        return B_J_R
 
-    def K_J_R_q(self, t, qe, frame_ID):
+    def B_J_R_q(self, t, qe, xi):
         return np.zeros((3, self.nu_element, self.nq_element), dtype=float)
 
-    def K_Psi(self, t, qe, ue, ue_dot, frame_ID):
+    def B_Psi(self, t, qe, ue, ue_dot, xi):
         """Since we use Petrov-Galerkin method we only interpolate the nodal
         time derivative of the angular velocities in the K-frame.
         """
-        N, _ = self.basis_functions_p(frame_ID)
-        K_Psi = np.zeros(3, dtype=np.common_type(qe, ue, ue_dot))
+        N, _ = self.basis_functions_p(xi)
+        B_Psi = np.zeros(3, dtype=np.common_type(qe, ue, ue_dot))
         for node in range(self.nnodes_element_p):
-            K_Psi += N[node] * ue_dot[self.nodalDOF_element_p_u[node]]
-        return K_Psi
+            B_Psi += N[node] * ue_dot[self.nodalDOF_element_p_u[node]]
+        return B_Psi
 
-    def K_Psi_q(self, t, qe, ue, ue_dot, frame_ID):
+    def B_Psi_q(self, t, qe, ue, ue_dot, xi):
         return np.zeros((3, self.nq_element), dtype=float)
 
-    def K_Psi_u(self, t, qe, ue, ue_dot, frame_ID):
+    def B_Psi_u(self, t, qe, ue, ue_dot, xi):
         return np.zeros((3, self.nu_element), dtype=float)
 
     ##############################
@@ -1164,21 +1164,21 @@ class CosseratRod(RodExportBase, ABC):
         qe = q[self.elDOF[el]]
 
         N, N_xi = self.basis_functions_r(xi)
-        _, _, K_Gamma_bar0, K_Kappa_bar0 = self._eval(Qe, xi, N, N_xi)
+        _, _, B_Gamma_bar0, B_Kappa_bar0 = self._eval(Qe, xi, N, N_xi)
 
-        J = norm(K_Gamma_bar0)
-        K_Gamma0 = K_Gamma_bar0 / J
-        K_Kappa0 = K_Kappa_bar0 / J
+        J = norm(B_Gamma_bar0)
+        B_Gamma0 = B_Gamma_bar0 / J
+        B_Kappa0 = B_Kappa_bar0 / J
 
-        _, _, K_Gamma_bar, K_Kappa_bar = self._eval(qe, xi, N, N_xi)
+        _, _, B_Gamma_bar, B_Kappa_bar = self._eval(qe, xi, N, N_xi)
 
-        K_Gamma = K_Gamma_bar / J
-        K_Kappa = K_Kappa_bar / J
+        B_Gamma = B_Gamma_bar / J
+        B_Kappa = B_Kappa_bar / J
 
-        K_n = self.material_model.K_n(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
-        K_m = self.material_model.K_m(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
+        B_n = self.material_model.B_n(B_Gamma, B_Gamma0, B_Kappa, B_Kappa0)
+        B_m = self.material_model.B_m(B_Gamma, B_Gamma0, B_Kappa, B_Kappa0)
 
-        return K_n, K_m
+        return B_n, B_m
 
     def eval_strains(self, t, q, la_c, la_g, xi):
         el = self.element_number(xi)
@@ -1186,18 +1186,18 @@ class CosseratRod(RodExportBase, ABC):
         qe = q[self.elDOF[el]]
 
         N, N_xi = self.basis_functions_r(xi)
-        _, _, K_Gamma_bar0, K_Kappa_bar0 = self._eval(Qe, xi, N, N_xi)
+        _, _, B_Gamma_bar0, B_Kappa_bar0 = self._eval(Qe, xi, N, N_xi)
 
-        J = norm(K_Gamma_bar0)
-        K_Gamma0 = K_Gamma_bar0 / J
-        K_Kappa0 = K_Kappa_bar0 / J
+        J = norm(B_Gamma_bar0)
+        B_Gamma0 = B_Gamma_bar0 / J
+        B_Kappa0 = B_Kappa_bar0 / J
 
-        _, _, K_Gamma_bar, K_Kappa_bar = self._eval(qe, xi, N, N_xi)
+        _, _, B_Gamma_bar, B_Kappa_bar = self._eval(qe, xi, N, N_xi)
 
-        K_Gamma = K_Gamma_bar / J
-        K_Kappa = K_Kappa_bar / J
+        B_Gamma = B_Gamma_bar / J
+        B_Kappa = B_Kappa_bar / J
 
-        return K_Gamma - K_Gamma0, K_Kappa - K_Kappa0
+        return B_Gamma - B_Gamma0, B_Kappa - B_Kappa0
 
 
 class CosseratRodMixed(CosseratRod):
@@ -1225,8 +1225,8 @@ class CosseratRodMixed(CosseratRod):
             of area.
         material_model : RodMaterialModel
             Constitutive law of Cosserat rod which relates the rod strain
-            measures K_Gamma and K_Kappa with the contact forces K_n and couples
-            K_m in the cross-section-fixed K-basis.
+            measures B_Gamma and B_Kappa with the contact forces B_n and couples
+            B_m in the cross-section-fixed K-basis.
         nelement : int
             Number of rod elements.
         polynomial_degree : int
@@ -1247,7 +1247,7 @@ class CosseratRodMixed(CosseratRod):
             generalized velocity coordinates, which are given by the nodal
             centerline velocity v_P_i in R^3 together with the cross-section
             angular velocity represented in the cross-section-fixed K-basis
-            K_omega_IK.
+            B_omega_IK.
         nquadrature_dyn : int
             Number of quadrature points to integrate dynamical and external
             virtual work functionals.
@@ -1288,18 +1288,18 @@ class CosseratRodMixed(CosseratRod):
         self.idx_n = self.idx_mixed[(self.idx_mixed < 3)]
         self.nmixed_n = len(self.idx_n)
         # construct a sieve for the mixed force field la_c to span the internal
-        # force, i.e., K_n = K_n_la_c_sieve @ la_c
-        self.K_n_la_c_sieve = np.zeros((3, self.nmixed_n))
+        # force, i.e., B_n = B_n_la_c_sieve @ la_c
+        self.B_n_la_c_sieve = np.zeros((3, self.nmixed_n))
         for i, ni in enumerate(self.idx_n):
-            self.K_n_la_c_sieve[ni, i] = 1
+            self.B_n_la_c_sieve[ni, i] = 1
 
         self.idx_m = self.idx_mixed[(self.idx_mixed >= 3)] - 3
         self.nmixed_m = len(self.idx_m)
         # construct a sieve for the mixed force field la_c to span the internal
-        # moment, i.e., K_m = K_m_la_c_sieve @ la_c
-        self.K_m_la_c_sieve = np.zeros((3, self.nmixed_m))
+        # moment, i.e., B_m = B_m_la_c_sieve @ la_c
+        self.B_m_la_c_sieve = np.zeros((3, self.nmixed_m))
         for i, mi in enumerate(self.idx_m):
-            self.K_m_la_c_sieve[mi, i] = 1
+            self.B_m_la_c_sieve[mi, i] = 1
 
         self.polynomial_degree_la_c = polynomial_degree - 1
         self.knot_vector_la_c = LagrangeKnotVector(
@@ -1374,12 +1374,12 @@ class CosseratRodMixed(CosseratRod):
                 la_c_node = la_ce[self.nodalDOF_element_la_c[node]]
                 la_c += self.N_la_c[el, i, node] * la_c_node
 
-            K_n = self.K_n_la_c_sieve @ la_c[: self.nmixed_n]
-            K_m = self.K_m_la_c_sieve @ la_c[self.nmixed_n :]
+            B_n = self.B_n_la_c_sieve @ la_c[: self.nmixed_n]
+            B_m = self.B_m_la_c_sieve @ la_c[self.nmixed_n :]
 
             # evaluate complementary strain energy function
             E_comp_pot_el += (
-                self.material_model.complementary_potential(K_n, K_m) * Ji * qwi
+                self.material_model.complementary_potential(B_n, B_m) * Ji * qwi
             )
 
         return E_comp_pot_el
@@ -1426,11 +1426,11 @@ class CosseratRodMixed(CosseratRod):
             qpi = self.qp[el, i]
             qwi = self.qw[el, i]
             Ji = self.J[el, i]
-            K_Gamma0 = self.K_Gamma0[el, i]
-            K_Kappa0 = self.K_Kappa0[el, i]
+            B_Gamma0 = self.B_Gamma0[el, i]
+            B_Kappa0 = self.B_Kappa0[el, i]
 
             # evaluate required quantities
-            _, _, K_Gamma_bar, K_Kappa_bar = self._eval(
+            _, _, B_Gamma_bar, B_Kappa_bar = self._eval(
                 qe, qpi, N=self.N_r[el, i], N_xi=self.N_r_xi[el, i]
             )
 
@@ -1440,19 +1440,19 @@ class CosseratRodMixed(CosseratRod):
                 la_c_node = la_ce[self.nodalDOF_element_la_c[node]]
                 la_c += self.N_la_c[el, i, node] * la_c_node
 
-            K_n = self.K_n_la_c_sieve @ la_c[: self.nmixed_n]
-            K_m = self.K_m_la_c_sieve @ la_c[self.nmixed_n :]
+            B_n = self.B_n_la_c_sieve @ la_c[: self.nmixed_n]
+            B_m = self.B_m_la_c_sieve @ la_c[self.nmixed_n :]
 
             # compute contact forces and couples from partial derivatives of
             # the strain energy function w.r.t. strain measures
             C_n_inv = self.material_model.C_n_inv
             C_m_inv = self.material_model.C_m_inv
 
-            # TODO: Store K_Gamma_bar0 and K_Kappa_bar0
+            # TODO: Store B_Gamma_bar0 and B_Kappa_bar0
             c_qp = np.concatenate(
                 (
-                    (Ji * C_n_inv @ K_n - (K_Gamma_bar - Ji * K_Gamma0)),
-                    (Ji * C_m_inv @ K_m - (K_Kappa_bar - Ji * K_Kappa0)),
+                    (Ji * C_n_inv @ B_n - (B_Gamma_bar - Ji * B_Gamma0)),
+                    (Ji * C_m_inv @ B_m - (B_Kappa_bar - Ji * B_Kappa0)),
                 )
             )
 
@@ -1527,11 +1527,11 @@ class CosseratRodMixed(CosseratRod):
                 _,
                 _,
                 _,
-                K_Gamma_bar_qe,
-                K_Kappa_bar_qe,
+                B_Gamma_bar_qe,
+                B_Kappa_bar_qe,
             ) = self._deval(qe, qpi, N=self.N_r[el, i], N_xi=self.N_r_xi[el, i])
 
-            delta_strains_qe = np.vstack((K_Gamma_bar_qe, K_Kappa_bar_qe))
+            delta_strains_qe = np.vstack((B_Gamma_bar_qe, B_Kappa_bar_qe))
 
             for node in range(self.nnodes_element_la_c):
                 nodalDOF_la_c = self.nodalDOF_element_la_c[node]
@@ -1559,7 +1559,7 @@ class CosseratRodMixed(CosseratRod):
             qwi = self.qw[el, i]
 
             # evaluate required quantities
-            _, A_IK, K_Gamma_bar, K_Kappa_bar = self._eval(
+            _, A_IB, B_Gamma_bar, B_Kappa_bar = self._eval(
                 qe, qpi, N=self.N_r[el, i], N_xi=self.N_r_xi[el, i]
             )
 
@@ -1573,7 +1573,7 @@ class CosseratRodMixed(CosseratRod):
                     nodalDOF_la_c = self.nodalDOF_element_la_c[node_la_c]
                     W_c_el[nodalDOF_r[:, None], nodalDOF_la_c[: self.nmixed_n]] -= (
                         N_r_xi
-                        * A_IK[:, self.idx_n]
+                        * A_IB[:, self.idx_n]
                         * self.N_la_c[el, i, node_la_c]
                         * qwi
                     )
@@ -1586,14 +1586,14 @@ class CosseratRodMixed(CosseratRod):
                 for node_la_c in range(self.nnodes_element_la_c):
                     nodalDOF_la_c = self.nodalDOF_element_la_c[node_la_c]
                     W_c_el[nodalDOF_p[:, None], nodalDOF_la_c[self.nmixed_n :]] -= (
-                        (N_p_xi * np.eye(3) - N_p * ax2skew(K_Kappa_bar))[:, self.idx_m]
+                        (N_p_xi * np.eye(3) - N_p * ax2skew(B_Kappa_bar))[:, self.idx_m]
                         * self.N_la_c[el, i, node_la_c]
                         * qwi
                     )
 
                     W_c_el[nodalDOF_p[:, None], nodalDOF_la_c[: self.nmixed_n]] += (
                         N_p
-                        * ax2skew(K_Gamma_bar)[:, self.idx_n]
+                        * ax2skew(B_Gamma_bar)[:, self.idx_n]
                         * self.N_la_c[el, i, node_la_c]
                         * qwi
                     )
@@ -1622,13 +1622,13 @@ class CosseratRodMixed(CosseratRod):
             # evaluate required quantities
             (
                 r_OP,
-                A_IK,
-                K_Gamma_bar,
-                K_Kappa_bar,
+                A_IB,
+                B_Gamma_bar,
+                B_Kappa_bar,
                 r_OP_qe,
-                A_IK_qe,
-                K_Gamma_bar_qe,
-                K_Kappa_bar_qe,
+                A_IB_qe,
+                B_Gamma_bar_qe,
+                B_Kappa_bar_qe,
             ) = self._deval(qe, qpi, N=self.N_r[el, i], N_xi=self.N_r_xi[el, i])
 
             # interpolation of the n and m
@@ -1638,21 +1638,21 @@ class CosseratRodMixed(CosseratRod):
                 la_c_node = la_ce[self.nodalDOF_element_la_c[node]]
                 la_c += self.N_la_c[el, i, node] * la_c_node
 
-            K_n = self.K_n_la_c_sieve @ la_c[: self.nmixed_n]
-            K_m = self.K_m_la_c_sieve @ la_c[self.nmixed_n :]
+            B_n = self.B_n_la_c_sieve @ la_c[: self.nmixed_n]
+            B_m = self.B_m_la_c_sieve @ la_c[self.nmixed_n :]
 
             for node in range(self.nnodes_element_r):
                 Wla_c_el_qe[self.nodalDOF_element_r_u[node], :] -= (
                     self.N_r_xi[el, i, node]
                     * qwi
-                    * (np.einsum("ikj,k->ij", A_IK_qe, K_n))
+                    * (np.einsum("ikj,k->ij", A_IB_qe, B_n))
                 )
 
             for node in range(self.nnodes_element_p):
                 Wla_c_el_qe[self.nodalDOF_element_p_u[node], :] += (
                     self.N_p[el, i, node]
                     * qwi
-                    * (-ax2skew(K_n) @ K_Gamma_bar_qe - ax2skew(K_m) @ K_Kappa_bar_qe)
+                    * (-ax2skew(B_n) @ B_Gamma_bar_qe - ax2skew(B_m) @ B_Kappa_bar_qe)
                 )
 
         return Wla_c_el_qe
@@ -1671,30 +1671,30 @@ class CosseratRodMixed(CosseratRod):
             la_c_node = la_ce[self.nodalDOF_element_la_c[node]]
             la_cc += N_la_ce[node] * la_c_node
 
-        K_n = self.K_n_la_c_sieve @ la_cc[: self.nmixed_n]
-        K_m = self.K_m_la_c_sieve @ la_cc[self.nmixed_n :]
+        B_n = self.B_n_la_c_sieve @ la_cc[: self.nmixed_n]
+        B_m = self.B_m_la_c_sieve @ la_cc[self.nmixed_n :]
 
-        return K_n, K_m
+        return B_n, B_m
 
     def eval_strains(self, t, q, la_c, la_g, xi):
-        K_n, K_m = self.eval_stresses(t, q, la_c, la_g, xi)
+        B_n, B_m = self.eval_stresses(t, q, la_c, la_g, xi)
         el = self.element_number(xi)
         Qe = self.Q[self.elDOF[el]]
 
         N, N_xi = self.basis_functions_r(xi)
-        _, _, K_Gamma_bar0, K_Kappa_bar0 = self._eval(Qe, xi, N, N_xi)
+        _, _, B_Gamma_bar0, B_Kappa_bar0 = self._eval(Qe, xi, N, N_xi)
 
-        J = norm(K_Gamma_bar0)
-        K_Gamma0 = K_Gamma_bar0 / J
-        K_Kappa0 = K_Kappa_bar0 / J
+        J = norm(B_Gamma_bar0)
+        B_Gamma0 = B_Gamma_bar0 / J
+        B_Kappa0 = B_Kappa_bar0 / J
 
         C_n_inv = self.material_model.C_n_inv
         C_m_inv = self.material_model.C_m_inv
 
-        K_Gamma = C_n_inv @ K_n + K_Gamma0
-        K_Kappa = C_m_inv @ K_m + K_Kappa0
+        B_Gamma = C_n_inv @ B_n + B_Gamma0
+        B_Kappa = C_m_inv @ B_m + B_Kappa0
 
-        return K_Gamma - K_Gamma0, K_Kappa - K_Kappa0
+        return B_Gamma - B_Gamma0, B_Kappa - B_Kappa0
 
 
 def make_CosseratRodConstrained(mixed, constraints):
@@ -1732,8 +1732,8 @@ def make_CosseratRodConstrained(mixed, constraints):
                 of area.
             material_model : RodMaterialModel
                 Constitutive law of Cosserat rod which relates the rod strain
-                measures K_Gamma and K_Kappa with the contact forces K_n and couples
-                K_m in the cross-section-fixed K-basis.
+                measures B_Gamma and B_Kappa with the contact forces B_n and couples
+                B_m in the cross-section-fixed K-basis.
             nelement : int
                 Number of rod elements.
             polynomial_degree : int
@@ -1754,7 +1754,7 @@ def make_CosseratRodConstrained(mixed, constraints):
                 generalized velocity coordinates, which are given by the nodal
                 centerline velocity v_P_i in R^3 together with the cross-section
                 angular velocity represented in the cross-section-fixed K-basis
-                K_omega_IK.
+                B_omega_IK.
             nquadrature_dyn : int
                 Number of quadrature points to integrate dynamical and external
                 virtual work functionals.
@@ -1784,18 +1784,18 @@ def make_CosseratRodConstrained(mixed, constraints):
             self.constraints_gamma = self.constraints[(self.constraints < 3)]
             self.nconstraints_gamma = len(self.constraints_gamma)
             # construct a sieve for the constraint force field la_g to span the internal
-            # force, i.e., K_n = K_n_la_g_sieve @ la_g
-            self.K_n_la_g_sieve = np.zeros((3, self.nconstraints_gamma))
+            # force, i.e., B_n = B_n_la_g_sieve @ la_g
+            self.B_n_la_g_sieve = np.zeros((3, self.nconstraints_gamma))
             for i, gammai in enumerate(self.constraints_gamma):
-                self.K_n_la_g_sieve[gammai, i] = 1
+                self.B_n_la_g_sieve[gammai, i] = 1
 
             self.constraints_kappa = self.constraints[(self.constraints >= 3)] - 3
             self.nconstraints_kappa = len(self.constraints_kappa)
             # construct a sieve for the constraint force field la_g to span the internal
-            # moment, i.e., K_m = K_m_la_g_sieve @ la_g
-            self.K_m_la_g_sieve = np.zeros((3, self.nconstraints_kappa))
+            # moment, i.e., B_m = B_m_la_g_sieve @ la_g
+            self.B_m_la_g_sieve = np.zeros((3, self.nconstraints_kappa))
             for i, kappai in enumerate(self.constraints_kappa):
-                self.K_m_la_g_sieve[kappai, i] = 1
+                self.B_m_la_g_sieve[kappai, i] = 1
 
             self.polynomial_degree_la_g = polynomial_degree - 1
             self.knot_vector_la_g = LagrangeKnotVector(
@@ -1863,19 +1863,19 @@ def make_CosseratRodConstrained(mixed, constraints):
                 qpi = self.qp[el, i]
                 qwi = self.qw[el, i]
                 Ji = self.J[el, i]
-                K_Gamma0 = self.K_Gamma0[el, i]
-                K_Kappa0 = self.K_Kappa0[el, i]
+                B_Gamma0 = self.B_Gamma0[el, i]
+                B_Kappa0 = self.B_Kappa0[el, i]
 
                 # evaluate required quantities
-                _, _, K_Gamma_bar, K_Kappa_bar = self._eval(
+                _, _, B_Gamma_bar, B_Kappa_bar = self._eval(
                     qe, qpi, N=self.N_r[el, i], N_xi=self.N_r_xi[el, i]
                 )
 
-                # TODO: Store K_Gamma_bar0 and K_Kappa_bar0
+                # TODO: Store B_Gamma_bar0 and B_Kappa_bar0
                 delta_strains = np.concatenate(
                     [
-                        (K_Gamma_bar - Ji * K_Gamma0) * qwi,
-                        (K_Kappa_bar - Ji * K_Kappa0) * qwi,
+                        (B_Gamma_bar - Ji * B_Gamma0) * qwi,
+                        (B_Kappa_bar - Ji * B_Kappa0) * qwi,
                     ]
                 )
 
@@ -1909,11 +1909,11 @@ def make_CosseratRodConstrained(mixed, constraints):
                     _,
                     _,
                     _,
-                    K_Gamma_bar_qe,
-                    K_Kappa_bar_qe,
+                    B_Gamma_bar_qe,
+                    B_Kappa_bar_qe,
                 ) = self._deval(qe, qpi, N=self.N_r[el, i], N_xi=self.N_r_xi[el, i])
 
-                delta_strains_qe = np.vstack((K_Gamma_bar_qe, K_Kappa_bar_qe))
+                delta_strains_qe = np.vstack((B_Gamma_bar_qe, B_Kappa_bar_qe))
 
                 for node in range(self.nnodes_element_la_g):
                     nodalDOF_la_g = self.nodalDOF_element_la_g[node]
@@ -1943,7 +1943,7 @@ def make_CosseratRodConstrained(mixed, constraints):
                 qwi = self.qw[el, i]
 
                 # evaluate required quantities
-                _, A_IK, K_Gamma_bar, K_Kappa_bar = self._eval(
+                _, A_IB, B_Gamma_bar, B_Kappa_bar = self._eval(
                     qe, qpi, N=self.N_r[el, i], N_xi=self.N_r_xi[el, i]
                 )
 
@@ -1960,7 +1960,7 @@ def make_CosseratRodConstrained(mixed, constraints):
                             nodalDOF_la_g[: self.nconstraints_gamma],
                         ] -= (
                             N_r_xi
-                            * A_IK[:, self.constraints_gamma]
+                            * A_IB[:, self.constraints_gamma]
                             * self.N_la_g[el, i, node_la_g]
                             * qwi
                         )
@@ -1976,7 +1976,7 @@ def make_CosseratRodConstrained(mixed, constraints):
                             nodalDOF_p[:, None],
                             nodalDOF_la_g[self.nconstraints_gamma :],
                         ] -= (
-                            (N_p_xi * np.eye(3) - N_p * ax2skew(K_Kappa_bar))[
+                            (N_p_xi * np.eye(3) - N_p * ax2skew(B_Kappa_bar))[
                                 :, self.constraints_kappa
                             ]
                             * self.N_la_g[el, i, node_la_g]
@@ -1988,7 +1988,7 @@ def make_CosseratRodConstrained(mixed, constraints):
                             nodalDOF_la_g[: self.nconstraints_gamma],
                         ] += (
                             N_p
-                            * ax2skew(K_Gamma_bar)[:, self.constraints_gamma]
+                            * ax2skew(B_Gamma_bar)[:, self.constraints_gamma]
                             * self.N_la_g[el, i, node_la_g]
                             * qwi
                         )
@@ -2018,13 +2018,13 @@ def make_CosseratRodConstrained(mixed, constraints):
                 # evaluate required quantities
                 (
                     r_OP,
-                    A_IK,
-                    K_Gamma_bar,
-                    K_Kappa_bar,
+                    A_IB,
+                    B_Gamma_bar,
+                    B_Kappa_bar,
                     r_OP_qe,
-                    A_IK_qe,
-                    K_Gamma_bar_qe,
-                    K_Kappa_bar_qe,
+                    A_IB_qe,
+                    B_Gamma_bar_qe,
+                    B_Kappa_bar_qe,
                 ) = self._deval(qe, qpi, N=self.N_r[el, i], N_xi=self.N_r_xi[el, i])
 
                 # interpolation of the n and m
@@ -2034,14 +2034,14 @@ def make_CosseratRodConstrained(mixed, constraints):
                     la_g_node = la_ge[self.nodalDOF_element_la_g[node]]
                     la_g += self.N_la_g[el, i, node] * la_g_node
 
-                K_n = self.K_n_la_g_sieve @ la_g[: self.nconstraints_gamma]
-                K_m = self.K_m_la_g_sieve @ la_g[self.nconstraints_gamma :]
+                B_n = self.B_n_la_g_sieve @ la_g[: self.nconstraints_gamma]
+                B_m = self.B_m_la_g_sieve @ la_g[self.nconstraints_gamma :]
 
                 for node in range(self.nnodes_element_r):
                     Wla_g_q_el[self.nodalDOF_element_r_u[node], :] -= (
                         self.N_r_xi[el, i, node]
                         * qwi
-                        * (np.einsum("ikj,k->ij", A_IK_qe, K_n))
+                        * (np.einsum("ikj,k->ij", A_IB_qe, B_n))
                     )
 
                 for node in range(self.nnodes_element_p):
@@ -2049,8 +2049,8 @@ def make_CosseratRodConstrained(mixed, constraints):
                         self.N_p[el, i, node]
                         * qwi
                         * (
-                            -ax2skew(K_n) @ K_Gamma_bar_qe
-                            - ax2skew(K_m) @ K_Kappa_bar_qe
+                            -ax2skew(B_n) @ B_Gamma_bar_qe
+                            - ax2skew(B_m) @ B_Kappa_bar_qe
                         )
                     )
 
@@ -2083,11 +2083,11 @@ def make_CosseratRodConstrained(mixed, constraints):
         # stress and strain evaluation
         ##############################
         def eval_stresses(self, t, q, la_c, la_g, xi):
-            K_n = np.zeros(3)
-            K_m = np.zeros(3)
-            K_n_impressed, K_m_impressed = super().eval_stresses(t, q, la_c, la_g, xi)
-            K_n[self.constraints_gamma] += K_n_impressed[self.constraints_gamma]
-            K_m[self.constraints_kappa] += K_m_impressed[self.constraints_kappa]
+            B_n = np.zeros(3)
+            B_m = np.zeros(3)
+            B_n_impressed, B_m_impressed = super().eval_stresses(t, q, la_c, la_g, xi)
+            B_n[self.constraints_gamma] += B_n_impressed[self.constraints_gamma]
+            B_m[self.constraints_kappa] += B_m_impressed[self.constraints_kappa]
 
             el = self.element_number(xi)
             la_ge = la_g[self.elDOF_la_g[el]]
@@ -2099,12 +2099,12 @@ def make_CosseratRodConstrained(mixed, constraints):
                 la_g_node = la_ge[self.nodalDOF_element_la_g[node]]
                 la_gg += N_la_ge[node] * la_g_node
 
-            K_n_c = self.K_n_la_g_sieve @ la_gg[: self.nconstraints_gamma]
-            K_m_c = self.K_m_la_g_sieve @ la_gg[self.nconstraints_gamma :]
+            B_n_c = self.B_n_la_g_sieve @ la_gg[: self.nconstraints_gamma]
+            B_m_c = self.B_m_la_g_sieve @ la_gg[self.nconstraints_gamma :]
 
-            K_n += K_n_c
-            K_m += K_m_c
+            B_n += B_n_c
+            B_m += B_m_c
 
-            return K_n, K_m
+            return B_n, B_m
 
     return CosseratRodConstrained

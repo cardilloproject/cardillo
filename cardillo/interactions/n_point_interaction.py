@@ -7,20 +7,20 @@ class nPointInteraction:
         self,
         subsystem_list,
         connectivity,
-        frame_ID_list=None,
-        K_r_SP_list=None,
+        xi_list=None,
+        B_r_CP_list=None,
     ) -> None:
         raise NotImplementedError("This class is not tested yet.")
         self.subsystems = subsystem_list
         self.n_subsystems = len(subsystem_list)
-        self.frame_IDs = (
-            frame_ID_list
-            if frame_ID_list is not None
+        self.xis = (
+            xi_list
+            if xi_list is not None
             else self.n_subsystems * [np.zeros(3)]
         )
-        self.Ki_r_SPis = (
-            K_r_SP_list
-            if K_r_SP_list is not None
+        self.Bi_r_CPis = (
+            B_r_CP_list
+            if B_r_CP_list is not None
             else self.n_subsystems * [np.zeros(3)]
         )
 
@@ -33,13 +33,13 @@ class nPointInteraction:
         self.qDOF = np.array([], dtype=int)
         self.uDOF = np.array([], dtype=int)
 
-        for sys, frame_ID in zip(self.subsystems, self.frame_IDs):
+        for sys, xi in zip(self.subsystems, self.xis):
             self._nq.append(len(self.qDOF))
-            local_qDOFi = sys.local_qDOF_P(frame_ID)
+            local_qDOFi = sys.local_qDOF_P(xi)
             self.qDOF = np.concatenate([self.qDOF, sys.qDOF[local_qDOFi]])
 
             self._nu.append(len(self.uDOF))
-            local_uDOFi = sys.local_uDOF_P(frame_ID)
+            local_uDOFi = sys.local_uDOF_P(xi)
             self.uDOF = np.concatenate([self.uDOF, sys.uDOF[local_uDOFi]])
         self._nq.append(len(self.qDOF))
         self._nu.append(len(self.uDOF))
@@ -49,30 +49,30 @@ class nPointInteraction:
 
         # auxiliary functions
         self.r_OPk = lambda t, q, k: self.subsystems[k].r_OP(
-            t, q[self.nq_fun(k)], self.frame_IDs[k], self.Ki_r_SPis[k]
+            t, q[self.nq_fun(k)], self.xis[k], self.Bi_r_CPis[k]
         )
         self.r_OPk_qk = lambda t, q, k: self.subsystems[k].r_OP_q(
-            t, q[self.nq_fun(k)], self.frame_IDs[k], self.Ki_r_SPis[k]
+            t, q[self.nq_fun(k)], self.xis[k], self.Bi_r_CPis[k]
         )
         self.v_Pk = lambda t, q, u, k: self.subsystems[k].v_P(
             t,
             q[self.nq_fun(k)],
             u[self.nu_fun(k)],
-            self.frame_IDs[k],
-            self.Ki_r_SPis[k],
+            self.xis[k],
+            self.Bi_r_CPis[k],
         )
         self.v_Pk_qk = lambda t, q, u, k: self.subsystems[k].v_P_q(
             t,
             q[self.nq_fun(k)],
             u[self.nu_fun(k)],
-            self.frame_IDs[k],
-            self.Ki_r_SPis[k],
+            self.xis[k],
+            self.Bi_r_CPis[k],
         )
         self.J_Pk = lambda t, q, k: self.subsystems[k].J_P(
-            t, q[self.nq_fun(k)], self.frame_IDs[k], self.Ki_r_SPis[k]
+            t, q[self.nq_fun(k)], self.xis[k], self.Bi_r_CPis[k]
         )
         self.J_Pk_qk = lambda t, q, k: self.subsystems[k].J_P_q(
-            t, q[self.nq_fun(k)], self.frame_IDs[k], self.Ki_r_SPis[k]
+            t, q[self.nq_fun(k)], self.xis[k], self.Bi_r_CPis[k]
         )
         self.r_PiPj = lambda t, q, i, j: self.r_OPk(t, q, j) - self.r_OPk(t, q, i)
 

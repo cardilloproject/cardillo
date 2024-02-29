@@ -22,7 +22,7 @@ def make_system():
     m = 6e-3  # kg
     I1 = 8e-7  # kg m2 # = I_2 # Leine2013
     I3 = 7e-7  # kg m2
-    K_theta_S = np.diag([I1, I1, I3])
+    B_Theta_C = np.diag([I1, I1, I3])
     g = 9.81  # kg m / s2
 
     # Geometry:
@@ -30,8 +30,8 @@ def make_system():
     a2 = 1.6e-2  # m
     R1 = 1.5e-2  # m
     R2 = 5e-3  # m
-    K_r_SC1 = np.array([0, 0, a1])
-    K_r_SC2 = np.array([0, 0, a2])
+    B_r_CP1 = np.array([0, 0, a1])
+    B_r_CP2 = np.array([0, 0, a2])
 
     mu = 0.3  # = mu1 = mu2
     e_N = 0  # = eN1 = eN2
@@ -57,29 +57,29 @@ def make_system():
     # gamma = 1
     # # gamma = 0
     # omega = 180  # rad / s
-    # K_omega_IK = np.array([gamma, 0, omega])
-    # A_IK = np.eye(3)
-    # K_r_PS = np.array([0, 0, R1 - a1])
-    # v_S = A_IK @ cross3(K_omega_IK, K_r_PS)
+    # B_omega_IK = np.array([gamma, 0, omega])
+    # A_IB = np.eye(3)
+    # B_r_PS = np.array([0, 0, R1 - a1])
+    # v_C = A_IB @ cross3(B_omega_IK, B_r_PS)
 
     omega = 180  # rad / s
     # gamma = 1  # rad / s
     gamma = 0  # rad / s
-    K_omega_IK = np.array([gamma, 0, omega])
-    v_S = np.zeros(3)
+    B_omega_IK = np.array([gamma, 0, omega])
+    v_C = np.zeros(3)
 
-    # print(f"v_S = {v_S}")
+    # print(f"v_C = {v_C}")
     # print(
-    #     f"v_C = {v_S + A_IK @ cross3(K_omega_IK, np.array([0, 0, a1]) + np.array([0, 0, -R1]))}"
+    #     f"v_C = {v_C + A_IB @ cross3(B_omega_IK, np.array([0, 0, a1]) + np.array([0, 0, -R1]))}"
     # )
     # # exit()
 
     u0 = np.zeros(6, dtype=float)
-    u0[:3] = v_S
-    u0[3:] = K_omega_IK
+    u0[:3] = v_C
+    u0[3:] = B_omega_IK
     # u0[5] = psi_dot0
 
-    top = RigidBody(m, K_theta_S, q0=q0, u0=u0)
+    top = RigidBody(m, B_Theta_C, q0=q0, u0=u0)
 
     # la_N0 = np.array([m * g], dtype=float)
     # R_bar = (3 * np.pi / 16) * R
@@ -98,7 +98,7 @@ def make_system():
         mu,
         e_N,
         e_F,
-        K_r_SP=K_r_SC1,
+        B_r_CP=B_r_CP1,
     )
     contact2 = Sphere2Plane(
         # contact2 = Sphere2PlaneCoulombContensouMoeller(
@@ -109,7 +109,7 @@ def make_system():
         mu,
         e_N,
         e_F,
-        K_r_SP=K_r_SC2,
+        B_r_CP=B_r_CP2,
     )
 
     gravity = Force(np.array([0, 0, -m * g]), top)
@@ -206,14 +206,14 @@ def run(export=True):
     nt1 = len(t1)
     angles1 = np.zeros((nt1, 3), dtype=float)
     for i in range(len(t1)):
-        A_IK = top.A_IK(t1[i], q1[i])
-        angles1[i] = Rotation.from_matrix(A_IK).as_euler("zxz")
+        A_IB = top.A_IB(t1[i], q1[i])
+        angles1[i] = Rotation.from_matrix(A_IB).as_euler("zxz")
 
     nt2 = len(t2)
     angles2 = np.zeros((nt2, 3), dtype=float)
     for i in range(len(t2)):
-        A_IK = top.A_IK(t2[i], q2[i])
-        angles2[i] = Rotation.from_matrix(A_IK).as_euler("zxz")
+        A_IB = top.A_IB(t2[i], q2[i])
+        angles2[i] = Rotation.from_matrix(A_IB).as_euler("zxz")
 
     ax[0, 0].set_title("psi(t)")
     ax[0, 0].plot(t1, angles1[:, 0], "-k", label=label1)
@@ -421,8 +421,8 @@ def convergence(export=True):
         nt_ref = len(t_ref)
         angles_ref = np.zeros((nt_ref, 3), dtype=float)
         for i in range(nt_ref):
-            A_IK = top.A_IK(t_ref[i], q_ref[i])
-            angles_ref[i] = Rotation.from_matrix(A_IK).as_euler("zxz")
+            A_IB = top.A_IB(t_ref[i], q_ref[i])
+            angles_ref[i] = Rotation.from_matrix(A_IB).as_euler("zxz")
 
         ax = fig.add_subplot(2, 3, 2)
         ax.plot(t_ref, angles_ref[:, 0], "-r", label="alpha")
