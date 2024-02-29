@@ -22,7 +22,7 @@ def make_system():
     m = 6e-3  # kg
     I1 = 8e-7  # kg m2 # = I_2 # Leine2013
     I3 = 7e-7  # kg m2
-    K_theta_S = np.diag([I1, I1, I3])
+    B_Theta_C = np.diag([I1, I1, I3])
     g = 9.81  # kg m / s2
 
     # Geometry:
@@ -79,7 +79,7 @@ def make_system():
     u0[3:] = K_omega_IK
     # u0[5] = psi_dot0
 
-    top = RigidBody(m, K_theta_S, q0=q0, u0=u0)
+    top = RigidBody(m, B_Theta_C, q0=q0, u0=u0)
 
     # la_N0 = np.array([m * g], dtype=float)
     # R_bar = (3 * np.pi / 16) * R

@@ -38,7 +38,7 @@ def Meshed(Base):
                 defining the mesh
             Density : float or None
                 Mass density for the computation of the inertia properties of the
-                mesh. If set to None, user specified mass and K_Theta_S are used.
+                mesh. If set to None, user specified mass and B_Theta_C are used.
             B_r_CP : np.ndarray (3,)
                 Offset center of mass (S) from STL origin (P) in body fixed K-basis.
             A_KM: np.ndarray (3, 3)
@@ -95,21 +95,21 @@ def Meshed(Base):
                 # set density and compute properties
                 self.K_visual_mesh.density = density
                 mass = self.K_visual_mesh.mass
-                K_Theta_S = self.K_visual_mesh.moment_inertia
+                B_Theta_C = self.K_visual_mesh.moment_inertia
 
                 mass_arg = kwargs.pop("mass", None)
-                K_Theta_S_arg = kwargs.pop("K_Theta_S", None)
+                B_Theta_C_arg = kwargs.pop("B_Theta_C", None)
 
                 if (mass_arg is not None) and (not np.allclose(mass, mass_arg)):
                     print("Specified mass does not correspond to mass of mesh.")
-                if (K_Theta_S_arg is not None) and (
-                    not np.allclose(K_Theta_S, K_Theta_S_arg)
+                if (B_Theta_C_arg is not None) and (
+                    not np.allclose(B_Theta_C, B_Theta_C_arg)
                 ):
                     print(
                         "Specified moment of inertia does not correspond to moment of inertia of mesh."
                     )
 
-                kwargs.update({"mass": mass, "K_Theta_S": K_Theta_S})
+                kwargs.update({"mass": mass, "B_Theta_C": B_Theta_C})
 
             super().__init__(**kwargs)
 

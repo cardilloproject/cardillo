@@ -25,8 +25,8 @@ from cardillo.visualization import Export
 
 class Ball(RigidBody):
     def __init__(self, m, r, q0, u0=None):
-        K_theta_S = 2 / 5 * m * r**2 * np.eye(3)
-        super().__init__(m, K_theta_S, q0, u0)
+        B_Theta_C = 2 / 5 * m * r**2 * np.eye(3)
+        super().__init__(m, B_Theta_C, q0, u0)
 
 
 if __name__ == "__main__":

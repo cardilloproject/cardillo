@@ -26,7 +26,7 @@ Shape = {
     "cube": (Cuboid, {"dimensions": (r, r, r)}),
     "box": (Cuboid, {"dimensions": (r / 2, r, 3 * r / 2)}),
     "cylinder": (Cylinder, {"length": r, "radius": r, "axis": 0}),
-    "stl": (FromSTL, {"path": path, "B_r_CP": np.zeros(3), "K_Theta_S": None}),  # TODO
+    "stl": (FromSTL, {"path": path, "B_r_CP": np.zeros(3), "B_Theta_C": None}),  # TODO
 }
 
 Solver = {
@@ -121,7 +121,7 @@ def run(
             # TODO implement contact
             raise NotImplementedError("Circle2PlaneContact not implemented.")
         case "stl":
-            raise NotImplementedError("K_Theta_S missing.")
+            raise NotImplementedError("B_Theta_C missing.")
         case _:
             raise (RuntimeError, "Select correct shape.")
 

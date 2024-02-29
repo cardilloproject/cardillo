@@ -24,8 +24,8 @@ class HeavyTopQuaternion(RigidBody):
         self.r_OQ = r_OQ
 
         # initialize rigid body
-        self.K_Theta_S = np.diag([A, A, B])
-        RigidBody.__init__(self, m, self.K_Theta_S, q0=q0, u0=u0)
+        self.B_Theta_C = np.diag([A, A, B])
+        RigidBody.__init__(self, m, self.B_Theta_C, q0=q0, u0=u0)
 
         # gravity
         self.f_g = np.array([0, 0, -self.m * self.grav])

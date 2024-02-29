@@ -36,7 +36,7 @@ def test_some_rigid_bodies():
     #############################
     B_r_CP = -np.array([1.5, 1.0, 0.5])
     # fmt: off
-    K_Theta_S = np.array([
+    B_Theta_C = np.array([
         [0.0195,   0.0,    0.0],
         [   0.0, 0.039,    0.0],
         [   0.0,   0.0, 0.0507],
@@ -46,12 +46,12 @@ def test_some_rigid_bodies():
         # Path.joinpath(path.parent, "tippedisk.stl")
         mass=0.0468,
         B_r_CP=B_r_CP,
-        K_Theta_S=K_Theta_S,
+        B_Theta_C=B_Theta_C,
         u0=u0,
     )
 
     assert np.isclose(box.mass, stl_box.mass)
-    assert np.allclose(box.K_Theta_S, stl_box.K_Theta_S)
+    assert np.allclose(box.B_Theta_C, stl_box.B_Theta_C)
 
     ####################
     # cylinder primitive

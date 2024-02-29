@@ -38,7 +38,7 @@ m = 1
 r = 0.2
 A = 1 / 4 * m * r**2 + 1 / 12 * m * l**2
 C = 1 / 2 * m * r**2
-K_theta_S = np.diag(np.array([A, A, C]))
+B_Theta_C = np.diag(np.array([A, A, C]))
 
 show = False
 
@@ -64,7 +64,7 @@ def run(Solver, **solver_kwargs):
     n_psi = norm(psi)
     p = axis_angle2quat(psi / n_psi, n_psi)
     q0 = np.hstack((r_OP0, p))
-    rigid_body = RigidBody(m, K_theta_S, q0, u0)
+    rigid_body = RigidBody(m, B_Theta_C, q0, u0)
 
     joint = Revolute(
         system.origin,
@@ -102,7 +102,7 @@ def run(Solver, **solver_kwargs):
         joint.reset()
         alpha_cmp = [joint.angle(ti, qi[joint.qDOF]) for ti, qi in zip(t, q)]
 
-        Theta = K_theta_S[rotation_axis, rotation_axis]
+        Theta = B_Theta_C[rotation_axis, rotation_axis]
 
         def eqm(t, x):
             dx = np.zeros(2)

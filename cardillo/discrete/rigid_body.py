@@ -15,7 +15,7 @@ from cardillo.math import (
 
 
 class RigidBody:
-    def __init__(self, mass, K_Theta_S, q0=None, u0=None, name="rigid_body"):
+    def __init__(self, mass, B_Theta_C, q0=None, u0=None, name="rigid_body"):
         """Rigid body parametrized by center of mass in inertial basis I_r_OP in
         R^3 and non-unit quaternions p in R^4 for rotation, i.e., the 
         generalized position coordinates are q = (I_r_OP, p) in R^7. The 
@@ -34,7 +34,7 @@ class RigidBody:
         ----------
         mass: float
             Mass of rigid body
-        K_Theta_S:  np.array(3,3)
+        B_Theta_C:  np.array(3,3)
             Inertia tensor represented w.r.t. body fixed K-system.
         q0 : np.array(7)
             Initial position coordinates at time t0.
@@ -67,10 +67,10 @@ class RigidBody:
         assert self.la_S0.size == self.nla_S
 
         self.mass = mass
-        self.K_Theta_S = K_Theta_S
+        self.B_Theta_C = B_Theta_C
         self.__M = np.zeros((self.nu, self.nu), dtype=float)
         self.__M[:3, :3] = self.mass * np.eye(3, dtype=float)
-        self.__M[3:, 3:] = self.K_Theta_S
+        self.__M[3:, 3:] = self.B_Theta_C
 
         self.name = name
 
@@ -139,13 +139,13 @@ class RigidBody:
     def h(self, t, q, u):
         omega = u[3:]
         f = np.zeros(self.nu, dtype=np.common_type(q, u))
-        f[3:] = -cross3(omega, self.K_Theta_S @ omega)
+        f[3:] = -cross3(omega, self.B_Theta_C @ omega)
         return f
 
     def h_u(self, t, q, u):
         omega = u[3:]
         h_u = np.zeros((self.nu, self.nu), dtype=np.common_type(q, u))
-        h_u[3:, 3:] = ax2skew(self.K_Theta_S @ omega) - ax2skew(omega) @ self.K_Theta_S
+        h_u[3:, 3:] = ax2skew(self.B_Theta_C @ omega) - ax2skew(omega) @ self.B_Theta_C
         return h_u
 
     #####################################################

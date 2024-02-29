@@ -18,7 +18,7 @@ def run(revolute_joint_used=False):
     theta = 1 / 12 * m * (L**2)
     theta_O = theta + m * (L**2) / 4
     theta1 = theta2 = 1 / 12 * m / 2 * (L**2) / 4
-    # K_theta_S = theta * np.eye(3)
+    # B_Theta_C = theta * np.eye(3)
     K_theta_C1 = K_theta_C2 = theta1 * np.diag((1, 1e-8, 1))
     g = 9.81
     omega = 10

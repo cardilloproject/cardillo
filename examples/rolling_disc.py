@@ -272,11 +272,11 @@ class Disc(RigidBody):
     def __init__(self, m, r, q0=None, u0=None):
         A = 1 / 4 * m * r**2
         C = 1 / 2 * m * r**2
-        K_theta_S = np.diag(np.array([A, C, A]))
+        B_Theta_C = np.diag(np.array([A, C, A]))
 
         self.r = r
 
-        super().__init__(m, K_theta_S, q0=q0, u0=u0)
+        super().__init__(m, B_Theta_C, q0=q0, u0=u0)
 
     def boundary(self, t, q, n=100):
         phi = np.linspace(0, 2 * np.pi, n, endpoint=True)

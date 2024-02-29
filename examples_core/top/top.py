@@ -42,7 +42,7 @@ if __name__ == "__main__":
     # quantities in mesh/body fixed frame
     K_r_PC = top_mesh.center_mass  # vector from mesh origin to center of mass
     mass = top_mesh.mass
-    K_Theta_S = top_mesh.moment_inertia
+    B_Theta_C = top_mesh.moment_inertia
 
     tip_radius = 1e-3  # 1mm
     A_IK = A_IK_basic(phi0).y
@@ -59,7 +59,7 @@ if __name__ == "__main__":
         B_r_CP=-K_r_PC,
         A_KM=np.eye(3),
         mass=mass,
-        K_Theta_S=K_Theta_S,
+        B_Theta_C=B_Theta_C,
         q0=q0,
         u0=u0,
         name="top",

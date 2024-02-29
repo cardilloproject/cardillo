@@ -32,7 +32,7 @@ if __name__ == "__main__":
 
     q10 = np.concatenate([np.array([0, 0, 1]), Spurrier(A_IK_basic(np.pi / 4).x())])
     rigid_body1 = Box(RigidBody)(
-        dimensions=[0.2, 0.2, 0.1], density=2, mass=1, K_Theta_S=np.eye(3), q0=q10
+        dimensions=[0.2, 0.2, 0.1], density=2, mass=1, B_Theta_C=np.eye(3), q0=q10
     )
 
     q20 = np.concatenate([np.array([0, 1, 1]), Spurrier(A_IK_basic(np.pi / 2).x())])
@@ -42,7 +42,7 @@ if __name__ == "__main__":
 
     q30 = np.concatenate([np.array([1, 1, 1]), Spurrier(A_IK_basic(-np.pi / 4).x())])
     rigid_body3 = Cone(RigidBody)(
-        radius=0.1, height=0.2, mass=1, K_Theta_S=np.eye(3), q0=q30
+        radius=0.1, height=0.2, mass=1, B_Theta_C=np.eye(3), q0=q30
     )
 
     q40 = np.concatenate([np.array([1, -1, 1]), Spurrier(A_IK_basic(0).x())])

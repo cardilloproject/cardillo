@@ -25,7 +25,7 @@ def run(joint, Solver, k=None, d=None, **solver_args):
 
     A = 1 / 4 * m * r**2 + 1 / 12 * m * l**2
     C = 1 / 2 * m * r**2
-    K_theta_S = np.diag(np.array([A, C, A]))
+    B_Theta_C = np.diag(np.array([A, C, A]))
 
     use_spherical_joint = use_revolute_joint = use_pdrotational_joint = False
 
@@ -53,7 +53,7 @@ def run(joint, Solver, k=None, d=None, **solver_args):
     u01 = np.concatenate([A_IprimeI @ vS1, K1_omega01])
     origin = Frame(r_OP=A_IprimeI @ r_OB1, A_IK=A_IprimeI @ A_IB1)
     # origin = Frame(r_OP=r_OB1, A_IK=A_IB1)
-    RB1 = RigidBody(m, K_theta_S, q01, u01)
+    RB1 = RigidBody(m, B_Theta_C, q01, u01)
 
     if joint == "Spherical":
         use_spherical_joint = True
@@ -97,7 +97,7 @@ def run(joint, Solver, k=None, d=None, **solver_args):
     p02 = Spurrier(A_IprimeI @ A_IK20)
     q02 = np.concatenate([A_IprimeI @ r_OC20, p02])
     u02 = np.concatenate([A_IprimeI @ vS2, K2_omega02])
-    RB2 = RigidBody(m, K_theta_S, q02, u02)
+    RB2 = RigidBody(m, B_Theta_C, q02, u02)
 
     if use_spherical_joint:
         joint2 = Spherical(RB1, RB2, r_OB0=A_IprimeI @ r_OB2)

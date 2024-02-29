@@ -24,7 +24,7 @@ def make_system(RigidBodyBase):
     m = 6e-3
     I1 = 8e-7  # = I2
     I3 = 7e-7
-    K_theta_S = np.diag([I1, I1, I3])
+    B_Theta_C = np.diag([I1, I1, I3])
     g = 9.81
 
     # Geometry:
@@ -77,9 +77,9 @@ def make_system(RigidBodyBase):
     u0[3:] = K_omega_IK
 
     if RigidBodyBase is RigidBody:
-        top = RigidBody(m, K_theta_S, q0=q0, u0=u0)
+        top = RigidBody(m, B_Theta_C, q0=q0, u0=u0)
     elif RigidBodyBase is RigidBodyEuler:
-        top = RigidBodyEuler(m, K_theta_S, axis=axis, q0=q0, u0=u0)
+        top = RigidBodyEuler(m, B_Theta_C, axis=axis, q0=q0, u0=u0)
 
     contact1 = Sphere2PlaneCoulombContensouMoeller(
         system.origin,

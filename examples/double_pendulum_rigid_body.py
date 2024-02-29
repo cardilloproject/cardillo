@@ -40,7 +40,7 @@ if __name__ == "__main__":
 
     A = 1 / 4 * m * r**2 + 1 / 12 * m * l**2
     C = 1 / 2 * m * r**2
-    K_theta_S = np.diag(np.array([A, C, A]))
+    B_Theta_C = np.diag(np.array([A, C, A]))
 
     ############################################################################
     #                   Rigid Body 1
@@ -60,14 +60,14 @@ if __name__ == "__main__":
     if use_quaternion:
         p01 = axis_angle2quat(np.array([0, 0, 1]), alpha0)
         q01 = np.concatenate([r_OC10, p01])
-        RB1 = RigidBody(m, K_theta_S, q01, u01)
+        RB1 = RigidBody(m, B_Theta_C, q01, u01)
     elif use_euler:
         q01 = np.concatenate([r_OC10, np.array([0, 0, alpha0])])
-        RB1 = RigidBodyEuler(m, K_theta_S, "xyz", q0=q01, u0=u01)
+        RB1 = RigidBodyEuler(m, B_Theta_C, "xyz", q0=q01, u0=u01)
     elif use_axisangle:
         p01 = np.array([0, 0, 1]) * alpha0
         q01 = np.concatenate([r_OC10, p01])
-        RB1 = RigidBodyAxisAngle(m, K_theta_S, q01, u01)
+        RB1 = RigidBodyAxisAngle(m, B_Theta_C, q01, u01)
 
     if use_spherical_joint:
         joint1 = Spherical(origin, RB1, r_OB1)
@@ -93,14 +93,14 @@ if __name__ == "__main__":
     if use_quaternion:
         p02 = axis_angle2quat(np.array([0, 0, 1]), alpha0 + beta0)
         q02 = np.concatenate([r_OC20, p02])
-        RB2 = RigidBody(m, K_theta_S, q02, u02)
+        RB2 = RigidBody(m, B_Theta_C, q02, u02)
     elif use_euler:
         q02 = np.concatenate([r_OC20, np.array([0, 0, alpha0 + beta0])])
-        RB2 = RigidBodyEuler(m, K_theta_S, "xyz", q0=q02, u0=u02)
+        RB2 = RigidBodyEuler(m, B_Theta_C, "xyz", q0=q02, u0=u02)
     elif use_axisangle:
         p02 = np.array([0, 0, 1]) * (alpha0 + beta0)
         q02 = np.concatenate([r_OC20, p02])
-        RB2 = RigidBodyAxisAngle(m, K_theta_S, q02, u02)
+        RB2 = RigidBodyAxisAngle(m, B_Theta_C, q02, u02)
 
     if use_spherical_joint:
         joint2 = Spherical(RB1, RB2, r_OB2)

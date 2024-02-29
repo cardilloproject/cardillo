@@ -48,7 +48,7 @@ def run(
     r = 0.2
     C = 1 / 2 * m * r**2
     A = 1 / 4 * m * r**2 + 1 / 12 * m * l**2
-    K_theta_S = np.diag(np.array([C, A, A]))
+    B_Theta_C = np.diag(np.array([C, A, A]))
 
     #############
     # origin axis
@@ -128,7 +128,7 @@ def run(
 
     q0 = np.array([*r_OB0, *Spurrier(A_IB0)])
     u0 = np.array([*v_P0, *B0_omega_IB0])
-    RB1 = RigidBody(m, K_theta_S, q0, u0)
+    RB1 = RigidBody(m, B_Theta_C, q0, u0)
 
     rigid_connection = RigidConnection(frame, RB1)
 
@@ -140,7 +140,7 @@ def run(
 
     q0 = np.array([*r_OC0, *Spurrier(A_IK0)])
     u0 = np.array([*v_C0, *K0_omega_IK0])
-    RB2 = RigidBody(m, K_theta_S, q0, u0)
+    RB2 = RigidBody(m, B_Theta_C, q0, u0)
 
     f_g = Force(np.array([0, 0, -m * g]), RB2)
 
@@ -234,7 +234,7 @@ def run(
         K_J_R = np.zeros((3, 2), dtype=float)
         K_J_R[:, 1] = e3
 
-        M = m * (J_C.T @ J_C) + K_J_R.T @ K_theta_S @ K_J_R
+        M = m * (J_C.T @ J_C) + K_J_R.T @ B_Theta_C @ K_J_R
 
         _omega_IB = omega_IB(t)
 
@@ -254,7 +254,7 @@ def run(
             _A_IB.T @ omega_IB(t), e3
         )
 
-        h = -J_C.T @ (m * nu_C_dot + m * g * e3) - K_J_R.T @ K_theta_S @ K_nu_R_dot
+        h = -J_C.T @ (m * nu_C_dot + m * g * e3) - K_J_R.T @ B_Theta_C @ K_nu_R_dot
         h[0] -= k * (z - z0) + k * z_dot
 
         u_dot = np.linalg.solve(M, h)
