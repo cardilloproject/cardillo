@@ -19,7 +19,7 @@ def run(revolute_joint_used=False):
     theta_O = theta + m * (L**2) / 4
     theta1 = theta2 = 1 / 12 * m / 2 * (L**2) / 4
     # K_theta_S = theta * np.eye(3)
-    K_theta_S1 = K_theta_S2 = theta1 * np.diag((1, 1e-8, 1))
+    K_theta_C1 = K_theta_C2 = theta1 * np.diag((1, 1e-8, 1))
     g = 9.81
     omega = 10
     A = L / 10
@@ -76,8 +76,8 @@ def run(revolute_joint_used=False):
     q20 = np.concatenate((r_OC20, p0))
     u10 = np.concatenate((v_C10, K_omega0))
     u20 = np.concatenate((v_C20, K_omega0))
-    RB1 = RigidBody(m / 2, K_theta_S1, q0=q10, u0=u10)
-    RB2 = RigidBody(m / 2, K_theta_S2, q0=q20, u0=u20)
+    RB1 = RigidBody(m / 2, K_theta_C1, q0=q10, u0=u10)
+    RB2 = RigidBody(m / 2, K_theta_C2, q0=q20, u0=u20)
 
     if revolute_joint_used:
         joint = Revolute(frame, RB1, 2, r_OP(0), np.eye(3))

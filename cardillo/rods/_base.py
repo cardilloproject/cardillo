@@ -1078,16 +1078,16 @@ class CosseratRod(RodExportBase, ABC):
         A_IK = self.A_IK(t, qe, frame_ID)
 
         # centerline acceleration
-        a_S = np.zeros(3, dtype=np.common_type(qe, ue, ue_dot))
+        a_C = np.zeros(3, dtype=np.common_type(qe, ue, ue_dot))
         for node in range(self.nnodes_element_r):
-            a_S += N[node] * ue_dot[self.nodalDOF_element_r[node]]
+            a_C += N[node] * ue_dot[self.nodalDOF_element_r[node]]
 
         # angular velocity and acceleration in K-frame
         K_Omega = self.K_Omega(t, qe, ue, frame_ID)
         K_Psi = self.K_Psi(t, qe, ue, ue_dot, frame_ID)
 
         # rigid body formular
-        return a_S + A_IK @ (
+        return a_C + A_IK @ (
             cross3(K_Psi, B_r_CP) + cross3(K_Omega, cross3(K_Omega, B_r_CP))
         )
 

@@ -242,7 +242,7 @@ def run(
         r_BS = _A_IB @ B_r_BS
         B_r_BS_dot = z_dot * e3 + 0.5 * l * alpha_dot * (ca * e2 - sa * e1)
 
-        nu_S_dot = (
+        nu_C_dot = (
             r_OB_tt(t)
             + 2 * cross3(_omega_IB, _A_IB @ B_r_BS_dot)
             - _A_IB @ (0.5 * l * alpha_dot**2 * (ca * e1 + sa * e2))
@@ -254,7 +254,7 @@ def run(
             _A_IB.T @ omega_IB(t), e3
         )
 
-        h = -J_C.T @ (m * nu_S_dot + m * g * e3) - K_J_R.T @ K_theta_S @ K_nu_R_dot
+        h = -J_C.T @ (m * nu_C_dot + m * g * e3) - K_J_R.T @ K_theta_S @ K_nu_R_dot
         h[0] -= k * (z - z0) + k * z_dot
 
         u_dot = np.linalg.solve(M, h)

@@ -101,13 +101,13 @@ class Sphere2Sphere:
         self.v_C1_q = lambda t, q, u: self.subsystem1.v_P_q(
             t, q[:nq1], u[:nu1], self.frame_ID1
         )
-        self.a_S1 = lambda t, q, u, u_dot: self.subsystem1.a_P(
+        self.a_C1 = lambda t, q, u, u_dot: self.subsystem1.a_P(
             t, q[:nq1], u[:nu1], u_dot[:nu1], self.frame_ID1
         )
-        self.a_S1_q = lambda t, q, u, u_dot: self.subsystem1.a_P_q(
+        self.a_C1_q = lambda t, q, u, u_dot: self.subsystem1.a_P_q(
             t, q[:nq1], u[:nu1], u_dot[:nu1], self.frame_ID1
         )
-        self.a_S1_u = lambda t, q, u, u_dot: self.subsystem1.a_P_u(
+        self.a_C1_u = lambda t, q, u, u_dot: self.subsystem1.a_P_u(
             t, q[:nq1], u[:nu1], u_dot[:nu1], self.frame_ID1
         )
         self.J_C1 = lambda t, q: self.subsystem1.J_P(t, q[:nq1], self.frame_ID1)
@@ -168,13 +168,13 @@ class Sphere2Sphere:
         self.v_C2_q = lambda t, q, u: self.subsystem2.v_P_q(
             t, q[nq1:], u[nu1:], self.frame_ID2
         )
-        self.a_S2 = lambda t, q, u, u_dot: self.subsystem2.a_P(
+        self.a_C2 = lambda t, q, u, u_dot: self.subsystem2.a_P(
             t, q[nq1:], u[nu1:], u_dot[nu1:], self.frame_ID2
         )
-        self.a_S2_q = lambda t, q, u, u_dot: self.subsystem2.a_P_q(
+        self.a_C2_q = lambda t, q, u, u_dot: self.subsystem2.a_P_q(
             t, q[nq1:], u[nu1:], u_dot[nu1:], self.frame_ID2
         )
-        self.a_S2_u = lambda t, q, u, u_dot: self.subsystem2.a_P_u(
+        self.a_C2_u = lambda t, q, u, u_dot: self.subsystem2.a_P_u(
             t, q[nq1:], u[nu1:], u_dot[nu1:], self.frame_ID2
         )
         self.J_C2 = lambda t, q: self.subsystem2.J_P(t, q[nq1:], self.frame_ID2)
@@ -304,7 +304,7 @@ class Sphere2Sphere:
         return np.array(
             [
                 self.normal(t, q)
-                @ (self.a_S2(t, q, u, u_dot) - self.a_S1(t, q, u, u_dot))
+                @ (self.a_C2(t, q, u, u_dot) - self.a_C1(t, q, u, u_dot))
             ]
         )
 
@@ -357,10 +357,10 @@ class Sphere2Sphere:
     def gamma_F_dot(self, t, q, u, u_dot):
         n, t1, t2 = self.normal_and_tangents(t, q)
 
-        a_P1 = self.a_S1(t, q, u, u_dot) + cross3(
+        a_P1 = self.a_C1(t, q, u, u_dot) + cross3(
             self.Psi1(t, q, u, u_dot), self.radius1 * n
         )
-        a_P2 = self.a_S2(t, q, u, u_dot) + cross3(
+        a_P2 = self.a_C2(t, q, u, u_dot) + cross3(
             self.Psi2(t, q, u, u_dot), -self.radius2 * n
         )
         a_P1P2 = a_P2 - a_P1
