@@ -82,7 +82,7 @@ class RollingCondition_g_I_Frame_gamma:
         self.uDOF = self.subsystem.qDOF[self.subsystem.local_uDOF_P()]
 
     def r_CP(self, t, q):
-        # evaluate body fixed frame
+        # evaluate body-fixed basis
         e_K_x, e_K_y, e_K_z = self.subsystem.A_IK(t, q).T
 
         # compute e_x axis of grinding-(G)-frame, see LeSaux2005 (2.11)

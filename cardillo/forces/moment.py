@@ -2,7 +2,7 @@ from numpy import einsum, zeros
 
 
 class K_Moment:
-    """Moment defined in the body fixed frame of a subsystem."""
+    """Moment defined in the body-fixed basis of a subsystem."""
 
     def __init__(self, K_M, subsystem, xi=zeros(3)):
         if not callable(K_M):

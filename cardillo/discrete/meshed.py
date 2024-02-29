@@ -81,13 +81,13 @@ def Meshed(Base):
                 else:
                     print("Fixed mesh by filling the holes.")
 
-            # store visual mesh in body fixed frame
+            # store visual mesh in body fixed basis
             H_KM = np.eye(4)
             H_KM[:3, 3] = B_r_CP
             H_KM[:3, :3] = A_KM
             self.K_visual_mesh = trimesh_mesh.copy().apply_transform(H_KM)
 
-            # vectors (transposed) from S to vertices represented in body-fixed frame
+            # vectors (transposed) from S to vertices represented in body-fixed basis
             self.K_r_CQi_T = self.K_visual_mesh.vertices.view(np.ndarray).T
 
             # compute inertia quantities of body

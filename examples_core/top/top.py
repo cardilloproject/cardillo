@@ -39,7 +39,7 @@ if __name__ == "__main__":
 
     top_mesh.density = 8850  # kg/m3 (Copper)
 
-    # quantities in mesh/body fixed frame
+    # quantities in mesh/body-fixed basis
     K_r_PC = top_mesh.center_mass  # vector from mesh origin to center of mass
     mass = top_mesh.mass
     B_Theta_C = top_mesh.moment_inertia
