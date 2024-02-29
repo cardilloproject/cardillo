@@ -95,10 +95,10 @@ class Sphere2Sphere:
         #####################################
         self.r_OC1 = lambda t, q: self.subsystem1.r_OP(t, q[:nq1], self.frame_ID1)
         self.r_OC1_q = lambda t, q: self.subsystem1.r_OP_q(t, q[:nq1], self.frame_ID1)
-        self.v_S1 = lambda t, q, u: self.subsystem1.v_P(
+        self.v_C1 = lambda t, q, u: self.subsystem1.v_P(
             t, q[:nq1], u[:nu1], self.frame_ID1
         )
-        self.v_S1_q = lambda t, q, u: self.subsystem1.v_P_q(
+        self.v_C1_q = lambda t, q, u: self.subsystem1.v_P_q(
             t, q[:nq1], u[:nu1], self.frame_ID1
         )
         self.a_S1 = lambda t, q, u, u_dot: self.subsystem1.a_P(
@@ -110,8 +110,8 @@ class Sphere2Sphere:
         self.a_S1_u = lambda t, q, u, u_dot: self.subsystem1.a_P_u(
             t, q[:nq1], u[:nu1], u_dot[:nu1], self.frame_ID1
         )
-        self.J_S1 = lambda t, q: self.subsystem1.J_P(t, q[:nq1], self.frame_ID1)
-        self.J_S1_q = lambda t, q: self.subsystem1.J_P_q(t, q[:nq1], self.frame_ID1)
+        self.J_C1 = lambda t, q: self.subsystem1.J_P(t, q[:nq1], self.frame_ID1)
+        self.J_C1_q = lambda t, q: self.subsystem1.J_P_q(t, q[:nq1], self.frame_ID1)
 
         self.Omega1 = lambda t, q, u: self.subsystem1.A_IK(
             t, q[:nq1], frame_ID=self.frame_ID1
@@ -162,10 +162,10 @@ class Sphere2Sphere:
         #####################################
         self.r_OC2 = lambda t, q: self.subsystem2.r_OP(t, q[nq1:], self.frame_ID2)
         self.r_OC2_q = lambda t, q: self.subsystem2.r_OP_q(t, q[nq1:], self.frame_ID2)
-        self.v_S2 = lambda t, q, u: self.subsystem2.v_P(
+        self.v_C2 = lambda t, q, u: self.subsystem2.v_P(
             t, q[nq1:], u[nu1:], self.frame_ID2
         )
-        self.v_S2_q = lambda t, q, u: self.subsystem2.v_P_q(
+        self.v_C2_q = lambda t, q, u: self.subsystem2.v_P_q(
             t, q[nq1:], u[nu1:], self.frame_ID2
         )
         self.a_S2 = lambda t, q, u, u_dot: self.subsystem2.a_P(
@@ -177,8 +177,8 @@ class Sphere2Sphere:
         self.a_S2_u = lambda t, q, u, u_dot: self.subsystem2.a_P_u(
             t, q[nq1:], u[nu1:], u_dot[nu1:], self.frame_ID2
         )
-        self.J_S2 = lambda t, q: self.subsystem2.J_P(t, q[nq1:], self.frame_ID2)
-        self.J_S2_q = lambda t, q: self.subsystem2.J_P_q(t, q[nq1:], self.frame_ID2)
+        self.J_C2 = lambda t, q: self.subsystem2.J_P(t, q[nq1:], self.frame_ID2)
+        self.J_C2_q = lambda t, q: self.subsystem2.J_P_q(t, q[nq1:], self.frame_ID2)
 
         self.Omega2 = lambda t, q, u: self.subsystem2.A_IK(
             t, q[nq1:], frame_ID=self.frame_ID2
@@ -286,16 +286,16 @@ class Sphere2Sphere:
         # return g_N_q_num.reshape((self.nla_N, self._nq))
 
     def g_N_dot(self, t, q, u):
-        return np.array([self.normal(t, q) @ (self.v_S2(t, q, u) - self.v_S1(t, q, u))])
+        return np.array([self.normal(t, q) @ (self.v_C2(t, q, u) - self.v_C1(t, q, u))])
 
     def g_N_dot_q(self, t, q, u):
         raise NotImplementedError
 
     def g_N_dot_u(self, t, q):
         n = self.normal(t, q)
-        J_S1 = self.J_S1(t, q)
-        J_S2 = self.J_S2(t, q)
-        return np.concatenate((-n @ J_S1, n @ J_S2)).reshape((self.nla_N, self._nu))
+        J_C1 = self.J_C1(t, q)
+        J_C2 = self.J_C2(t, q)
+        return np.concatenate((-n @ J_C1, n @ J_C2)).reshape((self.nla_N, self._nu))
 
     def W_N(self, t, q):
         return self.g_N_dot_u(t, q).T
@@ -323,8 +323,8 @@ class Sphere2Sphere:
     def __gamma_F(self, t, q, u):
         n, t1, t2 = self.normal_and_tangents(t, q)
 
-        v_P1 = self.v_S1(t, q, u) + cross3(self.Omega1(t, q, u), self.radius1 * n)
-        v_P2 = self.v_S2(t, q, u) + cross3(self.Omega2(t, q, u), -self.radius2 * n)
+        v_P1 = self.v_C1(t, q, u) + cross3(self.Omega1(t, q, u), self.radius1 * n)
+        v_P2 = self.v_C2(t, q, u) + cross3(self.Omega2(t, q, u), -self.radius2 * n)
         v_P1P2 = v_P2 - v_P1
 
         return np.array(
@@ -341,8 +341,8 @@ class Sphere2Sphere:
     def gamma_F_u(self, t, q):
         n, t1, t2 = self.normal_and_tangents(t, q)
 
-        J_P1 = self.J_S1(t, q) - ax2skew(self.radius1 * n) @ self.J1_R(t, q)
-        J_P2 = self.J_S2(t, q) - ax2skew(-self.radius2 * n) @ self.J2_R(t, q)
+        J_P1 = self.J_C1(t, q) - ax2skew(self.radius1 * n) @ self.J1_R(t, q)
+        J_P2 = self.J_C2(t, q) - ax2skew(-self.radius2 * n) @ self.J2_R(t, q)
 
         gamma_F_u = np.zeros((self.nla_F, self._nu), dtype=q.dtype)
         gamma_F_u[0, : self.nu1] = -t1 @ J_P1

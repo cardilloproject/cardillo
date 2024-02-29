@@ -83,8 +83,8 @@ q0 = np.concatenate((r_OC0, Spurrier(A_IK0)))
 # initial velocities
 ####################
 K_Omega0 = np.array([omega_x0, omega_y0, omega_z0])
-v_S0 = A_IK0 @ cross3(K_Omega0, K_r_OC0)
-u0 = np.concatenate((v_S0, K_Omega0))
+v_C0 = A_IK0 @ cross3(K_Omega0, K_r_OC0)
+u0 = np.concatenate((v_C0, K_Omega0))
 
 #################
 # build the system

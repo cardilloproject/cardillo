@@ -53,10 +53,10 @@ if __name__ == "__main__":
     A_IK0 = A_IK_basic(phi0).z()
     r_OC0 = A_IK0 @ K_r_OC
     K_Omega0 = np.array([0, 0, phi_dot0])
-    v_S0 = cross3(K_Omega0, r_OC0)  # I_Omega0 = K_Omega0
+    v_C0 = cross3(K_Omega0, r_OC0)  # I_Omega0 = K_Omega0
 
     q0 = RigidBody.pose2q(r_OC0, A_IK0)
-    u0 = np.concatenate([v_S0, K_Omega0])
+    u0 = np.concatenate([v_C0, K_Omega0])
     pendulum = RigidBody(m, theta_S * np.eye(3), q0=q0, u0=u0)
     pendulum.name = "pendulum"
 
@@ -123,14 +123,14 @@ if __name__ == "__main__":
             A_IK = np.array([A_IK_basic(phi_).z() for phi_ in phi])
             r_OC = np.array([A_IK_ @ K_r_OC for A_IK_ in A_IK])
             K_Omega = np.array([[0, 0, phi_dot_] for phi_dot_ in phi_dot])
-            v_S = np.array(
+            v_C = np.array(
                 [cross3(K_Omega_, r_OC_) for K_Omega_, r_OC_ in zip(K_Omega, r_OC[1:])]
             )  # I_Omega = K_Omega!!
 
             q = np.array(
                 [RigidBody.pose2q(r_OC_, A_IK_) for r_OC_, A_IK_ in zip(r_OC, A_IK)]
             )
-            u = np.concatenate([v_S, K_Omega], axis=1)
+            u = np.concatenate([v_C, K_Omega], axis=1)
             u_dot = (u[1:] - u[:-1]) / dt
 
             # fig, ax = plt.subplots()

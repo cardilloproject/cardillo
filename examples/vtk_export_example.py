@@ -50,10 +50,10 @@ if __name__ == "__main__":
     p = axis_angle2quat(np.array([0, 0, 1]), phi)
     phi_dot = 10
     omega = np.array([0, 0, phi_dot])
-    v_S = cross3(omega, r_OC)
+    v_C = cross3(omega, r_OC)
 
     q0 = np.concatenate([r_OC, p])
-    u0 = np.concatenate([v_S, omega])
+    u0 = np.concatenate([v_C, omega])
 
     # cube = ConvexRigidBody(points_cube, mass=m, u0=u0, q0=q0)
     # cube = newConvexRigidBody(RigidBodyQuaternion, points_cube, mass=m, u0=u0, q0=q0)

@@ -1012,11 +1012,11 @@ class CosseratRod(RodExportBase, ABC):
             K_Omega += N[node] * ue[self.nodalDOF_element_p_u[node]]
 
         # centerline velocity
-        v_S = np.zeros(3, dtype=np.common_type(qe, ue))
+        v_C = np.zeros(3, dtype=np.common_type(qe, ue))
         for node in range(self.nnodes_element_r):
-            v_S += N[node] * ue[self.nodalDOF_element_r[node]]
+            v_C += N[node] * ue[self.nodalDOF_element_r[node]]
 
-        return v_S + A_IK @ cross3(K_Omega, B_r_CP)
+        return v_C + A_IK @ cross3(K_Omega, B_r_CP)
 
     def v_P_q(self, t, qe, ue, frame_ID, B_r_CP=np.zeros(3, dtype=float)):
         # evaluate shape functions

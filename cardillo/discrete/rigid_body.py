@@ -19,8 +19,8 @@ class RigidBody:
         """Rigid body parametrized by center of mass in inertial basis I_r_OP in
         R^3 and non-unit quaternions p in R^4 for rotation, i.e., the 
         generalized position coordinates are q = (I_r_OP, p) in R^7. The 
-        generalized velocity coordinates u = (I_v_S, K_omega_IK) in R^6 are 
-        composed of the velocity of the center of mass I_v_S in R^3 together 
+        generalized velocity coordinates u = (I_v_C, K_omega_IK) in R^6 are 
+        composed of the velocity of the center of mass I_v_C in R^3 together 
         with the angular velocity represented in the body-fixed K-basis 
         K_omega_IK in R^3. 
         

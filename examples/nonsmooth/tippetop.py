@@ -60,22 +60,22 @@ def make_system():
     # K_omega_IK = np.array([gamma, 0, omega])
     # A_IK = np.eye(3)
     # K_r_PS = np.array([0, 0, R1 - a1])
-    # v_S = A_IK @ cross3(K_omega_IK, K_r_PS)
+    # v_C = A_IK @ cross3(K_omega_IK, K_r_PS)
 
     omega = 180  # rad / s
     # gamma = 1  # rad / s
     gamma = 0  # rad / s
     K_omega_IK = np.array([gamma, 0, omega])
-    v_S = np.zeros(3)
+    v_C = np.zeros(3)
 
-    # print(f"v_S = {v_S}")
+    # print(f"v_C = {v_C}")
     # print(
-    #     f"v_C = {v_S + A_IK @ cross3(K_omega_IK, np.array([0, 0, a1]) + np.array([0, 0, -R1]))}"
+    #     f"v_C = {v_C + A_IK @ cross3(K_omega_IK, np.array([0, 0, a1]) + np.array([0, 0, -R1]))}"
     # )
     # # exit()
 
     u0 = np.zeros(6, dtype=float)
-    u0[:3] = v_S
+    u0[:3] = v_C
     u0[3:] = K_omega_IK
     # u0[5] = psi_dot0
 

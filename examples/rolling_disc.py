@@ -260,10 +260,10 @@ K_Omega0 = np.array(
 
 # center of mass velocity
 # TODO: Derive these equations!
-v_S0 = np.array([-R * alpha_dot0 + r * alpha_dot0 * np.sin(beta0), 0, 0])
+v_C0 = np.array([-R * alpha_dot0 + r * alpha_dot0 * np.sin(beta0), 0, 0])
 
 # initial conditions
-u0 = np.concatenate((v_S0, K_Omega0))
+u0 = np.concatenate((v_C0, K_Omega0))
 p0 = axis_angle2quat(np.array([1, 0, 0]), beta0)
 q0 = np.array((x0, y0, z0, *p0))
 

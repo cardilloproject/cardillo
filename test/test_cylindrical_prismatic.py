@@ -136,10 +136,10 @@ def run(
     r_OC0 = r_OB0 + A_IK0 @ np.array([0.5 * l, 0, z0])
 
     K0_omega_IK0 = A_IK0.T @ omega_IB(0) + np.array([0, 0, alpha_dot0])
-    v_S0 = v_P0 + A_IK0 @ cross3(K0_omega_IK0, np.array([0.5 * l, 0, 0]))
+    v_C0 = v_P0 + A_IK0 @ cross3(K0_omega_IK0, np.array([0.5 * l, 0, 0]))
 
     q0 = np.array([*r_OC0, *Spurrier(A_IK0)])
-    u0 = np.array([*v_S0, *K0_omega_IK0])
+    u0 = np.array([*v_C0, *K0_omega_IK0])
     RB2 = RigidBody(m, K_theta_S, q0, u0)
 
     f_g = Force(np.array([0, 0, -m * g]), RB2)
@@ -227,14 +227,14 @@ def run(
         )
         A_KI = A_BK.T @ _A_IB.T
 
-        J_S = np.zeros((3, 2), dtype=float)
-        J_S[:, 0] = e_z_B
-        J_S[:, 1] = 0.5 * l * (ca * e_y_B - sa * e_x_B)
+        J_C = np.zeros((3, 2), dtype=float)
+        J_C[:, 0] = e_z_B
+        J_C[:, 1] = 0.5 * l * (ca * e_y_B - sa * e_x_B)
 
         K_J_R = np.zeros((3, 2), dtype=float)
         K_J_R[:, 1] = e3
 
-        M = m * (J_S.T @ J_S) + K_J_R.T @ K_theta_S @ K_J_R
+        M = m * (J_C.T @ J_C) + K_J_R.T @ K_theta_S @ K_J_R
 
         _omega_IB = omega_IB(t)
 
@@ -254,7 +254,7 @@ def run(
             _A_IB.T @ omega_IB(t), e3
         )
 
-        h = -J_S.T @ (m * nu_S_dot + m * g * e3) - K_J_R.T @ K_theta_S @ K_nu_R_dot
+        h = -J_C.T @ (m * nu_S_dot + m * g * e3) - K_J_R.T @ K_theta_S @ K_nu_R_dot
         h[0] -= k * (z - z0) + k * z_dot
 
         u_dot = np.linalg.solve(M, h)

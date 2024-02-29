@@ -49,10 +49,10 @@ if __name__ == "__main__":
     r_OC = np.array([0, 0, tip_radius]) + A_IK @ K_r_PC
 
     K_Omega = np.array([0, 0, omega_z0])
-    v_S = cross3(A_IK @ K_Omega, r_OC)
+    v_C = cross3(A_IK @ K_Omega, r_OC)
 
     q0 = RigidBody.pose2q(r_OC, A_IK)
-    u0 = np.hstack([v_S, K_Omega])
+    u0 = np.hstack([v_C, K_Omega])
 
     top = Meshed(RigidBody)(
         mesh_obj=top_mesh,

@@ -59,10 +59,10 @@ if __name__ == "__main__":
     r_J1C1 = A_IK1 @ K1_r_J1C1
     r_OC1 = r_OJ1 + r_J1C1
     K1_Omega1 = np.array([phi1_dot0, 0, 0])
-    v_S1 = A_IK1 @ cross3(K1_Omega1, K1_r_J1C1)
+    v_C1 = A_IK1 @ cross3(K1_Omega1, K1_r_J1C1)
 
     q0 = RigidBody.pose2q(r_OC1, A_IK1)
-    u0 = np.hstack([v_S1, K1_Omega1])
+    u0 = np.hstack([v_C1, K1_Omega1])
 
     # create link 1
     link1 = Meshed(RigidBody)(
@@ -113,10 +113,10 @@ if __name__ == "__main__":
     r_OC2 = r_OJ2 + r_J2C2
 
     K_Omega2 = np.array([phi2_dot0, 0, 0])
-    v_S2 = v_J2 + A_IK2 @ cross3(K_Omega2, K2_r_J2C2)
+    v_C2 = v_J2 + A_IK2 @ cross3(K_Omega2, K2_r_J2C2)
 
     q0 = RigidBody.pose2q(r_OC2, A_IK2)
-    u0 = np.hstack([v_S2, K_Omega2])
+    u0 = np.hstack([v_C2, K_Omega2])
 
     link2 = Meshed(RigidBody)(
         mesh_obj=Path(dir_name, "stl", "link2.stl"),
