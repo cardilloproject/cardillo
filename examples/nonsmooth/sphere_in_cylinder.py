@@ -18,8 +18,8 @@ class Ball(RigidBodyEuler):
 
     def boundary(self, t, q, n=100):
         phi = np.linspace(0, 2 * np.pi, n, endpoint=True)
-        K_r_SP = self.r * np.vstack([np.sin(phi), np.cos(phi), np.zeros(n)])
-        return np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ K_r_SP
+        B_r_CP = self.r * np.vstack([np.sin(phi), np.cos(phi), np.zeros(n)])
+        return np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ B_r_CP
 
 
 if __name__ == "__main__":

@@ -193,79 +193,79 @@ class RigidBody:
 
     @cachedmethod(
         lambda self: self.r_OP_cache,
-        key=lambda self, t, q, frame_ID=None, K_r_SP=np.zeros(3, dtype=float): hashkey(
-            t, *q, *K_r_SP
+        key=lambda self, t, q, frame_ID=None, B_r_CP=np.zeros(3, dtype=float): hashkey(
+            t, *q, *B_r_CP
         ),
     )
-    def r_OP(self, t, q, frame_ID=None, K_r_SP=np.zeros(3, dtype=float)):
-        return q[:3] + self.A_IK(t, q) @ K_r_SP
+    def r_OP(self, t, q, frame_ID=None, B_r_CP=np.zeros(3, dtype=float)):
+        return q[:3] + self.A_IK(t, q) @ B_r_CP
 
-    def r_OP_q(self, t, q, frame_ID=None, K_r_SP=np.zeros(3, dtype=float)):
+    def r_OP_q(self, t, q, frame_ID=None, B_r_CP=np.zeros(3, dtype=float)):
         r_OP_q = np.zeros((3, self.nq), dtype=q.dtype)
         r_OP_q[:, :3] = np.eye(3)
-        r_OP_q[:, :] += np.einsum("ijk,j->ik", self.A_IK_q(t, q), K_r_SP)
+        r_OP_q[:, :] += np.einsum("ijk,j->ik", self.A_IK_q(t, q), B_r_CP)
         return r_OP_q
 
     @cachedmethod(
         lambda self: self.v_P_cache,
-        key=lambda self, t, q, u, frame_ID=None, K_r_SP=np.zeros(
+        key=lambda self, t, q, u, frame_ID=None, B_r_CP=np.zeros(
             3, dtype=float
-        ): hashkey(t, *q, *u, *K_r_SP),
+        ): hashkey(t, *q, *u, *B_r_CP),
     )
-    def v_P(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3, dtype=float)):
-        return u[:3] + self.A_IK(t, q) @ cross3(u[3:], K_r_SP)
+    def v_P(self, t, q, u, frame_ID=None, B_r_CP=np.zeros(3, dtype=float)):
+        return u[:3] + self.A_IK(t, q) @ cross3(u[3:], B_r_CP)
 
-    def v_P_q(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3, dtype=float)):
-        return np.einsum("ijk,j->ik", self.A_IK_q(t, q), cross3(u[3:], K_r_SP))
+    def v_P_q(self, t, q, u, frame_ID=None, B_r_CP=np.zeros(3, dtype=float)):
+        return np.einsum("ijk,j->ik", self.A_IK_q(t, q), cross3(u[3:], B_r_CP))
 
-    def a_P(self, t, q, u, u_dot, frame_ID=None, K_r_SP=np.zeros(3, dtype=float)):
+    def a_P(self, t, q, u, u_dot, frame_ID=None, B_r_CP=np.zeros(3, dtype=float)):
         return u_dot[:3] + self.A_IK(t, q) @ (
-            cross3(u_dot[3:], K_r_SP) + cross3(u[3:], cross3(u[3:], K_r_SP))
+            cross3(u_dot[3:], B_r_CP) + cross3(u[3:], cross3(u[3:], B_r_CP))
         )
 
-    def a_P_q(self, t, q, u, u_dot, frame_ID=None, K_r_SP=np.zeros(3, dtype=float)):
+    def a_P_q(self, t, q, u, u_dot, frame_ID=None, B_r_CP=np.zeros(3, dtype=float)):
         return np.einsum(
             "ijk,j->ik",
             self.A_IK_q(t, q),
-            cross3(u_dot[3:], K_r_SP) + cross3(u[3:], cross3(u[3:], K_r_SP)),
+            cross3(u_dot[3:], B_r_CP) + cross3(u[3:], cross3(u[3:], B_r_CP)),
         )
 
-    def a_P_u(self, t, q, u, u_dot, frame_ID=None, K_r_SP=np.zeros(3, dtype=float)):
+    def a_P_u(self, t, q, u, u_dot, frame_ID=None, B_r_CP=np.zeros(3, dtype=float)):
         a_P_u = np.zeros((3, self.nu), dtype=float)
         a_P_u[:, 3:] = -self.A_IK(t, q) @ (
-            ax2skew(cross3(u[3:], K_r_SP)) + ax2skew(u[3:]) @ ax2skew(K_r_SP)
+            ax2skew(cross3(u[3:], B_r_CP)) + ax2skew(u[3:]) @ ax2skew(B_r_CP)
         )
         return a_P_u
 
     @cachedmethod(
         lambda self: self.J_P_cache,
-        key=lambda self, t, q, frame_ID=None, K_r_SP=np.zeros(3, dtype=float): hashkey(
-            t, *q, *K_r_SP
+        key=lambda self, t, q, frame_ID=None, B_r_CP=np.zeros(3, dtype=float): hashkey(
+            t, *q, *B_r_CP
         ),
     )
-    def J_P(self, t, q, frame_ID=None, K_r_SP=np.zeros(3, dtype=float)):
+    def J_P(self, t, q, frame_ID=None, B_r_CP=np.zeros(3, dtype=float)):
         J_P = np.zeros((3, self.nu), dtype=q.dtype)
         J_P[:, :3] = np.eye(3)
-        J_P[:, 3:] = -self.A_IK(t, q) @ ax2skew(K_r_SP)
+        J_P[:, 3:] = -self.A_IK(t, q) @ ax2skew(B_r_CP)
         return J_P
 
-    def J_P_q(self, t, q, frame_ID=None, K_r_SP=np.zeros(3, dtype=float)):
+    def J_P_q(self, t, q, frame_ID=None, B_r_CP=np.zeros(3, dtype=float)):
         J_P_q = np.zeros((3, self.nu, self.nq), dtype=q.dtype)
-        J_P_q[:, 3:, :] = np.einsum("ijk,jl->ilk", self.A_IK_q(t, q), -ax2skew(K_r_SP))
+        J_P_q[:, 3:, :] = np.einsum("ijk,jl->ilk", self.A_IK_q(t, q), -ax2skew(B_r_CP))
         return J_P_q
 
-    def kappa_P(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
-        return self.A_IK(t, q) @ (cross3(u[3:], cross3(u[3:], K_r_SP)))
+    def kappa_P(self, t, q, u, frame_ID=None, B_r_CP=np.zeros(3)):
+        return self.A_IK(t, q) @ (cross3(u[3:], cross3(u[3:], B_r_CP)))
 
-    def kappa_P_q(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
+    def kappa_P_q(self, t, q, u, frame_ID=None, B_r_CP=np.zeros(3)):
         return np.einsum(
-            "ijk,j->ik", self.A_IK_q(t, q), cross3(u[3:], cross3(u[3:], K_r_SP))
+            "ijk,j->ik", self.A_IK_q(t, q), cross3(u[3:], cross3(u[3:], B_r_CP))
         )
 
-    def kappa_P_u(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
+    def kappa_P_u(self, t, q, u, frame_ID=None, B_r_CP=np.zeros(3)):
         kappa_P_u = np.zeros((3, self.nu))
         kappa_P_u[:, 3:] = -self.A_IK(t, q) @ (
-            ax2skew(cross3(u[3:], K_r_SP)) + ax2skew(u[3:]) @ ax2skew(K_r_SP)
+            ax2skew(cross3(u[3:], B_r_CP)) + ax2skew(u[3:]) @ ax2skew(B_r_CP)
         )
         return kappa_P_u
 

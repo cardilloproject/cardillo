@@ -47,9 +47,9 @@ def run(revolute_joint_used=False):
     v_P = lambda t: np.array([e_t(t), 0, 0])
     a_P = lambda t: np.array([e_tt(t), 0, 0])
 
-    K_r_SP = np.array([0, L / 2, 0])  # center of mass single rigid body
-    K_r_SP1 = np.array([0, L / 4, 0])  # center of mass half rigid body 1
-    K_r_SP2 = np.array([0, 3 * L / 4, 0])  # center of mass half rigid body 2
+    B_r_CP = np.array([0, L / 2, 0])  # center of mass single rigid body
+    B_r_CP1 = np.array([0, L / 4, 0])  # center of mass half rigid body 1
+    B_r_CP2 = np.array([0, 3 * L / 4, 0])  # center of mass half rigid body 2
 
     phi0 = 0.5
     phi_dot0 = 0
@@ -57,14 +57,14 @@ def run(revolute_joint_used=False):
     A_IK0 = A_IK_basic(phi0).z()
 
     # single rigid body
-    r_OC0 = r_OP(0) - A_IK0 @ K_r_SP
-    v_S0 = v_P(0) + A_IK0 @ (cross3(K_omega0, K_r_SP))
+    r_OC0 = r_OP(0) - A_IK0 @ B_r_CP
+    v_S0 = v_P(0) + A_IK0 @ (cross3(K_omega0, B_r_CP))
 
     # connected rigid bodies
-    r_OC10 = r_OP(0) - A_IK0 @ K_r_SP1
-    v_S10 = v_P(0) + A_IK0 @ (cross3(K_omega0, K_r_SP1))
-    r_OC20 = r_OP(0) - A_IK0 @ K_r_SP2
-    v_S20 = v_P(0) + A_IK0 @ (cross3(K_omega0, K_r_SP2))
+    r_OC10 = r_OP(0) - A_IK0 @ B_r_CP1
+    v_S10 = v_P(0) + A_IK0 @ (cross3(K_omega0, B_r_CP1))
+    r_OC20 = r_OP(0) - A_IK0 @ B_r_CP2
+    v_S20 = v_P(0) + A_IK0 @ (cross3(K_omega0, B_r_CP2))
 
     system = System()
 
@@ -136,8 +136,8 @@ def run(revolute_joint_used=False):
         x_0, y_0, z_0 = r_OP(t)
         x_S1, y_S1, z_S1 = RB1.r_OP(t, q[RB1.qDOF])
         x_S2, y_S2, z_S2 = RB2.r_OP(t, q[RB2.qDOF])
-        x_RC, y_RC, z_RC = RB1.r_OP(t, q[RB1.qDOF], K_r_SP=K_r_SP1)
-        x_RB2, y_RB2, z_RB2 = RB2.r_OP(t, q[RB2.qDOF], K_r_SP=K_r_SP1)
+        x_RC, y_RC, z_RC = RB1.r_OP(t, q[RB1.qDOF], B_r_CP=B_r_CP1)
+        x_RB2, y_RB2, z_RB2 = RB2.r_OP(t, q[RB2.qDOF], B_r_CP=B_r_CP1)
 
         A_IK1 = RB1.A_IK(t, q[RB1.qDOF])
         d11 = A_IK1[:, 0]
@@ -196,10 +196,10 @@ def run(revolute_joint_used=False):
         # def update(t, q, COM, d11_, d21_, d31_):
         x_0, y_0, z_0 = r_OP(t)
         # TODO is this -L/2?
-        x_S1, y_S1, z_S1 = RB1.r_OP(t, q[RB1.qDOF], K_r_SP=np.array([0, -L / 2, 0]))
-        x_S2, y_S2, z_S2 = RB2.r_OP(t, q[RB2.qDOF], K_r_SP=np.array([0, -L / 2, 0]))
-        x_RC, y_RC, z_RC = RB1.r_OP(t, q[RB1.qDOF], K_r_SP=K_r_SP1)
-        x_RB2, y_RB2, z_RB2 = RB2.r_OP(t, q[RB2.qDOF], K_r_SP=K_r_SP1)
+        x_S1, y_S1, z_S1 = RB1.r_OP(t, q[RB1.qDOF], B_r_CP=np.array([0, -L / 2, 0]))
+        x_S2, y_S2, z_S2 = RB2.r_OP(t, q[RB2.qDOF], B_r_CP=np.array([0, -L / 2, 0]))
+        x_RC, y_RC, z_RC = RB1.r_OP(t, q[RB1.qDOF], B_r_CP=B_r_CP1)
+        x_RB2, y_RB2, z_RB2 = RB2.r_OP(t, q[RB2.qDOF], B_r_CP=B_r_CP1)
 
         A_IK1 = RB1.A_IK(t, q[RB1.qDOF])
         d11 = A_IK1[:, 0]
@@ -285,7 +285,7 @@ def run(revolute_joint_used=False):
     r_OC = np.zeros((3, len(q[:, 0])))
     r_OC1 = np.zeros((3, len(q[:, 0])))
     for i, ti in enumerate(t):
-        r_OC = q[i, :3] - (RB1.A_IK(ti, q[i, :7]) @ K_r_SP1)
+        r_OC = q[i, :3] - (RB1.A_IK(ti, q[i, :7]) @ B_r_CP1)
         x_.append(r_OC[0])
         y_.append(r_OC[1])
     fig, ax = plt.subplots(2, 1)

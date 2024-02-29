@@ -15,7 +15,7 @@ class RodExportBase(ABC):
         self.cross_section = cross_section
 
     @abstractmethod
-    def r_OP(self, t, q, frame_ID, K_r_SP):
+    def r_OP(self, t, q, frame_ID, B_r_CP):
         ...
 
     @abstractmethod

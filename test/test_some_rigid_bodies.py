@@ -34,7 +34,7 @@ def test_some_rigid_bodies():
     #############################
     # identical stl box primitive
     #############################
-    K_r_SP = -np.array([1.5, 1.0, 0.5])
+    B_r_CP = -np.array([1.5, 1.0, 0.5])
     # fmt: off
     K_Theta_S = np.array([
         [0.0195,   0.0,    0.0],
@@ -45,7 +45,7 @@ def test_some_rigid_bodies():
         path.parent / ".." / "geometry" / "box" / "box.stl",
         # Path.joinpath(path.parent, "tippedisk.stl")
         mass=0.0468,
-        K_r_SP=K_r_SP,
+        B_r_CP=B_r_CP,
         K_Theta_S=K_Theta_S,
         u0=u0,
     )

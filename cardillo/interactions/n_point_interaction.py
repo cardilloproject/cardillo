@@ -8,7 +8,7 @@ class nPointInteraction:
         subsystem_list,
         connectivity,
         frame_ID_list=None,
-        K_r_SP_list=None,
+        B_r_CP_list=None,
     ) -> None:
         raise NotImplementedError("This class is not tested yet.")
         self.subsystems = subsystem_list
@@ -19,8 +19,8 @@ class nPointInteraction:
             else self.n_subsystems * [np.zeros(3)]
         )
         self.Ki_r_SPis = (
-            K_r_SP_list
-            if K_r_SP_list is not None
+            B_r_CP_list
+            if B_r_CP_list is not None
             else self.n_subsystems * [np.zeros(3)]
         )
 

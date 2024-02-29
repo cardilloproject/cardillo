@@ -28,7 +28,7 @@ if __name__ == "__main__":
 
     cube_mesh = trimesh.creation.box(extents=[3, 3, 3])
     plane_mesh = cube_mesh.copy().apply_transform(np.diag([1, 1, 0.001, 1]))
-    frame = Meshed(Frame)(plane_mesh, K_r_SP=np.array([0, 0, 0]))
+    frame = Meshed(Frame)(plane_mesh, B_r_CP=np.array([0, 0, 0]))
 
     q10 = np.concatenate([np.array([0, 0, 1]), Spurrier(A_IK_basic(np.pi / 4).x())])
     rigid_body1 = Box(RigidBody)(

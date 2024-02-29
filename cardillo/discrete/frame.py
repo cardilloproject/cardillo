@@ -73,43 +73,43 @@ class Frame:
     def A_IK_q(self, t, q=None, frame_ID=None):
         return np.array([]).reshape((3, 3, 0))
 
-    def r_OP(self, t, q=None, frame_ID=None, K_r_SP=np.zeros(3)):
-        return self.r_OP__(t) + self.A_IK__(t) @ K_r_SP
+    def r_OP(self, t, q=None, frame_ID=None, B_r_CP=np.zeros(3)):
+        return self.r_OP__(t) + self.A_IK__(t) @ B_r_CP
 
-    def r_OP_q(self, t, q=None, frame_ID=None, K_r_SP=np.zeros(3)):
+    def r_OP_q(self, t, q=None, frame_ID=None, B_r_CP=np.zeros(3)):
         return np.array([]).reshape((3, 0))
 
-    def r_OP_qq(self, t, q=None, frame_ID=None, K_r_SP=np.zeros(3)):
+    def r_OP_qq(self, t, q=None, frame_ID=None, B_r_CP=np.zeros(3)):
         return np.array([]).reshape((3, 0, 0))
 
-    def v_P(self, t, q=None, u=None, frame_ID=None, K_r_SP=np.zeros(3)):
-        return self.r_OP_t__(t) + self.A_IK_t__(t) @ K_r_SP
+    def v_P(self, t, q=None, u=None, frame_ID=None, B_r_CP=np.zeros(3)):
+        return self.r_OP_t__(t) + self.A_IK_t__(t) @ B_r_CP
 
-    def v_P_q(self, t, q=None, u=None, frame_ID=None, K_r_SP=np.zeros(3)):
+    def v_P_q(self, t, q=None, u=None, frame_ID=None, B_r_CP=np.zeros(3)):
         return np.array([]).reshape((3, 0))
 
-    def J_P(self, t, q=None, frame_ID=None, K_r_SP=np.zeros(3)):
+    def J_P(self, t, q=None, frame_ID=None, B_r_CP=np.zeros(3)):
         return np.array([]).reshape((3, 0))
 
-    def J_P_q(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
+    def J_P_q(self, t, q, frame_ID=None, B_r_CP=np.zeros(3)):
         return np.array([]).reshape((3, 0, 0))
 
-    def a_P(self, t, q=None, u=None, u_dot=None, frame_ID=None, K_r_SP=np.zeros(3)):
-        return self.r_OP_tt__(t) + self.A_IK_tt__(t) @ K_r_SP
+    def a_P(self, t, q=None, u=None, u_dot=None, frame_ID=None, B_r_CP=np.zeros(3)):
+        return self.r_OP_tt__(t) + self.A_IK_tt__(t) @ B_r_CP
 
-    def a_P_q(self, t, q=None, u=None, u_dot=None, frame_ID=None, K_r_SP=np.zeros(3)):
+    def a_P_q(self, t, q=None, u=None, u_dot=None, frame_ID=None, B_r_CP=np.zeros(3)):
         return np.array([]).reshape((3, 0))
 
-    def a_P_u(self, t, q=None, u=None, u_dot=None, frame_ID=None, K_r_SP=np.zeros(3)):
+    def a_P_u(self, t, q=None, u=None, u_dot=None, frame_ID=None, B_r_CP=np.zeros(3)):
         return np.array([]).reshape((3, 0))
 
-    def kappa_P(self, t, q=None, u=None, frame_ID=None, K_r_SP=np.zeros(3)):
+    def kappa_P(self, t, q=None, u=None, frame_ID=None, B_r_CP=np.zeros(3)):
         return self.r_OP_tt__(t)
 
-    def kappa_P_q(self, t, q=None, u=None, frame_ID=None, K_r_SP=np.zeros(3)):
+    def kappa_P_q(self, t, q=None, u=None, frame_ID=None, B_r_CP=np.zeros(3)):
         return np.array([]).reshape((3, 0))
 
-    def kappa_P_u(self, t, q=None, u=None, frame_ID=None, K_r_SP=np.zeros(3)):
+    def kappa_P_u(self, t, q=None, u=None, frame_ID=None, B_r_CP=np.zeros(3)):
         return np.array([]).reshape((3, 0))
 
     def K_Omega(self, t, q=None, u=None, frame_ID=None):

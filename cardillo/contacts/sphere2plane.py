@@ -16,7 +16,7 @@ class Sphere2Plane:
         mu,
         r=0,
         frame_ID=None,
-        K_r_SP=np.zeros(3),
+        B_r_CP=np.zeros(3),
         e_N=None,
         e_F=None,
         anisotropy=np.ones(2),
@@ -37,7 +37,7 @@ class Sphere2Plane:
         e_N : float
             Restitution coefficient for Newton-like impact law for friction.
         frame_ID : TODO
-        K_r_SP : np.ndarray (3,)
+        B_r_CP : np.ndarray (3,)
             Position of center of sphere (P) with respect to the center of mass/reference point TODO (S) of the subsystem in the body-fixed K-basis.
         r : float
             Radius of spherical contact surface. Possible values are in [0, inf].
@@ -75,7 +75,7 @@ class Sphere2Plane:
         self.n = self.frame.A_IK(0)[:, 2]
 
         self.frame_ID = frame_ID
-        self.K_r_SP = K_r_SP
+        self.B_r_CP = B_r_CP
 
     def assembler_callback(self):
         qDOF = self.subsystem.local_qDOF_P(self.frame_ID)
@@ -87,31 +87,31 @@ class Sphere2Plane:
         self.nu = len(self.uDOF)
 
         self.r_OP = lambda t, q: self.subsystem.r_OP(
-            t, q, frame_ID=self.frame_ID, K_r_SP=self.K_r_SP
+            t, q, frame_ID=self.frame_ID, B_r_CP=self.B_r_CP
         )
         self.r_OP_q = lambda t, q: self.subsystem.r_OP_q(
-            t, q, frame_ID=self.frame_ID, K_r_SP=self.K_r_SP
+            t, q, frame_ID=self.frame_ID, B_r_CP=self.B_r_CP
         )
         self.v_P = lambda t, q, u: self.subsystem.v_P(
-            t, q, u, frame_ID=self.frame_ID, K_r_SP=self.K_r_SP
+            t, q, u, frame_ID=self.frame_ID, B_r_CP=self.B_r_CP
         )
         self.v_P_q = lambda t, q, u: self.subsystem.v_P_q(
-            t, q, u, frame_ID=self.frame_ID, K_r_SP=self.K_r_SP
+            t, q, u, frame_ID=self.frame_ID, B_r_CP=self.B_r_CP
         )
         self.J_P = lambda t, q: self.subsystem.J_P(
-            t, q, frame_ID=self.frame_ID, K_r_SP=self.K_r_SP
+            t, q, frame_ID=self.frame_ID, B_r_CP=self.B_r_CP
         )
         self.J_P_q = lambda t, q: self.subsystem.J_P_q(
-            t, q, frame_ID=self.frame_ID, K_r_SP=self.K_r_SP
+            t, q, frame_ID=self.frame_ID, B_r_CP=self.B_r_CP
         )
         self.a_P = lambda t, q, u, a: self.subsystem.a_P(
-            t, q, u, a, frame_ID=self.frame_ID, K_r_SP=self.K_r_SP
+            t, q, u, a, frame_ID=self.frame_ID, B_r_CP=self.B_r_CP
         )
         self.a_P_q = lambda t, q, u, a: self.subsystem.a_P_q(
-            t, q, u, a, frame_ID=self.frame_ID, K_r_SP=self.K_r_SP
+            t, q, u, a, frame_ID=self.frame_ID, B_r_CP=self.B_r_CP
         )
         self.a_P_u = lambda t, q, u, a: self.subsystem.a_P_u(
-            t, q, u, a, frame_ID=self.frame_ID, K_r_SP=self.K_r_SP
+            t, q, u, a, frame_ID=self.frame_ID, B_r_CP=self.B_r_CP
         )
 
         if hasattr(self.subsystem, "A_IK"):
@@ -274,7 +274,7 @@ class Sphere2Plane:
                     self.frame_ID,
                     A_IK1 @ r_PC1,
                 ),
-                self.frame.v_P(sol_i.t, K_r_SP=A_IK2 @ r_QC2),
+                self.frame.v_P(sol_i.t, B_r_CP=A_IK2 @ r_QC2),
             ],
             Omega=[
                 self.Omega(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF]),

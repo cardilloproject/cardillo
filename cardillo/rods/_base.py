@@ -980,13 +980,13 @@ class CosseratRod(RodExportBase, ABC):
     ##########################
     # r_OP / A_IK contribution
     ##########################
-    def r_OP(self, t, qe, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
+    def r_OP(self, t, qe, frame_ID, B_r_CP=np.zeros(3, dtype=float)):
         N, N_xi = self.basis_functions_r(frame_ID)
         r_OC, A_IK, _, _ = self._eval(qe, frame_ID, N, N_xi)
-        return r_OC + A_IK @ K_r_SP
+        return r_OC + A_IK @ B_r_CP
 
     # TODO: Think of a faster version than using _deval
-    def r_OP_q(self, t, qe, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
+    def r_OP_q(self, t, qe, frame_ID, B_r_CP=np.zeros(3, dtype=float)):
         # evaluate required quantities
         N, N_xi = self.basis_functions_r(frame_ID)
         (
@@ -1000,9 +1000,9 @@ class CosseratRod(RodExportBase, ABC):
             _,
         ) = self._deval(qe, frame_ID, N, N_xi)
 
-        return r_OC_q + np.einsum("ijk,j->ik", A_IK_q, K_r_SP)
+        return r_OC_q + np.einsum("ijk,j->ik", A_IK_q, B_r_CP)
 
-    def v_P(self, t, qe, ue, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
+    def v_P(self, t, qe, ue, frame_ID, B_r_CP=np.zeros(3, dtype=float)):
         N, _ = self.basis_functions_r(frame_ID)
 
         # interpolate A_IK and angular velocity in K-frame
@@ -1016,9 +1016,9 @@ class CosseratRod(RodExportBase, ABC):
         for node in range(self.nnodes_element_r):
             v_S += N[node] * ue[self.nodalDOF_element_r[node]]
 
-        return v_S + A_IK @ cross3(K_Omega, K_r_SP)
+        return v_S + A_IK @ cross3(K_Omega, B_r_CP)
 
-    def v_P_q(self, t, qe, ue, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
+    def v_P_q(self, t, qe, ue, frame_ID, B_r_CP=np.zeros(3, dtype=float)):
         # evaluate shape functions
         N, _ = self.basis_functions_r(frame_ID)
 
@@ -1031,36 +1031,36 @@ class CosseratRod(RodExportBase, ABC):
         v_P_q = np.einsum(
             "ijk,j->ik",
             A_IK_q,
-            cross3(K_Omega, K_r_SP),
+            cross3(K_Omega, B_r_CP),
         )
         return v_P_q
 
-    def J_P(self, t, qe, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
+    def J_P(self, t, qe, frame_ID, B_r_CP=np.zeros(3, dtype=float)):
         # evaluate required nodal shape functions
         N, _ = self.basis_functions_r(frame_ID)
 
         # transformation matrix
         A_IK = self.A_IK(t, qe, frame_ID)
 
-        # skew symmetric matrix of K_r_SP
-        K_r_SP_tilde = ax2skew(K_r_SP)
+        # skew symmetric matrix of B_r_CP
+        B_r_CP_tilde = ax2skew(B_r_CP)
 
         # interpolate centerline and axis angle contributions
         J_P = np.zeros((3, self.nu_element), dtype=qe.dtype)
         for node in range(self.nnodes_element_r):
             J_P[:, self.nodalDOF_element_r[node]] += N[node] * np.eye(3)
         for node in range(self.nnodes_element_p):
-            J_P[:, self.nodalDOF_element_p_u[node]] -= N[node] * A_IK @ K_r_SP_tilde
+            J_P[:, self.nodalDOF_element_p_u[node]] -= N[node] * A_IK @ B_r_CP_tilde
 
         return J_P
 
-    def J_P_q(self, t, qe, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
+    def J_P_q(self, t, qe, frame_ID, B_r_CP=np.zeros(3, dtype=float)):
         # evaluate required nodal shape functions
         N, _ = self.basis_functions_r(frame_ID)
 
-        K_r_SP_tilde = ax2skew(K_r_SP)
+        B_r_CP_tilde = ax2skew(B_r_CP)
         A_IK_q = self.A_IK_q(t, qe, frame_ID)
-        prod = np.einsum("ijl,jk", A_IK_q, K_r_SP_tilde)
+        prod = np.einsum("ijl,jk", A_IK_q, B_r_CP_tilde)
 
         # interpolate axis angle contributions since centerline contributon is
         # zero
@@ -1071,7 +1071,7 @@ class CosseratRod(RodExportBase, ABC):
 
         return J_P_q
 
-    def a_P(self, t, qe, ue, ue_dot, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
+    def a_P(self, t, qe, ue, ue_dot, frame_ID, B_r_CP=np.zeros(3, dtype=float)):
         N, _ = self.basis_functions_r(frame_ID)
 
         # interpolate orientation
@@ -1088,23 +1088,23 @@ class CosseratRod(RodExportBase, ABC):
 
         # rigid body formular
         return a_S + A_IK @ (
-            cross3(K_Psi, K_r_SP) + cross3(K_Omega, cross3(K_Omega, K_r_SP))
+            cross3(K_Psi, B_r_CP) + cross3(K_Omega, cross3(K_Omega, B_r_CP))
         )
 
-    def a_P_q(self, t, qe, ue, ue_dot, frame_ID, K_r_SP=None):
+    def a_P_q(self, t, qe, ue, ue_dot, frame_ID, B_r_CP=None):
         K_Omega = self.K_Omega(t, qe, ue, frame_ID)
         K_Psi = self.K_Psi(t, qe, ue, ue_dot, frame_ID)
         a_P_q = np.einsum(
             "ijk,j->ik",
             self.A_IK_q(t, qe, frame_ID),
-            cross3(K_Psi, K_r_SP) + cross3(K_Omega, cross3(K_Omega, K_r_SP)),
+            cross3(K_Psi, B_r_CP) + cross3(K_Omega, cross3(K_Omega, B_r_CP)),
         )
         return a_P_q
 
-    def a_P_u(self, t, qe, ue, ue_dot, frame_ID, K_r_SP=None):
+    def a_P_u(self, t, qe, ue, ue_dot, frame_ID, B_r_CP=None):
         K_Omega = self.K_Omega(t, qe, ue, frame_ID)
         local = -self.A_IK(t, qe, frame_ID) @ (
-            ax2skew(cross3(K_Omega, K_r_SP)) + ax2skew(K_Omega) @ ax2skew(K_r_SP)
+            ax2skew(cross3(K_Omega, B_r_CP)) + ax2skew(K_Omega) @ ax2skew(B_r_CP)
         )
 
         N, _ = self.basis_functions_r(frame_ID)

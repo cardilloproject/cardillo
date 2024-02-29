@@ -23,7 +23,7 @@ def Meshed(Base):
             self,
             mesh_obj,
             density=None,
-            K_r_SP=np.zeros(3),
+            B_r_CP=np.zeros(3),
             A_KM=np.eye(3),
             scale=1,
             **kwargs,
@@ -39,7 +39,7 @@ def Meshed(Base):
             Density : float or None
                 Mass density for the computation of the inertia properties of the
                 mesh. If set to None, user specified mass and K_Theta_S are used.
-            K_r_SP : np.ndarray (3,)
+            B_r_CP : np.ndarray (3,)
                 Offset center of mass (S) from STL origin (P) in body fixed K-basis.
             A_KM: np.ndarray (3, 3)
                 Tansformation from mesh-fixed basis (M) to body-fixed basis (K).
@@ -48,7 +48,7 @@ def Meshed(Base):
             kwargs: dict,
                 Arguments of parent class (Base) as keyword arguments
             """
-            self.K_r_SP = K_r_SP
+            self.B_r_CP = B_r_CP
             self.A_KM = A_KM
 
             #############################
@@ -83,7 +83,7 @@ def Meshed(Base):
 
             # store visual mesh in body fixed frame
             H_KM = np.eye(4)
-            H_KM[:3, 3] = K_r_SP
+            H_KM[:3, 3] = B_r_CP
             H_KM[:3, :3] = A_KM
             self.K_visual_mesh = trimesh_mesh.copy().apply_transform(H_KM)
 

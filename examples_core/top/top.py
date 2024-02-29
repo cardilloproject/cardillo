@@ -56,7 +56,7 @@ if __name__ == "__main__":
 
     top = Meshed(RigidBody)(
         mesh_obj=top_mesh,
-        K_r_SP=-K_r_PC,
+        B_r_CP=-K_r_PC,
         A_KM=np.eye(3),
         mass=mass,
         K_Theta_S=K_Theta_S,
@@ -73,7 +73,7 @@ if __name__ == "__main__":
         name="floor",
     )
 
-    tip2plane = Sphere2Plane(floor, top, mu=0.01, r=tip_radius, e_N=0, K_r_SP=-K_r_PC)
+    tip2plane = Sphere2Plane(floor, top, mu=0.01, r=tip_radius, e_N=0, B_r_CP=-K_r_PC)
     system.add(floor, tip2plane)
     # assemble system
     system.assemble()

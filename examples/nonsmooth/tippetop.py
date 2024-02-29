@@ -98,7 +98,7 @@ def make_system():
         mu,
         e_N,
         e_F,
-        K_r_SP=K_r_SC1,
+        B_r_CP=K_r_SC1,
     )
     contact2 = Sphere2Plane(
         # contact2 = Sphere2PlaneCoulombContensouMoeller(
@@ -109,7 +109,7 @@ def make_system():
         mu,
         e_N,
         e_F,
-        K_r_SP=K_r_SC2,
+        B_r_CP=K_r_SC2,
     )
 
     gravity = Force(np.array([0, 0, -m * g]), top)

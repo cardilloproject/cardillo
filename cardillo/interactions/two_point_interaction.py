@@ -9,8 +9,8 @@ class TwoPointInteraction:
         subsystem2,
         frame_ID1=None,
         frame_ID2=None,
-        K_r_SP1=np.zeros(3, dtype=float),
-        K_r_SP2=np.zeros(3, dtype=float),
+        B_r_CP1=np.zeros(3, dtype=float),
+        B_r_CP2=np.zeros(3, dtype=float),
         name="two_point_interaction",
     ):
         r"""Interface for scalar force interaction between two points. Provides distance between the points, its time derivatives and the generalized force direction of the scalar force acting along the connection line between the two points.
@@ -23,20 +23,20 @@ class TwoPointInteraction:
             Object containing second point of interaction (P2)
         frame_ID1 : #TODO
         frame_ID2 : #TODO
-        K_r_SP1 : np.ndarray (3,)
+        B_r_CP1 : np.ndarray (3,)
             Position vector of first point (P1) w.r.t. center of mass (S) in body-fixed K-basis of subsystem1.
-        K_r_SP2 : np.ndarray (3,)
+        B_r_CP2 : np.ndarray (3,)
             Position vector of second point (P2) w.r.t. center of mass (S) in body-fixed K-basis of subsystem2.
         name : str
             Name of contribution.
         """
         self.subsystem1 = subsystem1
         self.frame_ID1 = frame_ID1
-        self.K_r_SP1 = K_r_SP1
+        self.B_r_CP1 = B_r_CP1
 
         self.subsystem2 = subsystem2
         self.frame_ID2 = frame_ID2
-        self.K_r_SP2 = K_r_SP2
+        self.B_r_CP2 = B_r_CP2
 
         self.name = name
 
@@ -66,41 +66,41 @@ class TwoPointInteraction:
         self.u0 = np.concatenate((u01[local_uDOF1], u02[local_uDOF2]))
 
         self.r_OP1 = lambda t, q: self.subsystem1.r_OP(
-            t, q[: self._nq1], self.frame_ID1, self.K_r_SP1
+            t, q[: self._nq1], self.frame_ID1, self.B_r_CP1
         )
         self.r_OP1_q = lambda t, q: self.subsystem1.r_OP_q(
-            t, q[: self._nq1], self.frame_ID1, self.K_r_SP1
+            t, q[: self._nq1], self.frame_ID1, self.B_r_CP1
         )
         self.J_P1 = lambda t, q: self.subsystem1.J_P(
-            t, q[: self._nq1], self.frame_ID1, self.K_r_SP1
+            t, q[: self._nq1], self.frame_ID1, self.B_r_CP1
         )
         self.J_P1_q = lambda t, q: self.subsystem1.J_P_q(
-            t, q[: self._nq1], self.frame_ID1, self.K_r_SP1
+            t, q[: self._nq1], self.frame_ID1, self.B_r_CP1
         )
         self.v_P1 = lambda t, q, u: self.subsystem1.v_P(
-            t, q[: self._nq1], u[: self._nu1], self.frame_ID1, self.K_r_SP1
+            t, q[: self._nq1], u[: self._nu1], self.frame_ID1, self.B_r_CP1
         )
         self.v_P1_q = lambda t, q, u: self.subsystem1.v_P_q(
-            t, q[: self._nq1], u[: self._nu1], self.frame_ID1, self.K_r_SP1
+            t, q[: self._nq1], u[: self._nu1], self.frame_ID1, self.B_r_CP1
         )
 
         self.r_OP2 = lambda t, q: self.subsystem2.r_OP(
-            t, q[self._nq1 :], self.frame_ID2, self.K_r_SP2
+            t, q[self._nq1 :], self.frame_ID2, self.B_r_CP2
         )
         self.r_OP2_q = lambda t, q: self.subsystem2.r_OP_q(
-            t, q[self._nq1 :], self.frame_ID2, self.K_r_SP2
+            t, q[self._nq1 :], self.frame_ID2, self.B_r_CP2
         )
         self.J_P2 = lambda t, q: self.subsystem2.J_P(
-            t, q[self._nq1 :], self.frame_ID2, self.K_r_SP2
+            t, q[self._nq1 :], self.frame_ID2, self.B_r_CP2
         )
         self.J_P2_q = lambda t, q: self.subsystem2.J_P_q(
-            t, q[self._nq1 :], self.frame_ID2, self.K_r_SP2
+            t, q[self._nq1 :], self.frame_ID2, self.B_r_CP2
         )
         self.v_P2 = lambda t, q, u: self.subsystem2.v_P(
-            t, q[self._nq1 :], u[self._nu1 :], self.frame_ID2, self.K_r_SP2
+            t, q[self._nq1 :], u[self._nu1 :], self.frame_ID2, self.B_r_CP2
         )
         self.v_P2_q = lambda t, q, u: self.subsystem2.v_P_q(
-            t, q[self._nq1 :], u[self._nu1 :], self.frame_ID2, self.K_r_SP2
+            t, q[self._nq1 :], u[self._nu1 :], self.frame_ID2, self.B_r_CP2
         )
 
     # auxiliary functions

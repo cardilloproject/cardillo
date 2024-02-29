@@ -206,8 +206,8 @@ if __name__ == "__main__":
     def update(t, q, COM, d11_, d21_, d31_, d12_, d22_, d32_):
         # def update(t, q, COM, d11_, d21_, d31_):
         x_0, y_0, z_0 = origin.r_OP(t)
-        x_S1, y_S1, z_S1 = RB1.r_OP(t, q[RB1.qDOF], K_r_SP=np.array([0, -l / 2, 0]))
-        x_S2, y_S2, z_S2 = RB2.r_OP(t, q[RB2.qDOF], K_r_SP=np.array([0, -l / 2, 0]))
+        x_S1, y_S1, z_S1 = RB1.r_OP(t, q[RB1.qDOF], B_r_CP=np.array([0, -l / 2, 0]))
+        x_S2, y_S2, z_S2 = RB2.r_OP(t, q[RB2.qDOF], B_r_CP=np.array([0, -l / 2, 0]))
 
         A_IK1 = RB1.A_IK(t, q[RB1.qDOF])
         d11 = A_IK1[:, 0]

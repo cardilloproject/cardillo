@@ -89,7 +89,7 @@ def make_system(RigidBodyBase):
         mu,
         e_N,
         e_F,
-        K_r_SP=K_r_SC1,
+        B_r_CP=K_r_SC1,
     )
     contact2 = Sphere2PlaneCoulombContensouMoeller(
         system.origin,
@@ -99,7 +99,7 @@ def make_system(RigidBodyBase):
         mu,
         e_N,
         e_F,
-        K_r_SP=K_r_SC2,
+        B_r_CP=K_r_SC2,
     )
 
     gravity = Force(np.array([0, 0, -m * g]), top)

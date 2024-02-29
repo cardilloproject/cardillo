@@ -27,10 +27,10 @@ if __name__ == "__main__":
 
         def boundary(self, t, q, num=100):
             phi = np.linspace(0, 2 * np.pi, num, endpoint=True)
-            K_r_SP = self.radius * np.vstack([np.sin(phi), np.zeros(num), np.cos(phi)])
+            B_r_CP = self.radius * np.vstack([np.sin(phi), np.zeros(num), np.cos(phi)])
             return (
                 np.repeat(self.r_OP(t, q), num).reshape(3, num)
-                + self.A_IK(t, q) @ K_r_SP
+                + self.A_IK(t, q) @ B_r_CP
             )
 
     disc = Disc()

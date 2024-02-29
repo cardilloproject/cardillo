@@ -163,7 +163,7 @@ def run(
         RB2,
         LinearSpring(k, g_ref=0),
         LinearDamper(d),
-        K_r_SP2=np.array([-0.5 * l, 0, 0]),
+        B_r_CP2=np.array([-0.5 * l, 0, 0]),
     )
 
     #################

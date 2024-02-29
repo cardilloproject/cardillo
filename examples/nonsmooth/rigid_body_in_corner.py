@@ -26,7 +26,7 @@ Shape = {
     "cube": (Cuboid, {"dimensions": (r, r, r)}),
     "box": (Cuboid, {"dimensions": (r / 2, r, 3 * r / 2)}),
     "cylinder": (Cylinder, {"length": r, "radius": r, "axis": 0}),
-    "stl": (FromSTL, {"path": path, "K_r_SP": np.zeros(3), "K_Theta_S": None}),  # TODO
+    "stl": (FromSTL, {"path": path, "B_r_CP": np.zeros(3), "K_Theta_S": None}),  # TODO
 }
 
 Solver = {
@@ -109,12 +109,12 @@ def run(
             for point in RB.points:
                 contacts.append(
                     Sphere2Plane(
-                        frame_left, RB, 0, mu1, e_N=e_N1, e_F=e_F1, K_r_SP=point
+                        frame_left, RB, 0, mu1, e_N=e_N1, e_F=e_F1, B_r_CP=point
                     )
                 )
                 contacts.append(
                     Sphere2Plane(
-                        frame_right, RB, 0, mu2, e_N=e_N2, e_F=e_F2, K_r_SP=point
+                        frame_right, RB, 0, mu2, e_N=e_N2, e_F=e_F2, B_r_CP=point
                     )
                 )
         case "cylinder":
@@ -242,12 +242,12 @@ def run(
 
             def boundary(object, t, q, n=100):
                 phi = np.linspace(0, 2 * np.pi, n, endpoint=True)
-                K_r_SP = object.radius * np.vstack(
+                B_r_CP = object.radius * np.vstack(
                     [np.sin(phi), np.cos(phi), np.zeros(n)]
                 )
                 return (
                     np.repeat(object.r_OP(t, q), n).reshape(3, n)
-                    + object.A_IK(t, q) @ K_r_SP
+                    + object.A_IK(t, q) @ B_r_CP
                 )
 
             def create(t, q):

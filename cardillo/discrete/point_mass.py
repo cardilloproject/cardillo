@@ -71,37 +71,37 @@ class PointMass:
     def A_IK(self, t, q, frame_ID=None):
         return np.eye(3)
 
-    def r_OP(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
+    def r_OP(self, t, q, frame_ID=None, B_r_CP=np.zeros(3)):
         r = np.zeros(3, dtype=q.dtype)
         r[: self.nq] = q
-        return r + K_r_SP  # A_IK = np.eye(3)
+        return r + B_r_CP  # A_IK = np.eye(3)
 
-    def r_OP_q(self, t, q, frame_ID=None, K_r_SP=None):
+    def r_OP_q(self, t, q, frame_ID=None, B_r_CP=None):
         return np.eye(3, self.nq)
 
-    def J_P(self, t, q, frame_ID=None, K_r_SP=None):
+    def J_P(self, t, q, frame_ID=None, B_r_CP=None):
         return np.eye(3, self.nu, dtype=q.dtype)
 
-    def J_P_q(self, t, q, frame_ID=None, K_r_SP=None):
+    def J_P_q(self, t, q, frame_ID=None, B_r_CP=None):
         return np.zeros((3, self.nu, self.nq))
 
-    def v_P(self, t, q, u, frame_ID=None, K_r_SP=None):
+    def v_P(self, t, q, u, frame_ID=None, B_r_CP=None):
         v_P = np.zeros(3, dtype=np.common_type(q, u))
         v_P[: self.nq] = u
         return v_P
 
-    def v_P_q(self, t, q, u, frame_ID=None, K_r_SP=None):
+    def v_P_q(self, t, q, u, frame_ID=None, B_r_CP=None):
         return np.zeros((3, self.nq))
 
-    def a_P(self, t, q, u, u_dot, frame_ID=None, K_r_SP=None):
+    def a_P(self, t, q, u, u_dot, frame_ID=None, B_r_CP=None):
         a_P = np.zeros(3, dtype=np.common_type(q, u, u_dot))
         a_P[: self.nq] = u_dot
         return a_P
 
-    def a_P_q(self, t, q, u, u_dot, frame_ID=None, K_r_SP=None):
+    def a_P_q(self, t, q, u, u_dot, frame_ID=None, B_r_CP=None):
         return np.zeros((3, self.nq), dtype=np.common_type(q, u, u_dot))
 
-    def a_P_u(self, t, q, u, u_dot, frame_ID=None, K_r_SP=None):
+    def a_P_u(self, t, q, u, u_dot, frame_ID=None, B_r_CP=None):
         return np.zeros((3, self.nu), dtype=np.common_type(q, u, u_dot))
 
     ########

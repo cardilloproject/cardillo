@@ -11,14 +11,14 @@ class Force:
     subsystem : object
         Object on which force acts.
     frame_ID : #TODO
-    K_r_SP : np.ndarray (3,)
+    B_r_CP : np.ndarray (3,)
         Position vector of point of attack (P) w.r.t. center of mass (S) in body-fixed K-basis.
     name : str
         Name of contribution.
     """
 
     def __init__(
-        self, force, subsystem, frame_ID=zeros(3), K_r_SP=zeros(3), name="force"
+        self, force, subsystem, frame_ID=zeros(3), B_r_CP=zeros(3), name="force"
     ):
         if not callable(force):
             self.force = lambda t: force
@@ -27,9 +27,9 @@ class Force:
         self.subsystem = subsystem
         self.frame_ID = frame_ID
         self.name = name
-        self.r_OP = lambda t, q: subsystem.r_OP(t, q, frame_ID, K_r_SP)
-        self.J_P = lambda t, q: subsystem.J_P(t, q, frame_ID, K_r_SP)
-        self.J_P_q = lambda t, q: subsystem.J_P_q(t, q, frame_ID, K_r_SP)
+        self.r_OP = lambda t, q: subsystem.r_OP(t, q, frame_ID, B_r_CP)
+        self.J_P = lambda t, q: subsystem.J_P(t, q, frame_ID, B_r_CP)
+        self.J_P_q = lambda t, q: subsystem.J_P_q(t, q, frame_ID, B_r_CP)
 
     def assembler_callback(self):
         self.qDOF = self.subsystem.qDOF[self.subsystem.local_qDOF_P(self.frame_ID)]
@@ -62,13 +62,13 @@ class K_Force:
     subsystem : object
         Object on which force acts.
     frame_ID : #TODO
-    K_r_SP : np.ndarray (3,)
+    B_r_CP : np.ndarray (3,)
         Position vector of point of attack (P) w.r.t. center of mass (S) in body-fixed K-basis.
     name : str
         Name of contribution.
     """
 
-    def __init__(self, force, subsystem, frame_ID=zeros(3), K_r_SP=zeros(3)):
+    def __init__(self, force, subsystem, frame_ID=zeros(3), B_r_CP=zeros(3)):
         if not callable(force):
             self.force = lambda t: force
         else:
@@ -78,10 +78,10 @@ class K_Force:
 
         self.A_IK = lambda t, q: subsystem.A_IK(t, q, frame_ID=frame_ID)
         self.A_IK_q = lambda t, q: subsystem.A_IK_q(t, q, frame_ID=frame_ID)
-        self.r_OP = lambda t, q: subsystem.r_OP(t, q, frame_ID=frame_ID, K_r_SP=K_r_SP)
-        self.J_P = lambda t, q: subsystem.J_P(t, q, frame_ID=frame_ID, K_r_SP=K_r_SP)
+        self.r_OP = lambda t, q: subsystem.r_OP(t, q, frame_ID=frame_ID, B_r_CP=B_r_CP)
+        self.J_P = lambda t, q: subsystem.J_P(t, q, frame_ID=frame_ID, B_r_CP=B_r_CP)
         self.J_P_q = lambda t, q: subsystem.J_P_q(
-            t, q, frame_ID=frame_ID, K_r_SP=K_r_SP
+            t, q, frame_ID=frame_ID, B_r_CP=B_r_CP
         )
 
     def assembler_callback(self):
