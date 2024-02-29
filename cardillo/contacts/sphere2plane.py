@@ -38,7 +38,7 @@ class Sphere2Plane:
             Restitution coefficient for Newton-like impact law for friction.
         xi : TODO
         B_r_CP : np.ndarray (3,)
-            Position of center of sphere (P) with respect to the center of mass/reference point TODO (S) of the subsystem in the body-fixed K-basis.
+            Position of center of sphere (P) with respect to the center of mass/reference point TODO (C) of the subsystem in the body-fixed K-basis.
         r : float
             Radius of spherical contact surface. Possible values are in [0, inf].
         anisotropy : np.ndarray (2,)

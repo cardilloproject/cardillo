@@ -24,9 +24,9 @@ class TwoPointInteraction:
         xi1 : #TODO
         xi2 : #TODO
         B_r_CP1 : np.ndarray (3,)
-            Position vector of first point (P1) w.r.t. center of mass (S) in body-fixed K-basis of subsystem1.
+            Position vector of first point (P1) w.r.t. center of mass (C) in body-fixed K-basis of subsystem1.
         B_r_CP2 : np.ndarray (3,)
-            Position vector of second point (P2) w.r.t. center of mass (S) in body-fixed K-basis of subsystem2.
+            Position vector of second point (P2) w.r.t. center of mass (C) in body-fixed K-basis of subsystem2.
         name : str
             Name of contribution.
         """

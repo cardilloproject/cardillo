@@ -40,7 +40,7 @@ def Meshed(Base):
                 Mass density for the computation of the inertia properties of the
                 mesh. If set to None, user specified mass and B_Theta_C are used.
             B_r_CP : np.ndarray (3,)
-                Offset center of mass (S) from STL origin (P) in body fixed K-basis.
+                Offset center of mass (C) from (C)TL origin (P) in body fixed K-basis.
             A_KM: np.ndarray (3, 3)
                 Tansformation from mesh-fixed basis (M) to body-fixed basis (K).
             scale: float
@@ -87,7 +87,7 @@ def Meshed(Base):
             H_KM[:3, :3] = A_KM
             self.K_visual_mesh = trimesh_mesh.copy().apply_transform(H_KM)
 
-            # vectors (transposed) from S to vertices represented in body-fixed basis
+            # vectors (transposed) from (C) to vertices (Qi) represented in body-fixed basis
             self.K_r_CQi_T = self.K_visual_mesh.vertices.view(np.ndarray).T
 
             # compute inertia quantities of body

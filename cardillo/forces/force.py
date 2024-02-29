@@ -12,7 +12,7 @@ class Force:
         Object on which force acts.
     xi : #TODO
     B_r_CP : np.ndarray (3,)
-        Position vector of point of attack (P) w.r.t. center of mass (S) in body-fixed K-basis.
+        Position vector of point of attack (P) w.r.t. center of mass (C) in body-fixed K-basis.
     name : str
         Name of contribution.
     """
@@ -63,7 +63,7 @@ class K_Force:
         Object on which force acts.
     xi : #TODO
     B_r_CP : np.ndarray (3,)
-        Position vector of point of attack (P) w.r.t. center of mass (S) in body-fixed K-basis.
+        Position vector of point of attack (P) w.r.t. center of mass (C) in body-fixed K-basis.
     name : str
         Name of contribution.
     """
