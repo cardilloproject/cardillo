@@ -17,8 +17,8 @@ class Sphere2Sphere:
         mu,
         e_N=None,
         e_F=None,
-        frame_ID1=np.zeros(3, dtype=float),
-        frame_ID2=np.zeros(3, dtype=float),
+        frame_ID1=None,
+        frame_ID2=None,
         name="sphere_to_sphere_contact",
     ):
         """Contact between two spheres modelled as unilateral constraint with set-valued Coulomb friction.

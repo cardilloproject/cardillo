@@ -204,8 +204,8 @@ class PositionOrientationBase:
         projection_pairs_rotation,
         r_OB0=None,
         A_IB0=None,
-        frame_ID1=np.zeros(3),
-        frame_ID2=np.zeros(3),
+        frame_ID1=None,
+        frame_ID2=None,
     ):
         self.subsystem1 = subsystem1
         self.subsystem2 = subsystem2
@@ -540,8 +540,8 @@ class ProjectedPositionOrientationBase:
         projection_pairs_rotation,
         r_OB0=None,
         A_IB0=None,
-        frame_ID1=np.zeros(3),
-        frame_ID2=np.zeros(3),
+        frame_ID1=None,
+        frame_ID2=None,
     ):
         self.subsystem1 = subsystem1
         self.subsystem2 = subsystem2
