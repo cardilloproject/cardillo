@@ -41,7 +41,7 @@ if __name__ == "__main__":
     # initialize system
     system = System()
 
-    r_OS0 = np.array([0, 0, height])
+    r_OC0 = np.array([0, 0, height])
     offset_x = np.array([offset + 2 * radius, 0, 0])
     offset_y = np.array([0, offset + 2 * radius, 0])
     offset_z = np.array([0, 0, offset + 2 * radius])
@@ -52,8 +52,8 @@ if __name__ == "__main__":
     for i in range(nx):
         for j in range(ny):
             for k in range(nz):
-                r_OS = r_OS0 + i * offset_x + j * offset_y + k * offset_z
-                q0 = RigidBody.pose2q(r_OS, np.eye(3))
+                r_OC = r_OC0 + i * offset_x + j * offset_y + k * offset_z
+                q0 = RigidBody.pose2q(r_OC, np.eye(3))
                 balls.append(
                     Sphere(RigidBody)(
                         radius=radius,

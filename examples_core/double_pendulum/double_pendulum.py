@@ -54,14 +54,14 @@ if __name__ == "__main__":
     r_OJ1 = np.array([3.0573e-03, -2.6279e-13, 5.8800e-03])
 
     # kinematics and initial conditions of link 1
-    K1_r_J1S1 = np.array([8.6107e-03, 2.1727e-06, 3.6012e-02])
+    K1_r_J1C1 = np.array([8.6107e-03, 2.1727e-06, 3.6012e-02])
     A_IK1 = A_IK_basic(np.pi + phi10).x
-    r_J1S1 = A_IK1 @ K1_r_J1S1
-    r_OS1 = r_OJ1 + r_J1S1
+    r_J1C1 = A_IK1 @ K1_r_J1C1
+    r_OC1 = r_OJ1 + r_J1C1
     K1_Omega1 = np.array([phi1_dot0, 0, 0])
-    v_S1 = A_IK1 @ cross3(K1_Omega1, K1_r_J1S1)
+    v_S1 = A_IK1 @ cross3(K1_Omega1, K1_r_J1C1)
 
-    q0 = RigidBody.pose2q(r_OS1, A_IK1)
+    q0 = RigidBody.pose2q(r_OC1, A_IK1)
     u0 = np.hstack([v_S1, K1_Omega1])
 
     # create link 1
@@ -107,15 +107,15 @@ if __name__ == "__main__":
     v_J2 = A_IK1 @ cross3(K1_Omega1, K1_r_J1J2)
 
     # kinematics of link 2
-    K2_r_J2S2 = np.array([-5.0107e-03, 1.9371e-10, 1.0088e-01])
+    K2_r_J2C2 = np.array([-5.0107e-03, 1.9371e-10, 1.0088e-01])
     A_IK2 = A_IK_basic(np.pi + phi20).x
-    r_J2S2 = A_IK2 @ K2_r_J2S2
-    r_OS2 = r_OJ2 + r_J2S2
+    r_J2C2 = A_IK2 @ K2_r_J2C2
+    r_OC2 = r_OJ2 + r_J2C2
 
     K_Omega2 = np.array([phi2_dot0, 0, 0])
-    v_S2 = v_J2 + A_IK2 @ cross3(K_Omega2, K2_r_J2S2)
+    v_S2 = v_J2 + A_IK2 @ cross3(K_Omega2, K2_r_J2C2)
 
-    q0 = RigidBody.pose2q(r_OS2, A_IK2)
+    q0 = RigidBody.pose2q(r_OC2, A_IK2)
     u0 = np.hstack([v_S2, K_Omega2])
 
     link2 = Meshed(RigidBody)(

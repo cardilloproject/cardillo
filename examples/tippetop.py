@@ -53,14 +53,14 @@ def make_system(RigidBodyBase):
     p0 = axis_angle2quat(np.array([1, 0, 0]), theta0)
     A_IK = Exp_SO3_quat(p0)
     K_r_PS = np.array([0, 0, -a1])
-    r_OS = np.array([0, 0, R1]) + A_IK @ K_r_PS
+    r_OC = np.array([0, 0, R1]) + A_IK @ K_r_PS
     if RigidBodyBase is RigidBody:
         q0 = np.zeros(7, dtype=float)
-        q0[:3] = r_OS
+        q0[:3] = r_OC
         q0[3:] = p0
     elif RigidBodyBase is RigidBodyEuler:
         axis = "zxz"
-        q0[:3] = r_OS
+        q0[:3] = r_OC
         q0[4] = theta0
 
     # initial velocities

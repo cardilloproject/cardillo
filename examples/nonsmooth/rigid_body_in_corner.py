@@ -68,10 +68,10 @@ def run(
     y_dot0 = 0
     phi_dot0 = 0
 
-    r_OS0 = np.array([x0, y0, 0], dtype=float)
+    r_OC0 = np.array([x0, y0, 0], dtype=float)
     vS0 = np.array([x_dot0, y_dot0, 0], dtype=float)
     p = axis_angle2quat(np.array((1, 0.5, 0)), phi0)
-    q0 = np.concatenate([r_OS0, p])
+    q0 = np.concatenate([r_OC0, p])
     u0 = np.concatenate([vS0, np.array([0, 0, phi_dot0], dtype=float)])
     Shp, kwargs = Shape[shape]
     RB = Shp(RigidBody)(mass=m, q0=q0, u0=u0, **kwargs)

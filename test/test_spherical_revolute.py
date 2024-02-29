@@ -44,12 +44,12 @@ def run(joint, Solver, k=None, d=None, **solver_args):
     r_OB1 = np.zeros(3)
     A_IB1 = np.eye(3)
     A_IK10 = A_IK_basic(alpha0).z()
-    r_OS10 = -0.5 * l * A_IK10[:, 1]
+    r_OC10 = -0.5 * l * A_IK10[:, 1]
     K1_omega01 = np.array([0, 0, alpha_dot0])
-    vS1 = cross3(K1_omega01, r_OS10)
+    vS1 = cross3(K1_omega01, r_OC10)
 
     p01 = Spurrier(A_IprimeI @ A_IK10)
-    q01 = np.concatenate([A_IprimeI @ r_OS10, p01])
+    q01 = np.concatenate([A_IprimeI @ r_OC10, p01])
     u01 = np.concatenate([A_IprimeI @ vS1, K1_omega01])
     origin = Frame(r_OP=A_IprimeI @ r_OB1, A_IK=A_IprimeI @ A_IB1)
     # origin = Frame(r_OP=r_OB1, A_IK=A_IB1)
@@ -89,13 +89,13 @@ def run(joint, Solver, k=None, d=None, **solver_args):
     A_IB2 = A_IK10
     A_IK20 = A_IK10 @ A_IK_basic(beta0).z()
     r_B2S2 = -0.5 * l * A_IK20[:, 1]
-    r_OS20 = r_OB2 + r_B2S2
+    r_OC20 = r_OB2 + r_B2S2
     K2_omega02 = np.array([0, 0, alpha_dot0 + beta_dot0])
     vB2 = cross3(K1_omega01, r_OB2)
     vS2 = vB2 + cross3(K2_omega02, r_B2S2)
 
     p02 = Spurrier(A_IprimeI @ A_IK20)
-    q02 = np.concatenate([A_IprimeI @ r_OS20, p02])
+    q02 = np.concatenate([A_IprimeI @ r_OC20, p02])
     u02 = np.concatenate([A_IprimeI @ vS2, K2_omega02])
     RB2 = RigidBody(m, K_theta_S, q02, u02)
 

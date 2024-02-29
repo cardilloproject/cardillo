@@ -93,8 +93,8 @@ class Sphere2Sphere:
         #####################################
         # auxiliary functions for subsystem 1
         #####################################
-        self.r_OS1 = lambda t, q: self.subsystem1.r_OP(t, q[:nq1], self.frame_ID1)
-        self.r_OS1_q = lambda t, q: self.subsystem1.r_OP_q(t, q[:nq1], self.frame_ID1)
+        self.r_OC1 = lambda t, q: self.subsystem1.r_OP(t, q[:nq1], self.frame_ID1)
+        self.r_OC1_q = lambda t, q: self.subsystem1.r_OP_q(t, q[:nq1], self.frame_ID1)
         self.v_S1 = lambda t, q, u: self.subsystem1.v_P(
             t, q[:nq1], u[:nu1], self.frame_ID1
         )
@@ -160,8 +160,8 @@ class Sphere2Sphere:
         #####################################
         # auxiliary functions for subsystem 1
         #####################################
-        self.r_OS2 = lambda t, q: self.subsystem2.r_OP(t, q[nq1:], self.frame_ID2)
-        self.r_OS2_q = lambda t, q: self.subsystem2.r_OP_q(t, q[nq1:], self.frame_ID2)
+        self.r_OC2 = lambda t, q: self.subsystem2.r_OP(t, q[nq1:], self.frame_ID2)
+        self.r_OC2_q = lambda t, q: self.subsystem2.r_OP_q(t, q[nq1:], self.frame_ID2)
         self.v_S2 = lambda t, q, u: self.subsystem2.v_P(
             t, q[nq1:], u[nu1:], self.frame_ID2
         )
@@ -229,8 +229,8 @@ class Sphere2Sphere:
         key=lambda self, t, q: hashkey(t, *q),
     )
     def normal(self, t, q):
-        r_S1S2 = self.r_OS2(t, q) - self.r_OS1(t, q)
-        return r_S1S2 / norm(r_S1S2)
+        r_C1C2 = self.r_OC2(t, q) - self.r_OC1(t, q)
+        return r_C1C2 / norm(r_C1C2)
 
     # parametrize with spherical coordinates theta and phi
     def __angles(self, n):
@@ -267,14 +267,14 @@ class Sphere2Sphere:
     # normal contact
     ################
     def g_N(self, t, q):
-        r_S1S2 = self.r_OS2(t, q) - self.r_OS1(t, q)
-        return np.array([norm(r_S1S2) - self.radius1 - self.radius2])
+        r_C1C2 = self.r_OC2(t, q) - self.r_OC1(t, q)
+        return np.array([norm(r_C1C2) - self.radius1 - self.radius2])
 
     def g_N_q(self, t, q):
         n = self.normal(t, q)
-        r_OS1_q = self.r_OS1_q(t, q)
-        r_OS2_q = self.r_OS2_q(t, q)
-        g_N_q = np.concatenate((-n @ r_OS1_q, n @ r_OS2_q)).reshape(
+        r_OC1_q = self.r_OC1_q(t, q)
+        r_OC2_q = self.r_OC2_q(t, q)
+        g_N_q = np.concatenate((-n @ r_OC1_q, n @ r_OC2_q)).reshape(
             (self.nla_N, self._nq)
         )
         return g_N_q

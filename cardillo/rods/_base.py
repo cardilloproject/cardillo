@@ -982,25 +982,25 @@ class CosseratRod(RodExportBase, ABC):
     ##########################
     def r_OP(self, t, qe, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
         N, N_xi = self.basis_functions_r(frame_ID)
-        r_OS, A_IK, _, _ = self._eval(qe, frame_ID, N, N_xi)
-        return r_OS + A_IK @ K_r_SP
+        r_OC, A_IK, _, _ = self._eval(qe, frame_ID, N, N_xi)
+        return r_OC + A_IK @ K_r_SP
 
     # TODO: Think of a faster version than using _deval
     def r_OP_q(self, t, qe, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
         # evaluate required quantities
         N, N_xi = self.basis_functions_r(frame_ID)
         (
-            r_OS,
+            r_OC,
             A_IK,
             _,
             _,
-            r_OS_q,
+            r_OC_q,
             A_IK_q,
             _,
             _,
         ) = self._deval(qe, frame_ID, N, N_xi)
 
-        return r_OS_q + np.einsum("ijk,j->ik", A_IK_q, K_r_SP)
+        return r_OC_q + np.einsum("ijk,j->ik", A_IK_q, K_r_SP)
 
     def v_P(self, t, qe, ue, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
         N, _ = self.basis_functions_r(frame_ID)

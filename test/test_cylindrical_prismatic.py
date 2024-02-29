@@ -133,12 +133,12 @@ def run(
     rigid_connection = RigidConnection(frame, RB1)
 
     A_IK0 = A_IB0
-    r_OS0 = r_OB0 + A_IK0 @ np.array([0.5 * l, 0, z0])
+    r_OC0 = r_OB0 + A_IK0 @ np.array([0.5 * l, 0, z0])
 
     K0_omega_IK0 = A_IK0.T @ omega_IB(0) + np.array([0, 0, alpha_dot0])
     v_S0 = v_P0 + A_IK0 @ cross3(K0_omega_IK0, np.array([0.5 * l, 0, 0]))
 
-    q0 = np.array([*r_OS0, *Spurrier(A_IK0)])
+    q0 = np.array([*r_OC0, *Spurrier(A_IK0)])
     u0 = np.array([*v_S0, *K0_omega_IK0])
     RB2 = RigidBody(m, K_theta_S, q0, u0)
 
@@ -330,9 +330,9 @@ def run(
         e_x_B, e_y_B, e_z_B = _A_IB.T
 
         r_OP = _r_OB + z * e_z_B
-        r_OS = r_OP + 0.5 * l * (np.cos(alpha) * e_x_B + np.sin(alpha) * e_y_B)
+        r_OC = r_OP + 0.5 * l * (np.cos(alpha) * e_x_B + np.sin(alpha) * e_y_B)
         r_OQ = r_OP + l * (np.cos(alpha) * e_x_B + np.sin(alpha) * e_y_B)
-        x, y, z = np.array([r_OP, r_OS, r_OQ]).T
+        x, y, z = np.array([r_OP, r_OC, r_OQ]).T
 
         rod.set_xdata(x)
         rod.set_ydata(y)

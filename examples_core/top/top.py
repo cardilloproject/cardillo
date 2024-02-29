@@ -40,23 +40,23 @@ if __name__ == "__main__":
     top_mesh.density = 8850  # kg/m3 (Copper)
 
     # quantities in mesh/body fixed frame
-    K_r_PS = top_mesh.center_mass  # vector from mesh origin to center of mass
+    K_r_PC = top_mesh.center_mass  # vector from mesh origin to center of mass
     mass = top_mesh.mass
     K_Theta_S = top_mesh.moment_inertia
 
     tip_radius = 1e-3  # 1mm
     A_IK = A_IK_basic(phi0).y
-    r_OS = np.array([0, 0, tip_radius]) + A_IK @ K_r_PS
+    r_OC = np.array([0, 0, tip_radius]) + A_IK @ K_r_PC
 
     K_Omega = np.array([0, 0, omega_z0])
-    v_S = cross3(A_IK @ K_Omega, r_OS)
+    v_S = cross3(A_IK @ K_Omega, r_OC)
 
-    q0 = RigidBody.pose2q(r_OS, A_IK)
+    q0 = RigidBody.pose2q(r_OC, A_IK)
     u0 = np.hstack([v_S, K_Omega])
 
     top = Meshed(RigidBody)(
         mesh_obj=top_mesh,
-        K_r_SP=-K_r_PS,
+        K_r_SP=-K_r_PC,
         A_KM=np.eye(3),
         mass=mass,
         K_Theta_S=K_Theta_S,
@@ -73,7 +73,7 @@ if __name__ == "__main__":
         name="floor",
     )
 
-    tip2plane = Sphere2Plane(floor, top, mu=0.01, r=tip_radius, e_N=0, K_r_SP=-K_r_PS)
+    tip2plane = Sphere2Plane(floor, top, mu=0.01, r=tip_radius, e_N=0, K_r_SP=-K_r_PC)
     system.add(floor, tip2plane)
     # assemble system
     system.assemble()

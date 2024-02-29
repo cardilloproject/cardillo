@@ -84,8 +84,8 @@ class RigidBody:
     # utility
     #####################
     @staticmethod
-    def pose2q(r_OS, A_IK):
-        return np.concatenate([r_OS, Spurrier(A_IK)])
+    def pose2q(r_OC, A_IK):
+        return np.concatenate([r_OC, Spurrier(A_IK)])
 
     #####################
     # kinematic equations

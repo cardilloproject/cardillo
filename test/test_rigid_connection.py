@@ -57,13 +57,13 @@ def run(revolute_joint_used=False):
     A_IK0 = A_IK_basic(phi0).z()
 
     # single rigid body
-    r_OS0 = r_OP(0) - A_IK0 @ K_r_SP
+    r_OC0 = r_OP(0) - A_IK0 @ K_r_SP
     v_S0 = v_P(0) + A_IK0 @ (cross3(K_omega0, K_r_SP))
 
     # connected rigid bodies
-    r_OS10 = r_OP(0) - A_IK0 @ K_r_SP1
+    r_OC10 = r_OP(0) - A_IK0 @ K_r_SP1
     v_S10 = v_P(0) + A_IK0 @ (cross3(K_omega0, K_r_SP1))
-    r_OS20 = r_OP(0) - A_IK0 @ K_r_SP2
+    r_OC20 = r_OP(0) - A_IK0 @ K_r_SP2
     v_S20 = v_P(0) + A_IK0 @ (cross3(K_omega0, K_r_SP2))
 
     system = System()
@@ -72,8 +72,8 @@ def run(revolute_joint_used=False):
     system.add(frame)
 
     p0 = axis_angle2quat(np.array([0, 0, 1]), phi0)
-    q10 = np.concatenate((r_OS10, p0))
-    q20 = np.concatenate((r_OS20, p0))
+    q10 = np.concatenate((r_OC10, p0))
+    q20 = np.concatenate((r_OC20, p0))
     u10 = np.concatenate((v_S10, K_omega0))
     u20 = np.concatenate((v_S20, K_omega0))
     RB1 = RigidBody(m / 2, K_theta_S1, q0=q10, u0=u10)
@@ -282,12 +282,12 @@ def run(revolute_joint_used=False):
     )
     x_ = []
     y_ = []
-    r_OS = np.zeros((3, len(q[:, 0])))
-    r_OS1 = np.zeros((3, len(q[:, 0])))
+    r_OC = np.zeros((3, len(q[:, 0])))
+    r_OC1 = np.zeros((3, len(q[:, 0])))
     for i, ti in enumerate(t):
-        r_OS = q[i, :3] - (RB1.A_IK(ti, q[i, :7]) @ K_r_SP1)
-        x_.append(r_OS[0])
-        y_.append(r_OS[1])
+        r_OC = q[i, :3] - (RB1.A_IK(ti, q[i, :7]) @ K_r_SP1)
+        x_.append(r_OC[0])
+        y_.append(r_OC[1])
     fig, ax = plt.subplots(2, 1)
     ax[0].plot(t, x_, "--gx")
     ax[1].plot(t, y_, "--gx")

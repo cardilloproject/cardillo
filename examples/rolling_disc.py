@@ -100,8 +100,8 @@ class RollingCondition_g_I_Frame_gamma:
     #################
     def g(self, t, q):
         # see LeSaux2005 (2.15a)
-        r_OS = self.subsystem.r_OP(t, q)
-        r_OC = r_OS + self.r_SC(t, q)
+        r_OC = self.subsystem.r_OP(t, q)
+        r_OC = r_OC + self.r_SC(t, q)
         return r_OC @ e3
 
     def g_dot(self, t, q, u):

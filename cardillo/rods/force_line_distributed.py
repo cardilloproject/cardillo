@@ -45,11 +45,11 @@ class Force_line_distributed:
             Ji = self.rod.J[el, i]
 
             # interpolate centerline position
-            r_OS = np.zeros(3, dtype=float)
+            r_OC = np.zeros(3, dtype=float)
             for node in range(self.nnodes_element_r):
-                r_OS += self.N_r[el, i, node] * qe[self.nodalDOF_element_r[node]]
+                r_OC += self.N_r[el, i, node] * qe[self.nodalDOF_element_r[node]]
 
-            E_pot_el -= (r_OS @ self.force(t, qpi)) * Ji * qwi
+            E_pot_el -= (r_OC @ self.force(t, qpi)) * Ji * qwi
 
         return E_pot_el
 

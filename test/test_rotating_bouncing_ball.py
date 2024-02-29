@@ -125,11 +125,11 @@ class RotatingBouncingBall:
 
         phis = np.linspace(0, 2 * np.pi, num=num, endpoint=True)
 
-        r_OS = np.array([x, y])
+        r_OC = np.array([x, y])
         r_OPs = np.array(
-            [r_OS + A_IK(phi) @ np.array([self.radius, 0]) for phi in phis]
+            [r_OC + A_IK(phi) @ np.array([self.radius, 0]) for phi in phis]
         ).T
-        return np.concatenate((r_OS[:, None], r_OPs), axis=-1)
+        return np.concatenate((r_OC[:, None], r_OPs), axis=-1)
 
 
 def run(case, export=False):

@@ -88,7 +88,7 @@ def Meshed(Base):
             self.K_visual_mesh = trimesh_mesh.copy().apply_transform(H_KM)
 
             # vectors (transposed) from S to vertices represented in body-fixed frame
-            self.K_r_SQi_T = self.K_visual_mesh.vertices.view(np.ndarray).T
+            self.K_r_CQi_T = self.K_visual_mesh.vertices.view(np.ndarray).T
 
             # compute inertia quantities of body
             if density is not None:
@@ -117,11 +117,11 @@ def Meshed(Base):
             if base_export:
                 return super().export(sol_i, **kwargs)
             else:
-                r_OS = self.r_OP(
+                r_OC = self.r_OP(
                     sol_i.t, sol_i.q[self.qDOF]
                 )  # TODO: Idea: slicing could be done on global level in Export class. Moreover, solution class should be able to return the slice, e.g., sol_i.get_q_of_body(name).
                 A_IK = self.A_IK(sol_i.t, sol_i.q[self.qDOF])
-                points = (r_OS[:, None] + A_IK @ self.K_r_SQi_T).T
+                points = (r_OC[:, None] + A_IK @ self.K_r_CQi_T).T
 
                 cells = [
                     ("triangle", self.K_visual_mesh.faces),

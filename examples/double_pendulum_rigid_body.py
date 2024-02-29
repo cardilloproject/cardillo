@@ -52,21 +52,21 @@ if __name__ == "__main__":
     A_IB1 = np.eye(3)
     origin = Frame(r_OP=r_OB1, A_IK=A_IB1)
     A_IK10 = A_IK_basic(alpha0).z()
-    r_OS10 = -0.5 * l * A_IK10[:, 1]
+    r_OC10 = -0.5 * l * A_IK10[:, 1]
     omega01 = np.array([0, 0, alpha_dot0])
-    vS1 = cross3(omega01, r_OS10)
+    vS1 = cross3(omega01, r_OC10)
     u01 = np.concatenate([vS1, omega01])
 
     if use_quaternion:
         p01 = axis_angle2quat(np.array([0, 0, 1]), alpha0)
-        q01 = np.concatenate([r_OS10, p01])
+        q01 = np.concatenate([r_OC10, p01])
         RB1 = RigidBody(m, K_theta_S, q01, u01)
     elif use_euler:
-        q01 = np.concatenate([r_OS10, np.array([0, 0, alpha0])])
+        q01 = np.concatenate([r_OC10, np.array([0, 0, alpha0])])
         RB1 = RigidBodyEuler(m, K_theta_S, "xyz", q0=q01, u0=u01)
     elif use_axisangle:
         p01 = np.array([0, 0, 1]) * alpha0
-        q01 = np.concatenate([r_OS10, p01])
+        q01 = np.concatenate([r_OC10, p01])
         RB1 = RigidBodyAxisAngle(m, K_theta_S, q01, u01)
 
     if use_spherical_joint:
@@ -84,7 +84,7 @@ if __name__ == "__main__":
     A_IB2 = A_IK10
     A_IK20 = A_IK10 @ A_IK_basic(beta0).z()
     r_B2S2 = -0.5 * l * A_IK20[:, 1]
-    r_OS20 = r_OB2 + r_B2S2
+    r_OC20 = r_OB2 + r_B2S2
     omega02 = np.array([0, 0, alpha_dot0 + beta_dot0])
     vB2 = cross3(omega01, r_OB2)
     vS2 = vB2 + cross3(omega02, r_B2S2)
@@ -92,14 +92,14 @@ if __name__ == "__main__":
 
     if use_quaternion:
         p02 = axis_angle2quat(np.array([0, 0, 1]), alpha0 + beta0)
-        q02 = np.concatenate([r_OS20, p02])
+        q02 = np.concatenate([r_OC20, p02])
         RB2 = RigidBody(m, K_theta_S, q02, u02)
     elif use_euler:
-        q02 = np.concatenate([r_OS20, np.array([0, 0, alpha0 + beta0])])
+        q02 = np.concatenate([r_OC20, np.array([0, 0, alpha0 + beta0])])
         RB2 = RigidBodyEuler(m, K_theta_S, "xyz", q0=q02, u0=u02)
     elif use_axisangle:
         p02 = np.array([0, 0, 1]) * (alpha0 + beta0)
-        q02 = np.concatenate([r_OS20, p02])
+        q02 = np.concatenate([r_OC20, p02])
         RB2 = RigidBodyAxisAngle(m, K_theta_S, q02, u02)
 
     if use_spherical_joint:

@@ -122,12 +122,12 @@ def test_fixed_distance(Solver, kwargs, show=False):
     q_ref = ref.y[:2].T
 
     # solutions with cardillo models
-    r_OS0 = pendulum.r_OP(t0, np.array([alpha0, beta0]))
+    r_OC0 = pendulum.r_OP(t0, np.array([alpha0, beta0]))
     v_S0 = pendulum.v_P(
         t0, np.array([alpha0, beta0]), np.array([alpha_dot0, beta_dot0])
     )
 
-    PM = PointMass(m, q0=r_OS0, u0=v_S0)
+    PM = PointMass(m, q0=r_OC0, u0=v_S0)
 
     origin = Frame(r_OP, r_OP_t=v_P, r_OP_tt=a_P)
     # joint = FixedDistance(origin, PM)

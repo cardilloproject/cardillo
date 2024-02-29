@@ -74,16 +74,16 @@ def A_IK(alpha, beta, gamma):
 
 
 r_OQ = np.zeros(3)
-K_r_OS0 = np.array([0, 0, l])
+K_r_OC0 = np.array([0, 0, l])
 A_IK0 = A_IK(alpha0, beta0, gamma0)
-r_OS0 = A_IK0 @ K_r_OS0
-q0 = np.concatenate((r_OS0, Spurrier(A_IK0)))
+r_OC0 = A_IK0 @ K_r_OC0
+q0 = np.concatenate((r_OC0, Spurrier(A_IK0)))
 
 ####################
 # initial velocities
 ####################
 K_Omega0 = np.array([omega_x0, omega_y0, omega_z0])
-v_S0 = A_IK0 @ cross3(K_Omega0, K_r_OS0)
+v_S0 = A_IK0 @ cross3(K_Omega0, K_r_OC0)
 u0 = np.concatenate((v_S0, K_Omega0))
 
 #################

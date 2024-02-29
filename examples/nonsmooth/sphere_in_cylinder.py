@@ -35,9 +35,9 @@ if __name__ == "__main__":
     y_dot0 = 0
     phi0 = 0
     phi_dot0 = 0
-    r_OS0 = np.array([x0, y0, 0])
+    r_OC0 = np.array([x0, y0, 0])
     vS0 = np.array([x_dot0, y_dot0, 0])
-    q0 = np.concatenate([r_OS0, np.array([phi0, 0, 0])])
+    q0 = np.concatenate([r_OC0, np.array([phi0, 0, 0])])
     u0 = np.concatenate([vS0, np.array([0, 0, phi_dot0])])
     RB = Ball(m, r, q0, u0)
 
