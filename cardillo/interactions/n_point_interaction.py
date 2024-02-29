@@ -18,7 +18,7 @@ class nPointInteraction:
             if frame_ID_list is not None
             else self.n_subsystems * [np.zeros(3)]
         )
-        self.Ki_r_SPis = (
+        self.Bi_r_CPis = (
             B_r_CP_list
             if B_r_CP_list is not None
             else self.n_subsystems * [np.zeros(3)]
@@ -49,30 +49,30 @@ class nPointInteraction:
 
         # auxiliary functions
         self.r_OPk = lambda t, q, k: self.subsystems[k].r_OP(
-            t, q[self.nq_fun(k)], self.frame_IDs[k], self.Ki_r_SPis[k]
+            t, q[self.nq_fun(k)], self.frame_IDs[k], self.Bi_r_CPis[k]
         )
         self.r_OPk_qk = lambda t, q, k: self.subsystems[k].r_OP_q(
-            t, q[self.nq_fun(k)], self.frame_IDs[k], self.Ki_r_SPis[k]
+            t, q[self.nq_fun(k)], self.frame_IDs[k], self.Bi_r_CPis[k]
         )
         self.v_Pk = lambda t, q, u, k: self.subsystems[k].v_P(
             t,
             q[self.nq_fun(k)],
             u[self.nu_fun(k)],
             self.frame_IDs[k],
-            self.Ki_r_SPis[k],
+            self.Bi_r_CPis[k],
         )
         self.v_Pk_qk = lambda t, q, u, k: self.subsystems[k].v_P_q(
             t,
             q[self.nq_fun(k)],
             u[self.nu_fun(k)],
             self.frame_IDs[k],
-            self.Ki_r_SPis[k],
+            self.Bi_r_CPis[k],
         )
         self.J_Pk = lambda t, q, k: self.subsystems[k].J_P(
-            t, q[self.nq_fun(k)], self.frame_IDs[k], self.Ki_r_SPis[k]
+            t, q[self.nq_fun(k)], self.frame_IDs[k], self.Bi_r_CPis[k]
         )
         self.J_Pk_qk = lambda t, q, k: self.subsystems[k].J_P_q(
-            t, q[self.nq_fun(k)], self.frame_IDs[k], self.Ki_r_SPis[k]
+            t, q[self.nq_fun(k)], self.frame_IDs[k], self.Bi_r_CPis[k]
         )
         self.r_PiPj = lambda t, q, i, j: self.r_OPk(t, q, j) - self.r_OPk(t, q, i)
 

@@ -32,8 +32,8 @@ def make_system(RigidBodyBase):
     a2 = 1.6e-2
     R1 = 1.5e-2
     R2 = 5e-3
-    K_r_SC1 = np.array([0, 0, a1])
-    K_r_SC2 = np.array([0, 0, a2])
+    K_r_CP1 = np.array([0, 0, a1])
+    K_r_CP2 = np.array([0, 0, a2])
 
     mu = 0.3  # = mu1 = mu2
     e_N = 0  # = eN1 = eN2
@@ -89,7 +89,7 @@ def make_system(RigidBodyBase):
         mu,
         e_N,
         e_F,
-        B_r_CP=K_r_SC1,
+        B_r_CP=K_r_CP1,
     )
     contact2 = Sphere2PlaneCoulombContensouMoeller(
         system.origin,
@@ -99,7 +99,7 @@ def make_system(RigidBodyBase):
         mu,
         e_N,
         e_F,
-        B_r_CP=K_r_SC2,
+        B_r_CP=K_r_CP2,
     )
 
     gravity = Force(np.array([0, 0, -m * g]), top)

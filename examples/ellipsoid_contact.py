@@ -169,9 +169,9 @@ def sim():
             # fmt: on
 
             thetas = np.linspace(0, 2 * np.pi, num=num, endpoint=True)
-            r_SP = A_IK @ np.array([self.a * np.sin(thetas), self.b * np.cos(thetas)])
+            r_CP = A_IK @ np.array([self.a * np.sin(thetas), self.b * np.cos(thetas)])
             r_OC = np.array([x, y])
-            r_OPs = r_OC[:, None] + r_SP
+            r_OPs = r_OC[:, None] + r_CP
 
             return np.concatenate((r_OC[:, None], r_OPs), axis=1)
 

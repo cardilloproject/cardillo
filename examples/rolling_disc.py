@@ -23,7 +23,7 @@ class RollingCondition:
         self.qDOF = self.subsystem.qDOF[self.subsystem.local_qDOF_P()]
         self.uDOF = self.subsystem.qDOF[self.subsystem.local_uDOF_P()]
 
-    def r_SC(self, t, q):
+    def r_CP(self, t, q):
         e_K_y = self.subsystem.A_IK(t, q)[:, 1]
         g_K_x = cross3(e_K_y, np.array([0, 0, 1]))
         e_K_x = g_K_x / norm(g_K_x)
@@ -42,7 +42,7 @@ class RollingCondition:
 
     def gamma(self, t, q, u):
         return self.subsystem.v_P(
-            t, q, u, B_r_CP=self.subsystem.A_IK(t, q).T @ self.r_SC(t, q)
+            t, q, u, B_r_CP=self.subsystem.A_IK(t, q).T @ self.r_CP(t, q)
         )
 
     def gamma_dot(self, t, q, u, u_dot):
@@ -56,7 +56,7 @@ class RollingCondition:
 
     def gamma_u(self, t, q):
         return self.subsystem.J_P(
-            t, q, B_r_CP=self.subsystem.A_IK(t, q).T @ self.r_SC(t, q)
+            t, q, B_r_CP=self.subsystem.A_IK(t, q).T @ self.r_CP(t, q)
         )
 
     def W_gamma(self, t, q):
@@ -81,7 +81,7 @@ class RollingCondition_g_I_Frame_gamma:
         self.qDOF = self.subsystem.qDOF[self.subsystem.local_qDOF_P()]
         self.uDOF = self.subsystem.qDOF[self.subsystem.local_uDOF_P()]
 
-    def r_SC(self, t, q):
+    def r_CP(self, t, q):
         # evaluate body fixed frame
         e_K_x, e_K_y, e_K_z = self.subsystem.A_IK(t, q).T
 
@@ -101,12 +101,12 @@ class RollingCondition_g_I_Frame_gamma:
     def g(self, t, q):
         # see LeSaux2005 (2.15a)
         r_OC = self.subsystem.r_OP(t, q)
-        r_OC = r_OC + self.r_SC(t, q)
+        r_OC = r_OC + self.r_CP(t, q)
         return r_OC @ e3
 
     def g_dot(self, t, q, u):
         v_C = self.subsystem.v_P(
-            t, q, u, B_r_CP=self.subsystem.A_IK(t, q).T @ self.r_SC(t, q)
+            t, q, u, B_r_CP=self.subsystem.A_IK(t, q).T @ self.r_CP(t, q)
         )
         return v_C @ e3
 
@@ -115,7 +115,7 @@ class RollingCondition_g_I_Frame_gamma:
 
     def g_ddot(self, t, q, u, u_dot):
         # a_C = self.subsystem.a_P(
-        #     t, q, u, u_dot, B_r_CP=self.subsystem.A_IK(t, q).T @ self.r_SC(t, q)
+        #     t, q, u, u_dot, B_r_CP=self.subsystem.A_IK(t, q).T @ self.SP(t, q)
         # )
         # return a_C @ e3
 
@@ -155,7 +155,7 @@ class RollingCondition_g_I_Frame_gamma:
 
     def W_g(self, t, q):
         J_C = self.subsystem.J_P(
-            t, q, B_r_CP=self.subsystem.A_IK(t, q).T @ self.r_SC(t, q)
+            t, q, B_r_CP=self.subsystem.A_IK(t, q).T @ self.r_CP(t, q)
         )
         return (e3 @ J_C).reshape(-1, self.nla_g)
 
@@ -171,7 +171,7 @@ class RollingCondition_g_I_Frame_gamma:
 
         def gamma(self, t, q, u):
             v_C = self.subsystem.v_P(
-                t, q, u, B_r_CP=self.subsystem.A_IK(t, q).T @ self.r_SC(t, q)
+                t, q, u, B_r_CP=self.subsystem.A_IK(t, q).T @ self.r_CP(t, q)
             )
             return np.array([v_C @ e1, v_C @ e2])
 
@@ -184,7 +184,7 @@ class RollingCondition_g_I_Frame_gamma:
             return gamma_q @ self.subsystem.q_dot(t, q, u) + gamma_u @ u_dot
 
             # a_C = self.subsystem.a_P(
-            #     t, q, u, u_dot, B_r_CP=self.subsystem.A_IK(t, q).T @ self.r_SC(t, q)
+            #     t, q, u, u_dot, B_r_CP=self.subsystem.A_IK(t, q).T @ self.r_CP(t, q)
             # )
             # return np.array([a_C @ e1, a_C @ e2])
 
@@ -201,7 +201,7 @@ class RollingCondition_g_I_Frame_gamma:
 
         def gamma_u(self, t, q):
             return self.subsystem.J_P(
-                t, q, B_r_CP=self.subsystem.A_IK(t, q).T @ self.r_SC(t, q)
+                t, q, B_r_CP=self.subsystem.A_IK(t, q).T @ self.r_CP(t, q)
             )[:2]
 
         def W_gamma(self, t, q):
@@ -537,7 +537,7 @@ def state():
 
         x_bdry, y_bdry, z_bdry = disc.boundary(t, q)
 
-        x_t, y_t, z_t = disc.r_OP(t, q) + rolling.r_SC(t, q)
+        x_t, y_t, z_t = disc.r_OP(t, q) + rolling.r_CP(t, q)
 
         x_trace.append(x_t)
         y_trace.append(y_t)
