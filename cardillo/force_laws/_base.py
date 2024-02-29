@@ -10,7 +10,7 @@ class ScalarForceLaw(ABC):
         self.l_dot = self.subsystem.l_dot
         self.l_dot_q = self.subsystem.l_dot_q
         self.l_dot_u = self.subsystem.l_dot_u
-
+        self.force = self.la_c # TODO: Do we keep this?
         if compliance_form:
             self.nla_c = 1
             self.c = self.__c

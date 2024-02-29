@@ -30,9 +30,9 @@ if __name__ == "__main__":
 
     # initial conditions
     height = 8 * radius
-    nx = 2
-    ny = 2
-    nz = 8
+    nx = 3
+    ny = 3
+    nz = 5
     offset = 0.3 * radius
 
     # simulation parameters
@@ -69,7 +69,7 @@ if __name__ == "__main__":
 
     # floor
     floor = Box(Frame)(
-        dimensions=[2, 2, 0.0001], name="floor", A_IK=A_IK_basic(np.deg2rad(30)).y
+        dimensions=[2, 2, 0.0001], name="floor", A_IK=A_IK_basic(np.deg2rad(10)).x @ A_IK_basic(np.deg2rad(10)).y
     )
     system.add(floor)  # (only for visualization purposes)
 
@@ -101,13 +101,13 @@ if __name__ == "__main__":
     # simulation
     ############
     dt = 1.0e-3  # time step
-    # solver = Moreau(system, t1, dt)  # create solver
-    solver = BackwardEuler(
-        system,
-        t1,
-        dt,
-        options=SolverOptions(fixed_point_atol=1e-7, fixed_point_rtol=1e-7),
-    )  # create solver
+    solver = Moreau(system, t1, dt, options=SolverOptions(fixed_point_max_iter=int(1e4), prox_scaling=0.5))  # create solver
+    # solver = BackwardEuler(
+    #     system,
+    #     t1,
+    #     dt,
+    #     options=SolverOptions(fixed_point_atol=1e-7, fixed_point_rtol=1e-7),
+    # )  # create solver
     sol = solver.solve()  # simulate system
 
     # vtk-export
