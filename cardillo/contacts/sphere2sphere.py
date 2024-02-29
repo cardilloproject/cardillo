@@ -17,8 +17,8 @@ class Sphere2Sphere:
         mu,
         e_N=None,
         e_F=None,
-        frame_ID1=None,
-        frame_ID2=None,
+        xi1=None,
+        xi2=None,
         name="sphere_to_sphere_contact",
     ):
         """Contact between two spheres modelled as unilateral constraint with set-valued Coulomb friction.
@@ -39,16 +39,16 @@ class Sphere2Sphere:
             Restitution coefficient for Newton-like impact law in normal direction.
         e_N : float
             Restitution coefficient for Newton-like impact law for friction.
-        frame_ID1 : TODO
-        frame_ID2 : TODO
+        xi1 : TODO
+        xi2 : TODO
         name : str
             Name of contribution.
         """
         self.subsystem1 = subsystem1
-        self.frame_ID1 = frame_ID1
+        self.xi1 = xi1
         self.radius1 = radius1
         self.subsystem2 = subsystem2
-        self.frame_ID2 = frame_ID2
+        self.xi2 = xi2
         self.radius2 = radius2
 
         self.nla_N = 1
@@ -72,8 +72,8 @@ class Sphere2Sphere:
         self.normal_and_tangents_cache = LRUCache(maxsize=1)
 
     def assembler_callback(self):
-        qDOF1 = self.subsystem1.local_qDOF_P(self.frame_ID1)
-        qDOF2 = self.subsystem2.local_qDOF_P(self.frame_ID2)
+        qDOF1 = self.subsystem1.local_qDOF_P(self.xi1)
+        qDOF2 = self.subsystem2.local_qDOF_P(self.xi2)
         self.qDOF = np.concatenate(
             [self.subsystem1.qDOF[qDOF1], self.subsystem2.qDOF[qDOF2]]
         )
@@ -81,8 +81,8 @@ class Sphere2Sphere:
         self.nq2 = len(qDOF2)
         self._nq = self.nq1 + self.nq2
 
-        uDOF1 = self.subsystem1.local_uDOF_P(self.frame_ID1)
-        uDOF2 = self.subsystem2.local_uDOF_P(self.frame_ID2)
+        uDOF1 = self.subsystem1.local_uDOF_P(self.xi1)
+        uDOF2 = self.subsystem2.local_uDOF_P(self.xi2)
         self.uDOF = np.concatenate(
             [self.subsystem1.uDOF[uDOF1], self.subsystem2.uDOF[uDOF2]]
         )
@@ -93,135 +93,135 @@ class Sphere2Sphere:
         #####################################
         # auxiliary functions for subsystem 1
         #####################################
-        self.r_OC1 = lambda t, q: self.subsystem1.r_OP(t, q[:nq1], self.frame_ID1)
-        self.r_OC1_q = lambda t, q: self.subsystem1.r_OP_q(t, q[:nq1], self.frame_ID1)
+        self.r_OC1 = lambda t, q: self.subsystem1.r_OP(t, q[:nq1], self.xi1)
+        self.r_OC1_q = lambda t, q: self.subsystem1.r_OP_q(t, q[:nq1], self.xi1)
         self.v_C1 = lambda t, q, u: self.subsystem1.v_P(
-            t, q[:nq1], u[:nu1], self.frame_ID1
+            t, q[:nq1], u[:nu1], self.xi1
         )
         self.v_C1_q = lambda t, q, u: self.subsystem1.v_P_q(
-            t, q[:nq1], u[:nu1], self.frame_ID1
+            t, q[:nq1], u[:nu1], self.xi1
         )
         self.a_C1 = lambda t, q, u, u_dot: self.subsystem1.a_P(
-            t, q[:nq1], u[:nu1], u_dot[:nu1], self.frame_ID1
+            t, q[:nq1], u[:nu1], u_dot[:nu1], self.xi1
         )
         self.a_C1_q = lambda t, q, u, u_dot: self.subsystem1.a_P_q(
-            t, q[:nq1], u[:nu1], u_dot[:nu1], self.frame_ID1
+            t, q[:nq1], u[:nu1], u_dot[:nu1], self.xi1
         )
         self.a_C1_u = lambda t, q, u, u_dot: self.subsystem1.a_P_u(
-            t, q[:nq1], u[:nu1], u_dot[:nu1], self.frame_ID1
+            t, q[:nq1], u[:nu1], u_dot[:nu1], self.xi1
         )
-        self.J_C1 = lambda t, q: self.subsystem1.J_P(t, q[:nq1], self.frame_ID1)
-        self.J_C1_q = lambda t, q: self.subsystem1.J_P_q(t, q[:nq1], self.frame_ID1)
+        self.J_C1 = lambda t, q: self.subsystem1.J_P(t, q[:nq1], self.xi1)
+        self.J_C1_q = lambda t, q: self.subsystem1.J_P_q(t, q[:nq1], self.xi1)
 
         self.Omega1 = lambda t, q, u: self.subsystem1.A_IK(
-            t, q[:nq1], frame_ID=self.frame_ID1
-        ) @ self.subsystem1.K_Omega(t, q[:nq1], u[:nu1], frame_ID=self.frame_ID1)
+            t, q[:nq1], xi=self.xi1
+        ) @ self.subsystem1.K_Omega(t, q[:nq1], u[:nu1], xi=self.xi1)
         self.Omega1_q = lambda t, q, u: self.subsystem1.A_IK(
-            t, q[:nq1], frame_ID=self.frame_ID1
+            t, q[:nq1], xi=self.xi1
         ) @ self.subsystem1.K_Omega_q(
-            t, q[:nq1], u[:nu1], frame_ID=self.frame_ID1
+            t, q[:nq1], u[:nu1], xi=self.xi1
         ) + np.einsum(
             "ijk,j->ik",
-            self.subsystem1.A_IK_q(t, q[:nq1], frame_ID=self.frame_ID1),
-            self.subsystem1.K_Omega(t, q[:nq1], u[:nu1], frame_ID=self.frame_ID1),
+            self.subsystem1.A_IK_q(t, q[:nq1], xi=self.xi1),
+            self.subsystem1.K_Omega(t, q[:nq1], u[:nu1], xi=self.xi1),
         )
         self.J1_R = lambda t, q: self.subsystem1.A_IK(
-            t, q[:nq1], frame_ID=self.frame_ID1
-        ) @ self.subsystem1.K_J_R(t, q[:nq1], frame_ID=self.frame_ID1)
+            t, q[:nq1], xi=self.xi1
+        ) @ self.subsystem1.K_J_R(t, q[:nq1], xi=self.xi1)
         self.J1_R_q = lambda t, q: np.einsum(
             "ijl,jk->ikl",
-            self.subsystem1.A_IK_q(t, q[:nq1], frame_ID=self.frame_ID1),
-            self.subsystem1.K_J_R(t, q[:nq1], frame_ID=self.frame_ID1),
+            self.subsystem1.A_IK_q(t, q[:nq1], xi=self.xi1),
+            self.subsystem1.K_J_R(t, q[:nq1], xi=self.xi1),
         ) + np.einsum(
             "ij,jkl->ikl",
-            self.subsystem1.A_IK(t, q[:nq1], frame_ID=self.frame_ID1),
-            self.subsystem1.K_J_R_q(t, q[:nq1], frame_ID=self.frame_ID1),
+            self.subsystem1.A_IK(t, q[:nq1], xi=self.xi1),
+            self.subsystem1.K_J_R_q(t, q[:nq1], xi=self.xi1),
         )
         self.Psi1 = lambda t, q, u, a: self.subsystem1.A_IK(
-            t, q[:nq1], frame_ID=self.frame_ID1
-        ) @ self.subsystem1.K_Psi(t, q[:nq1], u[:nu1], a[:nu1], frame_ID=self.frame_ID1)
+            t, q[:nq1], xi=self.xi1
+        ) @ self.subsystem1.K_Psi(t, q[:nq1], u[:nu1], a[:nu1], xi=self.xi1)
         self.Psi1_q = lambda t, q, u, a: self.subsystem1.A_IK(
-            t, q[:nq1], frame_ID=self.frame_ID1
+            t, q[:nq1], xi=self.xi1
         ) @ self.subsystem1.K_Psi_q(
-            t, q[:nq1], u[:nu1], a[:nu1], frame_ID=self.frame_ID1
+            t, q[:nq1], u[:nu1], a[:nu1], xi=self.xi1
         ) + np.einsum(
             "ijk,j->ik",
-            self.subsystem1.A_IK_q(t, q[:nq1], frame_ID=self.frame_ID1),
+            self.subsystem1.A_IK_q(t, q[:nq1], xi=self.xi1),
             self.subsystem1.K_Psi(
-                t, q[:nq1], u[:nu1], a[:nu1], frame_ID=self.frame_ID1
+                t, q[:nq1], u[:nu1], a[:nu1], xi=self.xi1
             ),
         )
         self.Psi1_u = lambda t, q, u, a: self.subsystem1.A_IK(
-            t, q[:nq1], frame_ID=self.frame_ID1
+            t, q[:nq1], xi=self.xi1
         ) @ self.subsystem1.K_Psi_u(
-            t, q[:nq1], u[:nu1], a[:nu1], frame_ID=self.frame_ID1
+            t, q[:nq1], u[:nu1], a[:nu1], xi=self.xi1
         )
 
         #####################################
         # auxiliary functions for subsystem 1
         #####################################
-        self.r_OC2 = lambda t, q: self.subsystem2.r_OP(t, q[nq1:], self.frame_ID2)
-        self.r_OC2_q = lambda t, q: self.subsystem2.r_OP_q(t, q[nq1:], self.frame_ID2)
+        self.r_OC2 = lambda t, q: self.subsystem2.r_OP(t, q[nq1:], self.xi2)
+        self.r_OC2_q = lambda t, q: self.subsystem2.r_OP_q(t, q[nq1:], self.xi2)
         self.v_C2 = lambda t, q, u: self.subsystem2.v_P(
-            t, q[nq1:], u[nu1:], self.frame_ID2
+            t, q[nq1:], u[nu1:], self.xi2
         )
         self.v_C2_q = lambda t, q, u: self.subsystem2.v_P_q(
-            t, q[nq1:], u[nu1:], self.frame_ID2
+            t, q[nq1:], u[nu1:], self.xi2
         )
         self.a_C2 = lambda t, q, u, u_dot: self.subsystem2.a_P(
-            t, q[nq1:], u[nu1:], u_dot[nu1:], self.frame_ID2
+            t, q[nq1:], u[nu1:], u_dot[nu1:], self.xi2
         )
         self.a_C2_q = lambda t, q, u, u_dot: self.subsystem2.a_P_q(
-            t, q[nq1:], u[nu1:], u_dot[nu1:], self.frame_ID2
+            t, q[nq1:], u[nu1:], u_dot[nu1:], self.xi2
         )
         self.a_C2_u = lambda t, q, u, u_dot: self.subsystem2.a_P_u(
-            t, q[nq1:], u[nu1:], u_dot[nu1:], self.frame_ID2
+            t, q[nq1:], u[nu1:], u_dot[nu1:], self.xi2
         )
-        self.J_C2 = lambda t, q: self.subsystem2.J_P(t, q[nq1:], self.frame_ID2)
-        self.J_C2_q = lambda t, q: self.subsystem2.J_P_q(t, q[nq1:], self.frame_ID2)
+        self.J_C2 = lambda t, q: self.subsystem2.J_P(t, q[nq1:], self.xi2)
+        self.J_C2_q = lambda t, q: self.subsystem2.J_P_q(t, q[nq1:], self.xi2)
 
         self.Omega2 = lambda t, q, u: self.subsystem2.A_IK(
-            t, q[nq1:], frame_ID=self.frame_ID2
-        ) @ self.subsystem2.K_Omega(t, q[nq1:], u[nu1:], frame_ID=self.frame_ID2)
+            t, q[nq1:], xi=self.xi2
+        ) @ self.subsystem2.K_Omega(t, q[nq1:], u[nu1:], xi=self.xi2)
         self.Omega2_q = lambda t, q, u: self.subsystem2.A_IK(
-            t, q[nq1:], frame_ID=self.frame_ID2
+            t, q[nq1:], xi=self.xi2
         ) @ self.subsystem2.K_Omega_q(
-            t, q[nq1:], u[nu1:], frame_ID=self.frame_ID2
+            t, q[nq1:], u[nu1:], xi=self.xi2
         ) + np.einsum(
             "ijk,j->ik",
-            self.subsystem2.A_IK_q(t, q[nq1:], frame_ID=self.frame_ID2),
-            self.subsystem2.K_Omega(t, q[nq1:], u[nu1:], frame_ID=self.frame_ID2),
+            self.subsystem2.A_IK_q(t, q[nq1:], xi=self.xi2),
+            self.subsystem2.K_Omega(t, q[nq1:], u[nu1:], xi=self.xi2),
         )
         self.J2_R = lambda t, q: self.subsystem2.A_IK(
-            t, q[nq1:], frame_ID=self.frame_ID2
-        ) @ self.subsystem2.K_J_R(t, q[nq1:], frame_ID=self.frame_ID2)
+            t, q[nq1:], xi=self.xi2
+        ) @ self.subsystem2.K_J_R(t, q[nq1:], xi=self.xi2)
         self.J2_R_q = lambda t, q: np.einsum(
             "ijl,jk->ikl",
-            self.subsystem2.A_IK_q(t, q[nq1:], frame_ID=self.frame_ID2),
-            self.subsystem2.K_J_R(t, q[nq1:], frame_ID=self.frame_ID2),
+            self.subsystem2.A_IK_q(t, q[nq1:], xi=self.xi2),
+            self.subsystem2.K_J_R(t, q[nq1:], xi=self.xi2),
         ) + np.einsum(
             "ij,jkl->ikl",
-            self.subsystem2.A_IK(t, q[nq1:], frame_ID=self.frame_ID2),
-            self.subsystem2.K_J_R_q(t, q[nq1:], frame_ID=self.frame_ID2),
+            self.subsystem2.A_IK(t, q[nq1:], xi=self.xi2),
+            self.subsystem2.K_J_R_q(t, q[nq1:], xi=self.xi2),
         )
         self.Psi2 = lambda t, q, u, a: self.subsystem2.A_IK(
-            t, q[nq1:], frame_ID=self.frame_ID2
-        ) @ self.subsystem2.K_Psi(t, q[nq1:], u[nu1:], a[nu1:], frame_ID=self.frame_ID2)
+            t, q[nq1:], xi=self.xi2
+        ) @ self.subsystem2.K_Psi(t, q[nq1:], u[nu1:], a[nu1:], xi=self.xi2)
         # self.Psi1_q = lambda t, q, u, a: self.subsystem1.A_IK(
-        #     t, q[:nq1], frame_ID=self.frame_ID1
+        #     t, q[:nq1], xi=self.xi1
         # ) @ self.subsystem1.K_Psi_q(
-        #     t, q[:nq1], u[:nu1], a[:nu1], frame_ID=self.frame_ID1
+        #     t, q[:nq1], u[:nu1], a[:nu1], xi=self.xi1
         # ) + np.einsum(
         #     "ijk,j->ik",
-        #     self.subsystem1.A_IK_q(t, q[:nq1], frame_ID=self.frame_ID1),
+        #     self.subsystem1.A_IK_q(t, q[:nq1], xi=self.xi1),
         #     self.subsystem1.K_Psi(
-        #         t, q[:nq1], u[:nu1], a[:nu1], frame_ID=self.frame_ID1
+        #         t, q[:nq1], u[:nu1], a[:nu1], xi=self.xi1
         #     ),
         # )
         # self.Psi1_u = lambda t, q, u, a: self.subsystem1.A_IK(
-        #     t, q[:nq1], frame_ID=self.frame_ID1
+        #     t, q[:nq1], xi=self.xi1
         # ) @ self.subsystem1.K_Psi_u(
-        #     t, q[:nq1], u[:nu1], a[:nu1], frame_ID=self.frame_ID1
+        #     t, q[:nq1], u[:nu1], a[:nu1], xi=self.xi1
         # )
 
     @cachedmethod(

@@ -14,19 +14,19 @@ class FixedDistance:
         self,
         subsystem1,
         subsystem2,
-        frame_ID1=None,
-        frame_ID2=None,
+        xi1=None,
+        xi2=None,
         K1_r_P1J1=np.zeros(3),
         K2_r_P2J2=np.zeros(3),
     ):
         self.nla_g = 1
 
         self.subsystem1 = subsystem1
-        self.frame_ID1 = frame_ID1
+        self.xi1 = xi1
         self.K1_r_P1J1 = K1_r_P1J1
 
         self.subsystem2 = subsystem2
-        self.frame_ID2 = frame_ID2
+        self.xi2 = xi2
         self.K2_r_P2J2 = K2_r_P2J2
 
     def assembler_callback(self):

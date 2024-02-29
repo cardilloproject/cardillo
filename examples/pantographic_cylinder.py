@@ -241,8 +241,8 @@ if __name__ == "__main__":
                 if 0 < xi < 1:
                     r_OP_joint = r(xi, phi0=phi0)
                     A_IK_ccw = A_IK(xi, phi0=phi0)
-                    frame_ID_ccw = (xi,)
-                    frame_ID_cw = frame_ID_ccw
+                    xi_ccw = (xi,)
+                    xi_cw = xi_ccw
                     rod_cw = rod_list[2 * nn + 1]
                     if joint_type == "revolute":
                         joint = Revolute(
@@ -251,8 +251,8 @@ if __name__ == "__main__":
                             axis=2,
                             r_OJ0=r_OP_joint,
                             # A_IJ0=A_IK_ccw,
-                            frame_ID1=frame_ID_ccw,
-                            frame_ID2=frame_ID_cw,
+                            xi1=xi_ccw,
+                            xi2=xi_cw,
                         )
                         revolute_joint_list.append(joint)
 
@@ -260,8 +260,8 @@ if __name__ == "__main__":
                         joint = RigidConnection(
                             rod_ccw,
                             rod_cw,
-                            frame_ID1=frame_ID_ccw,
-                            frame_ID2=frame_ID_cw,
+                            xi1=xi_ccw,
+                            xi2=xi_cw,
                         )
                         revolute_joint_list.append(joint)
 
@@ -273,8 +273,8 @@ if __name__ == "__main__":
                             r_OJ0=r_OP_joint,
                             # A_IJ0=A_IK0,
                             k=k,
-                            frame_ID1=frame_ID_ccw,
-                            frame_ID2=frame_ID_cw,
+                            xi1=xi_ccw,
+                            xi2=xi_cw,
                         )
                         revolute_joint_list.append(joint)
 
@@ -334,8 +334,8 @@ if __name__ == "__main__":
     frame_top = Frame(r_OP=r_OP_top, A_IK=A_IK_top)
 
     for rod in rod_list:
-        joint_bottom = RigidConnection(system.origin, rod, frame_ID2=(0,))
-        joint_top = RigidConnection(frame_top, rod, frame_ID2=(1,))
+        joint_bottom = RigidConnection(system.origin, rod, xi2=(0,))
+        joint_top = RigidConnection(frame_top, rod, xi2=(1,))
         joint_list.extend((joint_bottom, joint_top))
 
     # assemble the system

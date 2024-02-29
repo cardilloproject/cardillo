@@ -10,7 +10,7 @@ class Force:
         Force w.r.t. inertial I-basis as a callable function of time t.
     subsystem : object
         Object on which force acts.
-    frame_ID : #TODO
+    xi : #TODO
     B_r_CP : np.ndarray (3,)
         Position vector of point of attack (P) w.r.t. center of mass (S) in body-fixed K-basis.
     name : str
@@ -18,22 +18,22 @@ class Force:
     """
 
     def __init__(
-        self, force, subsystem, frame_ID=zeros(3), B_r_CP=zeros(3), name="force"
+        self, force, subsystem, xi=zeros(3), B_r_CP=zeros(3), name="force"
     ):
         if not callable(force):
             self.force = lambda t: force
         else:
             self.force = force
         self.subsystem = subsystem
-        self.frame_ID = frame_ID
+        self.xi = xi
         self.name = name
-        self.r_OP = lambda t, q: subsystem.r_OP(t, q, frame_ID, B_r_CP)
-        self.J_P = lambda t, q: subsystem.J_P(t, q, frame_ID, B_r_CP)
-        self.J_P_q = lambda t, q: subsystem.J_P_q(t, q, frame_ID, B_r_CP)
+        self.r_OP = lambda t, q: subsystem.r_OP(t, q, xi, B_r_CP)
+        self.J_P = lambda t, q: subsystem.J_P(t, q, xi, B_r_CP)
+        self.J_P_q = lambda t, q: subsystem.J_P_q(t, q, xi, B_r_CP)
 
     def assembler_callback(self):
-        self.qDOF = self.subsystem.qDOF[self.subsystem.local_qDOF_P(self.frame_ID)]
-        self.uDOF = self.subsystem.uDOF[self.subsystem.local_uDOF_P(self.frame_ID)]
+        self.qDOF = self.subsystem.qDOF[self.subsystem.local_qDOF_P(self.xi)]
+        self.uDOF = self.subsystem.uDOF[self.subsystem.local_uDOF_P(self.xi)]
 
     def E_pot(self, t, q):
         return -(self.force(t) @ self.r_OP(t, q))
@@ -61,32 +61,32 @@ class K_Force:
         Force w.r.t. body-fixed K-basis as a callable function of time t.
     subsystem : object
         Object on which force acts.
-    frame_ID : #TODO
+    xi : #TODO
     B_r_CP : np.ndarray (3,)
         Position vector of point of attack (P) w.r.t. center of mass (S) in body-fixed K-basis.
     name : str
         Name of contribution.
     """
 
-    def __init__(self, force, subsystem, frame_ID=zeros(3), B_r_CP=zeros(3)):
+    def __init__(self, force, subsystem, xi=zeros(3), B_r_CP=zeros(3)):
         if not callable(force):
             self.force = lambda t: force
         else:
             self.force = force
         self.subsystem = subsystem
-        self.frame_ID = frame_ID
+        self.xi = xi
 
-        self.A_IK = lambda t, q: subsystem.A_IK(t, q, frame_ID=frame_ID)
-        self.A_IK_q = lambda t, q: subsystem.A_IK_q(t, q, frame_ID=frame_ID)
-        self.r_OP = lambda t, q: subsystem.r_OP(t, q, frame_ID=frame_ID, B_r_CP=B_r_CP)
-        self.J_P = lambda t, q: subsystem.J_P(t, q, frame_ID=frame_ID, B_r_CP=B_r_CP)
+        self.A_IK = lambda t, q: subsystem.A_IK(t, q, xi=xi)
+        self.A_IK_q = lambda t, q: subsystem.A_IK_q(t, q, xi=xi)
+        self.r_OP = lambda t, q: subsystem.r_OP(t, q, xi=xi, B_r_CP=B_r_CP)
+        self.J_P = lambda t, q: subsystem.J_P(t, q, xi=xi, B_r_CP=B_r_CP)
         self.J_P_q = lambda t, q: subsystem.J_P_q(
-            t, q, frame_ID=frame_ID, B_r_CP=B_r_CP
+            t, q, xi=xi, B_r_CP=B_r_CP
         )
 
     def assembler_callback(self):
-        self.qDOF = self.subsystem.qDOF[self.subsystem.local_qDOF_P(self.frame_ID)]
-        self.uDOF = self.subsystem.uDOF[self.subsystem.local_uDOF_P(self.frame_ID)]
+        self.qDOF = self.subsystem.qDOF[self.subsystem.local_qDOF_P(self.xi)]
+        self.uDOF = self.subsystem.uDOF[self.subsystem.local_uDOF_P(self.xi)]
 
     def h(self, t, q, u):
         return (self.A_IK(t, q) @ self.force(t)) @ self.J_P(t, q)

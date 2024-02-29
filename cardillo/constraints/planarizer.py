@@ -10,8 +10,8 @@ class Planarizer(ProjectedPositionOrientationBase):
         axis,
         r_OJ0=None,
         A_IJ0=None,
-        frame_ID1=None,
-        frame_ID2=None,
+        xi1=None,
+        xi2=None,
     ):
         assert axis in (0, 1, 2)
 
@@ -31,6 +31,6 @@ class Planarizer(ProjectedPositionOrientationBase):
             A_IJ0=A_IJ0,
             constrained_axes_translation=[axis],
             projection_pairs_rotation=projection_pairs_rotation,
-            frame_ID1=frame_ID1,
-            frame_ID2=frame_ID2,
+            xi1=xi1,
+            xi2=xi2,
         )

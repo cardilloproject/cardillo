@@ -62,46 +62,46 @@ class PointMass:
     #####################
     # auxiliary functions
     #####################
-    def local_qDOF_P(self, frame_ID=None):
+    def local_qDOF_P(self, xi=None):
         return np.arange(self.nq)
 
-    def local_uDOF_P(self, frame_ID=None):
+    def local_uDOF_P(self, xi=None):
         return np.arange(self.nu)
 
-    def A_IK(self, t, q, frame_ID=None):
+    def A_IK(self, t, q, xi=None):
         return np.eye(3)
 
-    def r_OP(self, t, q, frame_ID=None, B_r_CP=np.zeros(3)):
+    def r_OP(self, t, q, xi=None, B_r_CP=np.zeros(3)):
         r = np.zeros(3, dtype=q.dtype)
         r[: self.nq] = q
         return r + B_r_CP  # A_IK = np.eye(3)
 
-    def r_OP_q(self, t, q, frame_ID=None, B_r_CP=None):
+    def r_OP_q(self, t, q, xi=None, B_r_CP=None):
         return np.eye(3, self.nq)
 
-    def J_P(self, t, q, frame_ID=None, B_r_CP=None):
+    def J_P(self, t, q, xi=None, B_r_CP=None):
         return np.eye(3, self.nu, dtype=q.dtype)
 
-    def J_P_q(self, t, q, frame_ID=None, B_r_CP=None):
+    def J_P_q(self, t, q, xi=None, B_r_CP=None):
         return np.zeros((3, self.nu, self.nq))
 
-    def v_P(self, t, q, u, frame_ID=None, B_r_CP=None):
+    def v_P(self, t, q, u, xi=None, B_r_CP=None):
         v_P = np.zeros(3, dtype=np.common_type(q, u))
         v_P[: self.nq] = u
         return v_P
 
-    def v_P_q(self, t, q, u, frame_ID=None, B_r_CP=None):
+    def v_P_q(self, t, q, u, xi=None, B_r_CP=None):
         return np.zeros((3, self.nq))
 
-    def a_P(self, t, q, u, u_dot, frame_ID=None, B_r_CP=None):
+    def a_P(self, t, q, u, u_dot, xi=None, B_r_CP=None):
         a_P = np.zeros(3, dtype=np.common_type(q, u, u_dot))
         a_P[: self.nq] = u_dot
         return a_P
 
-    def a_P_q(self, t, q, u, u_dot, frame_ID=None, B_r_CP=None):
+    def a_P_q(self, t, q, u, u_dot, xi=None, B_r_CP=None):
         return np.zeros((3, self.nq), dtype=np.common_type(q, u, u_dot))
 
-    def a_P_u(self, t, q, u, u_dot, frame_ID=None, B_r_CP=None):
+    def a_P_u(self, t, q, u, u_dot, xi=None, B_r_CP=None):
         return np.zeros((3, self.nu), dtype=np.common_type(q, u, u_dot))
 
     ########

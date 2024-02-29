@@ -15,7 +15,7 @@ class Sphere2Plane:
         subsystem,
         mu,
         r=0,
-        frame_ID=None,
+        xi=None,
         B_r_CP=np.zeros(3),
         e_N=None,
         e_F=None,
@@ -36,7 +36,7 @@ class Sphere2Plane:
             Restitution coefficient for Newton-like impact law in normal direction.
         e_N : float
             Restitution coefficient for Newton-like impact law for friction.
-        frame_ID : TODO
+        xi : TODO
         B_r_CP : np.ndarray (3,)
             Position of center of sphere (P) with respect to the center of mass/reference point TODO (S) of the subsystem in the body-fixed K-basis.
         r : float
@@ -74,82 +74,82 @@ class Sphere2Plane:
         self.t1t2 = self.frame.A_IK(0).T[:2]
         self.n = self.frame.A_IK(0)[:, 2]
 
-        self.frame_ID = frame_ID
+        self.xi = xi
         self.B_r_CP = B_r_CP
 
     def assembler_callback(self):
-        qDOF = self.subsystem.local_qDOF_P(self.frame_ID)
+        qDOF = self.subsystem.local_qDOF_P(self.xi)
         self.qDOF = self.subsystem.qDOF[qDOF]
         self.nq = len(self.qDOF)
 
-        uDOF = self.subsystem.local_uDOF_P(self.frame_ID)
+        uDOF = self.subsystem.local_uDOF_P(self.xi)
         self.uDOF = self.subsystem.uDOF[uDOF]
         self.nu = len(self.uDOF)
 
         self.r_OP = lambda t, q: self.subsystem.r_OP(
-            t, q, frame_ID=self.frame_ID, B_r_CP=self.B_r_CP
+            t, q, xi=self.xi, B_r_CP=self.B_r_CP
         )
         self.r_OP_q = lambda t, q: self.subsystem.r_OP_q(
-            t, q, frame_ID=self.frame_ID, B_r_CP=self.B_r_CP
+            t, q, xi=self.xi, B_r_CP=self.B_r_CP
         )
         self.v_P = lambda t, q, u: self.subsystem.v_P(
-            t, q, u, frame_ID=self.frame_ID, B_r_CP=self.B_r_CP
+            t, q, u, xi=self.xi, B_r_CP=self.B_r_CP
         )
         self.v_P_q = lambda t, q, u: self.subsystem.v_P_q(
-            t, q, u, frame_ID=self.frame_ID, B_r_CP=self.B_r_CP
+            t, q, u, xi=self.xi, B_r_CP=self.B_r_CP
         )
         self.J_P = lambda t, q: self.subsystem.J_P(
-            t, q, frame_ID=self.frame_ID, B_r_CP=self.B_r_CP
+            t, q, xi=self.xi, B_r_CP=self.B_r_CP
         )
         self.J_P_q = lambda t, q: self.subsystem.J_P_q(
-            t, q, frame_ID=self.frame_ID, B_r_CP=self.B_r_CP
+            t, q, xi=self.xi, B_r_CP=self.B_r_CP
         )
         self.a_P = lambda t, q, u, a: self.subsystem.a_P(
-            t, q, u, a, frame_ID=self.frame_ID, B_r_CP=self.B_r_CP
+            t, q, u, a, xi=self.xi, B_r_CP=self.B_r_CP
         )
         self.a_P_q = lambda t, q, u, a: self.subsystem.a_P_q(
-            t, q, u, a, frame_ID=self.frame_ID, B_r_CP=self.B_r_CP
+            t, q, u, a, xi=self.xi, B_r_CP=self.B_r_CP
         )
         self.a_P_u = lambda t, q, u, a: self.subsystem.a_P_u(
-            t, q, u, a, frame_ID=self.frame_ID, B_r_CP=self.B_r_CP
+            t, q, u, a, xi=self.xi, B_r_CP=self.B_r_CP
         )
 
         if hasattr(self.subsystem, "A_IK"):
             self.Omega = lambda t, q, u: self.subsystem.A_IK(
-                t, q, frame_ID=self.frame_ID
-            ) @ self.subsystem.K_Omega(t, q, u, frame_ID=self.frame_ID)
+                t, q, xi=self.xi
+            ) @ self.subsystem.K_Omega(t, q, u, xi=self.xi)
             self.Omega_q = lambda t, q, u: self.subsystem.A_IK(
-                t, q, frame_ID=self.frame_ID
-            ) @ self.subsystem.K_Omega_q(t, q, u, frame_ID=self.frame_ID) + np.einsum(
+                t, q, xi=self.xi
+            ) @ self.subsystem.K_Omega_q(t, q, u, xi=self.xi) + np.einsum(
                 "ijk,j->ik",
-                self.subsystem.A_IK_q(t, q, frame_ID=self.frame_ID),
-                self.subsystem.K_Omega(t, q, u, frame_ID=self.frame_ID),
+                self.subsystem.A_IK_q(t, q, xi=self.xi),
+                self.subsystem.K_Omega(t, q, u, xi=self.xi),
             )
             self.J_R = lambda t, q: self.subsystem.A_IK(
-                t, q, frame_ID=self.frame_ID
-            ) @ self.subsystem.K_J_R(t, q, frame_ID=self.frame_ID)
+                t, q, xi=self.xi
+            ) @ self.subsystem.K_J_R(t, q, xi=self.xi)
             self.J_R_q = lambda t, q: np.einsum(
                 "ijl,jk->ikl",
-                self.subsystem.A_IK_q(t, q, frame_ID=self.frame_ID),
-                self.subsystem.K_J_R(t, q, frame_ID=self.frame_ID),
+                self.subsystem.A_IK_q(t, q, xi=self.xi),
+                self.subsystem.K_J_R(t, q, xi=self.xi),
             ) + np.einsum(
                 "ij,jkl->ikl",
-                self.subsystem.A_IK(t, q, frame_ID=self.frame_ID),
-                self.subsystem.K_J_R_q(t, q, frame_ID=self.frame_ID),
+                self.subsystem.A_IK(t, q, xi=self.xi),
+                self.subsystem.K_J_R_q(t, q, xi=self.xi),
             )
             self.Psi = lambda t, q, u, a: self.subsystem.A_IK(
-                t, q, frame_ID=self.frame_ID
-            ) @ self.subsystem.K_Psi(t, q, u, a, frame_ID=self.frame_ID)
+                t, q, xi=self.xi
+            ) @ self.subsystem.K_Psi(t, q, u, a, xi=self.xi)
             self.Psi_q = lambda t, q, u, a: self.subsystem.A_IK(
-                t, q, frame_ID=self.frame_ID
-            ) @ self.subsystem.K_Psi_q(t, q, u, a, frame_ID=self.frame_ID) + np.einsum(
+                t, q, xi=self.xi
+            ) @ self.subsystem.K_Psi_q(t, q, u, a, xi=self.xi) + np.einsum(
                 "ijk,j->ik",
-                self.subsystem.A_IK_q(t, q, frame_ID=self.frame_ID),
-                self.subsystem.K_Psi(t, q, u, a, frame_ID=self.frame_ID),
+                self.subsystem.A_IK_q(t, q, xi=self.xi),
+                self.subsystem.K_Psi(t, q, u, a, xi=self.xi),
             )
             self.Psi_u = lambda t, q, u, a: self.subsystem.A_IK(
-                t, q, frame_ID=self.frame_ID
-            ) @ self.subsystem.K_Psi_u(t, q, u, a, frame_ID=self.frame_ID)
+                t, q, xi=self.xi
+            ) @ self.subsystem.K_Psi_u(t, q, u, a, xi=self.xi)
         else:
             self.Omega = lambda t, q, u: np.zeros(3)
             self.Omega_q = lambda t, q, u: np.zeros((3, self.subsystem.nq))
@@ -271,7 +271,7 @@ class Sphere2Plane:
                     sol_i.t,
                     sol_i.q[self.qDOF],
                     sol_i.u[self.uDOF],
-                    self.frame_ID,
+                    self.xi,
                     A_IK1 @ r_PC1,
                 ),
                 self.frame.v_P(sol_i.t, B_r_CP=A_IK2 @ r_QC2),

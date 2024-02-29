@@ -15,20 +15,20 @@ class RodExportBase(ABC):
         self.cross_section = cross_section
 
     @abstractmethod
-    def r_OP(self, t, q, frame_ID, B_r_CP):
+    def r_OP(self, t, q, xi, B_r_CP):
         ...
 
     @abstractmethod
-    def A_IK(self, t, q, frame_ID):
+    def A_IK(self, t, q, xi):
         ...
 
     def centerline(self, q, num=100):
         q_body = q[self.qDOF]
         r = []
         for xi in np.linspace(0, 1, num):
-            frame_ID = (xi,)
-            qp = q_body[self.local_qDOF_P(frame_ID)]
-            r.append(self.r_OP(1, qp, frame_ID))
+            xi = (xi,)
+            qp = q_body[self.local_qDOF_P(xi)]
+            r.append(self.r_OP(1, qp, xi))
         return np.array(r).T
 
     def frames(self, q, num=10):
@@ -39,11 +39,11 @@ class RodExportBase(ABC):
         d3 = []
 
         for xi in np.linspace(0, 1, num=num):
-            frame_ID = (xi,)
-            qp = q_body[self.local_qDOF_P(frame_ID)]
-            r.append(self.r_OP(1, qp, frame_ID))
+            xi = (xi,)
+            qp = q_body[self.local_qDOF_P(xi)]
+            r.append(self.r_OP(1, qp, xi))
 
-            d1i, d2i, d3i = self.A_IK(1, qp, frame_ID).T
+            d1i, d2i, d3i = self.A_IK(1, qp, xi).T
             d1.extend([d1i])
             d2.extend([d2i])
             d3.extend([d3i])

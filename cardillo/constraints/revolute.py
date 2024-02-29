@@ -22,8 +22,8 @@ class Revolute(PositionOrientationBase):
         Initial position vector of joint.
     A_IJ0 : np.ndarray (3, 3)
         Initial orientation of joint basis. Defines axis of rotation together with 'axis'.
-    frame_ID1 : #TODO
-    frame_ID2 : #TODO
+    xi1 : #TODO
+    xi2 : #TODO
     name : str
         Name of contribution.
     """
@@ -36,8 +36,8 @@ class Revolute(PositionOrientationBase):
         angle0=0.0,
         r_OJ0=None,
         A_IJ0=None,
-        frame_ID1=None,
-        frame_ID2=None,
+        xi1=None,
+        xi2=None,
         name="revolute_joint"
     ):
         self.name = name
@@ -59,8 +59,8 @@ class Revolute(PositionOrientationBase):
             projection_pairs_rotation=projection_pairs_rotation,
             r_OJ0=r_OJ0,
             A_IJ0=A_IJ0,
-            frame_ID1=frame_ID1,
-            frame_ID2=frame_ID2,
+            xi1=xi1,
+            xi2=xi2,
         )
 
     def assembler_callback(self):

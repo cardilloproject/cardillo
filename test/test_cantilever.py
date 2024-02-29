@@ -76,7 +76,7 @@ def cantilever(
         reduced_integration=reduced_integration,
     )
 
-    clamping_left = RigidConnection(system.origin, cantilever, frame_ID2=(0,))
+    clamping_left = RigidConnection(system.origin, cantilever, xi2=(0,))
 
     # assemble the system
     system.add(cantilever)
