@@ -22,8 +22,8 @@ dt = 1.0e-3
 
 # axis angle rotation axis
 psi = np.random.rand(3)
-A_IK0 = Exp_SO3(psi)
-print(f"A_IK0:\n{A_IK0}")
+A_IB0 = Exp_SO3(psi)
+print(f"A_IB0:\n{A_IB0}")
 
 # initial rotational velocity e_z^K axis
 alpha_dot0 = 2
@@ -53,8 +53,8 @@ def run(Solver, **solver_kwargs):
     ####################
     r_OP0 = np.zeros(3)
     v_P0 = np.zeros(3)
-    K_Omega0 = alpha_dot0 * np.eye(3)[rotation_axis]
-    u0 = np.hstack((v_P0, K_Omega0))
+    B_Omega0 = alpha_dot0 * np.eye(3)[rotation_axis]
+    u0 = np.hstack((v_P0, B_Omega0))
 
     ######################
     # define contributions
@@ -71,7 +71,7 @@ def run(Solver, **solver_kwargs):
         rigid_body,
         rotation_axis,
         r_OJ0=np.zeros(3),
-        A_IJ0=A_IK0,
+        A_IJ0=A_IB0,
     )
 
     spring = KelvinVoigtElement(joint, k, d, l_ref=g_ref)
@@ -80,7 +80,7 @@ def run(Solver, **solver_kwargs):
     #     subsystem2=rigid_body,
     #     axis=rotation_axis,
     #     r_OJ0=np.zeros(3),
-    #     A_IJ0=A_IK0,
+    #     A_IJ0=A_IB0,
     #     k=k,
     #     d=d,
     #     g_ref=g_ref,

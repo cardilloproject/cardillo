@@ -20,10 +20,10 @@ if __name__ == "__main__":
     v_P0 = np.zeros(3)
     phi0 = 0
     phi_dot0 = 20
-    K_Omega_disturbance = np.array((1e-10, 0, 0))  # disturbance is required
-    K_Omega = np.array((0, phi_dot0, 0))
+    B_Omega_disturbance = np.array((1e-10, 0, 0))  # disturbance is required
+    B_Omega = np.array((0, phi_dot0, 0))
     q0 = np.concatenate((r_OP0, axis_angle2quat(np.array((0, 0, 1)), phi0)))
-    u0 = np.concatenate((v_P0, K_Omega + K_Omega_disturbance))
+    u0 = np.concatenate((v_P0, B_Omega + B_Omega_disturbance))
     m = 5
     box = Cuboid(RigidBody)(l, w, h, q0, u0, mass=m)
 
@@ -44,10 +44,10 @@ if __name__ == "__main__":
     ###############
     t, q = sol.t, sol.q
     r_OP = np.array([box.r_OP(ti, qi) for (ti, qi) in zip(t, q)])
-    A_IK = np.array([box.A_IK(ti, qi) for (ti, qi) in zip(t, q)])
+    A_IB = np.array([box.A_IB(ti, qi) for (ti, qi) in zip(t, q)])
     Delta_angles = np.zeros((len(t), 3), dtype=float)
     for i in range(1, len(t)):
-        Delta_angles[i] = Log_SO3(A_IK[i - 1].T @ A_IK[i])
+        Delta_angles[i] = Log_SO3(A_IB[i - 1].T @ A_IB[i])
     angles = np.cumsum(Delta_angles, axis=0)
 
     fig, ax = plt.subplots(2, 3)

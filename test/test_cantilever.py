@@ -9,7 +9,7 @@ from cardillo.rods.cosseratRod import make_CosseratRod
 
 from cardillo.constraints import RigidConnection
 from cardillo.solver import Newton, SolverOptions
-from cardillo.forces import Force, K_Moment
+from cardillo.forces import Force, B_Moment
 
 from cardillo.math import e2, e3
 
@@ -39,7 +39,7 @@ def cantilever(
     nelements=10,
     polynomial_degree=2,
     n_load_steps=3,
-    VTK_export=False,
+    VTB_export=False,
     reduced_integration=True,
     constitutive_law=Harsch2021,
     title="set_a_plot_title",
@@ -90,7 +90,7 @@ def cantilever(
 
     # moment at cantilever tip
     M = lambda t: 2.5 * P(t) * e3
-    moment = K_Moment(M, cantilever, (1,))
+    moment = B_Moment(M, cantilever, (1,))
     system.add(moment)
 
     system.assemble(options=SolverOptions(compute_consistent_initial_conditions=False))

@@ -52,7 +52,7 @@ class Force:
         return points, cells, None, cell_data
 
 
-class K_Force:
+class B_Force:
     r"""Force represented w.r.t. body-fixed K-basis
 
     Parameters
@@ -76,8 +76,8 @@ class K_Force:
         self.subsystem = subsystem
         self.xi = xi
 
-        self.A_IK = lambda t, q: subsystem.A_IK(t, q, xi=xi)
-        self.A_IK_q = lambda t, q: subsystem.A_IK_q(t, q, xi=xi)
+        self.A_IB = lambda t, q: subsystem.A_IB(t, q, xi=xi)
+        self.A_IB_q = lambda t, q: subsystem.A_IB_q(t, q, xi=xi)
         self.r_OP = lambda t, q: subsystem.r_OP(t, q, xi=xi, B_r_CP=B_r_CP)
         self.J_P = lambda t, q: subsystem.J_P(t, q, xi=xi, B_r_CP=B_r_CP)
         self.J_P_q = lambda t, q: subsystem.J_P_q(
@@ -89,9 +89,9 @@ class K_Force:
         self.uDOF = self.subsystem.uDOF[self.subsystem.local_uDOF_P(self.xi)]
 
     def h(self, t, q, u):
-        return (self.A_IK(t, q) @ self.force(t)) @ self.J_P(t, q)
+        return (self.A_IB(t, q) @ self.force(t)) @ self.J_P(t, q)
 
     def h_q(self, t, q, u):
         return einsum(
-            "ijk,j,il->lk", self.A_IK_q(t, q), self.force(t), self.J_P(t, q)
-        ) + einsum("i,ijk->jk", self.A_IK(t, q) @ self.force(t), self.J_P_q(t, q))
+            "ijk,j,il->lk", self.A_IB_q(t, q), self.force(t), self.J_P(t, q)
+        ) + einsum("i,ijk->jk", self.A_IB(t, q) @ self.force(t), self.J_P_q(t, q))

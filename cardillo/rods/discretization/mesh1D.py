@@ -83,7 +83,7 @@ class Mesh1D:
                 self.elDOF[el] = elDOF_el + el * self.degree
                 self.elDOF_u[el] = elDOF_el_u + el * self.degree
 
-            self.vtk_cell_type = "VTK_LAGRANGE_CURVE"
+            self.vtk_cell_type = "VTB_LAGRANGE_CURVE"
         elif basis == "Lagrange_Disc":
             # total number of nodes
             self.nnodes = (self.degree + 1) * self.nelement
@@ -107,7 +107,7 @@ class Mesh1D:
                 self.elDOF_u[el] = elDOF_el_u + el * (self.degree + 1)
 
             # TODO: check if VTK export works
-            self.vtk_cell_type = "VTK_LAGRANGE_CURVE"
+            self.vtk_cell_type = "VTB_LAGRANGE_CURVE"
 
         # todal number of degrees of freedoms
 

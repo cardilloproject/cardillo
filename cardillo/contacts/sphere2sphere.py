@@ -113,47 +113,47 @@ class Sphere2Sphere:
         self.J_C1 = lambda t, q: self.subsystem1.J_P(t, q[:nq1], self.xi1)
         self.J_C1_q = lambda t, q: self.subsystem1.J_P_q(t, q[:nq1], self.xi1)
 
-        self.Omega1 = lambda t, q, u: self.subsystem1.A_IK(
+        self.Omega1 = lambda t, q, u: self.subsystem1.A_IB(
             t, q[:nq1], xi=self.xi1
-        ) @ self.subsystem1.K_Omega(t, q[:nq1], u[:nu1], xi=self.xi1)
-        self.Omega1_q = lambda t, q, u: self.subsystem1.A_IK(
+        ) @ self.subsystem1.B_Omega(t, q[:nq1], u[:nu1], xi=self.xi1)
+        self.Omega1_q = lambda t, q, u: self.subsystem1.A_IB(
             t, q[:nq1], xi=self.xi1
-        ) @ self.subsystem1.K_Omega_q(
+        ) @ self.subsystem1.B_Omega_q(
             t, q[:nq1], u[:nu1], xi=self.xi1
         ) + np.einsum(
             "ijk,j->ik",
-            self.subsystem1.A_IK_q(t, q[:nq1], xi=self.xi1),
-            self.subsystem1.K_Omega(t, q[:nq1], u[:nu1], xi=self.xi1),
+            self.subsystem1.A_IB_q(t, q[:nq1], xi=self.xi1),
+            self.subsystem1.B_Omega(t, q[:nq1], u[:nu1], xi=self.xi1),
         )
-        self.J1_R = lambda t, q: self.subsystem1.A_IK(
+        self.J1_R = lambda t, q: self.subsystem1.A_IB(
             t, q[:nq1], xi=self.xi1
-        ) @ self.subsystem1.K_J_R(t, q[:nq1], xi=self.xi1)
+        ) @ self.subsystem1.B_J_R(t, q[:nq1], xi=self.xi1)
         self.J1_R_q = lambda t, q: np.einsum(
             "ijl,jk->ikl",
-            self.subsystem1.A_IK_q(t, q[:nq1], xi=self.xi1),
-            self.subsystem1.K_J_R(t, q[:nq1], xi=self.xi1),
+            self.subsystem1.A_IB_q(t, q[:nq1], xi=self.xi1),
+            self.subsystem1.B_J_R(t, q[:nq1], xi=self.xi1),
         ) + np.einsum(
             "ij,jkl->ikl",
-            self.subsystem1.A_IK(t, q[:nq1], xi=self.xi1),
-            self.subsystem1.K_J_R_q(t, q[:nq1], xi=self.xi1),
+            self.subsystem1.A_IB(t, q[:nq1], xi=self.xi1),
+            self.subsystem1.B_J_R_q(t, q[:nq1], xi=self.xi1),
         )
-        self.Psi1 = lambda t, q, u, a: self.subsystem1.A_IK(
+        self.Psi1 = lambda t, q, u, a: self.subsystem1.A_IB(
             t, q[:nq1], xi=self.xi1
-        ) @ self.subsystem1.K_Psi(t, q[:nq1], u[:nu1], a[:nu1], xi=self.xi1)
-        self.Psi1_q = lambda t, q, u, a: self.subsystem1.A_IK(
+        ) @ self.subsystem1.B_Psi(t, q[:nq1], u[:nu1], a[:nu1], xi=self.xi1)
+        self.Psi1_q = lambda t, q, u, a: self.subsystem1.A_IB(
             t, q[:nq1], xi=self.xi1
-        ) @ self.subsystem1.K_Psi_q(
+        ) @ self.subsystem1.B_Psi_q(
             t, q[:nq1], u[:nu1], a[:nu1], xi=self.xi1
         ) + np.einsum(
             "ijk,j->ik",
-            self.subsystem1.A_IK_q(t, q[:nq1], xi=self.xi1),
-            self.subsystem1.K_Psi(
+            self.subsystem1.A_IB_q(t, q[:nq1], xi=self.xi1),
+            self.subsystem1.B_Psi(
                 t, q[:nq1], u[:nu1], a[:nu1], xi=self.xi1
             ),
         )
-        self.Psi1_u = lambda t, q, u, a: self.subsystem1.A_IK(
+        self.Psi1_u = lambda t, q, u, a: self.subsystem1.A_IB(
             t, q[:nq1], xi=self.xi1
-        ) @ self.subsystem1.K_Psi_u(
+        ) @ self.subsystem1.B_Psi_u(
             t, q[:nq1], u[:nu1], a[:nu1], xi=self.xi1
         )
 
@@ -180,47 +180,47 @@ class Sphere2Sphere:
         self.J_C2 = lambda t, q: self.subsystem2.J_P(t, q[nq1:], self.xi2)
         self.J_C2_q = lambda t, q: self.subsystem2.J_P_q(t, q[nq1:], self.xi2)
 
-        self.Omega2 = lambda t, q, u: self.subsystem2.A_IK(
+        self.Omega2 = lambda t, q, u: self.subsystem2.A_IB(
             t, q[nq1:], xi=self.xi2
-        ) @ self.subsystem2.K_Omega(t, q[nq1:], u[nu1:], xi=self.xi2)
-        self.Omega2_q = lambda t, q, u: self.subsystem2.A_IK(
+        ) @ self.subsystem2.B_Omega(t, q[nq1:], u[nu1:], xi=self.xi2)
+        self.Omega2_q = lambda t, q, u: self.subsystem2.A_IB(
             t, q[nq1:], xi=self.xi2
-        ) @ self.subsystem2.K_Omega_q(
+        ) @ self.subsystem2.B_Omega_q(
             t, q[nq1:], u[nu1:], xi=self.xi2
         ) + np.einsum(
             "ijk,j->ik",
-            self.subsystem2.A_IK_q(t, q[nq1:], xi=self.xi2),
-            self.subsystem2.K_Omega(t, q[nq1:], u[nu1:], xi=self.xi2),
+            self.subsystem2.A_IB_q(t, q[nq1:], xi=self.xi2),
+            self.subsystem2.B_Omega(t, q[nq1:], u[nu1:], xi=self.xi2),
         )
-        self.J2_R = lambda t, q: self.subsystem2.A_IK(
+        self.J2_R = lambda t, q: self.subsystem2.A_IB(
             t, q[nq1:], xi=self.xi2
-        ) @ self.subsystem2.K_J_R(t, q[nq1:], xi=self.xi2)
+        ) @ self.subsystem2.B_J_R(t, q[nq1:], xi=self.xi2)
         self.J2_R_q = lambda t, q: np.einsum(
             "ijl,jk->ikl",
-            self.subsystem2.A_IK_q(t, q[nq1:], xi=self.xi2),
-            self.subsystem2.K_J_R(t, q[nq1:], xi=self.xi2),
+            self.subsystem2.A_IB_q(t, q[nq1:], xi=self.xi2),
+            self.subsystem2.B_J_R(t, q[nq1:], xi=self.xi2),
         ) + np.einsum(
             "ij,jkl->ikl",
-            self.subsystem2.A_IK(t, q[nq1:], xi=self.xi2),
-            self.subsystem2.K_J_R_q(t, q[nq1:], xi=self.xi2),
+            self.subsystem2.A_IB(t, q[nq1:], xi=self.xi2),
+            self.subsystem2.B_J_R_q(t, q[nq1:], xi=self.xi2),
         )
-        self.Psi2 = lambda t, q, u, a: self.subsystem2.A_IK(
+        self.Psi2 = lambda t, q, u, a: self.subsystem2.A_IB(
             t, q[nq1:], xi=self.xi2
-        ) @ self.subsystem2.K_Psi(t, q[nq1:], u[nu1:], a[nu1:], xi=self.xi2)
-        # self.Psi1_q = lambda t, q, u, a: self.subsystem1.A_IK(
+        ) @ self.subsystem2.B_Psi(t, q[nq1:], u[nu1:], a[nu1:], xi=self.xi2)
+        # self.Psi1_q = lambda t, q, u, a: self.subsystem1.A_IB(
         #     t, q[:nq1], xi=self.xi1
-        # ) @ self.subsystem1.K_Psi_q(
+        # ) @ self.subsystem1.B_Psi_q(
         #     t, q[:nq1], u[:nu1], a[:nu1], xi=self.xi1
         # ) + np.einsum(
         #     "ijk,j->ik",
-        #     self.subsystem1.A_IK_q(t, q[:nq1], xi=self.xi1),
-        #     self.subsystem1.K_Psi(
+        #     self.subsystem1.A_IB_q(t, q[:nq1], xi=self.xi1),
+        #     self.subsystem1.B_Psi(
         #         t, q[:nq1], u[:nu1], a[:nu1], xi=self.xi1
         #     ),
         # )
-        # self.Psi1_u = lambda t, q, u, a: self.subsystem1.A_IK(
+        # self.Psi1_u = lambda t, q, u, a: self.subsystem1.A_IB(
         #     t, q[:nq1], xi=self.xi1
-        # ) @ self.subsystem1.K_Psi_u(
+        # ) @ self.subsystem1.B_Psi_u(
         #     t, q[:nq1], u[:nu1], a[:nu1], xi=self.xi1
         # )
 

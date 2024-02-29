@@ -25,7 +25,7 @@ class Ball(RigidBodyEuler):
     def boundary(self, t, q, n=100):
         phi = np.linspace(0, 2 * np.pi, n, endpoint=True)
         B_r_CP = self.R * np.vstack([np.sin(phi), np.cos(phi), np.zeros(n)])
-        return np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ B_r_CP
+        return np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IB(t, q) @ B_r_CP
 
 
 def run(case, export=True):
@@ -313,10 +313,10 @@ def run(case, export=True):
     def create(t, q):
         x_S, y_S, _ = RB.r_OP(t, q)
 
-        A_IK = RB.A_IK(t, q)
-        d1 = A_IK[:, 0] * R
-        d2 = A_IK[:, 1] * R
-        # d3 = A_IK[:, 2] * r
+        A_IB = RB.A_IB(t, q)
+        d1 = A_IB[:, 0] * R
+        d2 = A_IB[:, 1] * R
+        # d3 = A_IB[:, 2] * r
 
         (COM,) = ax.plot([x_S], [y_S], "ok")
         (bdry,) = ax.plot([], [], "-k")
@@ -331,10 +331,10 @@ def run(case, export=True):
 
         x_bdry, y_bdry, _ = RB.boundary(t, q)
 
-        A_IK = RB.A_IK(t, q)
-        d1 = A_IK[:, 0] * R
-        d2 = A_IK[:, 1] * R
-        # d3 = A_IK[:, 2] * r
+        A_IB = RB.A_IB(t, q)
+        d1 = A_IB[:, 0] * R
+        d2 = A_IB[:, 1] * R
+        # d3 = A_IB[:, 2] * r
 
         COM.set_data([x_S], [y_S])
         bdry.set_data(x_bdry, y_bdry)

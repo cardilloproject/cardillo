@@ -60,7 +60,7 @@ omega_z0 = 150
 phi0 = np.array([alpha0, beta0, gamma0])
 
 
-def A_IK(alpha, beta, gamma):
+def A_IB(alpha, beta, gamma):
     sa, ca = np.sin(alpha), np.cos(alpha)
     sb, cb = np.sin(beta), np.cos(beta)
     sg, cg = np.sin(gamma), np.cos(gamma)
@@ -74,17 +74,17 @@ def A_IK(alpha, beta, gamma):
 
 
 r_OQ = np.zeros(3)
-K_r_OC0 = np.array([0, 0, l])
-A_IK0 = A_IK(alpha0, beta0, gamma0)
-r_OC0 = A_IK0 @ K_r_OC0
-q0 = np.concatenate((r_OC0, Spurrier(A_IK0)))
+B_r_OC0 = np.array([0, 0, l])
+A_IB0 = A_IB(alpha0, beta0, gamma0)
+r_OC0 = A_IB0 @ B_r_OC0
+q0 = np.concatenate((r_OC0, Spurrier(A_IB0)))
 
 ####################
 # initial velocities
 ####################
-K_Omega0 = np.array([omega_x0, omega_y0, omega_z0])
-v_C0 = A_IK0 @ cross3(K_Omega0, K_r_OC0)
-u0 = np.concatenate((v_C0, K_Omega0))
+B_Omega0 = np.array([omega_x0, omega_y0, omega_z0])
+v_C0 = A_IB0 @ cross3(B_Omega0, B_r_OC0)
+u0 = np.concatenate((v_C0, B_Omega0))
 
 #################
 # build the system
@@ -127,8 +127,8 @@ def show_animation(top, t, q, scale=1, show=False):
     def create(t, q):
         x_S, y_S, z_S = top.r_OP(t, q)
 
-        A_IK = top.A_IK(t, q)
-        d1, d2, d3 = A_IK.T
+        A_IB = top.A_IB(t, q)
+        d1, d2, d3 = A_IB.T
 
         (COM,) = ax.plot([0.0, x_S], [0.0, y_S], [0.0, z_S], "-ok")
         (d1_,) = ax.plot(
@@ -148,8 +148,8 @@ def show_animation(top, t, q, scale=1, show=False):
     def update(t, q, COM, d1_, d2_, d3_):
         x_S, y_S, z_S = top.r_OP(t, q)
 
-        A_IK = top.A_IK(t, q)
-        d1, d2, d3 = A_IK.T
+        A_IB = top.A_IB(t, q)
+        d1, d2, d3 = A_IB.T
 
         COM.set_data(np.array([0.0, x_S]), np.array([0.0, y_S]))
         COM.set_3d_properties(np.array([0.0, z_S]))

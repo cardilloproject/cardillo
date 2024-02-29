@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from scipy.integrate import solve_ivp
 
-from cardillo.math import A_IK_basic
+from cardillo.math import A_IB_basic
 from cardillo import System
 from cardillo.discrete import Frame, PointMass
 from cardillo.constraints import FixedDistance
@@ -22,7 +22,7 @@ class Mathematical_pendulum3D_excited:
 
     def r_OP(self, t, q):
         L = self.L
-        return A_IK_basic(q[0]).y() @ np.array(
+        return A_IB_basic(q[0]).y() @ np.array(
             [L * np.cos(q[1]), L * np.sin(q[1]) + self.e(t), 0]
         )
 
@@ -35,7 +35,7 @@ class Mathematical_pendulum3D_excited:
                 L * np.cos(q[1]) * u[0],
             ]
         )
-        return A_IK_basic(q[0]).y() @ B_v_C
+        return A_IB_basic(q[0]).y() @ B_v_C
 
     def eqm(self, t, x):
         dx = np.zeros(4)

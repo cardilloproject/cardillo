@@ -16,24 +16,24 @@ class FixedDistance:
         subsystem2,
         xi1=None,
         xi2=None,
-        K1_r_P1J1=np.zeros(3),
-        K2_r_P2J2=np.zeros(3),
+        B1_r_P1J1=np.zeros(3),
+        B2_r_P2J2=np.zeros(3),
     ):
         self.nla_g = 1
 
         self.subsystem1 = subsystem1
         self.xi1 = xi1
-        self.K1_r_P1J1 = K1_r_P1J1
+        self.B1_r_P1J1 = B1_r_P1J1
 
         self.subsystem2 = subsystem2
         self.xi2 = xi2
-        self.K2_r_P2J2 = K2_r_P2J2
+        self.B2_r_P2J2 = B2_r_P2J2
 
     def assembler_callback(self):
         concatenate_qDOF(self)
         concatenate_uDOF(self)
 
-        auxiliary_functions(self, self.K1_r_P1J1, self.K2_r_P2J2, np.eye(3), np.eye(3))
+        auxiliary_functions(self, self.B1_r_P1J1, self.B2_r_P2J2, np.eye(3), np.eye(3))
 
         q0 = np.hstack((self.subsystem1.q0, self.subsystem2.q0))
         r_OJ10 = self.r_OJ1(self.subsystem1.t0, q0)
@@ -222,7 +222,7 @@ class FixedDistance:
             hod = [[2, 2, 1]]
             wedge_points = np.array(wedge_points).reshape((-1, 3))
 
-            cells = [("VTK_BEZIER_WEDGE", np.array(con).reshape(-1, 12))]
+            cells = [("VTB_BEZIER_WEDGE", np.array(con).reshape(-1, 12))]
             point_data = {"RationalWeights": w_i}
             cell_data = {"HigherOrderDegrees": [hod]}
             points = wedge_points

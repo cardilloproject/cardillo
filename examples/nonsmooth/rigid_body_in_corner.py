@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
 from cardillo import System
-from cardillo.math import A_IK_basic, axis_angle2quat
+from cardillo.math import A_IB_basic, axis_angle2quat
 from cardillo.discrete import *
 from cardillo.forces import Force
 from cardillo.contacts import Sphere2Plane
@@ -82,16 +82,16 @@ def run(
     ##############################################################
     alpha = pi / 4 * 1.1
     # alpha=0
-    A_IK1 = A_IK_basic(alpha).z().T
-    frame_left = Rectangle(Frame)(axis=1, A_IK=A_IK1)
+    A_IB1 = A_IB_basic(alpha).z().T
+    frame_left = Rectangle(Frame)(axis=1, A_IB=A_IB1)
     mu1 = 0.3
     e_N1 = 0.0
     e_F1 = 0.0
 
     beta = -pi / 4
     # beta=0
-    A_IK2 = A_IK_basic(beta).z().T
-    frame_right = Rectangle(Frame)(axis=1, A_IK=A_IK2)
+    A_IB2 = A_IB_basic(beta).z().T
+    frame_right = Rectangle(Frame)(axis=1, A_IB=A_IB2)
     mu2 = 0.3
     # mu2 = 0
     e_N2 = 0.5
@@ -234,9 +234,9 @@ def run(
             q = q[::frac]
 
             # inclined planes
-            K_r_OPs = np.array([[-y0, 0, 0], [y0, 0, 0]]).T
-            r_OPs_left = A_IK_basic(alpha).z() @ K_r_OPs
-            r_OPs_right = A_IK_basic(beta).z() @ K_r_OPs
+            B_r_OPs = np.array([[-y0, 0, 0], [y0, 0, 0]]).T
+            r_OPs_left = A_IB_basic(alpha).z() @ B_r_OPs
+            r_OPs_right = A_IB_basic(beta).z() @ B_r_OPs
             ax.plot(*r_OPs_left[:2], "-k")
             ax.plot(*r_OPs_right[:2], "--k")
 
@@ -247,15 +247,15 @@ def run(
                 )
                 return (
                     np.repeat(object.r_OP(t, q), n).reshape(3, n)
-                    + object.A_IK(t, q) @ B_r_CP
+                    + object.A_IB(t, q) @ B_r_CP
                 )
 
             def create(t, q):
                 x_S, y_S, _ = RB.r_OP(t, q)
 
-                A_IK = RB.A_IK(t, q)
-                d1 = A_IK[:, 0] * r
-                d2 = A_IK[:, 1] * r
+                A_IB = RB.A_IB(t, q)
+                d1 = A_IB[:, 0] * r
+                d2 = A_IB[:, 1] * r
 
                 (COM,) = ax.plot([x_S], [y_S], "ok")
                 (bdry,) = ax.plot([], [], "-k")
@@ -270,9 +270,9 @@ def run(
 
                 x_bdry, y_bdry, _ = boundary(RB, t, q)
 
-                A_IK = RB.A_IK(t, q)
-                d1 = A_IK[:, 0] * r
-                d2 = A_IK[:, 1] * r
+                A_IB = RB.A_IB(t, q)
+                d1 = A_IB[:, 0] * r
+                d2 = A_IB[:, 1] * r
 
                 COM.set_data([x_S], [y_S])
                 bdry.set_data(x_bdry, y_bdry)

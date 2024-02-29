@@ -6,7 +6,7 @@ from cardillo import System
 from cardillo.discrete import RigidBody, Frame, Meshed, Box
 from cardillo.forces import Force
 from cardillo.contacts import Sphere2Plane
-from cardillo.math import A_IK_basic, cross3
+from cardillo.math import A_IB_basic, cross3
 from cardillo.solver import Moreau
 
 if __name__ == "__main__":
@@ -40,23 +40,23 @@ if __name__ == "__main__":
     top_mesh.density = 8850  # kg/m3 (Copper)
 
     # quantities in mesh/body-fixed basis
-    K_r_PC = top_mesh.center_mass  # vector from mesh origin to center of mass
+    B_r_PC = top_mesh.center_mass  # vector from mesh origin to center of mass
     mass = top_mesh.mass
     B_Theta_C = top_mesh.moment_inertia
 
     tip_radius = 1e-3  # 1mm
-    A_IK = A_IK_basic(phi0).y
-    r_OC = np.array([0, 0, tip_radius]) + A_IK @ K_r_PC
+    A_IB = A_IB_basic(phi0).y
+    r_OC = np.array([0, 0, tip_radius]) + A_IB @ B_r_PC
 
-    K_Omega = np.array([0, 0, omega_z0])
-    v_C = cross3(A_IK @ K_Omega, r_OC)
+    B_Omega = np.array([0, 0, omega_z0])
+    v_C = cross3(A_IB @ B_Omega, r_OC)
 
-    q0 = RigidBody.pose2q(r_OC, A_IK)
-    u0 = np.hstack([v_C, K_Omega])
+    q0 = RigidBody.pose2q(r_OC, A_IB)
+    u0 = np.hstack([v_C, B_Omega])
 
     top = Meshed(RigidBody)(
         mesh_obj=top_mesh,
-        B_r_CP=-K_r_PC,
+        B_r_CP=-B_r_PC,
         A_KM=np.eye(3),
         mass=mass,
         B_Theta_C=B_Theta_C,
@@ -73,7 +73,7 @@ if __name__ == "__main__":
         name="floor",
     )
 
-    tip2plane = Sphere2Plane(floor, top, mu=0.01, r=tip_radius, e_N=0, B_r_CP=-K_r_PC)
+    tip2plane = Sphere2Plane(floor, top, mu=0.01, r=tip_radius, e_N=0, B_r_CP=-B_r_PC)
     system.add(floor, tip2plane)
     # assemble system
     system.assemble()

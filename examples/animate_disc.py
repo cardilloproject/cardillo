@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-from cardillo.math import A_IK_basic, pi
+from cardillo.math import A_IB_basic, pi
 
 if __name__ == "__main__":
     # auxiliary simulation data and auxiliary rigid body functons
@@ -20,9 +20,9 @@ if __name__ == "__main__":
         def r_OP(self, t, q):
             return self.r_OP0 + t * (self.r_OP1 - self.r_OP0)
 
-        def A_IK(self, t, q):
+        def A_IB(self, t, q):
             phi = 2 * pi * t
-            basic = A_IK_basic(phi)
+            basic = A_IB_basic(phi)
             return basic.x() @ basic.y() @ basic.z()
 
         def boundary(self, t, q, num=100):
@@ -30,7 +30,7 @@ if __name__ == "__main__":
             B_r_CP = self.radius * np.vstack([np.sin(phi), np.zeros(num), np.cos(phi)])
             return (
                 np.repeat(self.r_OP(t, q), num).reshape(3, num)
-                + self.A_IK(t, q) @ B_r_CP
+                + self.A_IB(t, q) @ B_r_CP
             )
 
     disc = Disc()
@@ -63,10 +63,10 @@ if __name__ == "__main__":
     def create(t, q):
         x_S, y_S, z_S = disc.r_OP(t, q)
 
-        A_IK = disc.A_IK(t, q)
-        d1 = A_IK[:, 0] * disc.radius
-        d2 = A_IK[:, 1] * disc.radius
-        d3 = A_IK[:, 2] * disc.radius
+        A_IB = disc.A_IB(t, q)
+        d1 = A_IB[:, 0] * disc.radius
+        d2 = A_IB[:, 1] * disc.radius
+        d3 = A_IB[:, 2] * disc.radius
 
         (COM,) = ax.plot([x_S], [y_S], [z_S], "ok")
         (bdry,) = ax.plot([], [], [], "-k")
@@ -90,10 +90,10 @@ if __name__ == "__main__":
 
         x_bdry, y_bdry, z_bdry = disc.boundary(t, q)
 
-        A_IK = disc.A_IK(t, q)
-        d1 = A_IK[:, 0] * disc.radius
-        d2 = A_IK[:, 1] * disc.radius
-        d3 = A_IK[:, 2] * disc.radius
+        A_IB = disc.A_IB(t, q)
+        d1 = A_IB[:, 0] * disc.radius
+        d2 = A_IB[:, 1] * disc.radius
+        d3 = A_IB[:, 2] * disc.radius
 
         COM.set_data(np.array([x_S]), np.array([y_S]))
         COM.set_3d_properties(np.array([z_S]))

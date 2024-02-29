@@ -7,7 +7,7 @@ from cardillo.discrete import RigidBody, Sphere, Box, Frame
 from cardillo.forces import Force
 from cardillo.contacts import Sphere2Plane, Sphere2Sphere
 from cardillo.solver import Moreau, BackwardEuler, SolverOptions
-from cardillo.math import A_IK_basic
+from cardillo.math import A_IB_basic
 
 if __name__ == "__main__":
     ############
@@ -69,7 +69,7 @@ if __name__ == "__main__":
 
     # floor
     floor = Box(Frame)(
-        dimensions=[2, 2, 0.0001], name="floor", A_IK=A_IK_basic(np.deg2rad(10)).x @ A_IK_basic(np.deg2rad(10)).y
+        dimensions=[2, 2, 0.0001], name="floor", A_IB=A_IB_basic(np.deg2rad(10)).x @ A_IB_basic(np.deg2rad(10)).y
     )
     system.add(floor)  # (only for visualization purposes)
 

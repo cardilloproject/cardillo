@@ -19,7 +19,7 @@ class RodExportBase(ABC):
         ...
 
     @abstractmethod
-    def A_IK(self, t, q, xi):
+    def A_IB(self, t, q, xi):
         ...
 
     def centerline(self, q, num=100):
@@ -43,7 +43,7 @@ class RodExportBase(ABC):
             qp = q_body[self.local_qDOF_P(xi)]
             r.append(self.r_OP(1, qp, xi))
 
-            d1i, d2i, d3i = self.A_IK(1, qp, xi).T
+            d1i, d2i, d3i = self.A_IB(1, qp, xi).T
             d1.extend([d1i])
             d2.extend([d2i])
             d3.extend([d3i])
@@ -424,7 +424,7 @@ class RodExportBase(ABC):
 
                     cells = [
                         (
-                            "VTK_BEZIER_WEDGE",
+                            "VTB_BEZIER_WEDGE",
                             np.arange(i * n_cell, (i + 1) * n_cell)[None],
                         )
                         for i in range(n_segments)
@@ -439,7 +439,7 @@ class RodExportBase(ABC):
 
                     cells = [
                         (
-                            "VTK_BEZIER_HEXAHEDRON",
+                            "VTB_BEZIER_HEXAHEDRON",
                             np.arange(i * n_cell, (i + 1) * n_cell)[None],
                         )
                         for i in range(n_segments)
@@ -454,7 +454,7 @@ class RodExportBase(ABC):
 
                 cells = [
                     (
-                        "VTK_BEZIER_HEXAHEDRON",
+                        "VTB_BEZIER_HEXAHEDRON",
                         np.arange(i * n_cell, (i + 1) * n_cell)[None],
                     )
                     for i in range(n_segments)

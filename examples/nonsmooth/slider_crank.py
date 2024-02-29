@@ -106,16 +106,16 @@ class SliderCrankFlores:
 
         _, _, theta3 = q
         # fmt: off
-        A_IK = np.array([
+        A_IB = np.array([
             [np.cos(theta3), -np.sin(theta3)], 
             [np.sin(theta3),  np.cos(theta3)]
         ])
         # fmt: on
 
-        r_CP1 = r_OC + A_IK @ B_r_CP1
-        r_CP2 = r_OC + A_IK @ B_r_CP2
-        r_CP3 = r_OC + A_IK @ B_r_CP3
-        r_CP4 = r_OC + A_IK @ B_r_CP4
+        r_CP1 = r_OC + A_IB @ B_r_CP1
+        r_CP2 = r_OC + A_IB @ B_r_CP2
+        r_CP3 = r_OC + A_IB @ B_r_CP3
+        r_CP4 = r_OC + A_IB @ B_r_CP4
 
         x = np.array([r_OC[0], r_CP1[0], r_CP2[0], r_CP4[0], r_CP3[0], r_CP1[0]])
         y = np.array([r_OC[1], r_CP1[1], r_CP2[1], r_CP4[1], r_CP3[1], r_CP1[1]])
@@ -672,17 +672,17 @@ class SliderCrankDAE:
 
         _, _, _, _, _, _, x3, y3, theta3 = q
         # fmt: off
-        A_IK = np.array([
+        A_IB = np.array([
             [np.cos(theta3), -np.sin(theta3)], 
             [np.sin(theta3),  np.cos(theta3)]
         ])
         # fmt: on
 
         r_OC = np.array([x3, y3])
-        r_CP1 = r_OC + A_IK @ B_r_CP1
-        r_CP2 = r_OC + A_IK @ B_r_CP2
-        r_CP3 = r_OC + A_IK @ B_r_CP3
-        r_CP4 = r_OC + A_IK @ B_r_CP4
+        r_CP1 = r_OC + A_IB @ B_r_CP1
+        r_CP2 = r_OC + A_IB @ B_r_CP2
+        r_CP3 = r_OC + A_IB @ B_r_CP3
+        r_CP4 = r_OC + A_IB @ B_r_CP4
 
         x = np.array([r_OC[0], r_CP1[0], r_CP2[0], r_CP4[0], r_CP3[0], r_CP1[0]])
         y = np.array([r_OC[1], r_CP1[1], r_CP2[1], r_CP4[1], r_CP3[1], r_CP1[1]])

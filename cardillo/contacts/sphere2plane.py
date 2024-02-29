@@ -71,8 +71,8 @@ class Sphere2Plane:
             # fmt: on
 
         self.r_OQ = self.frame.r_OP(0)
-        self.t1t2 = self.frame.A_IK(0).T[:2]
-        self.n = self.frame.A_IK(0)[:, 2]
+        self.t1t2 = self.frame.A_IB(0).T[:2]
+        self.n = self.frame.A_IB(0)[:, 2]
 
         self.xi = xi
         self.B_r_CP = B_r_CP
@@ -114,42 +114,42 @@ class Sphere2Plane:
             t, q, u, a, xi=self.xi, B_r_CP=self.B_r_CP
         )
 
-        if hasattr(self.subsystem, "A_IK"):
-            self.Omega = lambda t, q, u: self.subsystem.A_IK(
+        if hasattr(self.subsystem, "A_IB"):
+            self.Omega = lambda t, q, u: self.subsystem.A_IB(
                 t, q, xi=self.xi
-            ) @ self.subsystem.K_Omega(t, q, u, xi=self.xi)
-            self.Omega_q = lambda t, q, u: self.subsystem.A_IK(
+            ) @ self.subsystem.B_Omega(t, q, u, xi=self.xi)
+            self.Omega_q = lambda t, q, u: self.subsystem.A_IB(
                 t, q, xi=self.xi
-            ) @ self.subsystem.K_Omega_q(t, q, u, xi=self.xi) + np.einsum(
+            ) @ self.subsystem.B_Omega_q(t, q, u, xi=self.xi) + np.einsum(
                 "ijk,j->ik",
-                self.subsystem.A_IK_q(t, q, xi=self.xi),
-                self.subsystem.K_Omega(t, q, u, xi=self.xi),
+                self.subsystem.A_IB_q(t, q, xi=self.xi),
+                self.subsystem.B_Omega(t, q, u, xi=self.xi),
             )
-            self.J_R = lambda t, q: self.subsystem.A_IK(
+            self.J_R = lambda t, q: self.subsystem.A_IB(
                 t, q, xi=self.xi
-            ) @ self.subsystem.K_J_R(t, q, xi=self.xi)
+            ) @ self.subsystem.B_J_R(t, q, xi=self.xi)
             self.J_R_q = lambda t, q: np.einsum(
                 "ijl,jk->ikl",
-                self.subsystem.A_IK_q(t, q, xi=self.xi),
-                self.subsystem.K_J_R(t, q, xi=self.xi),
+                self.subsystem.A_IB_q(t, q, xi=self.xi),
+                self.subsystem.B_J_R(t, q, xi=self.xi),
             ) + np.einsum(
                 "ij,jkl->ikl",
-                self.subsystem.A_IK(t, q, xi=self.xi),
-                self.subsystem.K_J_R_q(t, q, xi=self.xi),
+                self.subsystem.A_IB(t, q, xi=self.xi),
+                self.subsystem.B_J_R_q(t, q, xi=self.xi),
             )
-            self.Psi = lambda t, q, u, a: self.subsystem.A_IK(
+            self.Psi = lambda t, q, u, a: self.subsystem.A_IB(
                 t, q, xi=self.xi
-            ) @ self.subsystem.K_Psi(t, q, u, a, xi=self.xi)
-            self.Psi_q = lambda t, q, u, a: self.subsystem.A_IK(
+            ) @ self.subsystem.B_Psi(t, q, u, a, xi=self.xi)
+            self.Psi_q = lambda t, q, u, a: self.subsystem.A_IB(
                 t, q, xi=self.xi
-            ) @ self.subsystem.K_Psi_q(t, q, u, a, xi=self.xi) + np.einsum(
+            ) @ self.subsystem.B_Psi_q(t, q, u, a, xi=self.xi) + np.einsum(
                 "ijk,j->ik",
-                self.subsystem.A_IK_q(t, q, xi=self.xi),
-                self.subsystem.K_Psi(t, q, u, a, xi=self.xi),
+                self.subsystem.A_IB_q(t, q, xi=self.xi),
+                self.subsystem.B_Psi(t, q, u, a, xi=self.xi),
             )
-            self.Psi_u = lambda t, q, u, a: self.subsystem.A_IK(
+            self.Psi_u = lambda t, q, u, a: self.subsystem.A_IB(
                 t, q, xi=self.xi
-            ) @ self.subsystem.K_Psi_u(t, q, u, a, xi=self.xi)
+            ) @ self.subsystem.B_Psi_u(t, q, u, a, xi=self.xi)
         else:
             self.Omega = lambda t, q, u: np.zeros(3)
             self.Omega_q = lambda t, q, u: np.zeros((3, self.subsystem.nq))
@@ -263,8 +263,8 @@ class Sphere2Plane:
         r_QC2 = r_OP - self.r_OQ - n * (g_N + self.r)
         points = [r_OP + r_PC1, r_OP - n * (g_N + self.r)]
         cells = [("line", [[0, 1]])]
-        A_IK1 = self.subsystem.A_IK(sol_i.t, sol_i.q[self.qDOF])
-        A_IK2 = self.frame.A_IK(sol_i.t)
+        A_IB1 = self.subsystem.A_IB(sol_i.t, sol_i.q[self.qDOF])
+        A_IB2 = self.frame.A_IB(sol_i.t)
         point_data = dict(
             v_Ci=[
                 self.subsystem.v_P(
@@ -272,13 +272,13 @@ class Sphere2Plane:
                     sol_i.q[self.qDOF],
                     sol_i.u[self.uDOF],
                     self.xi,
-                    A_IK1 @ r_PC1,
+                    A_IB1 @ r_PC1,
                 ),
-                self.frame.v_P(sol_i.t, B_r_CP=A_IK2 @ r_QC2),
+                self.frame.v_P(sol_i.t, B_r_CP=A_IB2 @ r_QC2),
             ],
             Omega=[
                 self.Omega(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF]),
-                A_IK2 @ self.frame.K_Omega(sol_i.t),
+                A_IB2 @ self.frame.B_Omega(sol_i.t),
             ],
             n=[-n, n],
             t1=[-t1, t1],

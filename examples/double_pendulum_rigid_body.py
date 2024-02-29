@@ -4,7 +4,7 @@ from math import pi
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-from cardillo.math import A_IK_basic, cross3, axis_angle2quat
+from cardillo.math import A_IB_basic, cross3, axis_angle2quat
 
 from cardillo import System
 from cardillo.discrete import Frame
@@ -50,9 +50,9 @@ if __name__ == "__main__":
 
     r_OJ1 = np.zeros(3)
     A_IJ1 = np.eye(3)
-    origin = Frame(r_OP=r_OJ1, A_IK=A_IJ1)
-    A_IK10 = A_IK_basic(alpha0).z()
-    r_OC10 = -0.5 * l * A_IK10[:, 1]
+    origin = Frame(r_OP=r_OJ1, A_IB=A_IJ1)
+    A_IB10 = A_IB_basic(alpha0).z()
+    r_OC10 = -0.5 * l * A_IB10[:, 1]
     omega01 = np.array([0, 0, alpha_dot0])
     vS1 = cross3(omega01, r_OC10)
     u01 = np.concatenate([vS1, omega01])
@@ -80,10 +80,10 @@ if __name__ == "__main__":
     beta0 = 0
     beta_dot0 = 0
 
-    r_OJ2 = -l * A_IK10[:, 1]
-    A_IJ2 = A_IK10
-    A_IK20 = A_IK10 @ A_IK_basic(beta0).z()
-    r_B2S2 = -0.5 * l * A_IK20[:, 1]
+    r_OJ2 = -l * A_IB10[:, 1]
+    A_IJ2 = A_IB10
+    A_IB20 = A_IB10 @ A_IB_basic(beta0).z()
+    r_B2S2 = -0.5 * l * A_IB20[:, 1]
     r_OC20 = r_OJ2 + r_B2S2
     omega02 = np.array([0, 0, alpha_dot0 + beta_dot0])
     vB2 = cross3(omega01, r_OJ2)
@@ -153,15 +153,15 @@ if __name__ == "__main__":
         x_S1, y_S1, z_S1 = RB1.r_OP(t, q[RB1.qDOF])
         x_S2, y_S2, z_S2 = RB2.r_OP(t, q[RB2.qDOF])
 
-        A_IK1 = RB1.A_IK(t, q[RB1.qDOF])
-        d11 = A_IK1[:, 0]
-        d21 = A_IK1[:, 1]
-        d31 = A_IK1[:, 2]
+        A_IB1 = RB1.A_IB(t, q[RB1.qDOF])
+        d11 = A_IB1[:, 0]
+        d21 = A_IB1[:, 1]
+        d31 = A_IB1[:, 2]
 
-        A_IK2 = RB2.A_IK(t, q[RB2.qDOF])
-        d12 = A_IK2[:, 0]
-        d22 = A_IK2[:, 1]
-        d32 = A_IK2[:, 2]
+        A_IB2 = RB2.A_IB(t, q[RB2.qDOF])
+        d12 = A_IB2[:, 0]
+        d22 = A_IB2[:, 1]
+        d32 = A_IB2[:, 2]
 
         (COM,) = ax.plot([x_0, x_S1, x_S2], [y_0, y_S1, y_S2], [z_0, z_S1, z_S2], "-ok")
         (d11_,) = ax.plot(
@@ -209,15 +209,15 @@ if __name__ == "__main__":
         x_S1, y_S1, z_S1 = RB1.r_OP(t, q[RB1.qDOF], B_r_CP=np.array([0, -l / 2, 0]))
         x_S2, y_S2, z_S2 = RB2.r_OP(t, q[RB2.qDOF], B_r_CP=np.array([0, -l / 2, 0]))
 
-        A_IK1 = RB1.A_IK(t, q[RB1.qDOF])
-        d11 = A_IK1[:, 0]
-        d21 = A_IK1[:, 1]
-        d31 = A_IK1[:, 2]
+        A_IB1 = RB1.A_IB(t, q[RB1.qDOF])
+        d11 = A_IB1[:, 0]
+        d21 = A_IB1[:, 1]
+        d31 = A_IB1[:, 2]
 
-        A_IK2 = RB2.A_IK(t, q[RB2.qDOF])
-        d12 = A_IK2[:, 0]
-        d22 = A_IK2[:, 1]
-        d32 = A_IK2[:, 2]
+        A_IB2 = RB2.A_IB(t, q[RB2.qDOF])
+        d12 = A_IB2[:, 0]
+        d22 = A_IB2[:, 1]
+        d32 = A_IB2[:, 2]
 
         COM.set_data([x_0, x_S1, x_S2], [y_0, y_S1, y_S2])
         COM.set_3d_properties([z_0, z_S1, z_S2])

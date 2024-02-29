@@ -1,13 +1,13 @@
-from cardillo.math import A_IK_basic
+from cardillo.math import A_IB_basic
 from cardillo.rods import (
     RectangularCrossSection,
     Simo1986,
 )
 from cardillo.constraints import RigidConnection, Revolute
 
-from cardillo.rods import K_R12_PetrovGalerkin_Quaternion as Rod
+from cardillo.rods import B_R12_PetrovGalerkin_Quaternion as Rod
 
-# from cardillo.beams import K_R12_PetrovGalerkin_AxisAngle as Rod
+# from cardillo.beams import B_R12_PetrovGalerkin_AxisAngle as Rod
 
 from cardillo import System
 
@@ -50,8 +50,8 @@ if __name__ == "__main__":
     line_density = 1
     cross_section = RectangularCrossSection(line_density, width_z, width_r)
     A_rho0 = line_density * cross_section.area
-    K_S_rho0 = line_density * cross_section.first_moment
-    K_I_rho0 = line_density * cross_section.second_moment
+    B_S_rho0 = line_density * cross_section.first_moment
+    B_I_rho0 = line_density * cross_section.second_moment
     A = cross_section.area
 
     # quadratic beam material
@@ -73,8 +73,8 @@ if __name__ == "__main__":
         cross_section,
         material_model,
         A_rho0,
-        K_S_rho0,
-        K_I_rho0,
+        B_S_rho0,
+        B_I_rho0,
         polynomial_degree,
         polynomial_degree,
         nelements,
@@ -125,7 +125,7 @@ if __name__ == "__main__":
     #         [np.sin(alpha + phi0), -np.cos(alpha + phi0), alpha * c * alpha]
     #     )
 
-    # def A_IK(xi, phi0=0.0, alpha=1, c=cO):
+    # def A_IB(xi, phi0=0.0, alpha=1, c=cO):
     #     alpha = alpha * 2 * np.pi * n_coils * xi
     #     sa = np.sin(alpha + phi0)
     #     ca = np.cos(alpha + phi0)
@@ -158,7 +158,7 @@ if __name__ == "__main__":
         )
 
     # Serret-Frenet basis
-    def A_IK(xi, phi0=0.0, alpha=1, c=cO):
+    def A_IB(xi, phi0=0.0, alpha=1, c=cO):
         Delta_phi = 2 * np.pi * n_coils * xi
         sa = np.sin(alpha * Delta_phi + phi0)
         ca = np.cos(alpha * Delta_phi + phi0)
@@ -210,8 +210,8 @@ if __name__ == "__main__":
             rod_ccw = copy.deepcopy(rod)
             phi0 = 2 * np.pi * n / n_rod
             r_OP_ccw = np.array([r(xi, R=RO, alpha=1, c=cO, phi0=phi0) for xi in xis])
-            A_IK_ccw = np.array([A_IK(xi, alpha=1, phi0=phi0) for xi in xis])
-            Q0_ccw = fit_configuration(rod_ccw, r_OP_ccw, A_IK_ccw)
+            A_IB_ccw = np.array([A_IB(xi, alpha=1, phi0=phi0) for xi in xis])
+            Q0_ccw = fit_configuration(rod_ccw, r_OP_ccw, A_IB_ccw)
             rod_ccw.q0 = Q0_ccw.copy()
             Q0_list.append(Q0_ccw)
             rod_list.append(rod_ccw)
@@ -219,8 +219,8 @@ if __name__ == "__main__":
 
             rod_cw = copy.deepcopy(rod)
             r_OP_cw = np.array([r(xi, R=RI, alpha=-1, c=cI, phi0=phi0) for xi in xis])
-            A_IK_cw = np.array([A_IK(xi, alpha=-1, c=cI, phi0=phi0) for xi in xis])
-            Q0_cw = fit_configuration(rod_cw, r_OP_cw, A_IK_cw)
+            A_IB_cw = np.array([A_IB(xi, alpha=-1, c=cI, phi0=phi0) for xi in xis])
+            Q0_cw = fit_configuration(rod_cw, r_OP_cw, A_IB_cw)
             Q0_list.append(Q0_cw)
             rod_cw.q0 = Q0_cw.copy()
             rod_list.append(rod_cw)
@@ -240,7 +240,7 @@ if __name__ == "__main__":
                 xi = dphi0 / (2 * np.pi * n_coils)
                 if 0 < xi < 1:
                     r_OP_joint = r(xi, phi0=phi0)
-                    A_IK_ccw = A_IK(xi, phi0=phi0)
+                    A_IB_ccw = A_IB(xi, phi0=phi0)
                     xi_ccw = (xi,)
                     xi_cw = xi_ccw
                     rod_cw = rod_list[2 * nn + 1]
@@ -250,7 +250,7 @@ if __name__ == "__main__":
                             rod_cw,
                             axis=2,
                             r_OJ0=r_OP_joint,
-                            # A_IJ0=A_IK_ccw,
+                            # A_IJ0=A_IB_ccw,
                             xi1=xi_ccw,
                             xi2=xi_cw,
                         )
@@ -271,7 +271,7 @@ if __name__ == "__main__":
                             subsystem2=rod_cw,
                             axis=2,
                             r_OJ0=r_OP_joint,
-                            # A_IJ0=A_IK0,
+                            # A_IJ0=A_IB0,
                             k=k,
                             xi1=xi_ccw,
                             xi2=xi_cw,
@@ -283,19 +283,19 @@ if __name__ == "__main__":
     # for n in range(n_rod):
     #     phi0 = 2 * np.pi * n / n_rod
     #     r_OP_ccw = np.array([r(xi, R=RO, alpha=1, c=cO, phi0=phi0) for xi in xis])
-    #     A_IK_ccw = np.array([A_IK(xi, alpha=1, phi0=phi0) for xi in xis])
+    #     A_IB_ccw = np.array([A_IB(xi, alpha=1, phi0=phi0) for xi in xis])
     #     r_OP_cw = np.array([r(xi, R=RI, alpha=-1, c=cI, phi0=phi0) for xi in xis])
-    #     A_IK_cw = np.array([A_IK(xi, alpha=-1, phi0=phi0, c=cI) for xi in xis])
+    #     A_IB_cw = np.array([A_IB(xi, alpha=-1, phi0=phi0, c=cI) for xi in xis])
     #     # for i,xi in enumerate(xis):
     #     ax.plot3D(*r_OP_ccw.T, color="k")
-    #     # ax.quiver(*r_OP_ccw[0].T, *A_IK_ccw[0].T[0],color='r')
-    #     # ax.quiver(*r_OP_ccw[0].T, *A_IK_ccw[0].T[1],color='b')
-    #     # ax.quiver(*r_OP_ccw[0].T, *A_IK_ccw[0].T[2],color='g')
+    #     # ax.quiver(*r_OP_ccw[0].T, *A_IB_ccw[0].T[0],color='r')
+    #     # ax.quiver(*r_OP_ccw[0].T, *A_IB_ccw[0].T[1],color='b')
+    #     # ax.quiver(*r_OP_ccw[0].T, *A_IB_ccw[0].T[2],color='g')
 
     #     ax.plot3D(*r_OP_cw.T, color="b")
-    #     # ax.quiver(*r_OP_cw[0].T, *A_IK_cw[0].T[0],color='r')
-    #     # ax.quiver(*r_OP_cw[0].T, *A_IK_cw[0].T[1],color='b')
-    #     # ax.quiver(*r_OP_cw[0].T, *A_IK_cw[0].T[2],color='g')
+    #     # ax.quiver(*r_OP_cw[0].T, *A_IB_cw[0].T[0],color='r')
+    #     # ax.quiver(*r_OP_cw[0].T, *A_IB_cw[0].T[1],color='b')
+    #     # ax.quiver(*r_OP_cw[0].T, *A_IB_cw[0].T[2],color='g')
     # for n in range(n_rod):
     #     phi0 = 2 * np.pi * n / n_rod
     #     for nn in range(n_rod):
@@ -305,8 +305,8 @@ if __name__ == "__main__":
     #             xi = dphi0 / (2 * np.pi * n_coils)
     #             if 0 < xi < 1:
     #                 r_OP_joint = r(xi, phi0=phi0)
-    #                 A_IK_ccw = A_IK(xi, phi0=phi0)
-    #                 ax.quiver(*r_OP_joint, *A_IK_ccw.T[2], color="r")
+    #                 A_IB_ccw = A_IB(xi, phi0=phi0)
+    #                 ax.quiver(*r_OP_joint, *A_IB_ccw.T[2], color="r")
     #                 plt.show()
     #                 print(n,nn,nc,xi)
     #                 print("\n")
@@ -321,7 +321,7 @@ if __name__ == "__main__":
     folder_test = Path(folder, test + "_" + joint_type)
     Path(folder_test).mkdir(exist_ok=True)
     r_OP_top = lambda t: np.array([0, 0, Z_max])
-    A_IK_top = lambda t: np.eye(3)
+    A_IB_top = lambda t: np.eye(3)
     if test == "compression":
         r_OP_top = lambda t: np.array([0, 0, Z_max - h / 3 * t])
     elif test == "extension":
@@ -329,9 +329,9 @@ if __name__ == "__main__":
     elif test == "shear":
         r_OP_top = lambda t: np.array([0, 2 * RO * t, Z_max])
     elif test == "torsion":
-        A_IK_top = lambda t: A_IK_basic(t * np.pi / 4).z()
+        A_IB_top = lambda t: A_IB_basic(t * np.pi / 4).z()
 
-    frame_top = Frame(r_OP=r_OP_top, A_IK=A_IK_top)
+    frame_top = Frame(r_OP=r_OP_top, A_IB=A_IB_top)
 
     for rod in rod_list:
         joint_bottom = RigidConnection(system.origin, rod, xi2=(0,))

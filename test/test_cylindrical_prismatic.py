@@ -116,9 +116,9 @@ def run(
         r_OP=r_OJ,
         r_OP_t=r_OJ_t,
         r_OP_tt=r_OJ_tt,
-        A_IK=A_IJ,
-        A_IK_t=A_IJ_t,
-        A_IK_tt=A_IJ_tt,
+        A_IB=A_IJ,
+        A_IB_t=A_IJ_t,
+        A_IB_tt=A_IJ_tt,
     )
 
     B0_omega_IB0 = A_IJ0.T @ omega_IB(0)
@@ -132,13 +132,13 @@ def run(
 
     rigid_connection = RigidConnection(frame, RB1)
 
-    A_IK0 = A_IJ0
-    r_OC0 = r_OJ0 + A_IK0 @ np.array([0.5 * l, 0, z0])
+    A_IB0 = A_IJ0
+    r_OC0 = r_OJ0 + A_IB0 @ np.array([0.5 * l, 0, z0])
 
-    K0_omega_IK0 = A_IK0.T @ omega_IB(0) + np.array([0, 0, alpha_dot0])
-    v_C0 = v_P0 + A_IK0 @ cross3(K0_omega_IK0, np.array([0.5 * l, 0, 0]))
+    K0_omega_IK0 = A_IB0.T @ omega_IB(0) + np.array([0, 0, alpha_dot0])
+    v_C0 = v_P0 + A_IB0 @ cross3(K0_omega_IK0, np.array([0.5 * l, 0, 0]))
 
-    q0 = np.array([*r_OC0, *Spurrier(A_IK0)])
+    q0 = np.array([*r_OC0, *Spurrier(A_IB0)])
     u0 = np.array([*v_C0, *K0_omega_IK0])
     RB2 = RigidBody(m, B_Theta_C, q0, u0)
 
@@ -192,7 +192,7 @@ def run(
         ]
     )
 
-    A_BK = np.array([A_IJ(ti).T @ RB2.A_IK(ti, qi[RB2.qDOF]) for (ti, qi) in zip(t, q)])
+    A_BK = np.array([A_IJ(ti).T @ RB2.A_IB(ti, qi[RB2.qDOF]) for (ti, qi) in zip(t, q)])
     alphas = np.array([Log_SO3(A_BKi)[-1] for A_BKi in A_BK])
     # remove jumps of Log_SO(3)
     for i in range(1, len(alphas)):
@@ -231,10 +231,10 @@ def run(
         J_C[:, 0] = e_z_B
         J_C[:, 1] = 0.5 * l * (ca * e_y_B - sa * e_x_B)
 
-        K_J_R = np.zeros((3, 2), dtype=float)
-        K_J_R[:, 1] = e3
+        B_J_R = np.zeros((3, 2), dtype=float)
+        B_J_R[:, 1] = e3
 
-        M = m * (J_C.T @ J_C) + K_J_R.T @ B_Theta_C @ K_J_R
+        M = m * (J_C.T @ J_C) + B_J_R.T @ B_Theta_C @ B_J_R
 
         _omega_IB = omega_IB(t)
 
@@ -250,11 +250,11 @@ def run(
             + cross3(_omega_IB, cross3(_omega_IB, r_BS))
         )
 
-        K_nu_R_dot = A_KI @ omega_IB_t(t) + alpha_dot * cross3(
+        B_nu_R_dot = A_KI @ omega_IB_t(t) + alpha_dot * cross3(
             _A_IJ.T @ omega_IB(t), e3
         )
 
-        h = -J_C.T @ (m * nu_C_dot + m * g * e3) - K_J_R.T @ B_Theta_C @ K_nu_R_dot
+        h = -J_C.T @ (m * nu_C_dot + m * g * e3) - B_J_R.T @ B_Theta_C @ B_nu_R_dot
         h[0] -= k * (z - z0) + k * z_dot
 
         u_dot = np.linalg.solve(M, h)
