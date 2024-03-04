@@ -250,13 +250,13 @@ def compute_I_F(I_N, system, slice=True):
     I_F = []
     global_active_friction_laws = []
     nla_N_global = 0
-    nla_N_local = 0
     nla_F_global = 0
     nla_F_local = 0
     for contr in system.get_contribution_list("gamma_F"):
         for i_N, i_F, force_reservoir in contr.friction_laws:
             i_F_global = np.array(i_F, dtype=int) + nla_F_global
             n_F = len(i_F)
+            # TODO: This can be assembeled once in the system
             i_F_local = np.arange(n_F) + nla_F_local
 
             n_N = len(i_N)
@@ -265,8 +265,7 @@ def compute_I_F(I_N, system, slice=True):
 
                 # only add friction if normal force is active
                 if not slice or (i_N_global[0] in I_N):
-                    i_N_local = np.arange(n_N) + nla_N_local
-                    nla_N_local += n_N
+                    i_N_local = np.where(i_N_global == I_N)[0]
                     nla_F_local += n_F
                     I_F.extend(i_F_global)
                     global_active_friction_laws.append(
