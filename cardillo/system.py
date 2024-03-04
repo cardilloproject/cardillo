@@ -44,7 +44,7 @@ class System:
         Initial time of the initial state of the system.
     origin_size: float
         Origin size for trimesh visualization.
-        If origin_size>0, the origin of the system is added as trimesh.axis with the specified origin size. Otherwise the system origin is just a cardillo frame.
+        If origin_size>0, the origin of the system is added as trimesh.axis with the specified origin size. Otherwise the system origin is just a cardillo Frame.
 
     Notes
     -----

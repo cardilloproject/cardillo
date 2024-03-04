@@ -25,8 +25,8 @@ from cardillo.visualization import Export
 
 class Ball(RigidBody):
     def __init__(self, m, r, q0, u0=None):
-        K_theta_S = 2 / 5 * m * r**2 * np.eye(3)
-        super().__init__(m, K_theta_S, q0, u0)
+        B_Theta_C = 2 / 5 * m * r**2 * np.eye(3)
+        super().__init__(m, B_Theta_C, q0, u0)
 
 
 if __name__ == "__main__":
@@ -45,15 +45,15 @@ if __name__ == "__main__":
 
     # create a cuboid body object
     m = 10
-    r_OS = np.zeros(3)
+    r_OC = np.zeros(3)
     phi = np.pi / 6
     p = axis_angle2quat(np.array([0, 0, 1]), phi)
     phi_dot = 10
     omega = np.array([0, 0, phi_dot])
-    v_S = cross3(omega, r_OS)
+    v_C = cross3(omega, r_OC)
 
-    q0 = np.concatenate([r_OS, p])
-    u0 = np.concatenate([v_S, omega])
+    q0 = np.concatenate([r_OC, p])
+    u0 = np.concatenate([v_C, omega])
 
     # cube = ConvexRigidBody(points_cube, mass=m, u0=u0, q0=q0)
     # cube = newConvexRigidBody(RigidBodyQuaternion, points_cube, mass=m, u0=u0, q0=q0)
@@ -64,15 +64,15 @@ if __name__ == "__main__":
 
     m = 1
     pm0 = PointMass(m, np.zeros(3))
-    r_OS1 = np.array([1, 0, 0])
-    pm1 = PointMass(m, r_OS1)
+    r_OC1 = np.array([1, 0, 0])
+    pm1 = PointMass(m, r_OC1)
     om = 2 / 3 * np.pi
     force = Force(lambda t: np.array([np.sin(om * t), np.cos(om * t), 0]), pm0)
 
     k = 1e2
     spring = ScalarForceTranslational(pm0, pm1, LinearSpring(k))
-    frame = Rectangle(Frame)(axis=1, r_OP=r_OS1)
-    joint = Spherical(frame, pm1, r_OS1)
+    frame = Rectangle(Frame)(axis=1, r_OP=r_OC1)
+    joint = Spherical(frame, pm1, r_OC1)
 
     system = System()
     system.add(cube)

@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from scipy.integrate import solve_ivp
 
-from cardillo.math import A_IK_basic
+from cardillo.math import A_IB_basic
 from cardillo import System
 from cardillo.discrete import Frame, PointMass
 from cardillo.constraints import FixedDistance
@@ -22,20 +22,20 @@ class Mathematical_pendulum3D_excited:
 
     def r_OP(self, t, q):
         L = self.L
-        return A_IK_basic(q[0]).y() @ np.array(
+        return A_IB_basic(q[0]).y() @ np.array(
             [L * np.cos(q[1]), L * np.sin(q[1]) + self.e(t), 0]
         )
 
     def v_P(self, t, q, u):
         L = self.L
-        B_v_S = np.array(
+        B_v_C = np.array(
             [
                 -L * np.sin(q[1]) * u[1],
                 L * np.cos(q[1]) * u[1] + self.e_t(t),
                 L * np.cos(q[1]) * u[0],
             ]
         )
-        return A_IK_basic(q[0]).y() @ B_v_S
+        return A_IB_basic(q[0]).y() @ B_v_C
 
     def eqm(self, t, x):
         dx = np.zeros(4)
@@ -122,12 +122,12 @@ def test_fixed_distance(Solver, kwargs, show=False):
     q_ref = ref.y[:2].T
 
     # solutions with cardillo models
-    r_OS0 = pendulum.r_OP(t0, np.array([alpha0, beta0]))
-    v_S0 = pendulum.v_P(
+    r_OC0 = pendulum.r_OP(t0, np.array([alpha0, beta0]))
+    v_C0 = pendulum.v_P(
         t0, np.array([alpha0, beta0]), np.array([alpha_dot0, beta_dot0])
     )
 
-    PM = PointMass(m, q0=r_OS0, u0=v_S0)
+    PM = PointMass(m, q0=r_OC0, u0=v_C0)
 
     origin = Frame(r_OP, r_OP_t=v_P, r_OP_tt=a_P)
     # joint = FixedDistance(origin, PM)

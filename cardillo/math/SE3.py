@@ -10,6 +10,7 @@ from cardillo.math import (
 )
 from cardillo.math.algebra import skew2ax
 
+#TODO: are these classes used? how do they relate to rotations.py?
 
 class so3:
     def __init__(self, omega=None) -> None:
@@ -264,9 +265,9 @@ if __name__ == "__main__":
     ###########
     # SO3 tests
     ###########
-    from cardillo.math import A_IK_basic
+    from cardillo.math import A_IB_basic
 
-    R = A_IK_basic(np.pi / 4).x()
+    R = A_IB_basic(np.pi / 4).x()
     r = np.array([1, 2, 3])
     H = SE3(R, r)
     # H = SE3()

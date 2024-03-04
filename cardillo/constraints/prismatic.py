@@ -8,10 +8,10 @@ class Prismatic(ProjectedPositionOrientationBase):
         subsystem1,
         subsystem2,
         axis,
-        r_OB0=None,
-        A_IB0=None,
-        frame_ID1=np.zeros(3),
-        frame_ID2=np.zeros(3),
+        r_OJ0=None,
+        A_IJ0=None,
+        xi1=None,
+        xi2=None,
     ):
         assert axis in (0, 1, 2)
 
@@ -24,10 +24,10 @@ class Prismatic(ProjectedPositionOrientationBase):
         super().__init__(
             subsystem1,
             subsystem2,
-            r_OB0=r_OB0,
-            A_IB0=A_IB0,
+            r_OJ0=r_OJ0,
+            A_IJ0=A_IJ0,
             constrained_axes_translation=constrained_axes_displacement,
             projection_pairs_rotation=projection_pairs_rotation,
-            frame_ID1=frame_ID1,
-            frame_ID2=frame_ID2,
+            xi1=xi1,
+            xi2=xi2,
         )

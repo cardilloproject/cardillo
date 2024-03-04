@@ -35,7 +35,7 @@ if __name__ == "__main__":
 
     r_OP = lambda t: np.array([0, 0, -L * (1 + 0.5 * t)])
     frame2 = Frame(r_OP=r_OP)
-    joint = Spherical(frame2, mass, r_OB0=r_OP(0))
+    joint = Spherical(frame2, mass, r_OJ0=r_OP(0))
 
     linear_spring = LinearSpring(k, g_ref=L)
     linear_damper = LinearDamper(d)

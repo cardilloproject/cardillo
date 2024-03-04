@@ -22,7 +22,7 @@ class WoodpeckerToy:
         self.m_M = 0.0003  # kg
         self.J_M = 5e-9  # kg m2
         self.m_S = 0.0045  # kg
-        self.J_S = 7e-7  # kg m2
+        self.J_C = 7e-7  # kg m2
 
         # dynamics
         self.c_phi = 0.0056  # Nm / rad
@@ -70,7 +70,7 @@ class WoodpeckerToy:
                 [
                     self.m_S * self.l_G,
                     self.m_S * self.l_M * self.l_G,
-                    self.J_S + self.m_S * self.l_G**2,
+                    self.J_C + self.m_S * self.l_G**2,
                 ],
             ]
         )

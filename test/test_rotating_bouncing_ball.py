@@ -109,13 +109,13 @@ class RotatingBouncingBall:
     def boundary(self, t, q, num=100):
         x, y, phi = q
         # fmt: off
-        A_IK = np.array([
+        A_IB = np.array([
             [np.cos(phi), -np.sin(phi)], 
             [np.sin(phi),  np.cos(phi)]
         ])
         # fmt: on
 
-        def A_IK(theta):
+        def A_IB(theta):
             # fmt: off
             return np.array([
                 [np.cos(phi + theta), -np.sin(phi + theta)], 
@@ -125,11 +125,11 @@ class RotatingBouncingBall:
 
         phis = np.linspace(0, 2 * np.pi, num=num, endpoint=True)
 
-        r_OS = np.array([x, y])
+        r_OC = np.array([x, y])
         r_OPs = np.array(
-            [r_OS + A_IK(phi) @ np.array([self.radius, 0]) for phi in phis]
+            [r_OC + A_IB(phi) @ np.array([self.radius, 0]) for phi in phis]
         ).T
-        return np.concatenate((r_OS[:, None], r_OPs), axis=-1)
+        return np.concatenate((r_OC[:, None], r_OPs), axis=-1)
 
 
 def run(case, export=False):

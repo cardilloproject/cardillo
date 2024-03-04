@@ -8,8 +8,8 @@ from cardillo.math.algebra import cross3, ax2skew
 def concatenate_qDOF(object):
     qDOF1 = object.subsystem1.qDOF
     qDOF2 = object.subsystem2.qDOF
-    local_qDOF1 = object.subsystem1.local_qDOF_P(object.frame_ID1)
-    local_qDOF2 = object.subsystem2.local_qDOF_P(object.frame_ID2)
+    local_qDOF1 = object.subsystem1.local_qDOF_P(object.xi1)
+    local_qDOF2 = object.subsystem2.local_qDOF_P(object.xi2)
 
     object.qDOF = np.concatenate((qDOF1[local_qDOF1], qDOF2[local_qDOF2]))
     object._nq1 = nq1 = len(local_qDOF1)
@@ -22,8 +22,8 @@ def concatenate_qDOF(object):
 def concatenate_uDOF(object):
     uDOF1 = object.subsystem1.uDOF
     uDOF2 = object.subsystem2.uDOF
-    local_uDOF1 = object.subsystem1.local_uDOF_P(object.frame_ID1)
-    local_uDOF2 = object.subsystem2.local_uDOF_P(object.frame_ID2)
+    local_uDOF1 = object.subsystem1.local_uDOF_P(object.xi1)
+    local_uDOF2 = object.subsystem2.local_uDOF_P(object.xi2)
 
     object.uDOF = np.concatenate((uDOF1[local_uDOF1], uDOF2[local_uDOF2]))
     object._nu1 = nu1 = len(local_uDOF1)
@@ -35,8 +35,8 @@ def concatenate_uDOF(object):
 
 def auxiliary_functions(
     object,
-    K1_r_P1B0,
-    K2_r_P2B0,
+    B1_r_P1B0,
+    B2_r_P2B0,
     A_K1B0=None,
     A_K2B0=None,
 ):
@@ -44,155 +44,155 @@ def auxiliary_functions(
     nu1 = object._nu1
 
     # auxiliary functions for subsystem 1
-    object.r_OB1 = lambda t, q: object.subsystem1.r_OP(
-        t, q[:nq1], object.frame_ID1, K1_r_P1B0
+    object.r_OJ1 = lambda t, q: object.subsystem1.r_OP(
+        t, q[:nq1], object.xi1, B1_r_P1B0
     )
-    object.r_OB1_q1 = lambda t, q: object.subsystem1.r_OP_q(
-        t, q[:nq1], object.frame_ID1, K1_r_P1B0
+    object.r_OJ1_q1 = lambda t, q: object.subsystem1.r_OP_q(
+        t, q[:nq1], object.xi1, B1_r_P1B0
     )
-    object.v_B1 = lambda t, q, u: object.subsystem1.v_P(
-        t, q[:nq1], u[:nu1], object.frame_ID1, K1_r_P1B0
+    object.v_J1 = lambda t, q, u: object.subsystem1.v_P(
+        t, q[:nq1], u[:nu1], object.xi1, B1_r_P1B0
     )
-    object.v_B1_q1 = lambda t, q, u: object.subsystem1.v_P_q(
-        t, q[:nq1], u[:nu1], object.frame_ID1, K1_r_P1B0
+    object.v_J1_q1 = lambda t, q, u: object.subsystem1.v_P_q(
+        t, q[:nq1], u[:nu1], object.xi1, B1_r_P1B0
     )
-    object.a_B1 = lambda t, q, u, u_dot: object.subsystem1.a_P(
-        t, q[:nq1], u[:nu1], u_dot[:nu1], object.frame_ID1, K1_r_P1B0
+    object.a_J1 = lambda t, q, u, u_dot: object.subsystem1.a_P(
+        t, q[:nq1], u[:nu1], u_dot[:nu1], object.xi1, B1_r_P1B0
     )
-    object.a_B1_q1 = lambda t, q, u, u_dot: object.subsystem1.a_P_q(
-        t, q[:nq1], u[:nu1], u_dot[:nu1], object.frame_ID1, K1_r_P1B0
+    object.a_J1_q1 = lambda t, q, u, u_dot: object.subsystem1.a_P_q(
+        t, q[:nq1], u[:nu1], u_dot[:nu1], object.xi1, B1_r_P1B0
     )
-    object.a_B1_u1 = lambda t, q, u, u_dot: object.subsystem1.a_P_u(
-        t, q[:nq1], u[:nu1], u_dot[:nu1], object.frame_ID1, K1_r_P1B0
+    object.a_J1_u1 = lambda t, q, u, u_dot: object.subsystem1.a_P_u(
+        t, q[:nq1], u[:nu1], u_dot[:nu1], object.xi1, B1_r_P1B0
     )
-    object.J_B1 = lambda t, q: object.subsystem1.J_P(
-        t, q[:nq1], object.frame_ID1, K1_r_P1B0
+    object.J_J1 = lambda t, q: object.subsystem1.J_P(
+        t, q[:nq1], object.xi1, B1_r_P1B0
     )
-    object.J_B1_q1 = lambda t, q: object.subsystem1.J_P_q(
-        t, q[:nq1], object.frame_ID1, K1_r_P1B0
+    object.J_J1_q1 = lambda t, q: object.subsystem1.J_P_q(
+        t, q[:nq1], object.xi1, B1_r_P1B0
     )
-    object.A_IB1 = (
-        lambda t, q: object.subsystem1.A_IK(t, q[:nq1], object.frame_ID1) @ A_K1B0
+    object.A_IJ1 = (
+        lambda t, q: object.subsystem1.A_IB(t, q[:nq1], object.xi1) @ A_K1B0
     )
-    object.A_IB1_q1 = lambda t, q: np.einsum(
-        "ijl,jk->ikl", object.subsystem1.A_IK_q(t, q[:nq1], object.frame_ID1), A_K1B0
+    object.A_IJ1_q1 = lambda t, q: np.einsum(
+        "ijl,jk->ikl", object.subsystem1.A_IB_q(t, q[:nq1], object.xi1), A_K1B0
     )
-    object.Omega1 = lambda t, q, u: object.subsystem1.A_IK(
-        t, q[:nq1], object.frame_ID1
-    ) @ object.subsystem1.K_Omega(t, q[:nq1], u[:nu1], object.frame_ID1)
+    object.Omega1 = lambda t, q, u: object.subsystem1.A_IB(
+        t, q[:nq1], object.xi1
+    ) @ object.subsystem1.B_Omega(t, q[:nq1], u[:nu1], object.xi1)
     object.Omega1_q1 = lambda t, q, u: np.einsum(
         "ijk,j->ik",
-        object.subsystem1.A_IK_q(t, q[:nq1], frame_ID=object.frame_ID1),
-        object.subsystem1.K_Omega(t, q[:nq1], u[:nu1], object.frame_ID1),
-    ) + object.subsystem1.A_IK(
-        t, q[:nq1], frame_ID=object.frame_ID1
-    ) @ object.subsystem1.K_Omega_q(
-        t, q[:nq1], u[:nu1], object.frame_ID1
+        object.subsystem1.A_IB_q(t, q[:nq1], xi=object.xi1),
+        object.subsystem1.B_Omega(t, q[:nq1], u[:nu1], object.xi1),
+    ) + object.subsystem1.A_IB(
+        t, q[:nq1], xi=object.xi1
+    ) @ object.subsystem1.B_Omega_q(
+        t, q[:nq1], u[:nu1], object.xi1
     )
 
-    object.Psi1 = lambda t, q, u, u_dot: object.subsystem1.A_IK(
-        t, q[:nq1], object.frame_ID1
-    ) @ object.subsystem1.K_Psi(t, q[:nq1], u[:nu1], u_dot[:nu1], object.frame_ID1)
+    object.Psi1 = lambda t, q, u, u_dot: object.subsystem1.A_IB(
+        t, q[:nq1], object.xi1
+    ) @ object.subsystem1.B_Psi(t, q[:nq1], u[:nu1], u_dot[:nu1], object.xi1)
     object.Psi1_q1 = lambda t, q, u, u_dot: np.einsum(
         "ijk,j->ik",
-        object.subsystem1.A_IK_q(t, q[:nq1], frame_ID=object.frame_ID1),
-        object.subsystem1.K_Psi(t, q[:nq1], u[:nu1], u_dot[:nu1], object.frame_ID1),
-    ) + object.subsystem1.A_IK(
-        t, q[:nq1], frame_ID=object.frame_ID1
-    ) @ object.subsystem1.K_Psi_q(
-        t, q[:nq1], u[:nu1], u_dot[:nu1], object.frame_ID1
+        object.subsystem1.A_IB_q(t, q[:nq1], xi=object.xi1),
+        object.subsystem1.B_Psi(t, q[:nq1], u[:nu1], u_dot[:nu1], object.xi1),
+    ) + object.subsystem1.A_IB(
+        t, q[:nq1], xi=object.xi1
+    ) @ object.subsystem1.B_Psi_q(
+        t, q[:nq1], u[:nu1], u_dot[:nu1], object.xi1
     )
-    object.Psi1_u1 = lambda t, q, u, u_dot: object.subsystem1.A_IK(
-        t, q[:nq1], frame_ID=object.frame_ID1
-    ) @ object.subsystem1.K_Psi_u(t, q[:nq1], u[:nu1], u_dot[:nu1], object.frame_ID1)
+    object.Psi1_u1 = lambda t, q, u, u_dot: object.subsystem1.A_IB(
+        t, q[:nq1], xi=object.xi1
+    ) @ object.subsystem1.B_Psi_u(t, q[:nq1], u[:nu1], u_dot[:nu1], object.xi1)
 
-    object.J_R1 = lambda t, q: object.subsystem1.A_IK(
-        t, q[:nq1], object.frame_ID1
-    ) @ object.subsystem1.K_J_R(t, q[:nq1], object.frame_ID1)
+    object.J_R1 = lambda t, q: object.subsystem1.A_IB(
+        t, q[:nq1], object.xi1
+    ) @ object.subsystem1.B_J_R(t, q[:nq1], object.xi1)
     object.J_R1_q1 = lambda t, q: np.einsum(
         "ijk,jl->ilk",
-        object.subsystem1.A_IK_q(t, q[:nq1], object.frame_ID1),
-        object.subsystem1.K_J_R(t, q[:nq1], object.frame_ID1),
+        object.subsystem1.A_IB_q(t, q[:nq1], object.xi1),
+        object.subsystem1.B_J_R(t, q[:nq1], object.xi1),
     ) + np.einsum(
         "ij,jkl->ikl",
-        object.subsystem1.A_IK(t, q[:nq1], object.frame_ID1),
-        object.subsystem1.K_J_R_q(t, q[:nq1], object.frame_ID1),
+        object.subsystem1.A_IB(t, q[:nq1], object.xi1),
+        object.subsystem1.B_J_R_q(t, q[:nq1], object.xi1),
     )
 
     # auxiliary functions for subsystem 2
-    object.r_OB2 = lambda t, q: object.subsystem2.r_OP(
-        t, q[nq1:], object.frame_ID2, K2_r_P2B0
+    object.r_OJ2 = lambda t, q: object.subsystem2.r_OP(
+        t, q[nq1:], object.xi2, B2_r_P2B0
     )
-    object.r_OB2_q2 = lambda t, q: object.subsystem2.r_OP_q(
-        t, q[nq1:], object.frame_ID2, K2_r_P2B0
+    object.r_OJ2_q2 = lambda t, q: object.subsystem2.r_OP_q(
+        t, q[nq1:], object.xi2, B2_r_P2B0
     )
-    object.v_B2 = lambda t, q, u: object.subsystem2.v_P(
-        t, q[nq1:], u[nu1:], object.frame_ID2, K2_r_P2B0
+    object.v_J2 = lambda t, q, u: object.subsystem2.v_P(
+        t, q[nq1:], u[nu1:], object.xi2, B2_r_P2B0
     )
-    object.v_B2_q2 = lambda t, q, u: object.subsystem2.v_P_q(
-        t, q[nq1:], u[nu1:], object.frame_ID2, K2_r_P2B0
+    object.v_J2_q2 = lambda t, q, u: object.subsystem2.v_P_q(
+        t, q[nq1:], u[nu1:], object.xi2, B2_r_P2B0
     )
-    object.a_B2 = lambda t, q, u, u_dot: object.subsystem2.a_P(
-        t, q[nq1:], u[nu1:], u_dot[nu1:], object.frame_ID2, K2_r_P2B0
+    object.a_J2 = lambda t, q, u, u_dot: object.subsystem2.a_P(
+        t, q[nq1:], u[nu1:], u_dot[nu1:], object.xi2, B2_r_P2B0
     )
-    object.a_B2_q2 = lambda t, q, u, u_dot: object.subsystem2.a_P_q(
-        t, q[nq1:], u[nu1:], u_dot[nu1:], object.frame_ID2, K2_r_P2B0
+    object.a_J2_q2 = lambda t, q, u, u_dot: object.subsystem2.a_P_q(
+        t, q[nq1:], u[nu1:], u_dot[nu1:], object.xi2, B2_r_P2B0
     )
-    object.a_B2_u2 = lambda t, q, u, u_dot: object.subsystem2.a_P_u(
-        t, q[nq1:], u[nu1:], u_dot[nu1:], object.frame_ID2, K2_r_P2B0
+    object.a_J2_u2 = lambda t, q, u, u_dot: object.subsystem2.a_P_u(
+        t, q[nq1:], u[nu1:], u_dot[nu1:], object.xi2, B2_r_P2B0
     )
-    object.J_B2 = lambda t, q: object.subsystem2.J_P(
-        t, q[nq1:], object.frame_ID2, K2_r_P2B0
+    object.J_J2 = lambda t, q: object.subsystem2.J_P(
+        t, q[nq1:], object.xi2, B2_r_P2B0
     )
-    object.J_B2_q2 = lambda t, q: object.subsystem2.J_P_q(
-        t, q[nq1:], object.frame_ID2, K2_r_P2B0
+    object.J_J2_q2 = lambda t, q: object.subsystem2.J_P_q(
+        t, q[nq1:], object.xi2, B2_r_P2B0
     )
-    object.A_IB2 = (
-        lambda t, q: object.subsystem2.A_IK(t, q[nq1:], object.frame_ID2) @ A_K2B0
+    object.A_IJ2 = (
+        lambda t, q: object.subsystem2.A_IB(t, q[nq1:], object.xi2) @ A_K2B0
     )
-    object.A_IB2_q2 = lambda t, q: np.einsum(
-        "ijk,jl->ilk", object.subsystem2.A_IK_q(t, q[nq1:], object.frame_ID2), A_K2B0
+    object.A_IJ2_q2 = lambda t, q: np.einsum(
+        "ijk,jl->ilk", object.subsystem2.A_IB_q(t, q[nq1:], object.xi2), A_K2B0
     )
-    object.Omega2 = lambda t, q, u: object.subsystem2.A_IK(
-        t, q[nq1:], object.frame_ID2
-    ) @ object.subsystem2.K_Omega(t, q[nq1:], u[nu1:], object.frame_ID2)
+    object.Omega2 = lambda t, q, u: object.subsystem2.A_IB(
+        t, q[nq1:], object.xi2
+    ) @ object.subsystem2.B_Omega(t, q[nq1:], u[nu1:], object.xi2)
     object.Omega2_q2 = lambda t, q, u: np.einsum(
         "ijk,j->ik",
-        object.subsystem2.A_IK_q(t, q[nq1:], frame_ID=object.frame_ID2),
-        object.subsystem2.K_Omega(t, q[nq1:], u[nu1:], object.frame_ID2),
-    ) + object.subsystem2.A_IK(
-        t, q[nq1:], frame_ID=object.frame_ID2
-    ) @ object.subsystem2.K_Omega_q(
-        t, q[nq1:], u[nu1:], object.frame_ID2
+        object.subsystem2.A_IB_q(t, q[nq1:], xi=object.xi2),
+        object.subsystem2.B_Omega(t, q[nq1:], u[nu1:], object.xi2),
+    ) + object.subsystem2.A_IB(
+        t, q[nq1:], xi=object.xi2
+    ) @ object.subsystem2.B_Omega_q(
+        t, q[nq1:], u[nu1:], object.xi2
     )
 
-    object.Psi2 = lambda t, q, u, u_dot: object.subsystem2.A_IK(
-        t, q[nq1:], object.frame_ID2
-    ) @ object.subsystem2.K_Psi(t, q[nq1:], u[nu1:], u_dot[nu1:], object.frame_ID2)
+    object.Psi2 = lambda t, q, u, u_dot: object.subsystem2.A_IB(
+        t, q[nq1:], object.xi2
+    ) @ object.subsystem2.B_Psi(t, q[nq1:], u[nu1:], u_dot[nu1:], object.xi2)
     object.Psi2_q2 = lambda t, q, u, u_dot: np.einsum(
         "ijk,j->ik",
-        object.subsystem2.A_IK_q(t, q[nq1:], frame_ID=object.frame_ID2),
-        object.subsystem2.K_Psi(t, q[nq1:], u[nu1:], u_dot[nu1:], object.frame_ID2),
-    ) + object.subsystem2.A_IK(
-        t, q[nq1:], frame_ID=object.frame_ID2
-    ) @ object.subsystem2.K_Psi_q(
-        t, q[nq1:], u[nu1:], u_dot[nu1:], object.frame_ID2
+        object.subsystem2.A_IB_q(t, q[nq1:], xi=object.xi2),
+        object.subsystem2.B_Psi(t, q[nq1:], u[nu1:], u_dot[nu1:], object.xi2),
+    ) + object.subsystem2.A_IB(
+        t, q[nq1:], xi=object.xi2
+    ) @ object.subsystem2.B_Psi_q(
+        t, q[nq1:], u[nu1:], u_dot[nu1:], object.xi2
     )
-    object.Psi2_u2 = lambda t, q, u, u_dot: object.subsystem2.A_IK(
-        t, q[nq1:], frame_ID=object.frame_ID2
-    ) @ object.subsystem2.K_Psi_u(t, q[nq1:], u[nu1:], u_dot[nu1:], object.frame_ID2)
+    object.Psi2_u2 = lambda t, q, u, u_dot: object.subsystem2.A_IB(
+        t, q[nq1:], xi=object.xi2
+    ) @ object.subsystem2.B_Psi_u(t, q[nq1:], u[nu1:], u_dot[nu1:], object.xi2)
 
-    object.J_R2 = lambda t, q: object.subsystem2.A_IK(
-        t, q[nq1:], object.frame_ID2
-    ) @ object.subsystem2.K_J_R(t, q[nq1:], object.frame_ID2)
+    object.J_R2 = lambda t, q: object.subsystem2.A_IB(
+        t, q[nq1:], object.xi2
+    ) @ object.subsystem2.B_J_R(t, q[nq1:], object.xi2)
     object.J_R2_q2 = lambda t, q: np.einsum(
         "ijk,jl->ilk",
-        object.subsystem2.A_IK_q(t, q[nq1:], object.frame_ID2),
-        object.subsystem2.K_J_R(t, q[nq1:], object.frame_ID2),
+        object.subsystem2.A_IB_q(t, q[nq1:], object.xi2),
+        object.subsystem2.B_J_R(t, q[nq1:], object.xi2),
     ) + np.einsum(
         "ij,jkl->ikl",
-        object.subsystem2.A_IK(t, q[nq1:], object.frame_ID2),
-        object.subsystem2.K_J_R_q(t, q[nq1:], object.frame_ID2),
+        object.subsystem2.A_IB(t, q[nq1:], object.xi2),
+        object.subsystem2.B_J_R_q(t, q[nq1:], object.xi2),
     )
 
 
@@ -202,17 +202,17 @@ class PositionOrientationBase:
         subsystem1,
         subsystem2,
         projection_pairs_rotation,
-        r_OB0=None,
-        A_IB0=None,
-        frame_ID1=np.zeros(3),
-        frame_ID2=np.zeros(3),
+        r_OJ0=None,
+        A_IJ0=None,
+        xi1=None,
+        xi2=None,
     ):
         self.subsystem1 = subsystem1
         self.subsystem2 = subsystem2
-        self.frame_ID1 = frame_ID1
-        self.frame_ID2 = frame_ID2
-        self.r_OB0 = r_OB0
-        self.A_IB0 = A_IB0
+        self.xi1 = xi1
+        self.xi2 = xi2
+        self.r_OJ0 = r_OJ0
+        self.A_IJ0 = A_IJ0
 
         # guard against flawed constrained_axes input
         self.nla_g_rot = len(projection_pairs_rotation)
@@ -231,61 +231,61 @@ class PositionOrientationBase:
         concatenate_uDOF(self)
 
         r_OP10 = self.subsystem1.r_OP(
-            self.subsystem1.t0, self.subsystem1.q0[local_qDOF1], self.frame_ID1
+            self.subsystem1.t0, self.subsystem1.q0[local_qDOF1], self.xi1
         )
         r_OP20 = self.subsystem2.r_OP(
-            self.subsystem2.t0, self.subsystem2.q0[local_qDOF2], self.frame_ID2
+            self.subsystem2.t0, self.subsystem2.q0[local_qDOF2], self.xi2
         )
 
-        # check for A_IK of subsystem 1
-        if hasattr(self.subsystem1, "A_IK"):
-            A_IK10 = self.subsystem1.A_IK(
-                self.subsystem1.t0, self.subsystem1.q0[local_qDOF1], self.frame_ID1
+        # check for A_IB of subsystem 1
+        if hasattr(self.subsystem1, "A_IB"):
+            A_IB10 = self.subsystem1.A_IB(
+                self.subsystem1.t0, self.subsystem1.q0[local_qDOF1], self.xi1
             )
 
-            if self.r_OB0 is None:
-                self.r_OB0 = r_OP10
+            if self.r_OJ0 is None:
+                self.r_OJ0 = r_OP10
 
-            if self.A_IB0 is None:
-                self.A_IB0 = A_IK10
+            if self.A_IJ0 is None:
+                self.A_IJ0 = A_IB10
 
-            K1_r_P1B0 = A_IK10.T @ (self.r_OB0 - r_OP10)
-            A_K1B0 = A_IK10.T @ self.A_IB0
+            B1_r_P1J0 = A_IB10.T @ (self.r_OJ0 - r_OP10)
+            A_K1J0 = A_IB10.T @ self.A_IJ0
         else:
-            K1_r_P1B0 = np.zeros(3)
-            A_K1B0 = None  # unused
+            B1_r_P1J0 = np.zeros(3)
+            A_K1J0 = None  # unused
             assert self.nla_g_rot == 0  # Spherical case
 
-        # check for A_IK of subsystem 2
-        if hasattr(self.subsystem2, "A_IK"):
-            A_IK20 = self.subsystem2.A_IK(
-                self.subsystem2.t0, self.subsystem2.q0[local_qDOF2], self.frame_ID2
+        # check for A_IB of subsystem 2
+        if hasattr(self.subsystem2, "A_IB"):
+            A_IB20 = self.subsystem2.A_IB(
+                self.subsystem2.t0, self.subsystem2.q0[local_qDOF2], self.xi2
             )
 
-            if self.r_OB0 is None:
-                self.r_OB0 = r_OP20
+            if self.r_OJ0 is None:
+                self.r_OJ0 = r_OP20
 
-            if self.A_IB0 is None:
-                self.A_IB0 = A_IK20
+            if self.A_IJ0 is None:
+                self.A_IJ0 = A_IB20
 
-            K2_r_P2B0 = A_IK20.T @ (self.r_OB0 - r_OP20)
-            A_K2B0 = A_IK20.T @ self.A_IB0
+            B2_r_P2J0 = A_IB20.T @ (self.r_OJ0 - r_OP20)
+            A_K2J0 = A_IB20.T @ self.A_IJ0
         else:
-            K2_r_P2B0 = np.zeros(3)
-            A_K2B0 = None  # unused
+            B2_r_P2J0 = np.zeros(3)
+            A_K2J0 = None  # unused
             assert self.nla_g_rot == 0  # Spherical case
 
-        auxiliary_functions(self, K1_r_P1B0, K2_r_P2B0, A_K1B0, A_K2B0)
+        auxiliary_functions(self, B1_r_P1J0, B2_r_P2J0, A_K1J0, A_K2J0)
 
     def g(self, t, q):
         g = np.zeros(self.nla_g, dtype=q.dtype)
-        g[:3] = self.r_OB2(t, q) - self.r_OB1(t, q)
+        g[:3] = self.r_OJ2(t, q) - self.r_OJ1(t, q)
 
         if self.constrain_orientation:
-            A_IB1 = self.A_IB1(t, q)
-            A_IB2 = self.A_IB2(t, q)
+            A_IJ1 = self.A_IJ1(t, q)
+            A_IJ2 = self.A_IJ2(t, q)
             for i, (a, b) in enumerate(self.projection_pairs):
-                g[3 + i] = A_IB1[:, a] @ A_IB2[:, b]
+                g[3 + i] = A_IJ1[:, a] @ A_IJ2[:, b]
 
         return g
 
@@ -293,34 +293,34 @@ class PositionOrientationBase:
         nq1 = self._nq1
         g_q = np.zeros((self.nla_g, self._nq), dtype=q.dtype)
 
-        g_q[:3, :nq1] = -self.r_OB1_q1(t, q)
-        g_q[:3, nq1:] = self.r_OB2_q2(t, q)
+        g_q[:3, :nq1] = -self.r_OJ1_q1(t, q)
+        g_q[:3, nq1:] = self.r_OJ2_q2(t, q)
 
         if self.constrain_orientation:
-            A_IB1 = self.A_IB1(t, q)
-            A_IB2 = self.A_IB2(t, q)
+            A_IJ1 = self.A_IJ1(t, q)
+            A_IJ2 = self.A_IJ2(t, q)
 
-            A_IB1_q1 = self.A_IB1_q1(t, q)
-            A_IB2_q2 = self.A_IB2_q2(t, q)
+            A_IJ1_q1 = self.A_IJ1_q1(t, q)
+            A_IJ2_q2 = self.A_IJ2_q2(t, q)
 
             for i, (a, b) in enumerate(self.projection_pairs):
-                g_q[3 + i, :nq1] = A_IB2[:, b] @ A_IB1_q1[:, a]
-                g_q[3 + i, nq1:] = A_IB1[:, a] @ A_IB2_q2[:, b]
+                g_q[3 + i, :nq1] = A_IJ2[:, b] @ A_IJ1_q1[:, a]
+                g_q[3 + i, nq1:] = A_IJ1[:, a] @ A_IJ2_q2[:, b]
 
         return g_q
 
     def g_dot(self, t, q, u):
         g_dot = np.zeros(self.nla_g, dtype=np.common_type(q, u))
-        g_dot[:3] = self.v_B2(t, q, u) - self.v_B1(t, q, u)
+        g_dot[:3] = self.v_J2(t, q, u) - self.v_J1(t, q, u)
 
         if self.constrain_orientation:
-            A_IB1 = self.A_IB1(t, q)
-            A_IB2 = self.A_IB2(t, q)
+            A_IJ1 = self.A_IJ1(t, q)
+            A_IJ2 = self.A_IJ2(t, q)
 
             Omega21 = self.Omega1(t, q, u) - self.Omega2(t, q, u)
 
             for i, (a, b) in enumerate(self.projection_pairs):
-                n = cross3(A_IB1[:, a], A_IB2[:, b])
+                n = cross3(A_IJ1[:, a], A_IJ2[:, b])
                 g_dot[3 + i] = n @ Omega21
 
         return g_dot
@@ -329,28 +329,28 @@ class PositionOrientationBase:
         nq1 = self._nq1
         g_dot_q = np.zeros((self.nla_g, self._nq), dtype=np.common_type(q, u))
 
-        g_dot_q[:3, :nq1] = -self.v_B1_q1(t, q, u)
-        g_dot_q[:3, nq1:] = self.v_B2_q2(t, q, u)
+        g_dot_q[:3, :nq1] = -self.v_J1_q1(t, q, u)
+        g_dot_q[:3, nq1:] = self.v_J2_q2(t, q, u)
 
         if self.constrain_orientation:
-            A_IB1 = self.A_IB1(t, q)
-            A_IB2 = self.A_IB2(t, q)
+            A_IJ1 = self.A_IJ1(t, q)
+            A_IJ2 = self.A_IJ2(t, q)
 
-            A_IB1_q1 = self.A_IB1_q1(t, q)
-            A_IB2_q2 = self.A_IB2_q2(t, q)
+            A_IJ1_q1 = self.A_IJ1_q1(t, q)
+            A_IJ2_q2 = self.A_IJ2_q2(t, q)
 
             Omega21 = self.Omega1(t, q, u) - self.Omega2(t, q, u)
             Omega1_q1 = self.Omega1_q1(t, q, u)
             Omega2_q2 = self.Omega2_q2(t, q, u)
 
             for i, (a, b) in enumerate(self.projection_pairs):
-                e_a, e_b = A_IB1[:, a], A_IB2[:, b]
+                e_a, e_b = A_IJ1[:, a], A_IJ2[:, b]
                 n = cross3(e_a, e_b)
                 g_dot_q[3 + i, :nq1] = (
-                    n @ Omega1_q1 - Omega21 @ ax2skew(e_b) @ A_IB1_q1[:, a]
+                    n @ Omega1_q1 - Omega21 @ ax2skew(e_b) @ A_IJ1_q1[:, a]
                 )
                 g_dot_q[3 + i, nq1:] = (
-                    -n @ Omega2_q2 + Omega21 @ ax2skew(e_a) @ A_IB2_q2[:, b]
+                    -n @ Omega2_q2 + Omega21 @ ax2skew(e_a) @ A_IJ2_q2[:, b]
                 )
 
         return g_dot_q
@@ -360,11 +360,11 @@ class PositionOrientationBase:
 
     def g_ddot(self, t, q, u, u_dot):
         g_ddot = np.zeros(self.nla_g, dtype=np.common_type(q, u, u_dot))
-        g_ddot[:3] = self.a_B2(t, q, u, u_dot) - self.a_B1(t, q, u, u_dot)
+        g_ddot[:3] = self.a_J2(t, q, u, u_dot) - self.a_J1(t, q, u, u_dot)
 
         if self.constrain_orientation:
-            A_IB1 = self.A_IB1(t, q)
-            A_IB2 = self.A_IB2(t, q)
+            A_IJ1 = self.A_IJ1(t, q)
+            A_IJ2 = self.A_IJ2(t, q)
 
             Omega1 = self.Omega1(t, q, u)
             Omega2 = self.Omega2(t, q, u)
@@ -372,7 +372,7 @@ class PositionOrientationBase:
             Psi21 = self.Psi1(t, q, u, u_dot) - self.Psi2(t, q, u, u_dot)
 
             for i, (a, b) in enumerate(self.projection_pairs):
-                e_a, e_b = A_IB1[:, a], A_IB2[:, b]
+                e_a, e_b = A_IJ1[:, a], A_IJ2[:, b]
                 n = cross3(e_a, e_b)
                 g_ddot[3 + i] = (
                     cross3(cross3(Omega1, e_a), e_b) + cross3(e_a, cross3(Omega2, e_b))
@@ -384,15 +384,15 @@ class PositionOrientationBase:
         nq1 = self._nq1
         g_ddot_q = np.zeros((self.nla_g, self._nq), dtype=np.common_type(q, u, u_dot))
 
-        g_ddot_q[:3, :nq1] = -self.a_B1_q1(t, q, u, u_dot)
-        g_ddot_q[:3, nq1:] = self.a_B2_q2(t, q, u, u_dot)
+        g_ddot_q[:3, :nq1] = -self.a_J1_q1(t, q, u, u_dot)
+        g_ddot_q[:3, nq1:] = self.a_J2_q2(t, q, u, u_dot)
 
         if self.constrain_orientation:
-            A_IB1 = self.A_IB1(t, q)
-            A_IB2 = self.A_IB2(t, q)
+            A_IJ1 = self.A_IJ1(t, q)
+            A_IJ2 = self.A_IJ2(t, q)
 
-            A_IB1_q1 = self.A_IB1_q1(t, q)
-            A_IB2_q2 = self.A_IB2_q2(t, q)
+            A_IJ1_q1 = self.A_IJ1_q1(t, q)
+            A_IJ2_q2 = self.A_IJ2_q2(t, q)
 
             Omega1 = self.Omega1(t, q, u)
             Omega2 = self.Omega2(t, q, u)
@@ -405,8 +405,8 @@ class PositionOrientationBase:
             Psi2_q2 = self.Psi2_q2(t, q, u, u_dot)
 
             for i, (a, b) in enumerate(self.projection_pairs):
-                e_a, e_b = A_IB1[:, a], A_IB2[:, b]
-                e_a_q1, e_b_q2 = A_IB1_q1[:, a], A_IB2_q2[:, b]
+                e_a, e_b = A_IJ1[:, a], A_IJ2[:, b]
+                e_a_q1, e_b_q2 = A_IJ1_q1[:, a], A_IJ2_q2[:, b]
                 n = cross3(e_a, e_b)
                 Omega1_e_a = cross3(Omega1, e_a)
                 Omega2_e_b = cross3(Omega2, e_b)
@@ -441,12 +441,12 @@ class PositionOrientationBase:
         nu1 = self._nu1
         g_ddot_u = np.zeros((self.nla_g, self._nu), dtype=np.common_type(q, u, u_dot))
 
-        g_ddot_u[:3, :nu1] = -self.a_B1_u1(t, q, u, u_dot)
-        g_ddot_u[:3, nu1:] = self.a_B2_u2(t, q, u, u_dot)
+        g_ddot_u[:3, :nu1] = -self.a_J1_u1(t, q, u, u_dot)
+        g_ddot_u[:3, nu1:] = self.a_J2_u2(t, q, u, u_dot)
 
         if self.constrain_orientation:
-            A_IB1 = self.A_IB1(t, q)
-            A_IB2 = self.A_IB2(t, q)
+            A_IJ1 = self.A_IJ1(t, q)
+            A_IJ2 = self.A_IJ2(t, q)
 
             Omega1 = self.Omega1(t, q, u)
             Omega2 = self.Omega2(t, q, u)
@@ -458,7 +458,7 @@ class PositionOrientationBase:
             Psi2_u2 = self.Psi2_u2(t, q, u, u_dot)
 
             for i, (a, b) in enumerate(self.projection_pairs):
-                e_a, e_b = A_IB1[:, a], A_IB2[:, b]
+                e_a, e_b = A_IJ1[:, a], A_IJ2[:, b]
                 n = cross3(e_a, e_b)
                 Omega1_e_a = cross3(Omega1, e_a)
                 Omega2_e_b = cross3(Omega2, e_b)
@@ -475,16 +475,16 @@ class PositionOrientationBase:
     def W_g(self, t, q):
         nu1 = self._nu1
         W_g = np.zeros((self._nu, self.nla_g), dtype=q.dtype)
-        W_g[:nu1, :3] = -self.J_B1(t, q).T
-        W_g[nu1:, :3] = self.J_B2(t, q).T
+        W_g[:nu1, :3] = -self.J_J1(t, q).T
+        W_g[nu1:, :3] = self.J_J2(t, q).T
 
         if self.constrain_orientation:
-            A_IB1 = self.A_IB1(t, q)
-            A_IB2 = self.A_IB2(t, q)
+            A_IJ1 = self.A_IJ1(t, q)
+            A_IJ2 = self.A_IJ2(t, q)
             J = np.hstack([self.J_R1(t, q), -self.J_R2(t, q)])
 
             for i, (a, b) in enumerate(self.projection_pairs):
-                n = cross3(A_IB1[:, a], A_IB2[:, b])
+                n = cross3(A_IJ1[:, a], A_IJ2[:, b])
                 W_g[:, 3 + i] = n @ J
 
         return W_g
@@ -494,15 +494,15 @@ class PositionOrientationBase:
         nu1 = self._nu1
         Wla_g_q = np.zeros((self._nu, self._nq), dtype=np.common_type(q, la_g))
 
-        Wla_g_q[:nu1, :nq1] += np.einsum("i,ijk->jk", -la_g[:3], self.J_B1_q1(t, q))
-        Wla_g_q[nu1:, nq1:] += np.einsum("i,ijk->jk", la_g[:3], self.J_B2_q2(t, q))
+        Wla_g_q[:nu1, :nq1] += np.einsum("i,ijk->jk", -la_g[:3], self.J_J1_q1(t, q))
+        Wla_g_q[nu1:, nq1:] += np.einsum("i,ijk->jk", la_g[:3], self.J_J2_q2(t, q))
 
         if self.constrain_orientation:
-            A_IB1 = self.A_IB1(t, q)
-            A_IB2 = self.A_IB2(t, q)
+            A_IJ1 = self.A_IJ1(t, q)
+            A_IJ2 = self.A_IJ2(t, q)
 
-            A_IB1_q1 = self.A_IB1_q1(t, q)
-            A_IB2_q2 = self.A_IB2_q2(t, q)
+            A_IJ1_q1 = self.A_IJ1_q1(t, q)
+            A_IJ2_q2 = self.A_IJ2_q2(t, q)
 
             J_R1 = self.J_R1(t, q)
             J_R2 = self.J_R2(t, q)
@@ -510,10 +510,10 @@ class PositionOrientationBase:
             J_R2_q2 = self.J_R2_q2(t, q)
 
             for i, (a, b) in enumerate(self.projection_pairs):
-                e_a, e_b = A_IB1[:, a], A_IB2[:, b]
+                e_a, e_b = A_IJ1[:, a], A_IJ2[:, b]
                 n = cross3(e_a, e_b)
-                n_q1 = -ax2skew(e_b) @ A_IB1_q1[:, a]
-                n_q2 = ax2skew(e_a) @ A_IB2_q2[:, b]
+                n_q1 = -ax2skew(e_b) @ A_IJ1_q1[:, a]
+                n_q2 = ax2skew(e_a) @ A_IJ2_q2[:, b]
                 Wla_g_q[:nu1, :nq1] += np.einsum(
                     "i,ijk->jk", la_g[3 + i] * n, J_R1_q1
                 ) + np.einsum("ij,ik->kj", la_g[3 + i] * n_q1, J_R1)
@@ -538,17 +538,17 @@ class ProjectedPositionOrientationBase:
         subsystem2,
         constrained_axes_translation,
         projection_pairs_rotation,
-        r_OB0=None,
-        A_IB0=None,
-        frame_ID1=np.zeros(3),
-        frame_ID2=np.zeros(3),
+        r_OJ0=None,
+        A_IJ0=None,
+        xi1=None,
+        xi2=None,
     ):
         self.subsystem1 = subsystem1
         self.subsystem2 = subsystem2
-        self.frame_ID1 = frame_ID1
-        self.frame_ID2 = frame_ID2
-        self.r_OB0 = r_OB0
-        self.A_IB0 = A_IB0
+        self.xi1 = xi1
+        self.xi2 = xi2
+        self.r_OJ0 = r_OJ0
+        self.A_IJ0 = A_IJ0
 
         self.nla_g_trans = len(constrained_axes_translation)
 
@@ -573,69 +573,69 @@ class ProjectedPositionOrientationBase:
         concatenate_uDOF(self)
 
         r_OP10 = self.subsystem1.r_OP(
-            self.subsystem1.t0, self.subsystem1.q0[local_qDOF1], self.frame_ID1
+            self.subsystem1.t0, self.subsystem1.q0[local_qDOF1], self.xi1
         )
         r_OP20 = self.subsystem2.r_OP(
-            self.subsystem2.t0, self.subsystem2.q0[local_qDOF2], self.frame_ID2
+            self.subsystem2.t0, self.subsystem2.q0[local_qDOF2], self.xi2
         )
 
-        A_IK10 = self.subsystem1.A_IK(
-            self.subsystem1.t0, self.subsystem1.q0[local_qDOF1], self.frame_ID1
+        A_IB10 = self.subsystem1.A_IB(
+            self.subsystem1.t0, self.subsystem1.q0[local_qDOF1], self.xi1
         )
-        A_IK20 = self.subsystem2.A_IK(
-            self.subsystem2.t0, self.subsystem2.q0[local_qDOF2], self.frame_ID2
+        A_IB20 = self.subsystem2.A_IB(
+            self.subsystem2.t0, self.subsystem2.q0[local_qDOF2], self.xi2
         )
 
-        if self.r_OB0 is None:
-            self.r_OB0 = r_OP10
+        if self.r_OJ0 is None:
+            self.r_OJ0 = r_OP10
 
-        if self.A_IB0 is None:
-            self.A_IB0 = A_IK10
+        if self.A_IJ0 is None:
+            self.A_IJ0 = A_IB10
 
-        K1_r_P1B0 = A_IK10.T @ (self.r_OB0 - r_OP10)
-        A_K1B0 = A_IK10.T @ self.A_IB0
-        K2_r_P2B0 = A_IK20.T @ (self.r_OB0 - r_OP20)
-        A_K2B0 = A_IK20.T @ self.A_IB0
+        B1_r_P1J0 = A_IB10.T @ (self.r_OJ0 - r_OP10)
+        A_K1J0 = A_IB10.T @ self.A_IJ0
+        B2_r_P2J0 = A_IB20.T @ (self.r_OJ0 - r_OP20)
+        A_K2J0 = A_IB20.T @ self.A_IJ0
 
-        auxiliary_functions(self, K1_r_P1B0, K2_r_P2B0, A_K1B0, A_K2B0)
+        auxiliary_functions(self, B1_r_P1J0, B2_r_P2J0, A_K1J0, A_K2J0)
 
     def g(self, t, q):
         g = np.zeros(self.nla_g, dtype=q.dtype)
 
-        A_IB1 = self.A_IB1(t, q)
+        A_IJ1 = self.A_IJ1(t, q)
         if self.constrain_translation:
-            r_B1B2 = self.r_OB2(t, q) - self.r_OB1(t, q)
+            r_J1J2 = self.r_OJ2(t, q) - self.r_OJ1(t, q)
             for i, ax in enumerate(self.constrained_axes_displacement):
-                g[i] = r_B1B2 @ A_IB1[:, ax]
+                g[i] = r_J1J2 @ A_IJ1[:, ax]
 
         if self.constrain_orientation:
-            A_IB2 = self.A_IB2(t, q)
+            A_IJ2 = self.A_IJ2(t, q)
             for i, (a, b) in enumerate(self.projection_pairs_rotation):
-                g[self.nla_g_trans + i] = A_IB1[:, a] @ A_IB2[:, b]
+                g[self.nla_g_trans + i] = A_IJ1[:, a] @ A_IJ2[:, b]
         return g
 
     def g_q(self, t, q):
         nq1 = self._nq1
         g_q = np.zeros((self.nla_g, self._nq), dtype=q.dtype)
 
-        A_IB1 = self.A_IB1(t, q)
-        A_IB1_q1 = self.A_IB1_q1(t, q)
+        A_IJ1 = self.A_IJ1(t, q)
+        A_IJ1_q1 = self.A_IJ1_q1(t, q)
 
         if self.constrain_translation:
-            r_B1B2 = self.r_OB2(t, q) - self.r_OB1(t, q)
-            r_OB1_q1 = self.r_OB1_q1(t, q)
-            r_OB2_q2 = self.r_OB2_q2(t, q)
+            r_J1J2 = self.r_OJ2(t, q) - self.r_OJ1(t, q)
+            r_OJ1_q1 = self.r_OJ1_q1(t, q)
+            r_OJ2_q2 = self.r_OJ2_q2(t, q)
             for i, ax in enumerate(self.constrained_axes_displacement):
-                g_q[i, :nq1] = -A_IB1[:, ax] @ r_OB1_q1 + r_B1B2 @ A_IB1_q1[:, ax]
-                g_q[i, nq1:] = A_IB1[:, ax] @ r_OB2_q2
+                g_q[i, :nq1] = -A_IJ1[:, ax] @ r_OJ1_q1 + r_J1J2 @ A_IJ1_q1[:, ax]
+                g_q[i, nq1:] = A_IJ1[:, ax] @ r_OJ2_q2
 
         if self.constrain_orientation:
-            A_IB2 = self.A_IB2(t, q)
-            A_IB2_q2 = self.A_IB2_q2(t, q)
+            A_IJ2 = self.A_IJ2(t, q)
+            A_IJ2_q2 = self.A_IJ2_q2(t, q)
 
             for i, (a, b) in enumerate(self.projection_pairs_rotation):
-                g_q[self.nla_g_trans + i, :nq1] = A_IB2[:, b] @ A_IB1_q1[:, a]
-                g_q[self.nla_g_trans + i, nq1:] = A_IB1[:, a] @ A_IB2_q2[:, b]
+                g_q[self.nla_g_trans + i, :nq1] = A_IJ2[:, b] @ A_IJ1_q1[:, a]
+                g_q[self.nla_g_trans + i, nq1:] = A_IJ1[:, a] @ A_IJ2_q2[:, b]
 
         return g_q
 
@@ -650,20 +650,20 @@ class ProjectedPositionOrientationBase:
     def g_dot(self, t, q, u):
         g_dot = np.zeros(self.nla_g, dtype=np.common_type(q, u))
 
-        A_IB1 = self.A_IB1(t, q)
+        A_IJ1 = self.A_IJ1(t, q)
         Omega1 = self.Omega1(t, q, u)
         if self.constrain_translation:
-            r_B1B2 = self.r_OB2(t, q) - self.r_OB1(t, q)
-            v_B1B2 = self.v_B2(t, q, u) - self.v_B1(t, q, u)
+            r_J1J2 = self.r_OJ2(t, q) - self.r_OJ1(t, q)
+            v_J1J2 = self.v_J2(t, q, u) - self.v_J1(t, q, u)
             for i, ax in enumerate(self.constrained_axes_displacement):
-                g_dot[i] = A_IB1[:, ax] @ v_B1B2 + cross3(A_IB1[:, ax], r_B1B2) @ Omega1
+                g_dot[i] = A_IJ1[:, ax] @ v_J1J2 + cross3(A_IJ1[:, ax], r_J1J2) @ Omega1
 
         if self.constrain_orientation:
-            A_IB2 = self.A_IB2(t, q)
+            A_IJ2 = self.A_IJ2(t, q)
             Omega21 = Omega1 - self.Omega2(t, q, u)
 
             for i, (a, b) in enumerate(self.projection_pairs_rotation):
-                n = cross3(A_IB1[:, a], A_IB2[:, b])
+                n = cross3(A_IJ1[:, a], A_IJ2[:, b])
                 g_dot[self.nla_g_trans + i] = n @ Omega21
 
         return g_dot
@@ -672,43 +672,43 @@ class ProjectedPositionOrientationBase:
         nq1 = self._nq1
         g_dot_q = np.zeros((self.nla_g, self._nq), dtype=np.common_type(q, u))
 
-        A_IB1 = self.A_IB1(t, q)
-        A_IB1_q1 = self.A_IB1_q1(t, q)
+        A_IJ1 = self.A_IJ1(t, q)
+        A_IJ1_q1 = self.A_IJ1_q1(t, q)
         Omega1 = self.Omega1(t, q, u)
         Omega1_q1 = self.Omega1_q1(t, q, u)
         if self.constrain_translation:
-            r_B1B2 = self.r_OB2(t, q) - self.r_OB1(t, q)
-            v_B1B2 = self.v_B2(t, q, u) - self.v_B1(t, q, u)
-            r_OB1_q1 = self.r_OB1_q1(t, q)
-            r_OB2_q2 = self.r_OB2_q2(t, q)
-            v_B1_q1 = self.v_B1_q1(t, q, u)
-            v_B2_q2 = self.v_B2_q2(t, q, u)
+            r_J1J2 = self.r_OJ2(t, q) - self.r_OJ1(t, q)
+            v_J1J2 = self.v_J2(t, q, u) - self.v_J1(t, q, u)
+            r_OJ1_q1 = self.r_OJ1_q1(t, q)
+            r_OJ2_q2 = self.r_OJ2_q2(t, q)
+            v_J1_q1 = self.v_J1_q1(t, q, u)
+            v_J2_q2 = self.v_J2_q2(t, q, u)
             for i, ax in enumerate(self.constrained_axes_displacement):
                 g_dot_q[i, :nq1] = (
-                    -A_IB1[:, ax] @ v_B1_q1
-                    + cross3(A_IB1[:, ax], r_B1B2) @ Omega1_q1
-                    + (v_B1B2 + cross3(r_B1B2, Omega1)) @ A_IB1_q1[:, ax]
-                    - cross3(Omega1, A_IB1[:, ax]) @ r_OB1_q1
+                    -A_IJ1[:, ax] @ v_J1_q1
+                    + cross3(A_IJ1[:, ax], r_J1J2) @ Omega1_q1
+                    + (v_J1J2 + cross3(r_J1J2, Omega1)) @ A_IJ1_q1[:, ax]
+                    - cross3(Omega1, A_IJ1[:, ax]) @ r_OJ1_q1
                 )
                 g_dot_q[i, nq1:] = (
-                    A_IB1[:, ax] @ v_B2_q2 + cross3(Omega1, A_IB1[:, ax]) @ r_OB2_q2
+                    A_IJ1[:, ax] @ v_J2_q2 + cross3(Omega1, A_IJ1[:, ax]) @ r_OJ2_q2
                 )
 
         if self.constrain_orientation:
-            A_IB2 = self.A_IB2(t, q)
-            A_IB2_q2 = self.A_IB2_q2(t, q)
+            A_IJ2 = self.A_IJ2(t, q)
+            A_IJ2_q2 = self.A_IJ2_q2(t, q)
 
             Omega21 = Omega1 - self.Omega2(t, q, u)
             Omega2_q2 = self.Omega2_q2(t, q, u)
 
             for i, (a, b) in enumerate(self.projection_pairs_rotation):
-                e_a, e_b = A_IB1[:, a], A_IB2[:, b]
+                e_a, e_b = A_IJ1[:, a], A_IJ2[:, b]
                 n = cross3(e_a, e_b)
                 g_dot_q[self.nla_g_trans + i, :nq1] = (
-                    n @ Omega1_q1 - Omega21 @ ax2skew(e_b) @ A_IB1_q1[:, a]
+                    n @ Omega1_q1 - Omega21 @ ax2skew(e_b) @ A_IJ1_q1[:, a]
                 )
                 g_dot_q[self.nla_g_trans + i, nq1:] = (
-                    -n @ Omega2_q2 + Omega21 @ ax2skew(e_a) @ A_IB2_q2[:, b]
+                    -n @ Omega2_q2 + Omega21 @ ax2skew(e_a) @ A_IJ2_q2[:, b]
                 )
 
         return g_dot_q
@@ -727,31 +727,31 @@ class ProjectedPositionOrientationBase:
     def g_ddot(self, t, q, u, u_dot):
         g_ddot = np.zeros(self.nla_g, dtype=np.common_type(q, u, u_dot))
 
-        A_IB1 = self.A_IB1(t, q)
+        A_IJ1 = self.A_IJ1(t, q)
         Omega1 = self.Omega1(t, q, u)
         Psi1 = self.Psi1(t, q, u, u_dot)
         if self.constrain_translation:
-            r_B1B2 = self.r_OB2(t, q) - self.r_OB1(t, q)
-            v_B1B2 = self.v_B2(t, q, u) - self.v_B1(t, q, u)
-            a_B1B2 = self.a_B2(t, q, u, u_dot) - self.a_B1(t, q, u, u_dot)
+            r_J1J2 = self.r_OJ2(t, q) - self.r_OJ1(t, q)
+            v_J1J2 = self.v_J2(t, q, u) - self.v_J1(t, q, u)
+            a_J1J2 = self.a_J2(t, q, u, u_dot) - self.a_J1(t, q, u, u_dot)
             for i, ax in enumerate(self.constrained_axes_displacement):
-                e_dot = cross3(Omega1, A_IB1[:, ax])
+                e_dot = cross3(Omega1, A_IJ1[:, ax])
                 g_ddot[i] = (
-                    A_IB1[:, ax] @ a_B1B2
-                    + v_B1B2 @ e_dot
-                    + cross3(A_IB1[:, ax], r_B1B2) @ Psi1
-                    + cross3(A_IB1[:, ax], v_B1B2) @ Omega1
-                    + cross3(e_dot, r_B1B2) @ Omega1
+                    A_IJ1[:, ax] @ a_J1J2
+                    + v_J1J2 @ e_dot
+                    + cross3(A_IJ1[:, ax], r_J1J2) @ Psi1
+                    + cross3(A_IJ1[:, ax], v_J1J2) @ Omega1
+                    + cross3(e_dot, r_J1J2) @ Omega1
                 )
 
         if self.constrain_orientation:
-            A_IB2 = self.A_IB2(t, q)
+            A_IJ2 = self.A_IJ2(t, q)
             Omega2 = self.Omega2(t, q, u)
             Omega21 = Omega1 - Omega2
             Psi21 = Psi1 - self.Psi2(t, q, u, u_dot)
 
             for i, (a, b) in enumerate(self.projection_pairs_rotation):
-                e_a, e_b = A_IB1[:, a], A_IB2[:, b]
+                e_a, e_b = A_IJ1[:, a], A_IJ2[:, b]
                 n = cross3(e_a, e_b)
                 g_ddot[self.nla_g_trans + i] = (
                     cross3(cross3(Omega1, e_a), e_b) + cross3(e_a, cross3(Omega2, e_b))
@@ -776,11 +776,11 @@ class ProjectedPositionOrientationBase:
     #     )
 
     #     if not self.spherical:
-    #         A_IB1 = self.A_IB1(t, q)
-    #         A_IB2 = self.A_IB2(t, q)
+    #         A_IJ1 = self.A_IJ1(t, q)
+    #         A_IJ2 = self.A_IJ2(t, q)
 
-    #         A_IB1_q1 = self.A_IB1_q1(t, q)
-    #         A_IB2_q2 = self.A_IB2_q2(t, q)
+    #         A_IJ1_q1 = self.A_IJ1_q1(t, q)
+    #         A_IJ2_q2 = self.A_IJ2_q2(t, q)
 
     #         Omega1 = self.Omega1(t, q, u)
     #         Omega2 = self.Omega2(t, q, u)
@@ -793,8 +793,8 @@ class ProjectedPositionOrientationBase:
     #         Psi2_q2 = self.Psi2_q2(t, q, u, u_dot)
 
     #         for i, (a, b) in enumerate(self.projection_pairs_rotation):
-    #             e_a, e_b = A_IB1[:, a], A_IB2[:, b]
-    #             e_a_q1, e_b_q2 = A_IB1_q1[:, a], A_IB2_q2[:, b]
+    #             e_a, e_b = A_IJ1[:, a], A_IJ2[:, b]
+    #             e_a_q1, e_b_q2 = A_IJ1_q1[:, a], A_IJ2_q2[:, b]
     #             n = cross3(e_a, e_b)
     #             Omega1_e_a = cross3(Omega1, e_a)
     #             Omega2_e_b = cross3(Omega2, e_b)
@@ -842,8 +842,8 @@ class ProjectedPositionOrientationBase:
     #     )
 
     #     if not self.spherical:
-    #         A_IB1 = self.A_IB1(t, q)
-    #         A_IB2 = self.A_IB2(t, q)
+    #         A_IJ1 = self.A_IJ1(t, q)
+    #         A_IJ2 = self.A_IJ2(t, q)
 
     #         Omega1 = self.Omega1(t, q, u)
     #         Omega2 = self.Omega2(t, q, u)
@@ -855,7 +855,7 @@ class ProjectedPositionOrientationBase:
     #         Psi2_u2 = self.Psi2_u2(t, q, u, u_dot)
 
     #         for i, (a, b) in enumerate(self.projection_pairs_rotation):
-    #             e_a, e_b = A_IB1[:, a], A_IB2[:, b]
+    #             e_a, e_b = A_IJ1[:, a], A_IJ2[:, b]
     #             n = cross3(e_a, e_b)
     #             Omega1_e_a = cross3(Omega1, e_a)
     #             Omega2_e_b = cross3(Omega2, e_b)
@@ -873,24 +873,24 @@ class ProjectedPositionOrientationBase:
         nu1 = self._nu1
         W_g = np.zeros((self._nu, self.nla_g), dtype=q.dtype)
 
-        A_IB1 = self.A_IB1(t, q)
+        A_IJ1 = self.A_IJ1(t, q)
         J_R1 = self.J_R1(t, q)
         if self.constrain_translation:
-            r_B1B2 = self.r_OB2(t, q) - self.r_OB1(t, q)
-            J_B1 = self.J_B1(t, q)
-            J_B2 = self.J_B2(t, q)
+            r_J1J2 = self.r_OJ2(t, q) - self.r_OJ1(t, q)
+            J_J1 = self.J_J1(t, q)
+            J_J2 = self.J_J2(t, q)
             for i, ax in enumerate(self.constrained_axes_displacement):
                 W_g[:nu1, i] = (
-                    -A_IB1[:, ax] @ J_B1 + cross3(A_IB1[:, ax], r_B1B2) @ J_R1
+                    -A_IJ1[:, ax] @ J_J1 + cross3(A_IJ1[:, ax], r_J1J2) @ J_R1
                 )
-                W_g[nu1:, i] = A_IB1[:, ax] @ J_B2
+                W_g[nu1:, i] = A_IJ1[:, ax] @ J_J2
 
         if self.constrain_orientation:
-            A_IB2 = self.A_IB2(t, q)
+            A_IJ2 = self.A_IJ2(t, q)
             J = np.hstack([J_R1, -self.J_R2(t, q)])
 
             for i, (a, b) in enumerate(self.projection_pairs_rotation):
-                n = cross3(A_IB1[:, a], A_IB2[:, b])
+                n = cross3(A_IJ1[:, a], A_IJ2[:, b])
                 W_g[:, self.nla_g_trans + i] = n @ J
 
         return W_g
@@ -908,60 +908,60 @@ class ProjectedPositionOrientationBase:
         nu1 = self._nu1
         Wla_g_q = np.zeros((self._nu, self._nq), dtype=np.common_type(q, la_g))
 
-        A_IB1 = self.A_IB1(t, q)
-        A_IB1_q1 = self.A_IB1_q1(t, q)
+        A_IJ1 = self.A_IJ1(t, q)
+        A_IJ1_q1 = self.A_IJ1_q1(t, q)
         J_R1 = self.J_R1(t, q)
         J_R1_q1 = self.J_R1_q1(t, q)
         if self.constrain_translation:
-            r_B1B2 = self.r_OB2(t, q) - self.r_OB1(t, q)
-            r_OB1_q1 = self.r_OB1_q1(t, q)
-            r_OB2_q2 = self.r_OB2_q2(t, q)
-            J_B1 = self.J_B1(t, q)
-            J_B2 = self.J_B2(t, q)
-            J_B1_q1 = self.J_B1_q1(t, q)
-            J_B2_q2 = self.J_B2_q2(t, q)
+            r_J1J2 = self.r_OJ2(t, q) - self.r_OJ1(t, q)
+            r_OJ1_q1 = self.r_OJ1_q1(t, q)
+            r_OJ2_q2 = self.r_OJ2_q2(t, q)
+            J_J1 = self.J_J1(t, q)
+            J_J2 = self.J_J2(t, q)
+            J_J1_q1 = self.J_J1_q1(t, q)
+            J_J2_q2 = self.J_J2_q2(t, q)
             for i, ax in enumerate(self.constrained_axes_displacement):
                 Wla_g_q[:nu1, :nq1] += (
-                    np.einsum("i,ijk->jk", -la_g[i] * A_IB1[:, ax], J_B1_q1)
-                    + np.einsum("ik,ij->jk", -la_g[i] * A_IB1_q1[:, ax], J_B1)
+                    np.einsum("i,ijk->jk", -la_g[i] * A_IJ1[:, ax], J_J1_q1)
+                    + np.einsum("ik,ij->jk", -la_g[i] * A_IJ1_q1[:, ax], J_J1)
                     + np.einsum(
-                        "i,ijk->jk", la_g[i] * cross3(A_IB1[:, ax], r_B1B2), J_R1_q1
+                        "i,ijk->jk", la_g[i] * cross3(A_IJ1[:, ax], r_J1J2), J_R1_q1
                     )
                     + np.einsum(
-                        "ik,ij->jk", -la_g[i] * ax2skew(A_IB1[:, ax]) @ r_OB1_q1, J_R1
+                        "ik,ij->jk", -la_g[i] * ax2skew(A_IJ1[:, ax]) @ r_OJ1_q1, J_R1
                     )
                     + np.einsum(
-                        "ik,ij->jk", -la_g[i] * ax2skew(r_B1B2) @ A_IB1_q1[:, ax], J_R1
+                        "ik,ij->jk", -la_g[i] * ax2skew(r_J1J2) @ A_IJ1_q1[:, ax], J_R1
                     )
                 )
                 Wla_g_q[:nu1, nq1:] += np.einsum(
-                    "ik,ij->jk", la_g[i] * ax2skew(A_IB1[:, ax]) @ r_OB2_q2, J_R1
+                    "ik,ij->jk", la_g[i] * ax2skew(A_IJ1[:, ax]) @ r_OJ2_q2, J_R1
                 )
 
                 Wla_g_q[nu1:, :nq1] += np.einsum(
-                    "ij,ik->kj", la_g[i] * A_IB1_q1[:, ax], J_B2
+                    "ij,ik->kj", la_g[i] * A_IJ1_q1[:, ax], J_J2
                 )
                 Wla_g_q[nu1:, nq1:] += np.einsum(
-                    "i,ijk->jk", la_g[i] * A_IB1[:, ax], J_B2_q2
+                    "i,ijk->jk", la_g[i] * A_IJ1[:, ax], J_J2_q2
                 )
 
         # TODO: Compare with PositionOrientationBase
         if self.constrain_orientation:
-            A_IB1 = self.A_IB1(t, q)
-            A_IB2 = self.A_IB2(t, q)
+            A_IJ1 = self.A_IJ1(t, q)
+            A_IJ2 = self.A_IJ2(t, q)
 
-            A_IB1_q1 = self.A_IB1_q1(t, q)
-            A_IB2_q2 = self.A_IB2_q2(t, q)
+            A_IJ1_q1 = self.A_IJ1_q1(t, q)
+            A_IJ2_q2 = self.A_IJ2_q2(t, q)
 
             J_R2 = self.J_R2(t, q)
             J_R2_q2 = self.J_R2_q2(t, q)
 
             for i, (a, b) in enumerate(self.projection_pairs_rotation):
                 nla_g_trans = self.nla_g_trans
-                e_a, e_b = A_IB1[:, a], A_IB2[:, b]
+                e_a, e_b = A_IJ1[:, a], A_IJ2[:, b]
                 n = cross3(e_a, e_b)
-                n_q1 = -ax2skew(e_b) @ A_IB1_q1[:, a]
-                n_q2 = ax2skew(e_a) @ A_IB2_q2[:, b]
+                n_q1 = -ax2skew(e_b) @ A_IJ1_q1[:, a]
+                n_q2 = ax2skew(e_a) @ A_IJ2_q2[:, b]
                 Wla_g_q[:nu1, :nq1] += np.einsum(
                     "i,ijk->jk", la_g[nla_g_trans + i] * n, J_R1_q1
                 ) + np.einsum("ij,ik->kj", la_g[nla_g_trans + i] * n_q1, J_R1)

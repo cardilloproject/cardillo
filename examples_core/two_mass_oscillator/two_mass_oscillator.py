@@ -53,8 +53,8 @@ if __name__ == "__main__":
         TwoPointInteraction(
             mass1,
             mass2,
-            K_r_SP1=np.array([0.5 * width, 0, 0]),
-            K_r_SP2=np.array([-0.5 * width, 0, 0]),
+            B_r_CP1=np.array([0.5 * width, 0, 0]),
+            B_r_CP2=np.array([-0.5 * width, 0, 0]),
         ),
         k,
         d,

@@ -23,7 +23,7 @@ def Meshed(Base):
             self,
             mesh_obj,
             density=None,
-            K_r_SP=np.zeros(3),
+            B_r_CP=np.zeros(3),
             A_KM=np.eye(3),
             scale=1,
             **kwargs,
@@ -38,9 +38,9 @@ def Meshed(Base):
                 defining the mesh
             Density : float or None
                 Mass density for the computation of the inertia properties of the
-                mesh. If set to None, user specified mass and K_Theta_S are used.
-            K_r_SP : np.ndarray (3,)
-                Offset center of mass (S) from STL origin (P) in body fixed K-basis.
+                mesh. If set to None, user specified mass and B_Theta_C are used.
+            B_r_CP : np.ndarray (3,)
+                Offset center of mass (C) from (C)TL origin (P) in body fixed K-basis.
             A_KM: np.ndarray (3, 3)
                 Tansformation from mesh-fixed basis (M) to body-fixed basis (K).
             scale: float
@@ -48,7 +48,7 @@ def Meshed(Base):
             kwargs: dict,
                 Arguments of parent class (Base) as keyword arguments
             """
-            self.K_r_SP = K_r_SP
+            self.B_r_CP = B_r_CP
             self.A_KM = A_KM
 
             #############################
@@ -81,35 +81,35 @@ def Meshed(Base):
                 else:
                     print("Fixed mesh by filling the holes.")
 
-            # store visual mesh in body fixed frame
+            # store visual mesh in body fixed basis
             H_KM = np.eye(4)
-            H_KM[:3, 3] = K_r_SP
+            H_KM[:3, 3] = B_r_CP
             H_KM[:3, :3] = A_KM
-            self.K_visual_mesh = trimesh_mesh.copy().apply_transform(H_KM)
+            self.B_visual_mesh = trimesh_mesh.copy().apply_transform(H_KM)
 
-            # vectors (transposed) from S to vertices represented in body-fixed frame
-            self.K_r_SQi_T = self.K_visual_mesh.vertices.view(np.ndarray).T
+            # vectors (transposed) from (C) to vertices (Qi) represented in body-fixed basis
+            self.B_r_CQi_T = self.B_visual_mesh.vertices.view(np.ndarray).T
 
             # compute inertia quantities of body
             if density is not None:
                 # set density and compute properties
-                self.K_visual_mesh.density = density
-                mass = self.K_visual_mesh.mass
-                K_Theta_S = self.K_visual_mesh.moment_inertia
+                self.B_visual_mesh.density = density
+                mass = self.B_visual_mesh.mass
+                B_Theta_C = self.B_visual_mesh.moment_inertia
 
                 mass_arg = kwargs.pop("mass", None)
-                K_Theta_S_arg = kwargs.pop("K_Theta_S", None)
+                B_Theta_C_arg = kwargs.pop("B_Theta_C", None)
 
                 if (mass_arg is not None) and (not np.allclose(mass, mass_arg)):
                     print("Specified mass does not correspond to mass of mesh.")
-                if (K_Theta_S_arg is not None) and (
-                    not np.allclose(K_Theta_S, K_Theta_S_arg)
+                if (B_Theta_C_arg is not None) and (
+                    not np.allclose(B_Theta_C, B_Theta_C_arg)
                 ):
                     print(
                         "Specified moment of inertia does not correspond to moment of inertia of mesh."
                     )
 
-                kwargs.update({"mass": mass, "K_Theta_S": K_Theta_S})
+                kwargs.update({"mass": mass, "B_Theta_C": B_Theta_C})
 
             super().__init__(**kwargs)
 
@@ -117,14 +117,14 @@ def Meshed(Base):
             if base_export:
                 return super().export(sol_i, **kwargs)
             else:
-                r_OS = self.r_OP(
+                r_OC = self.r_OP(
                     sol_i.t, sol_i.q[self.qDOF]
                 )  # TODO: Idea: slicing could be done on global level in Export class. Moreover, solution class should be able to return the slice, e.g., sol_i.get_q_of_body(name).
-                A_IK = self.A_IK(sol_i.t, sol_i.q[self.qDOF])
-                points = (r_OS[:, None] + A_IK @ self.K_r_SQi_T).T
+                A_IB = self.A_IB(sol_i.t, sol_i.q[self.qDOF])
+                points = (r_OC[:, None] + A_IB @ self.B_r_CQi_T).T
 
                 cells = [
-                    ("triangle", self.K_visual_mesh.faces),
+                    ("triangle", self.B_visual_mesh.faces),
                 ]
 
             return points, cells, None, None
