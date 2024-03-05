@@ -13,11 +13,7 @@ class nPointInteraction:
         raise NotImplementedError("This class is not tested yet.")
         self.subsystems = subsystem_list
         self.n_subsystems = len(subsystem_list)
-        self.xis = (
-            xi_list
-            if xi_list is not None
-            else self.n_subsystems * [np.zeros(3)]
-        )
+        self.xis = xi_list if xi_list is not None else self.n_subsystems * [np.zeros(3)]
         self.Bi_r_CPis = (
             B_r_CP_list
             if B_r_CP_list is not None

@@ -208,9 +208,9 @@ class RigidBody:
 
     @cachedmethod(
         lambda self: self.v_P_cache,
-        key=lambda self, t, q, u, xi=None, B_r_CP=np.zeros(
-            3, dtype=float
-        ): hashkey(t, *q, *u, *B_r_CP),
+        key=lambda self, t, q, u, xi=None, B_r_CP=np.zeros(3, dtype=float): hashkey(
+            t, *q, *u, *B_r_CP
+        ),
     )
     def v_P(self, t, q, u, xi=None, B_r_CP=np.zeros(3, dtype=float)):
         return u[:3] + self.A_IB(t, q) @ cross3(u[3:], B_r_CP)

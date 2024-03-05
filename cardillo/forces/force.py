@@ -17,9 +17,7 @@ class Force:
         Name of contribution.
     """
 
-    def __init__(
-        self, force, subsystem, xi=zeros(3), B_r_CP=zeros(3), name="force"
-    ):
+    def __init__(self, force, subsystem, xi=zeros(3), B_r_CP=zeros(3), name="force"):
         if not callable(force):
             self.force = lambda t: force
         else:
@@ -80,9 +78,7 @@ class B_Force:
         self.A_IB_q = lambda t, q: subsystem.A_IB_q(t, q, xi=xi)
         self.r_OP = lambda t, q: subsystem.r_OP(t, q, xi=xi, B_r_CP=B_r_CP)
         self.J_P = lambda t, q: subsystem.J_P(t, q, xi=xi, B_r_CP=B_r_CP)
-        self.J_P_q = lambda t, q: subsystem.J_P_q(
-            t, q, xi=xi, B_r_CP=B_r_CP
-        )
+        self.J_P_q = lambda t, q: subsystem.J_P_q(t, q, xi=xi, B_r_CP=B_r_CP)
 
     def assembler_callback(self):
         self.qDOF = self.subsystem.qDOF[self.subsystem.local_qDOF_P(self.xi)]

@@ -1,4 +1,3 @@
-
 #############
 # description
 #############
@@ -34,9 +33,9 @@ if __name__ == "__main__":
     g = np.array([0, 0, -10])
 
     # initial conditions
-    r_OC0 = np.array([-0.75, 0, 8 * radius]) # initial position of c.o.m.
+    r_OC0 = np.array([-0.75, 0, 8 * radius])  # initial position of c.o.m.
     v_C0 = np.array([1, 0, 0])  # initial velocity of c.o.m.
-    B_Omega0 = np.array([0, -25, 0])    # initial angular velocity
+    B_Omega0 = np.array([0, -25, 0])  # initial angular velocity
 
     # simulation parameters
     t1 = 3  # final time
@@ -73,7 +72,7 @@ if __name__ == "__main__":
 
     # add contact between ball and floor
     ball2plane = Sphere2Plane(floor, ball, mu=mu, r=radius, e_N=e_N, e_F=e_F)
-    system.add(floor, ball2plane) 
+    system.add(floor, ball2plane)
 
     # assemble system
     system.assemble()
@@ -86,11 +85,11 @@ if __name__ == "__main__":
     sol = solver.solve()  # simulate system
 
     # read solution
-    t = sol.t # time
-    q = sol.q # position coordinates
-    u = sol.u   # velocity coordinates
-    P_N = sol.P_N   # discrete percussions in normal direction
-    P_F = sol.P_F   # discrete percussions of friction
+    t = sol.t  # time
+    q = sol.q  # position coordinates
+    u = sol.u  # velocity coordinates
+    P_N = sol.P_N  # discrete percussions in normal direction
+    P_F = sol.P_F  # discrete percussions of friction
 
     #################
     # post-processing
@@ -114,7 +113,12 @@ if __name__ == "__main__":
     ax[0, 1].grid()
 
     # plot time evolution of rotation angle around y-axis
-    phi_dot = np.array([ball.B_Omega(ti, qi, ui)[1] for ti, qi, ui in zip(t, q[:, ball.qDOF], u[:, ball.uDOF])])
+    phi_dot = np.array(
+        [
+            ball.B_Omega(ti, qi, ui)[1]
+            for ti, qi, ui in zip(t, q[:, ball.qDOF], u[:, ball.uDOF])
+        ]
+    )
     phi = np.cumsum(phi_dot * dt)
     ax[0, 2].plot(t, phi, "-g", label="$\varphi$")
     ax[0, 2].set_title("Evolution of rotation angle around y-axis")
@@ -158,7 +162,6 @@ if __name__ == "__main__":
     fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(10, 7))
     # plot time evolution for x-coordinate
     x = [ball.r_OP(ti, qi)[0] for ti, qi in zip(t, q[:, ball.qDOF])]
-    # TODO: can we plot the rotation angle  around y-axis?
     ax[0, 0].plot(t, x, "-r", label="$x$")
     ax[0, 0].set_title("Evolution of horizontal position")
     ax[0, 0].set_xlabel("t")

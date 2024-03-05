@@ -98,9 +98,7 @@ class Sphere2Plane:
         self.v_P_q = lambda t, q, u: self.subsystem.v_P_q(
             t, q, u, xi=self.xi, B_r_CP=self.B_r_CP
         )
-        self.J_P = lambda t, q: self.subsystem.J_P(
-            t, q, xi=self.xi, B_r_CP=self.B_r_CP
-        )
+        self.J_P = lambda t, q: self.subsystem.J_P(t, q, xi=self.xi, B_r_CP=self.B_r_CP)
         self.J_P_q = lambda t, q: self.subsystem.J_P_q(
             t, q, xi=self.xi, B_r_CP=self.B_r_CP
         )
@@ -115,6 +113,7 @@ class Sphere2Plane:
         )
 
         if hasattr(self.subsystem, "A_IB"):
+            self.A_IB = lambda t, q: self.subsystem.A_IB(t, q, xi=self.xi)
             self.Omega = lambda t, q, u: self.subsystem.A_IB(
                 t, q, xi=self.xi
             ) @ self.subsystem.B_Omega(t, q, u, xi=self.xi)
@@ -263,7 +262,7 @@ class Sphere2Plane:
         r_QC2 = r_OP - self.r_OQ - n * (g_N + self.r)
         points = [r_OP + r_PC1, r_OP - n * (g_N + self.r)]
         cells = [("line", [[0, 1]])]
-        A_IB1 = self.subsystem.A_IB(sol_i.t, sol_i.q[self.qDOF])
+        A_IB1 = self.A_IB(sol_i.t, sol_i.q[self.qDOF])
         A_IB2 = self.frame.A_IB(sol_i.t)
         point_data = dict(
             v_Ci=[
@@ -272,9 +271,9 @@ class Sphere2Plane:
                     sol_i.q[self.qDOF],
                     sol_i.u[self.uDOF],
                     self.xi,
-                    A_IB1 @ r_PC1,
+                    A_IB1.T @ r_PC1,
                 ),
-                self.frame.v_P(sol_i.t, B_r_CP=A_IB2 @ r_QC2),
+                self.frame.v_P(sol_i.t, B_r_CP=A_IB2.T @ r_QC2),
             ],
             Omega=[
                 self.Omega(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF]),

@@ -2,14 +2,8 @@ import numpy as np
 from scipy.sparse import bmat
 from scipy.sparse.linalg import splu
 
-# from cardillo.math import (
-#     NegativeOrthant,
-#     norm,
-#     estimate_prox_parameter,
-# )
 from cardillo.math.prox import NegativeOrthant, estimate_prox_parameter
 from cardillo.math.algebra import norm
-
 from cardillo.definitions import IS_CLOSE_ATOL
 from .solver_options import SolverOptions
 
@@ -249,35 +243,28 @@ def compute_I_F(I_N, system, slice=True):
     # compute set of active friction contacts and local connectivity
     I_F = []
     global_active_friction_laws = []
-    nla_N_global = 0
-    nla_F_global = 0
     nla_F_local = 0
     for contr in system.get_contribution_list("gamma_F"):
         for i_N, i_F, force_reservoir in contr.friction_laws:
-            i_F_global = np.array(i_F, dtype=int) + nla_F_global
+            i_F_global = contr.la_FDOF[i_F]
             n_F = len(i_F)
-            # TODO: This can be assembeled once in the system
             i_F_local = np.arange(n_F) + nla_F_local
 
-            n_N = len(i_N)
-            if n_N > 0:  # normal force dependence
-                i_N_global = np.array(i_N, dtype=int) + nla_N_global
+            if len(i_N) > 0:  # normal force dependence
+                i_N_global = contr.la_NDOF[i_N][0]  # scalar normal force
 
                 # only add friction if normal force is active
-                if not slice or (i_N_global[0] in I_N):
-                    i_N_local = np.where(i_N_global == I_N)[0]
+                if not slice or (i_N_global in I_N):
                     nla_F_local += n_F
+                    i_N_local = np.where(i_N_global == I_N)[0]
                     I_F.extend(i_F_global)
                     global_active_friction_laws.append(
                         (i_N_local, i_F_local, force_reservoir)
                     )
 
             else:  # no normal force dependence
+                nla_F_local += n_F
                 I_F.extend(i_F_global)
                 global_active_friction_laws.append(([], i_F_local, force_reservoir))
-
-        if hasattr(contr, "nla_N"):
-            nla_N_global += contr.nla_N
-        nla_F_global += contr.nla_F
 
     return np.array(I_F, dtype=int), global_active_friction_laws

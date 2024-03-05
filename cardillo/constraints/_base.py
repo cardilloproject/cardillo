@@ -65,15 +65,11 @@ def auxiliary_functions(
     object.a_J1_u1 = lambda t, q, u, u_dot: object.subsystem1.a_P_u(
         t, q[:nq1], u[:nu1], u_dot[:nu1], object.xi1, B1_r_P1B0
     )
-    object.J_J1 = lambda t, q: object.subsystem1.J_P(
-        t, q[:nq1], object.xi1, B1_r_P1B0
-    )
+    object.J_J1 = lambda t, q: object.subsystem1.J_P(t, q[:nq1], object.xi1, B1_r_P1B0)
     object.J_J1_q1 = lambda t, q: object.subsystem1.J_P_q(
         t, q[:nq1], object.xi1, B1_r_P1B0
     )
-    object.A_IJ1 = (
-        lambda t, q: object.subsystem1.A_IB(t, q[:nq1], object.xi1) @ A_K1B0
-    )
+    object.A_IJ1 = lambda t, q: object.subsystem1.A_IB(t, q[:nq1], object.xi1) @ A_K1B0
     object.A_IJ1_q1 = lambda t, q: np.einsum(
         "ijl,jk->ikl", object.subsystem1.A_IB_q(t, q[:nq1], object.xi1), A_K1B0
     )
@@ -84,9 +80,7 @@ def auxiliary_functions(
         "ijk,j->ik",
         object.subsystem1.A_IB_q(t, q[:nq1], xi=object.xi1),
         object.subsystem1.B_Omega(t, q[:nq1], u[:nu1], object.xi1),
-    ) + object.subsystem1.A_IB(
-        t, q[:nq1], xi=object.xi1
-    ) @ object.subsystem1.B_Omega_q(
+    ) + object.subsystem1.A_IB(t, q[:nq1], xi=object.xi1) @ object.subsystem1.B_Omega_q(
         t, q[:nq1], u[:nu1], object.xi1
     )
 
@@ -97,9 +91,7 @@ def auxiliary_functions(
         "ijk,j->ik",
         object.subsystem1.A_IB_q(t, q[:nq1], xi=object.xi1),
         object.subsystem1.B_Psi(t, q[:nq1], u[:nu1], u_dot[:nu1], object.xi1),
-    ) + object.subsystem1.A_IB(
-        t, q[:nq1], xi=object.xi1
-    ) @ object.subsystem1.B_Psi_q(
+    ) + object.subsystem1.A_IB(t, q[:nq1], xi=object.xi1) @ object.subsystem1.B_Psi_q(
         t, q[:nq1], u[:nu1], u_dot[:nu1], object.xi1
     )
     object.Psi1_u1 = lambda t, q, u, u_dot: object.subsystem1.A_IB(
@@ -141,15 +133,11 @@ def auxiliary_functions(
     object.a_J2_u2 = lambda t, q, u, u_dot: object.subsystem2.a_P_u(
         t, q[nq1:], u[nu1:], u_dot[nu1:], object.xi2, B2_r_P2B0
     )
-    object.J_J2 = lambda t, q: object.subsystem2.J_P(
-        t, q[nq1:], object.xi2, B2_r_P2B0
-    )
+    object.J_J2 = lambda t, q: object.subsystem2.J_P(t, q[nq1:], object.xi2, B2_r_P2B0)
     object.J_J2_q2 = lambda t, q: object.subsystem2.J_P_q(
         t, q[nq1:], object.xi2, B2_r_P2B0
     )
-    object.A_IJ2 = (
-        lambda t, q: object.subsystem2.A_IB(t, q[nq1:], object.xi2) @ A_K2B0
-    )
+    object.A_IJ2 = lambda t, q: object.subsystem2.A_IB(t, q[nq1:], object.xi2) @ A_K2B0
     object.A_IJ2_q2 = lambda t, q: np.einsum(
         "ijk,jl->ilk", object.subsystem2.A_IB_q(t, q[nq1:], object.xi2), A_K2B0
     )
@@ -160,9 +148,7 @@ def auxiliary_functions(
         "ijk,j->ik",
         object.subsystem2.A_IB_q(t, q[nq1:], xi=object.xi2),
         object.subsystem2.B_Omega(t, q[nq1:], u[nu1:], object.xi2),
-    ) + object.subsystem2.A_IB(
-        t, q[nq1:], xi=object.xi2
-    ) @ object.subsystem2.B_Omega_q(
+    ) + object.subsystem2.A_IB(t, q[nq1:], xi=object.xi2) @ object.subsystem2.B_Omega_q(
         t, q[nq1:], u[nu1:], object.xi2
     )
 
@@ -173,9 +159,7 @@ def auxiliary_functions(
         "ijk,j->ik",
         object.subsystem2.A_IB_q(t, q[nq1:], xi=object.xi2),
         object.subsystem2.B_Psi(t, q[nq1:], u[nu1:], u_dot[nu1:], object.xi2),
-    ) + object.subsystem2.A_IB(
-        t, q[nq1:], xi=object.xi2
-    ) @ object.subsystem2.B_Psi_q(
+    ) + object.subsystem2.A_IB(t, q[nq1:], xi=object.xi2) @ object.subsystem2.B_Psi_q(
         t, q[nq1:], u[nu1:], u_dot[nu1:], object.xi2
     )
     object.Psi2_u2 = lambda t, q, u, u_dot: object.subsystem2.A_IB(

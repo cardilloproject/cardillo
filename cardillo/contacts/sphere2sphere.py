@@ -95,9 +95,7 @@ class Sphere2Sphere:
         #####################################
         self.r_OC1 = lambda t, q: self.subsystem1.r_OP(t, q[:nq1], self.xi1)
         self.r_OC1_q = lambda t, q: self.subsystem1.r_OP_q(t, q[:nq1], self.xi1)
-        self.v_C1 = lambda t, q, u: self.subsystem1.v_P(
-            t, q[:nq1], u[:nu1], self.xi1
-        )
+        self.v_C1 = lambda t, q, u: self.subsystem1.v_P(t, q[:nq1], u[:nu1], self.xi1)
         self.v_C1_q = lambda t, q, u: self.subsystem1.v_P_q(
             t, q[:nq1], u[:nu1], self.xi1
         )
@@ -118,9 +116,7 @@ class Sphere2Sphere:
         ) @ self.subsystem1.B_Omega(t, q[:nq1], u[:nu1], xi=self.xi1)
         self.Omega1_q = lambda t, q, u: self.subsystem1.A_IB(
             t, q[:nq1], xi=self.xi1
-        ) @ self.subsystem1.B_Omega_q(
-            t, q[:nq1], u[:nu1], xi=self.xi1
-        ) + np.einsum(
+        ) @ self.subsystem1.B_Omega_q(t, q[:nq1], u[:nu1], xi=self.xi1) + np.einsum(
             "ijk,j->ik",
             self.subsystem1.A_IB_q(t, q[:nq1], xi=self.xi1),
             self.subsystem1.B_Omega(t, q[:nq1], u[:nu1], xi=self.xi1),
@@ -147,24 +143,18 @@ class Sphere2Sphere:
         ) + np.einsum(
             "ijk,j->ik",
             self.subsystem1.A_IB_q(t, q[:nq1], xi=self.xi1),
-            self.subsystem1.B_Psi(
-                t, q[:nq1], u[:nu1], a[:nu1], xi=self.xi1
-            ),
+            self.subsystem1.B_Psi(t, q[:nq1], u[:nu1], a[:nu1], xi=self.xi1),
         )
         self.Psi1_u = lambda t, q, u, a: self.subsystem1.A_IB(
             t, q[:nq1], xi=self.xi1
-        ) @ self.subsystem1.B_Psi_u(
-            t, q[:nq1], u[:nu1], a[:nu1], xi=self.xi1
-        )
+        ) @ self.subsystem1.B_Psi_u(t, q[:nq1], u[:nu1], a[:nu1], xi=self.xi1)
 
         #####################################
         # auxiliary functions for subsystem 1
         #####################################
         self.r_OC2 = lambda t, q: self.subsystem2.r_OP(t, q[nq1:], self.xi2)
         self.r_OC2_q = lambda t, q: self.subsystem2.r_OP_q(t, q[nq1:], self.xi2)
-        self.v_C2 = lambda t, q, u: self.subsystem2.v_P(
-            t, q[nq1:], u[nu1:], self.xi2
-        )
+        self.v_C2 = lambda t, q, u: self.subsystem2.v_P(t, q[nq1:], u[nu1:], self.xi2)
         self.v_C2_q = lambda t, q, u: self.subsystem2.v_P_q(
             t, q[nq1:], u[nu1:], self.xi2
         )
@@ -185,9 +175,7 @@ class Sphere2Sphere:
         ) @ self.subsystem2.B_Omega(t, q[nq1:], u[nu1:], xi=self.xi2)
         self.Omega2_q = lambda t, q, u: self.subsystem2.A_IB(
             t, q[nq1:], xi=self.xi2
-        ) @ self.subsystem2.B_Omega_q(
-            t, q[nq1:], u[nu1:], xi=self.xi2
-        ) + np.einsum(
+        ) @ self.subsystem2.B_Omega_q(t, q[nq1:], u[nu1:], xi=self.xi2) + np.einsum(
             "ijk,j->ik",
             self.subsystem2.A_IB_q(t, q[nq1:], xi=self.xi2),
             self.subsystem2.B_Omega(t, q[nq1:], u[nu1:], xi=self.xi2),

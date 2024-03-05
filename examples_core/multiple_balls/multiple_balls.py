@@ -69,7 +69,9 @@ if __name__ == "__main__":
 
     # floor
     floor = Box(Frame)(
-        dimensions=[2, 2, 0.0001], name="floor", A_IB=A_IB_basic(np.deg2rad(10)).x @ A_IB_basic(np.deg2rad(10)).y
+        dimensions=[2, 2, 0.0001],
+        name="floor",
+        A_IB=A_IB_basic(np.deg2rad(10)).x @ A_IB_basic(np.deg2rad(10)).y,
     )
     system.add(floor)  # (only for visualization purposes)
 
@@ -101,7 +103,12 @@ if __name__ == "__main__":
     # simulation
     ############
     dt = 1.0e-3  # time step
-    solver = Moreau(system, t1, dt, options=SolverOptions(fixed_point_max_iter=int(1e4), prox_scaling=0.5))  # create solver
+    solver = Moreau(
+        system,
+        t1,
+        dt,
+        options=SolverOptions(fixed_point_max_iter=int(1e4), prox_scaling=0.5),
+    )  # create solver
     # solver = BackwardEuler(
     #     system,
     #     t1,

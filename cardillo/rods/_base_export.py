@@ -50,10 +50,8 @@ class RodExportBase(ABC):
 
         return np.array(r).T, np.array(d1).T, np.array(d2).T, np.array(d3).T
 
-    def export(self, sol_i, continuity="C1", circle_as_wedge=True, **kwargs):
+    def export(self, sol_i, continuity="C1", circle_as_wedge=True, level="volume", **kwargs):
         q = sol_i.q
-
-        level = kwargs["level"]
 
         if "num" in kwargs:
             num = kwargs["num"]
@@ -424,7 +422,7 @@ class RodExportBase(ABC):
 
                     cells = [
                         (
-                            "VTB_BEZIER_WEDGE",
+                            "VTK_BEZIER_WEDGE",
                             np.arange(i * n_cell, (i + 1) * n_cell)[None],
                         )
                         for i in range(n_segments)
@@ -439,7 +437,7 @@ class RodExportBase(ABC):
 
                     cells = [
                         (
-                            "VTB_BEZIER_HEXAHEDRON",
+                            "VTK_BEZIER_HEXAHEDRON",
                             np.arange(i * n_cell, (i + 1) * n_cell)[None],
                         )
                         for i in range(n_segments)
@@ -454,7 +452,7 @@ class RodExportBase(ABC):
 
                 cells = [
                     (
-                        "VTB_BEZIER_HEXAHEDRON",
+                        "VTK_BEZIER_HEXAHEDRON",
                         np.arange(i * n_cell, (i + 1) * n_cell)[None],
                     )
                     for i in range(n_segments)

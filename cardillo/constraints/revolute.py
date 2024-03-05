@@ -38,7 +38,7 @@ class Revolute(PositionOrientationBase):
         A_IJ0=None,
         xi1=None,
         xi2=None,
-        name="revolute_joint"
+        name="revolute_joint",
     ):
         self.name = name
         self.axis = axis
