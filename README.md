@@ -90,7 +90,7 @@ https://peps.python.org/pep-0008/#naming-conventions
 * constants: `ABS_TOL`
 
 **exceptions**:
-* mechanics beats convention, e.g., `A_IK`instead of `a_ik` or `Exp_SO3` instead of `eps_so3`
+* mechanics beats convention, e.g., `A_IB`instead of `a_ik` or `Exp_SO3` instead of `eps_so3`
 
 ### Import Conventions
 

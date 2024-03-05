@@ -22,8 +22,8 @@ dt = 1.0e-3
 
 # axis angle rotation axis
 psi = np.random.rand(3)
-A_IK0 = Exp_SO3(psi)
-print(f"A_IK0:\n{A_IK0}")
+A_IB0 = Exp_SO3(psi)
+print(f"A_IB0:\n{A_IB0}")
 
 # initial rotational velocity e_z^K axis
 alpha_dot0 = 2
@@ -38,7 +38,7 @@ m = 1
 r = 0.2
 A = 1 / 4 * m * r**2 + 1 / 12 * m * l**2
 C = 1 / 2 * m * r**2
-K_theta_S = np.diag(np.array([A, A, C]))
+B_Theta_C = np.diag(np.array([A, A, C]))
 
 show = False
 
@@ -53,8 +53,8 @@ def run(Solver, **solver_kwargs):
     ####################
     r_OP0 = np.zeros(3)
     v_P0 = np.zeros(3)
-    K_Omega0 = alpha_dot0 * np.eye(3)[rotation_axis]
-    u0 = np.hstack((v_P0, K_Omega0))
+    B_Omega0 = alpha_dot0 * np.eye(3)[rotation_axis]
+    u0 = np.hstack((v_P0, B_Omega0))
 
     ######################
     # define contributions
@@ -64,14 +64,14 @@ def run(Solver, **solver_kwargs):
     n_psi = norm(psi)
     p = axis_angle2quat(psi / n_psi, n_psi)
     q0 = np.hstack((r_OP0, p))
-    rigid_body = RigidBody(m, K_theta_S, q0, u0)
+    rigid_body = RigidBody(m, B_Theta_C, q0, u0)
 
     joint = Revolute(
         system.origin,
         rigid_body,
         rotation_axis,
-        r_OB0=np.zeros(3),
-        A_IB0=A_IK0,
+        r_OJ0=np.zeros(3),
+        A_IJ0=A_IB0,
     )
 
     spring = KelvinVoigtElement(joint, k, d, l_ref=g_ref)
@@ -79,8 +79,8 @@ def run(Solver, **solver_kwargs):
     #     subsystem1=system.origin,
     #     subsystem2=rigid_body,
     #     axis=rotation_axis,
-    #     r_OB0=np.zeros(3),
-    #     A_IB0=A_IK0,
+    #     r_OJ0=np.zeros(3),
+    #     A_IJ0=A_IB0,
     #     k=k,
     #     d=d,
     #     g_ref=g_ref,
@@ -102,7 +102,7 @@ def run(Solver, **solver_kwargs):
         joint.reset()
         alpha_cmp = [joint.angle(ti, qi[joint.qDOF]) for ti, qi in zip(t, q)]
 
-        Theta = K_theta_S[rotation_axis, rotation_axis]
+        Theta = B_Theta_C[rotation_axis, rotation_axis]
 
         def eqm(t, x):
             dx = np.zeros(2)

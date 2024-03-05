@@ -3,17 +3,44 @@ from cardillo.constraints._base import PositionOrientationBase
 
 
 class Revolute(PositionOrientationBase):
+    r"""Constraint representation of revolute joint.
+
+    Parameters
+    ----------
+    subsystem1 : object
+        RigidBody or CosseratRod
+    subsystem2 : object
+        RigidBody or CosseratRod
+    axis : int
+        Integer number between 0 and 2 to indicate which axis is the free rotation axis.
+        0 : e_x^B-direction.
+        1 : e_y^B-direction.
+        2 : e_z^B-direction.
+    angle0 : float
+        Value of the joint angle in initial configuration q0.
+    r_OJ0 : np.ndarray (3,)
+        Initial position vector of joint.
+    A_IJ0 : np.ndarray (3, 3)
+        Initial orientation of joint basis. Defines axis of rotation together with 'axis'.
+    xi1 : #TODO
+    xi2 : #TODO
+    name : str
+        Name of contribution.
+    """
+
     def __init__(
         self,
         subsystem1,
         subsystem2,
         axis,
         angle0=0.0,
-        r_OB0=None,
-        A_IB0=None,
-        frame_ID1=None,
-        frame_ID2=None,
+        r_OJ0=None,
+        A_IJ0=None,
+        xi1=None,
+        xi2=None,
+        name="revolute_joint",
     ):
+        self.name = name
         self.axis = axis
         self.angle0 = angle0
         self.plane_axes = np.roll([0, 1, 2], -axis)[1:]
@@ -30,10 +57,10 @@ class Revolute(PositionOrientationBase):
             subsystem1,
             subsystem2,
             projection_pairs_rotation=projection_pairs_rotation,
-            r_OB0=r_OB0,
-            A_IB0=A_IB0,
-            frame_ID1=frame_ID1,
-            frame_ID2=frame_ID2,
+            r_OJ0=r_OJ0,
+            A_IJ0=A_IJ0,
+            xi1=xi1,
+            xi2=xi2,
         )
 
     def assembler_callback(self):
@@ -54,14 +81,14 @@ class Revolute(PositionOrientationBase):
             raise RuntimeError("You should never be here!")
 
     def l(self, t, q):
-        A_IB1 = self.A_IB1(t, q)
-        A_IB2 = self.A_IB2(t, q)
+        A_IJ1 = self.A_IJ1(t, q)
+        A_IJ2 = self.A_IJ2(t, q)
 
         a, b = self.plane_axes
 
-        e_a1 = A_IB1[:, a]
-        e_b1 = A_IB1[:, b]
-        e_a2 = A_IB2[:, a]
+        e_a1 = A_IJ1[:, a]
+        e_b1 = A_IJ1[:, b]
+        e_a2 = A_IJ2[:, a]
 
         # projections
         y = e_a2 @ e_b1
@@ -90,12 +117,12 @@ class Revolute(PositionOrientationBase):
         return angle
 
     def l_dot(self, t, q, u):
-        e_c1 = self.A_IB1(t, q)[:, self.axis]
+        e_c1 = self.A_IJ1(t, q)[:, self.axis]
         return (self.Omega2(t, q, u) - self.Omega1(t, q, u)) @ e_c1
 
     def l_dot_q(self, t, q, u):
-        e_c1 = self.A_IB1(t, q)[:, self.axis]
-        e_c1_q1 = self.A_IB1_q1(t, q)[:, self.axis]
+        e_c1 = self.A_IJ1(t, q)[:, self.axis]
+        e_c1_q1 = self.A_IJ1_q1(t, q)[:, self.axis]
 
         return np.concatenate(
             [
@@ -106,24 +133,24 @@ class Revolute(PositionOrientationBase):
         )
 
     def l_dot_u(self, t, q, u):
-        e_c1 = self.A_IB1(t, q)[:, self.axis]
+        e_c1 = self.A_IJ1(t, q)[:, self.axis]
         return e_c1 @ np.concatenate([-self.J_R1(t, q), self.J_R2(t, q)], axis=1)
 
     def l_q(self, t, q):
-        A_IB1 = self.A_IB1(t, q)
-        A_IB2 = self.A_IB2(t, q)
-        A_IB1_q1 = self.A_IB1_q1(t, q)
-        A_IB2_q2 = self.A_IB2_q2(t, q)
+        A_IJ1 = self.A_IJ1(t, q)
+        A_IJ2 = self.A_IJ2(t, q)
+        A_IJ1_q1 = self.A_IJ1_q1(t, q)
+        A_IJ2_q2 = self.A_IJ2_q2(t, q)
 
         a, b = self.plane_axes
 
-        e_a1 = A_IB1[:, a]
-        e_b1 = A_IB1[:, b]
-        e_a2 = A_IB2[:, a]
+        e_a1 = A_IJ1[:, a]
+        e_b1 = A_IJ1[:, b]
+        e_a2 = A_IJ2[:, a]
 
-        e_a1_q1 = A_IB1_q1[:, a]
-        e_b1_q1 = A_IB1_q1[:, b]
-        e_a2_q2 = A_IB2_q2[:, a]
+        e_a1_q1 = A_IJ1_q1[:, a]
+        e_b1_q1 = A_IJ1_q1[:, b]
+        e_a2_q2 = A_IJ2_q2[:, a]
 
         # projections
         y = e_a2 @ e_b1
@@ -137,7 +164,7 @@ class Revolute(PositionOrientationBase):
     def W_l(self, t, q):
         J_R1 = self.J_R1(t, q)
         J_R2 = self.J_R2(t, q)
-        e_c1 = self.A_IB1(t, q)[:, self.axis]
+        e_c1 = self.A_IJ1(t, q)[:, self.axis]
         return np.concatenate([-J_R1.T @ e_c1, J_R2.T @ e_c1]).reshape(self._nu, 1)
 
     def W_l_q(self, t, q):
@@ -149,8 +176,8 @@ class Revolute(PositionOrientationBase):
         J_R1_q1 = self.J_R1_q1(t, q)
         J_R2_q2 = self.J_R2_q2(t, q)
 
-        e_c1 = self.A_IB1(t, q)[:, self.axis]
-        e_c1_q1 = self.A_IB1_q1(t, q)[:, self.axis]
+        e_c1 = self.A_IJ1(t, q)[:, self.axis]
+        e_c1_q1 = self.A_IJ1_q1(t, q)[:, self.axis]
 
         # dense blocks
         W_angle_q = np.zeros((self._nu, 1, self._nq))

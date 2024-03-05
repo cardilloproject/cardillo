@@ -4,7 +4,7 @@ from math import pi
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-from cardillo.math import A_IK_basic, cross3, axis_angle2quat
+from cardillo.math import A_IB_basic, cross3, axis_angle2quat
 
 from cardillo import System
 from cardillo.discrete import Frame
@@ -40,7 +40,7 @@ if __name__ == "__main__":
 
     A = 1 / 4 * m * r**2 + 1 / 12 * m * l**2
     C = 1 / 2 * m * r**2
-    K_theta_S = np.diag(np.array([A, C, A]))
+    B_Theta_C = np.diag(np.array([A, C, A]))
 
     ############################################################################
     #                   Rigid Body 1
@@ -48,31 +48,31 @@ if __name__ == "__main__":
     alpha0 = pi / 2
     alpha_dot0 = 0
 
-    r_OB1 = np.zeros(3)
-    A_IB1 = np.eye(3)
-    origin = Frame(r_OP=r_OB1, A_IK=A_IB1)
-    A_IK10 = A_IK_basic(alpha0).z()
-    r_OS10 = -0.5 * l * A_IK10[:, 1]
+    r_OJ1 = np.zeros(3)
+    A_IJ1 = np.eye(3)
+    origin = Frame(r_OP=r_OJ1, A_IB=A_IJ1)
+    A_IB10 = A_IB_basic(alpha0).z()
+    r_OC10 = -0.5 * l * A_IB10[:, 1]
     omega01 = np.array([0, 0, alpha_dot0])
-    vS1 = cross3(omega01, r_OS10)
+    vS1 = cross3(omega01, r_OC10)
     u01 = np.concatenate([vS1, omega01])
 
     if use_quaternion:
         p01 = axis_angle2quat(np.array([0, 0, 1]), alpha0)
-        q01 = np.concatenate([r_OS10, p01])
-        RB1 = RigidBody(m, K_theta_S, q01, u01)
+        q01 = np.concatenate([r_OC10, p01])
+        RB1 = RigidBody(m, B_Theta_C, q01, u01)
     elif use_euler:
-        q01 = np.concatenate([r_OS10, np.array([0, 0, alpha0])])
-        RB1 = RigidBodyEuler(m, K_theta_S, "xyz", q0=q01, u0=u01)
+        q01 = np.concatenate([r_OC10, np.array([0, 0, alpha0])])
+        RB1 = RigidBodyEuler(m, B_Theta_C, "xyz", q0=q01, u0=u01)
     elif use_axisangle:
         p01 = np.array([0, 0, 1]) * alpha0
-        q01 = np.concatenate([r_OS10, p01])
-        RB1 = RigidBodyAxisAngle(m, K_theta_S, q01, u01)
+        q01 = np.concatenate([r_OC10, p01])
+        RB1 = RigidBodyAxisAngle(m, B_Theta_C, q01, u01)
 
     if use_spherical_joint:
-        joint1 = Spherical(origin, RB1, r_OB1)
+        joint1 = Spherical(origin, RB1, r_OJ1)
     else:
-        joint1 = Revolute(origin, RB1, r_OB1, A_IB1)
+        joint1 = Revolute(origin, RB1, r_OJ1, A_IJ1)
 
     ############################################################################
     #                   Rigid Body 2
@@ -80,32 +80,32 @@ if __name__ == "__main__":
     beta0 = 0
     beta_dot0 = 0
 
-    r_OB2 = -l * A_IK10[:, 1]
-    A_IB2 = A_IK10
-    A_IK20 = A_IK10 @ A_IK_basic(beta0).z()
-    r_B2S2 = -0.5 * l * A_IK20[:, 1]
-    r_OS20 = r_OB2 + r_B2S2
+    r_OJ2 = -l * A_IB10[:, 1]
+    A_IJ2 = A_IB10
+    A_IB20 = A_IB10 @ A_IB_basic(beta0).z()
+    r_B2S2 = -0.5 * l * A_IB20[:, 1]
+    r_OC20 = r_OJ2 + r_B2S2
     omega02 = np.array([0, 0, alpha_dot0 + beta_dot0])
-    vB2 = cross3(omega01, r_OB2)
+    vB2 = cross3(omega01, r_OJ2)
     vS2 = vB2 + cross3(omega02, r_B2S2)
     u02 = np.concatenate([vS2, omega02])
 
     if use_quaternion:
         p02 = axis_angle2quat(np.array([0, 0, 1]), alpha0 + beta0)
-        q02 = np.concatenate([r_OS20, p02])
-        RB2 = RigidBody(m, K_theta_S, q02, u02)
+        q02 = np.concatenate([r_OC20, p02])
+        RB2 = RigidBody(m, B_Theta_C, q02, u02)
     elif use_euler:
-        q02 = np.concatenate([r_OS20, np.array([0, 0, alpha0 + beta0])])
-        RB2 = RigidBodyEuler(m, K_theta_S, "xyz", q0=q02, u0=u02)
+        q02 = np.concatenate([r_OC20, np.array([0, 0, alpha0 + beta0])])
+        RB2 = RigidBodyEuler(m, B_Theta_C, "xyz", q0=q02, u0=u02)
     elif use_axisangle:
         p02 = np.array([0, 0, 1]) * (alpha0 + beta0)
-        q02 = np.concatenate([r_OS20, p02])
-        RB2 = RigidBodyAxisAngle(m, K_theta_S, q02, u02)
+        q02 = np.concatenate([r_OC20, p02])
+        RB2 = RigidBodyAxisAngle(m, B_Theta_C, q02, u02)
 
     if use_spherical_joint:
-        joint2 = Spherical(RB1, RB2, r_OB2)
+        joint2 = Spherical(RB1, RB2, r_OJ2)
     else:
-        joint2 = Revolute(RB1, RB2, r_OB2, A_IB2)
+        joint2 = Revolute(RB1, RB2, r_OJ2, A_IJ2)
 
     ############################################################################
     #                   model
@@ -153,15 +153,15 @@ if __name__ == "__main__":
         x_S1, y_S1, z_S1 = RB1.r_OP(t, q[RB1.qDOF])
         x_S2, y_S2, z_S2 = RB2.r_OP(t, q[RB2.qDOF])
 
-        A_IK1 = RB1.A_IK(t, q[RB1.qDOF])
-        d11 = A_IK1[:, 0]
-        d21 = A_IK1[:, 1]
-        d31 = A_IK1[:, 2]
+        A_IB1 = RB1.A_IB(t, q[RB1.qDOF])
+        d11 = A_IB1[:, 0]
+        d21 = A_IB1[:, 1]
+        d31 = A_IB1[:, 2]
 
-        A_IK2 = RB2.A_IK(t, q[RB2.qDOF])
-        d12 = A_IK2[:, 0]
-        d22 = A_IK2[:, 1]
-        d32 = A_IK2[:, 2]
+        A_IB2 = RB2.A_IB(t, q[RB2.qDOF])
+        d12 = A_IB2[:, 0]
+        d22 = A_IB2[:, 1]
+        d32 = A_IB2[:, 2]
 
         (COM,) = ax.plot([x_0, x_S1, x_S2], [y_0, y_S1, y_S2], [z_0, z_S1, z_S2], "-ok")
         (d11_,) = ax.plot(
@@ -206,18 +206,18 @@ if __name__ == "__main__":
     def update(t, q, COM, d11_, d21_, d31_, d12_, d22_, d32_):
         # def update(t, q, COM, d11_, d21_, d31_):
         x_0, y_0, z_0 = origin.r_OP(t)
-        x_S1, y_S1, z_S1 = RB1.r_OP(t, q[RB1.qDOF], K_r_SP=np.array([0, -l / 2, 0]))
-        x_S2, y_S2, z_S2 = RB2.r_OP(t, q[RB2.qDOF], K_r_SP=np.array([0, -l / 2, 0]))
+        x_S1, y_S1, z_S1 = RB1.r_OP(t, q[RB1.qDOF], B_r_CP=np.array([0, -l / 2, 0]))
+        x_S2, y_S2, z_S2 = RB2.r_OP(t, q[RB2.qDOF], B_r_CP=np.array([0, -l / 2, 0]))
 
-        A_IK1 = RB1.A_IK(t, q[RB1.qDOF])
-        d11 = A_IK1[:, 0]
-        d21 = A_IK1[:, 1]
-        d31 = A_IK1[:, 2]
+        A_IB1 = RB1.A_IB(t, q[RB1.qDOF])
+        d11 = A_IB1[:, 0]
+        d21 = A_IB1[:, 1]
+        d31 = A_IB1[:, 2]
 
-        A_IK2 = RB2.A_IK(t, q[RB2.qDOF])
-        d12 = A_IK2[:, 0]
-        d22 = A_IK2[:, 1]
-        d32 = A_IK2[:, 2]
+        A_IB2 = RB2.A_IB(t, q[RB2.qDOF])
+        d12 = A_IB2[:, 0]
+        d22 = A_IB2[:, 1]
+        d32 = A_IB2[:, 2]
 
         COM.set_data([x_0, x_S1, x_S2], [y_0, y_S1, y_S2])
         COM.set_3d_properties([z_0, z_S1, z_S2])

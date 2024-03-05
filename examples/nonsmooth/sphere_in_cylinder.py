@@ -18,8 +18,8 @@ class Ball(RigidBodyEuler):
 
     def boundary(self, t, q, n=100):
         phi = np.linspace(0, 2 * np.pi, n, endpoint=True)
-        K_r_SP = self.r * np.vstack([np.sin(phi), np.cos(phi), np.zeros(n)])
-        return np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ K_r_SP
+        B_r_CP = self.r * np.vstack([np.sin(phi), np.cos(phi), np.zeros(n)])
+        return np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IB(t, q) @ B_r_CP
 
 
 if __name__ == "__main__":
@@ -35,14 +35,14 @@ if __name__ == "__main__":
     y_dot0 = 0
     phi0 = 0
     phi_dot0 = 0
-    r_OS0 = np.array([x0, y0, 0])
+    r_OC0 = np.array([x0, y0, 0])
     vS0 = np.array([x_dot0, y_dot0, 0])
-    q0 = np.concatenate([r_OS0, np.array([phi0, 0, 0])])
+    q0 = np.concatenate([r_OC0, np.array([phi0, 0, 0])])
     u0 = np.concatenate([vS0, np.array([0, 0, phi_dot0])])
     RB = Ball(m, r, q0, u0)
 
     e1, e2, e3 = np.eye(3)
-    frame = Frame(A_IK=np.vstack((e3, e1, e2)).T, r_OP=np.array([0, 0, 0]))
+    frame = Frame(A_IB=np.vstack((e3, e1, e2)).T, r_OP=np.array([0, 0, 0]))
     mu = 0.1
     r_N = 0.3
     e_N = 0
@@ -200,10 +200,10 @@ if __name__ == "__main__":
         def create(t, q_n, q_fp):
             x_S, y_S, _ = RB.r_OP(t, q_n)
 
-            A_IK = RB.A_IK(t, q_n)
-            d1 = A_IK[:, 0] * r
-            d2 = A_IK[:, 1] * r
-            # d3 = A_IK[:, 2] * r
+            A_IB = RB.A_IB(t, q_n)
+            d1 = A_IB[:, 0] * r
+            d2 = A_IB[:, 1] * r
+            # d3 = A_IB[:, 2] * r
 
             (COM_n,) = ax.plot([x_S], [y_S], "ok")
             (bdry_n,) = ax.plot([], [], "-k")
@@ -212,10 +212,10 @@ if __name__ == "__main__":
 
             x_S, y_S, _ = RB.r_OP(t, q_fp)
 
-            A_IK = RB.A_IK(t, q_fp)
-            d1 = A_IK[:, 0] * r
-            d2 = A_IK[:, 1] * r
-            # d3 = A_IK[:, 2] * r
+            A_IB = RB.A_IB(t, q_fp)
+            d1 = A_IB[:, 0] * r
+            d2 = A_IB[:, 1] * r
+            # d3 = A_IB[:, 2] * r
 
             (COM_fp,) = ax.plot([x_S], [y_S], "ob")
             (bdry_fp,) = ax.plot([], [], "-b")
@@ -234,10 +234,10 @@ if __name__ == "__main__":
 
             x_bdry, y_bdry, _ = RB.boundary(t, q_n)
 
-            A_IK = RB.A_IK(t, q_n)
-            d1 = A_IK[:, 0] * r
-            d2 = A_IK[:, 1] * r
-            # d3 = A_IK[:, 2] * r
+            A_IB = RB.A_IB(t, q_n)
+            d1 = A_IB[:, 0] * r
+            d2 = A_IB[:, 1] * r
+            # d3 = A_IB[:, 2] * r
 
             COM_n.set_data([x_S], [y_S])
             bdry_n.set_data(x_bdry, y_bdry)
@@ -249,10 +249,10 @@ if __name__ == "__main__":
 
             x_bdry, y_bdry, _ = RB.boundary(t, q_fp)
 
-            A_IK = RB.A_IK(t, q_fp)
-            d1 = A_IK[:, 0] * r
-            d2 = A_IK[:, 1] * r
-            # d3 = A_IK[:, 2] * r
+            A_IB = RB.A_IB(t, q_fp)
+            d1 = A_IB[:, 0] * r
+            d2 = A_IB[:, 1] * r
+            # d3 = A_IB[:, 2] * r
 
             COM_fp.set_data([x_S], [y_S])
             bdry_fp.set_data(x_bdry, y_bdry)

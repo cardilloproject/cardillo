@@ -1,2 +1,2 @@
-from .force import Force, K_Force
-from .moment import Moment, K_Moment
+from .force import Force, B_Force
+from .moment import Moment, B_Moment

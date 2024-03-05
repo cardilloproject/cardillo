@@ -138,7 +138,7 @@ class RectangularCrossSection(CrossSection):
 
 class CrossSectionInertias:
     def __init__(
-        self, density=None, cross_section=None, A_rho0=1.0, K_I_rho0=np.eye(3)
+        self, density=None, cross_section=None, A_rho0=1.0, B_I_rho0=np.eye(3)
     ):
         """Inertial properties of cross-sections. Centerline must coincide with line of centroids.
 
@@ -150,13 +150,13 @@ class CrossSectionInertias:
             Cross-section object, which provides cross-section area and second moment of area.
         A_rho0 : float
             Cross-section mass density, i.e., mass per unit reference length of rod.
-        K_I_rho0 : np.array(3, 3)
+        B_I_rho0 : np.array(3, 3)
             Cross-section inertia tensor represented in the cross-section-fixed K-Basis.
 
         """
         if density is None or cross_section is None:
             self.A_rho0 = A_rho0
-            self.K_I_rho0 = K_I_rho0
+            self.B_I_rho0 = B_I_rho0
         else:
             self.A_rho0 = density * cross_section.area
-            self.K_I_rho0 = density * cross_section.second_moment
+            self.B_I_rho0 = density * cross_section.second_moment

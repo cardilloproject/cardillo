@@ -305,18 +305,18 @@ def T_SO3_inv_psi(psi: np.ndarray) -> np.ndarray:
     return T_SO3_inv_psi
 
 
-def SE3(A_IK: np.ndarray, r_OP: np.ndarray) -> np.ndarray:
-    H = np.zeros((4, 4), dtype=np.common_type(A_IK, r_OP))
-    H[:3, :3] = A_IK
+def SE3(A_IB: np.ndarray, r_OP: np.ndarray) -> np.ndarray:
+    H = np.zeros((4, 4), dtype=np.common_type(A_IB, r_OP))
+    H[:3, :3] = A_IB
     H[:3, 3] = r_OP
     H[3, 3] = 1.0
     return H
 
 
 def SE3inv(H: np.ndarray) -> np.ndarray:
-    A_IK = H[:3, :3]
+    A_IB = H[:3, :3]
     r_OP = H[:3, 3]
-    return SE3(A_IK.T, -A_IK.T @ r_OP)
+    return SE3(A_IB.T, -A_IB.T @ r_OP)
 
 
 def Exp_SE3(h: np.ndarray) -> np.ndarray:
@@ -397,7 +397,7 @@ def T_SE3(h: np.ndarray) -> np.ndarray:
     return T
 
 
-class A_IK_basic:
+class A_IB_basic:
     """Basic rotations in Euclidean space."""
 
     def __init__(self, phi: float):
@@ -405,6 +405,7 @@ class A_IK_basic:
         self.sp = np.sin(phi)
         self.cp = np.cos(phi)
 
+    @property
     def x(self) -> np.ndarray:
         """Rotation around x-axis."""
         # fmt: off
@@ -413,6 +414,7 @@ class A_IK_basic:
                          [0, self.sp,  self.cp]])
         # fmt: on
 
+    @property
     def dx(self) -> np.ndarray:
         """Derivative of Rotation around x-axis."""
         # fmt: off
@@ -421,6 +423,7 @@ class A_IK_basic:
                          [0,  self.cp, -self.sp]])
         # fmt: on
 
+    @property
     def y(self) -> np.ndarray:
         """Rotation around y-axis."""
         # fmt: off
@@ -429,6 +432,7 @@ class A_IK_basic:
                          [-self.sp, 0, self.cp]])
         # fmt: on
 
+    @property
     def dy(self) -> np.ndarray:
         """Derivative of Rotation around y-axis."""
         # fmt: off
@@ -437,6 +441,7 @@ class A_IK_basic:
                          [-self.cp, 0, -self.sp]])
         # fmt: on
 
+    @property
     def z(self) -> np.ndarray:
         """Rotation around z-axis."""
         # fmt: off
@@ -445,6 +450,7 @@ class A_IK_basic:
                          [      0,        0, 1]])
         # fmt: on
 
+    @property
     def dz(self) -> np.ndarray:
         """Derivative of Rotation around z-axis."""
         # fmt: off

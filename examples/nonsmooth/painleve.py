@@ -20,7 +20,7 @@ class Painleve_rod:
 
         self.m = 1
         self.s = 1
-        self.J_S = self.m * self.s**2 / 3
+        self.J_C = self.m * self.s**2 / 3
         self.g = 10
         self.nu = 0
 
@@ -57,7 +57,7 @@ class Painleve_rod:
     # equations of motion
     #####################
     def M(self, t, q):
-        return np.diag([self.m, self.m, self.J_S])
+        return np.diag([self.m, self.m, self.J_C])
 
     def h(self, t, q, u):
         return np.array([0, -self.m * self.g, 0])

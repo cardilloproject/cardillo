@@ -15,15 +15,42 @@ class Sphere2Plane:
         subsystem,
         mu,
         r=0,
+        xi=None,
+        B_r_CP=np.zeros(3),
         e_N=None,
         e_F=None,
         anisotropy=np.ones(2),
-        frame_ID=None,
-        K_r_SP=np.zeros(3),
+        name="sphere_to_plane_contact",
     ):
+        """Contact between a sphere and a plane modelled as unilateral constraint with set-valued Coulomb friction.
+
+        Parameters
+        ----------
+        frame : cardillo.discrete.Frame
+            Frame that defines the plane. e_z-axis of frame is plane's normal direction. Origin of frame is point on plane.
+        subsystem : object
+            Subsystem containing the point around which the spherical contact surface is defined.
+        mu : float
+            Frictional coefficient
+        e_N : float
+            Restitution coefficient for Newton-like impact law in normal direction.
+        e_N : float
+            Restitution coefficient for Newton-like impact law for friction.
+        xi : TODO
+        B_r_CP : np.ndarray (3,)
+            Position of center of sphere (P) with respect to the center of mass/reference point TODO (C) of the subsystem in the body-fixed K-basis.
+        r : float
+            Radius of spherical contact surface. Possible values are in [0, inf].
+        anisotropy : np.ndarray (2,)
+            Scaling factors for stretching the friction force reservoir in e_x and e_y-direction of the 'frame'.
+            anisotropy=(1,1) corresponds to a circular force reservoir, i.e., isotropic Coulomb friction.
+        name : str
+            Name of contribution.
+        """
         self.frame = frame
         self.subsystem = subsystem
         self.r = r
+        self.name = name
 
         self.nla_N = 1
         self.e_N = np.zeros(self.nla_N) if e_N is None else e_N * np.ones(self.nla_N)
@@ -32,6 +59,7 @@ class Sphere2Plane:
             self.A = np.diag(anisotropy)
             self.nla_F = 2 * self.nla_N
             self.gamma_F = self.__gamma_F
+            self.gamma_F_q = self.__gamma_F_q
             self.e_F = (
                 np.zeros(self.nla_F) if e_F is None else e_F * np.ones(self.nla_F)
             )
@@ -43,85 +71,84 @@ class Sphere2Plane:
             # fmt: on
 
         self.r_OQ = self.frame.r_OP(0)
-        self.t1t2 = self.frame.A_IK(0).T[:2]
-        self.n = self.frame.A_IK(0)[:, 2]
+        self.t1t2 = self.frame.A_IB(0).T[:2]
+        self.n = self.frame.A_IB(0)[:, 2]
 
-        self.frame_ID = frame_ID
-        self.K_r_SP = K_r_SP
+        self.xi = xi
+        self.B_r_CP = B_r_CP
 
     def assembler_callback(self):
-        qDOF = self.subsystem.local_qDOF_P(self.frame_ID)
+        qDOF = self.subsystem.local_qDOF_P(self.xi)
         self.qDOF = self.subsystem.qDOF[qDOF]
         self.nq = len(self.qDOF)
 
-        uDOF = self.subsystem.local_uDOF_P(self.frame_ID)
+        uDOF = self.subsystem.local_uDOF_P(self.xi)
         self.uDOF = self.subsystem.uDOF[uDOF]
         self.nu = len(self.uDOF)
 
         self.r_OP = lambda t, q: self.subsystem.r_OP(
-            t, q, frame_ID=self.frame_ID, K_r_SP=self.K_r_SP
+            t, q, xi=self.xi, B_r_CP=self.B_r_CP
         )
         self.r_OP_q = lambda t, q: self.subsystem.r_OP_q(
-            t, q, frame_ID=self.frame_ID, K_r_SP=self.K_r_SP
+            t, q, xi=self.xi, B_r_CP=self.B_r_CP
         )
         self.v_P = lambda t, q, u: self.subsystem.v_P(
-            t, q, u, frame_ID=self.frame_ID, K_r_SP=self.K_r_SP
+            t, q, u, xi=self.xi, B_r_CP=self.B_r_CP
         )
         self.v_P_q = lambda t, q, u: self.subsystem.v_P_q(
-            t, q, u, frame_ID=self.frame_ID, K_r_SP=self.K_r_SP
+            t, q, u, xi=self.xi, B_r_CP=self.B_r_CP
         )
-        self.J_P = lambda t, q: self.subsystem.J_P(
-            t, q, frame_ID=self.frame_ID, K_r_SP=self.K_r_SP
-        )
+        self.J_P = lambda t, q: self.subsystem.J_P(t, q, xi=self.xi, B_r_CP=self.B_r_CP)
         self.J_P_q = lambda t, q: self.subsystem.J_P_q(
-            t, q, frame_ID=self.frame_ID, K_r_SP=self.K_r_SP
+            t, q, xi=self.xi, B_r_CP=self.B_r_CP
         )
         self.a_P = lambda t, q, u, a: self.subsystem.a_P(
-            t, q, u, a, frame_ID=self.frame_ID, K_r_SP=self.K_r_SP
+            t, q, u, a, xi=self.xi, B_r_CP=self.B_r_CP
         )
         self.a_P_q = lambda t, q, u, a: self.subsystem.a_P_q(
-            t, q, u, a, frame_ID=self.frame_ID, K_r_SP=self.K_r_SP
+            t, q, u, a, xi=self.xi, B_r_CP=self.B_r_CP
         )
         self.a_P_u = lambda t, q, u, a: self.subsystem.a_P_u(
-            t, q, u, a, frame_ID=self.frame_ID, K_r_SP=self.K_r_SP
+            t, q, u, a, xi=self.xi, B_r_CP=self.B_r_CP
         )
 
-        if hasattr(self.subsystem, "A_IK"):
-            self.Omega = lambda t, q, u: self.subsystem.A_IK(
-                t, q, frame_ID=self.frame_ID
-            ) @ self.subsystem.K_Omega(t, q, u, frame_ID=self.frame_ID)
-            self.Omega_q = lambda t, q, u: self.subsystem.A_IK(
-                t, q, frame_ID=self.frame_ID
-            ) @ self.subsystem.K_Omega_q(t, q, u, frame_ID=self.frame_ID) + np.einsum(
+        if hasattr(self.subsystem, "A_IB"):
+            self.A_IB = lambda t, q: self.subsystem.A_IB(t, q, xi=self.xi)
+            self.Omega = lambda t, q, u: self.subsystem.A_IB(
+                t, q, xi=self.xi
+            ) @ self.subsystem.B_Omega(t, q, u, xi=self.xi)
+            self.Omega_q = lambda t, q, u: self.subsystem.A_IB(
+                t, q, xi=self.xi
+            ) @ self.subsystem.B_Omega_q(t, q, u, xi=self.xi) + np.einsum(
                 "ijk,j->ik",
-                self.subsystem.A_IK_q(t, q, frame_ID=self.frame_ID),
-                self.subsystem.K_Omega(t, q, u, frame_ID=self.frame_ID),
+                self.subsystem.A_IB_q(t, q, xi=self.xi),
+                self.subsystem.B_Omega(t, q, u, xi=self.xi),
             )
-            self.J_R = lambda t, q: self.subsystem.A_IK(
-                t, q, frame_ID=self.frame_ID
-            ) @ self.subsystem.K_J_R(t, q, frame_ID=self.frame_ID)
+            self.J_R = lambda t, q: self.subsystem.A_IB(
+                t, q, xi=self.xi
+            ) @ self.subsystem.B_J_R(t, q, xi=self.xi)
             self.J_R_q = lambda t, q: np.einsum(
                 "ijl,jk->ikl",
-                self.subsystem.A_IK_q(t, q, frame_ID=self.frame_ID),
-                self.subsystem.K_J_R(t, q, frame_ID=self.frame_ID),
+                self.subsystem.A_IB_q(t, q, xi=self.xi),
+                self.subsystem.B_J_R(t, q, xi=self.xi),
             ) + np.einsum(
                 "ij,jkl->ikl",
-                self.subsystem.A_IK(t, q, frame_ID=self.frame_ID),
-                self.subsystem.K_J_R_q(t, q, frame_ID=self.frame_ID),
+                self.subsystem.A_IB(t, q, xi=self.xi),
+                self.subsystem.B_J_R_q(t, q, xi=self.xi),
             )
-            self.Psi = lambda t, q, u, a: self.subsystem.A_IK(
-                t, q, frame_ID=self.frame_ID
-            ) @ self.subsystem.K_Psi(t, q, u, a, frame_ID=self.frame_ID)
-            self.Psi_q = lambda t, q, u, a: self.subsystem.A_IK(
-                t, q, frame_ID=self.frame_ID
-            ) @ self.subsystem.K_Psi_q(t, q, u, a, frame_ID=self.frame_ID) + np.einsum(
+            self.Psi = lambda t, q, u, a: self.subsystem.A_IB(
+                t, q, xi=self.xi
+            ) @ self.subsystem.B_Psi(t, q, u, a, xi=self.xi)
+            self.Psi_q = lambda t, q, u, a: self.subsystem.A_IB(
+                t, q, xi=self.xi
+            ) @ self.subsystem.B_Psi_q(t, q, u, a, xi=self.xi) + np.einsum(
                 "ijk,j->ik",
-                self.subsystem.A_IK_q(t, q, frame_ID=self.frame_ID),
-                self.subsystem.K_Psi(t, q, u, a, frame_ID=self.frame_ID),
+                self.subsystem.A_IB_q(t, q, xi=self.xi),
+                self.subsystem.B_Psi(t, q, u, a, xi=self.xi),
             )
-            self.Psi_u = lambda t, q, u, a: self.subsystem.A_IK(
-                t, q, frame_ID=self.frame_ID
-            ) @ self.subsystem.K_Psi_u(t, q, u, a, frame_ID=self.frame_ID)
+            self.Psi_u = lambda t, q, u, a: self.subsystem.A_IB(
+                t, q, xi=self.xi
+            ) @ self.subsystem.B_Psi_u(t, q, u, a, xi=self.xi)
         else:
             self.Omega = lambda t, q, u: np.zeros(3)
             self.Omega_q = lambda t, q, u: np.zeros((3, self.subsystem.nq))
@@ -180,7 +207,7 @@ class Sphere2Plane:
         v_C = self.v_P(t, q, u) + self.r * cross3(self.n, self.Omega(t, q, u))
         return self.A.T @ self.t1t2 @ v_C
 
-    def gamma_F_q(self, t, q, u):
+    def __gamma_F_q(self, t, q, u):
         # return approx_fprime(q, lambda q: self.gamma_F(t, q, u))
         v_C_q = self.v_P_q(t, q, u) + self.r * ax2skew(self.n) @ self.Omega_q(t, q, u)
         return self.A.T @ self.t1t2 @ v_C_q
@@ -235,22 +262,22 @@ class Sphere2Plane:
         r_QC2 = r_OP - self.r_OQ - n * (g_N + self.r)
         points = [r_OP + r_PC1, r_OP - n * (g_N + self.r)]
         cells = [("line", [[0, 1]])]
-        A_IK1 = self.subsystem.A_IK(sol_i.t, sol_i.q[self.qDOF])
-        A_IK2 = self.frame.A_IK(sol_i.t)
+        A_IB1 = self.A_IB(sol_i.t, sol_i.q[self.qDOF])
+        A_IB2 = self.frame.A_IB(sol_i.t)
         point_data = dict(
             v_Ci=[
                 self.subsystem.v_P(
                     sol_i.t,
                     sol_i.q[self.qDOF],
                     sol_i.u[self.uDOF],
-                    self.frame_ID,
-                    A_IK1 @ r_PC1,
+                    self.xi,
+                    A_IB1.T @ r_PC1,
                 ),
-                self.frame.v_P(sol_i.t, K_r_SP=A_IK2 @ r_QC2),
+                self.frame.v_P(sol_i.t, B_r_CP=A_IB2.T @ r_QC2),
             ],
             Omega=[
                 self.Omega(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF]),
-                A_IK2 @ self.frame.K_Omega(sol_i.t),
+                A_IB2 @ self.frame.B_Omega(sol_i.t),
             ],
             n=[-n, n],
             t1=[-t1, t1],

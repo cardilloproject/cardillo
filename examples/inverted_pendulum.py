@@ -13,7 +13,7 @@ from cardillo.forces import Force
 from cardillo.actuators import Motor, PDcontroller, PIDcontroller
 from cardillo.solver import Moreau, BackwardEuler, Rattle, ScipyIVP
 
-from cardillo.math import A_IK_basic, cross3
+from cardillo.math import A_IB_basic, cross3
 from cardillo.math import smoothstep2
 
 from optimal_control_pendulum import optimal_control_pendulum
@@ -49,19 +49,19 @@ if __name__ == "__main__":
 
     system = System()
 
-    K_r_OS = np.array([0, -l / 2, 0])
-    A_IK0 = A_IK_basic(phi0).z()
-    r_OS0 = A_IK0 @ K_r_OS
-    K_Omega0 = np.array([0, 0, phi_dot0])
-    v_S0 = cross3(K_Omega0, r_OS0)  # I_Omega0 = K_Omega0
+    B_r_OC = np.array([0, -l / 2, 0])
+    A_IB0 = A_IB_basic(phi0).z()
+    r_OC0 = A_IB0 @ B_r_OC
+    B_Omega0 = np.array([0, 0, phi_dot0])
+    v_C0 = cross3(B_Omega0, r_OC0)  # I_Omega0 = B_Omega0
 
-    q0 = RigidBody.pose2q(r_OS0, A_IK0)
-    u0 = np.concatenate([v_S0, K_Omega0])
+    q0 = RigidBody.pose2q(r_OC0, A_IB0)
+    u0 = np.concatenate([v_C0, B_Omega0])
     pendulum = RigidBody(m, theta_S * np.eye(3), q0=q0, u0=u0)
     pendulum.name = "pendulum"
 
     joint = Revolute(
-        system.origin, pendulum, axis=2, angle0=phi0, A_IB0=A_IK_basic(-np.pi / 2).z()
+        system.origin, pendulum, axis=2, angle0=phi0, A_IJ0=A_IB_basic(-np.pi / 2).z()
     )
     joint.name = "revolute joint"
 
@@ -120,17 +120,17 @@ if __name__ == "__main__":
             ####################
             # inverse kinematics
             ####################
-            A_IK = np.array([A_IK_basic(phi_).z() for phi_ in phi])
-            r_OS = np.array([A_IK_ @ K_r_OS for A_IK_ in A_IK])
-            K_Omega = np.array([[0, 0, phi_dot_] for phi_dot_ in phi_dot])
-            v_S = np.array(
-                [cross3(K_Omega_, r_OS_) for K_Omega_, r_OS_ in zip(K_Omega, r_OS[1:])]
-            )  # I_Omega = K_Omega!!
+            A_IB = np.array([A_IB_basic(phi_).z() for phi_ in phi])
+            r_OC = np.array([A_IB_ @ B_r_OC for A_IB_ in A_IB])
+            B_Omega = np.array([[0, 0, phi_dot_] for phi_dot_ in phi_dot])
+            v_C = np.array(
+                [cross3(B_Omega_, r_OC_) for B_Omega_, r_OC_ in zip(B_Omega, r_OC[1:])]
+            )  # I_Omega = B_Omega!!
 
             q = np.array(
-                [RigidBody.pose2q(r_OS_, A_IK_) for r_OS_, A_IK_ in zip(r_OS, A_IK)]
+                [RigidBody.pose2q(r_OC_, A_IB_) for r_OC_, A_IB_ in zip(r_OC, A_IB)]
             )
-            u = np.concatenate([v_S, K_Omega], axis=1)
+            u = np.concatenate([v_C, B_Omega], axis=1)
             u_dot = (u[1:] - u[:-1]) / dt
 
             # fig, ax = plt.subplots()
@@ -253,8 +253,8 @@ if __name__ == "__main__":
     ax.plot(np.cos(angles), np.sin(angles), "--k")
 
     def update(t, q, line):
-        r_OS = pendulum.r_OP(t, q)
-        line.set_data([0, 2 * r_OS[0]], [0, 2 * r_OS[1]])
+        r_OC = pendulum.r_OP(t, q)
+        line.set_data([0, 2 * r_OC[0]], [0, 2 * r_OC[1]])
         return (line,)
 
     def animate(i):

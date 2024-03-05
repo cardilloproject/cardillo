@@ -7,24 +7,44 @@ class TwoPointInteraction:
         self,
         subsystem1,
         subsystem2,
-        frame_ID1=None,
-        frame_ID2=None,
-        K_r_SP1=np.zeros(3, dtype=float),
-        K_r_SP2=np.zeros(3, dtype=float),
+        xi1=None,
+        xi2=None,
+        B_r_CP1=np.zeros(3, dtype=float),
+        B_r_CP2=np.zeros(3, dtype=float),
+        name="two_point_interaction",
     ):
+        r"""Interface for scalar force interaction between two points. Provides distance between the points, its time derivatives and the generalized force direction of the scalar force acting along the connection line between the two points.
+
+        Parameters
+        ----------
+        subsystem1 : object
+            Object containing first point of interaction (P1)
+        subsystem1 : object
+            Object containing second point of interaction (P2)
+        xi1 : #TODO
+        xi2 : #TODO
+        B_r_CP1 : np.ndarray (3,)
+            Position vector of first point (P1) w.r.t. center of mass (C) in body-fixed K-basis of subsystem1.
+        B_r_CP2 : np.ndarray (3,)
+            Position vector of second point (P2) w.r.t. center of mass (C) in body-fixed K-basis of subsystem2.
+        name : str
+            Name of contribution.
+        """
         self.subsystem1 = subsystem1
-        self.frame_ID1 = frame_ID1
-        self.K_r_SP1 = K_r_SP1
+        self.xi1 = xi1
+        self.B_r_CP1 = B_r_CP1
 
         self.subsystem2 = subsystem2
-        self.frame_ID2 = frame_ID2
-        self.K_r_SP2 = K_r_SP2
+        self.xi2 = xi2
+        self.B_r_CP2 = B_r_CP2
+
+        self.name = name
 
     def assembler_callback(self):
         qDOF1 = self.subsystem1.qDOF
         qDOF2 = self.subsystem2.qDOF
-        local_qDOF1 = self.subsystem1.local_qDOF_P(self.frame_ID1)
-        local_qDOF2 = self.subsystem2.local_qDOF_P(self.frame_ID2)
+        local_qDOF1 = self.subsystem1.local_qDOF_P(self.xi1)
+        local_qDOF2 = self.subsystem2.local_qDOF_P(self.xi2)
         self.qDOF = np.concatenate((qDOF1[local_qDOF1], qDOF2[local_qDOF2]))
         self._nq1 = len(local_qDOF1)
         self._nq2 = len(local_qDOF2)
@@ -35,8 +55,8 @@ class TwoPointInteraction:
 
         uDOF1 = self.subsystem1.uDOF
         uDOF2 = self.subsystem2.uDOF
-        local_uDOF1 = self.subsystem1.local_uDOF_P(self.frame_ID1)
-        local_uDOF2 = self.subsystem2.local_uDOF_P(self.frame_ID2)
+        local_uDOF1 = self.subsystem1.local_uDOF_P(self.xi1)
+        local_uDOF2 = self.subsystem2.local_uDOF_P(self.xi2)
         self.uDOF = np.concatenate((uDOF1[local_uDOF1], uDOF2[local_uDOF2]))
         self._nu1 = len(local_uDOF1)
         self._nu2 = len(local_uDOF2)
@@ -46,41 +66,41 @@ class TwoPointInteraction:
         self.u0 = np.concatenate((u01[local_uDOF1], u02[local_uDOF2]))
 
         self.r_OP1 = lambda t, q: self.subsystem1.r_OP(
-            t, q[: self._nq1], self.frame_ID1, self.K_r_SP1
+            t, q[: self._nq1], self.xi1, self.B_r_CP1
         )
         self.r_OP1_q = lambda t, q: self.subsystem1.r_OP_q(
-            t, q[: self._nq1], self.frame_ID1, self.K_r_SP1
+            t, q[: self._nq1], self.xi1, self.B_r_CP1
         )
         self.J_P1 = lambda t, q: self.subsystem1.J_P(
-            t, q[: self._nq1], self.frame_ID1, self.K_r_SP1
+            t, q[: self._nq1], self.xi1, self.B_r_CP1
         )
         self.J_P1_q = lambda t, q: self.subsystem1.J_P_q(
-            t, q[: self._nq1], self.frame_ID1, self.K_r_SP1
+            t, q[: self._nq1], self.xi1, self.B_r_CP1
         )
         self.v_P1 = lambda t, q, u: self.subsystem1.v_P(
-            t, q[: self._nq1], u[: self._nu1], self.frame_ID1, self.K_r_SP1
+            t, q[: self._nq1], u[: self._nu1], self.xi1, self.B_r_CP1
         )
         self.v_P1_q = lambda t, q, u: self.subsystem1.v_P_q(
-            t, q[: self._nq1], u[: self._nu1], self.frame_ID1, self.K_r_SP1
+            t, q[: self._nq1], u[: self._nu1], self.xi1, self.B_r_CP1
         )
 
         self.r_OP2 = lambda t, q: self.subsystem2.r_OP(
-            t, q[self._nq1 :], self.frame_ID2, self.K_r_SP2
+            t, q[self._nq1 :], self.xi2, self.B_r_CP2
         )
         self.r_OP2_q = lambda t, q: self.subsystem2.r_OP_q(
-            t, q[self._nq1 :], self.frame_ID2, self.K_r_SP2
+            t, q[self._nq1 :], self.xi2, self.B_r_CP2
         )
         self.J_P2 = lambda t, q: self.subsystem2.J_P(
-            t, q[self._nq1 :], self.frame_ID2, self.K_r_SP2
+            t, q[self._nq1 :], self.xi2, self.B_r_CP2
         )
         self.J_P2_q = lambda t, q: self.subsystem2.J_P_q(
-            t, q[self._nq1 :], self.frame_ID2, self.K_r_SP2
+            t, q[self._nq1 :], self.xi2, self.B_r_CP2
         )
         self.v_P2 = lambda t, q, u: self.subsystem2.v_P(
-            t, q[self._nq1 :], u[self._nu1 :], self.frame_ID2, self.K_r_SP2
+            t, q[self._nq1 :], u[self._nu1 :], self.xi2, self.B_r_CP2
         )
         self.v_P2_q = lambda t, q, u: self.subsystem2.v_P_q(
-            t, q[self._nq1 :], u[self._nu1 :], self.frame_ID2, self.K_r_SP2
+            t, q[self._nq1 :], u[self._nu1 :], self.xi2, self.B_r_CP2
         )
 
     # auxiliary functions
@@ -168,18 +188,5 @@ class TwoPointInteraction:
             self.r_OP2(sol_i.t, sol_i.q[self.qDOF]),
         ]
         cells = [("line", [[0, 1]])]
-        h = self._h(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])
-        la = self.W_l(sol_i.t, sol_i.q[self.qDOF]).T @ h
-        n = self._n(sol_i.t, sol_i.q[self.qDOF])
-        point_data = dict(la=[la, la], n=[n, -n])
-        # cell_data = dict(h=[h])
-        cell_data = dict(
-            n=[[n]],
-            g=[[self.l(sol_i.t, sol_i.q[self.qDOF])]],
-            g_dot=[[self.l_dot(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])]],
-        )
-        if hasattr(self, "E_pot"):
-            E_pot = [self.E_pot(sol_i.t, sol_i.q[self.qDOF])]
-            cell_data["E_pot"] = [E_pot]
 
-        return points, cells, point_data, cell_data
+        return points, cells, None, None

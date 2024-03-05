@@ -10,17 +10,17 @@ class RigidConnection(PositionOrientationBase):
         self,
         subsystem1,
         subsystem2,
-        frame_ID1=None,
-        frame_ID2=None,
+        xi1=None,
+        xi2=None,
     ):
         super().__init__(
             subsystem1,
             subsystem2,
-            r_OB0=None,
-            A_IB0=None,
+            r_OJ0=None,
+            A_IJ0=None,
             projection_pairs_rotation=[(0, 1), (1, 2), (2, 0)],
-            frame_ID1=frame_ID1,
-            frame_ID2=frame_ID2,
+            xi1=xi1,
+            xi2=xi2,
         )
 
 
@@ -30,14 +30,14 @@ class RigidConnection(PositionOrientationBase):
 #         self,
 #         subsystem1,
 #         subsystem2,
-#         frame_ID1=None,
-#         frame_ID2=None,
+#         xi1=None,
+#         xi2=None,
 #     ):
 #         super().__init__(
 #             subsystem1,
 #             subsystem2,
 #             constrained_axes_displacement=(0, 1, 2),
 #             projection_pairs_rotation=[(0, 1), (1, 2), (2, 0)],
-#             frame_ID1=frame_ID1,
-#             frame_ID2=frame_ID2,
+#             xi1=xi1,
+#             xi2=xi2,
 #         )

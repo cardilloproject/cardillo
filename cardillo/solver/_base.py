@@ -2,14 +2,8 @@ import numpy as np
 from scipy.sparse import bmat
 from scipy.sparse.linalg import splu
 
-# from cardillo.math import (
-#     NegativeOrthant,
-#     norm,
-#     estimate_prox_parameter,
-# )
 from cardillo.math.prox import NegativeOrthant, estimate_prox_parameter
 from cardillo.math.algebra import norm
-
 from cardillo.definitions import IS_CLOSE_ATOL
 from .solver_options import SolverOptions
 
@@ -19,6 +13,17 @@ def consistent_initial_conditions(
     slice_active_contacts=True,
     options=SolverOptions(),
 ):
+    """Checks consistency of initial conditions with constraints on position and velocity level and finds initial accelerations and constraint/contact forces.
+
+    Parameters
+    ----------
+    system : cardillo.System
+        System for which the consistent initial conditions are computed.
+    slice_active_contacts : bool
+        Slice friction forces to contemplate only those corresponding to active normal contact.
+    options : cardillo.solver.SolverOptions
+        Solver options for the computations of the constraint/contact forces.
+    """
     t0 = system.t0
     q0 = system.q0
     u0 = system.u0
@@ -78,6 +83,7 @@ def consistent_initial_conditions(
     B_F, global_active_friction_laws = compute_I_F(
         B_N, system, slice=slice_active_contacts
     )
+    # TODO: Is there a case where slice=False??
 
     gamma_F = system.gamma_F(t0, q0, u0)[B_F]
     W_N = system.W_N(t0, q0, format="csc")[:, B_N]
@@ -237,33 +243,28 @@ def compute_I_F(I_N, system, slice=True):
     # compute set of active friction contacts and local connectivity
     I_F = []
     global_active_friction_laws = []
-    nla_N_global = 0
-    nla_F_global = 0
     nla_F_local = 0
     for contr in system.get_contribution_list("gamma_F"):
         for i_N, i_F, force_reservoir in contr.friction_laws:
-            i_F_global = np.array(i_F, dtype=int) + nla_F_global
+            i_F_global = contr.la_FDOF[i_F]
             n_F = len(i_F)
             i_F_local = np.arange(n_F) + nla_F_local
 
-            n_N = len(i_N)
-            if n_N > 0:  # normal force dependence
-                i_N_global = np.array(i_N, dtype=int) + nla_N_global
-                i_N_local = np.array(i_N, dtype=int)
+            if len(i_N) > 0:  # normal force dependence
+                i_N_global = contr.la_NDOF[i_N][0]  # scalar normal force
+
                 # only add friction if normal force is active
-                if not slice or (i_N_global[0] in I_N):
+                if not slice or (i_N_global in I_N):
                     nla_F_local += n_F
+                    i_N_local = np.where(i_N_global == I_N)[0]
                     I_F.extend(i_F_global)
                     global_active_friction_laws.append(
                         (i_N_local, i_F_local, force_reservoir)
                     )
 
             else:  # no normal force dependence
+                nla_F_local += n_F
                 I_F.extend(i_F_global)
                 global_active_friction_laws.append(([], i_F_local, force_reservoir))
-
-        if hasattr(contr, "nla_N"):
-            nla_N_global += contr.nla_N
-        nla_F_global += contr.nla_F
 
     return np.array(I_F, dtype=int), global_active_friction_laws
