@@ -221,6 +221,7 @@ class System:
         u0 = []
         e_N = []
         e_F = []
+        self.constant_force_reservoir = False
 
         for p in properties:
             setattr(self, f"_{self.__class__.__name__}__{p}_contr", [])
@@ -281,7 +282,6 @@ class System:
 
             # if contribution has contact
             if hasattr(contr, "nla_N"):
-                # normal
                 contr.la_NDOF = np.arange(0, contr.nla_N) + self.nla_N
                 self.nla_N += contr.nla_N
                 e_N.extend(contr.e_N.tolist())
@@ -291,6 +291,11 @@ class System:
                 contr.la_FDOF = np.arange(0, contr.nla_F) + self.nla_F
                 self.nla_F += contr.nla_F
                 e_F.extend(contr.e_F.tolist())
+
+                # identify friction forces with constant force reservoirs
+                for i_N, i_F, force_law in contr.friction_laws:
+                    if len(i_N) == 0:
+                        self.constant_force_reservoir = True
 
         self.e_N = np.array(e_N)
         self.e_F = np.array(e_F)

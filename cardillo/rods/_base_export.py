@@ -50,7 +50,9 @@ class RodExportBase(ABC):
 
         return np.array(r).T, np.array(d1).T, np.array(d2).T, np.array(d3).T
 
-    def export(self, sol_i, continuity="C1", circle_as_wedge=True, level="volume", **kwargs):
+    def export(
+        self, sol_i, continuity="C1", circle_as_wedge=True, level="volume", **kwargs
+    ):
         q = sol_i.q
 
         if "num" in kwargs:

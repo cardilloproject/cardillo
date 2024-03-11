@@ -154,9 +154,8 @@ class Moreau:
 
         self.fixed_point_n_iter_list.append(0)
         self.fixed_point_absolute_errors.append(0.0)
-        # only enter fixed-point loop if any contact is active
-        # TODO: This is not correct if friction forces are added to the system that do not depend on la_N.
-        if len(self.I_N) > 0:
+        # only enter fixed-point loop if any contact is active or constant force reservoirs are present
+        if self.system.constant_force_reservoir or len(self.I_N) > 0:
             # identify active tangent contacts based on active normal contacts and
             # NF-connectivity lists; compute local NF_connectivity
             self.I_F, self.global_active_friction_laws = compute_I_F(
