@@ -5,7 +5,7 @@ from cardillo.math.algebra import cross3, ax2skew
 from cardillo.math.prox import Sphere
 
 
-# TODO: We have to add a function that computes the correct contact fores by
+# TODO: We have to add a function that computes the correct contact forces by
 # application of A @ la_F. That should be done on system level and the solver
 # calls this before the converged la_F's are stored.
 class Sphere2Plane:
