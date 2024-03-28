@@ -19,7 +19,7 @@ if __name__ == "__main__":
     phi_dot0 = 20
     B_Omega_disturbance = np.array((1e-10, 0, 0))  # disturbance is required
     B_Omega0 = np.array((0, 0, phi_dot0)) + B_Omega_disturbance
-    
+
     # simulation parameters
     t1 = 10  # final time
 
@@ -61,9 +61,9 @@ if __name__ == "__main__":
     ############
     # simulation
     ############
-    dt = 1e-2 # time step
-    solver = ScipyIVP(system, t1, dt) # create solver
-    sol = solver.solve() # simulate system
+    dt = 1e-2  # time step
+    solver = ScipyIVP(system, t1, dt)  # create solver
+    sol = solver.solve()  # simulate system
 
     # read solution
     t = sol.t  # time
