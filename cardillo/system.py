@@ -188,6 +188,7 @@ class System:
         for contr in self.contributions:
             if hasattr(contr, "export"):
                 e.export_contr(contr, file_name=contr.name)
+        return e
 
     def get_contribution_list(self, contr):
         return getattr(self, f"_{self.__class__.__name__}__{contr}_contr")

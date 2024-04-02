@@ -24,7 +24,7 @@ def Meshed(Base):
             mesh_obj,
             density=None,
             B_r_CP=np.zeros(3),
-            A_KM=np.eye(3),
+            A_BM=np.eye(3),
             scale=1,
             **kwargs,
         ):
@@ -41,7 +41,7 @@ def Meshed(Base):
                 mesh. If set to None, user specified mass and B_Theta_C are used.
             B_r_CP : np.ndarray (3,)
                 Offset center of mass (C) from (C)TL origin (P) in body fixed K-basis.
-            A_KM: np.ndarray (3, 3)
+            A_BM: np.ndarray (3, 3)
                 Tansformation from mesh-fixed basis (M) to body-fixed basis (K).
             scale: float
                 Factor scaling the mesh after import.
@@ -49,7 +49,7 @@ def Meshed(Base):
                 Arguments of parent class (Base) as keyword arguments
             """
             self.B_r_CP = B_r_CP
-            self.A_KM = A_KM
+            self.A_BM = A_BM
 
             #############################
             # consistency checks for mesh
@@ -84,7 +84,7 @@ def Meshed(Base):
             # store visual mesh in body fixed basis
             H_KM = np.eye(4)
             H_KM[:3, 3] = B_r_CP
-            H_KM[:3, :3] = A_KM
+            H_KM[:3, :3] = A_BM
             self.B_visual_mesh = trimesh_mesh.copy().apply_transform(H_KM)
 
             # vectors (transposed) from (C) to vertices (Qi) represented in body-fixed basis

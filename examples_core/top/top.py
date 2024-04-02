@@ -57,7 +57,7 @@ if __name__ == "__main__":
     top = Meshed(RigidBody)(
         mesh_obj=top_mesh,
         B_r_CP=-B_r_PC,
-        A_KM=np.eye(3),
+        A_BM=np.eye(3),
         mass=mass,
         B_Theta_C=B_Theta_C,
         q0=q0,

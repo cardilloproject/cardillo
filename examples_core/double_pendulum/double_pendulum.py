@@ -39,7 +39,7 @@ if __name__ == "__main__":
     base_link = Meshed(Frame)(
         mesh_obj=Path(dir_name, "stl", "base_link.stl"),
         B_r_CP=np.array([-3.0299e-03, -2.6279e-13, -2.9120e-02]),
-        A_KM=np.eye(3),
+        A_BM=np.eye(3),
         r_OP=np.zeros(3),
         A_IB=np.eye(3),
         name="base_link",
@@ -68,7 +68,7 @@ if __name__ == "__main__":
     link1 = Meshed(RigidBody)(
         mesh_obj=Path(dir_name, "stl", "link1.stl"),
         B_r_CP=np.array([-8.6107e-03, -2.1727e-06, -3.6012e-02]),
-        A_KM=np.eye(3),
+        A_BM=np.eye(3),
         mass=0.26703,
         B_Theta_C=np.array(
             [
@@ -121,7 +121,7 @@ if __name__ == "__main__":
     link2 = Meshed(RigidBody)(
         mesh_obj=Path(dir_name, "stl", "link2.stl"),
         B_r_CP=np.array([5.0107e-03, -1.9371e-10, -1.0088e-01]),
-        A_KM=np.eye(3),
+        A_BM=np.eye(3),
         mass=0.33238,
         B_Theta_C=np.array(
             [

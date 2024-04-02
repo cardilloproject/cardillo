@@ -1,8 +1,8 @@
 import numpy as np
-from warnings import warn
+from scipy.linalg import qr, solve_triangular, svd
 from scipy.sparse import csc_array
 from scipy.sparse.linalg import spsolve
-from scipy.linalg import qr, solve_triangular, svd
+from warnings import warn
 
 from cardillo.math.approx_fprime import approx_fprime
 from cardillo.solver import SolverOptions
