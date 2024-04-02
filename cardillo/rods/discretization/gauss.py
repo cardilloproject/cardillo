@@ -70,6 +70,14 @@ def lobatto(nQP, interval=np.array([-1, 1])):
         sqrt37 = sqrt(3 / 7)
         gp = np.array([-1, -sqrt37, 0, sqrt37, 1], dtype=float)
         wp = np.array([1 / 10, 49 / 90, 32 / 45, 49 / 90, 1 / 10], dtype=float)
+    elif nQP == 6:
+        sqrt7 = sqrt(7)
+        sqrt_a = sqrt(1 / 3 - 2 * sqrt7 / 21)
+        sqrt_b = sqrt(1 / 3 + 2 * sqrt7 / 21)
+        wp_a = (14 + sqrt7) / 30
+        wp_b = (14 - sqrt7) / 30
+        gp = np.array([-1, -sqrt_b, -sqrt_a, sqrt_a, sqrt_b, 1], dtype=float)
+        wp = np.array([1 / 15, wp_b, wp_a, wp_a, wp_b, 1 / 15], dtype=float)
     else:
         raise NotImplementedError(f"lobatto is not implemented for nQP == {nQP}")
 

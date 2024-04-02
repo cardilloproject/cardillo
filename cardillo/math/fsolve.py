@@ -172,6 +172,6 @@ def fsolve(
         f = np.atleast_1d(fun(x, *fun_args))
 
     if not converged:
-        warn(f"fsolve is not converged after {i} iterations with error {error:2.3f}")
+        warn(f"fsolve is not converged after {i} iterations with error {error:.2e}")
 
     return x, converged, error, i, f
