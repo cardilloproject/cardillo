@@ -149,9 +149,10 @@ def disc(mass, radius, q0=None, u0=None):
         mass=mass,
         B_Theta_C=B_Theta_C,
         q0=q0,
-        u0=u0
+        u0=u0,
     )
     return disc
+
 
 def disc_boundary(disc, t, q, n=100):
     phi = np.linspace(0, 2 * np.pi, n, endpoint=True)
@@ -408,4 +409,4 @@ if __name__ == "__main__":
     dir_name = Path(__file__).parent
     e = system.export(dir_name, "vtk", sol)
     # additionally export body fixed frame
-    e.export_contr(disc, file_name='A_IB', base_export=True)
+    e.export_contr(disc, file_name="A_IB", base_export=True)
