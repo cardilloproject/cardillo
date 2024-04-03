@@ -155,6 +155,9 @@ def fsolve(
         assert callable(jac), "user-defined jacobian must be callable"
         jacobian = jac
 
+    # scaling for convergence test
+    scale = options.newton_atol + np.abs(x0) * options.newton_rtol
+
     # prepare solution vector; make a copy since we modify the value
     x = np.atleast_1d(x0).copy()
 
@@ -163,8 +166,8 @@ def fsolve(
 
     # Newton loop
     for i in range(options.newton_max_iter):
-        error = options.error_function(f)
-        converged = error <= options.newton_atol
+        error = np.linalg.norm(f / scale) / scale.size**0.5
+        converged = error < 1
         if converged:
             break
         J = jacobian(x, *jac_args)
