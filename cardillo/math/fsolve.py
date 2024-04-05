@@ -1,11 +1,17 @@
 import numpy as np
 from scipy.linalg import qr, solve_triangular, svd
 from scipy.sparse import csc_array
-from scipy.sparse.linalg import spsolve
+from scipy.sparse.linalg import spsolve, splu
+from scipy.sparse.linalg._dsolve._superlu import SuperLU
 from warnings import warn
 
 from cardillo.math.approx_fprime import approx_fprime
 from cardillo.solver import SolverOptions
+
+
+# from scipy.optimize import root
+# from scipy.optimize._root import _root_nonlin_solve
+from scipy.optimize._nonlin import nonlin_solve, Jacobian
 
 
 def lu_solve(A, b):
@@ -155,26 +161,136 @@ def fsolve(
         assert callable(jac), "user-defined jacobian must be callable"
         jacobian = jac
 
+    # class ExactJacobian(Jacobian):
+    #     def __init__(self, options=SolverOptions(), **kw):
+    #         super().__init__(**kw)
+    #         self.options = options
+
+    #     def solve(self, rhs, tol=0):
+    #         return options.linear_solver(self.J, rhs)
+
+    #     def update(self, x, f):
+    #         self.J = jacobian(x, *jac_args)
+
+    # # TODO: Chose tolerances as done by scipy and given from SolverOptions
+    # # tol = 1e-3
+    # x, info = nonlin_solve(
+    #     lambda y: fun(y, *fun_args),
+    #     x0,
+    #     jacobian=ExactJacobian(options),
+    #     # iter=nit,
+    #     # verbose=verbose,
+    #     verbose=True,
+    #     # maxiter=maxiter,
+    #     f_tol=options.newton_atol,
+    #     f_rtol=options.newton_rtol,
+    #     x_tol=options.newton_atol,
+    #     x_rtol=options.newton_rtol,
+    #     # f_tol=f_tol,
+    #     # f_rtol=f_rtol,
+    #     # x_tol=x_tol,
+    #     # x_rtol=x_rtol,
+    #     # tol_norm=tol_norm,
+    #     # line_search=line_search,
+    #     line_search=False,
+    #     # line_search="wolfe",
+    #     # callback=_callback,
+    #     full_output=True,
+    #     raise_exception=False,
+    # )
+
+    # converged = info["success"]
+    # error = 0
+    # i = info["nit"]
+    # f = info["fun"]
+    # return x, converged, error, i + 1, f
+
     # scaling for convergence test
     scale = options.newton_atol + np.abs(x0) * options.newton_rtol
 
-    # prepare solution vector; make a copy since we modify the value
-    x = np.atleast_1d(x0).copy()
+    # eliminate round-off errors
+    Delta_x = np.zeros_like(x0)
+    x = x0 + Delta_x
 
     # initial function value
     f = np.atleast_1d(fun(x, *fun_args))
 
+    # absolute error of initial guess
+    error = np.linalg.norm(f / options.newton_atol) / scale.size**0.5
+    converged = error < 1
+
+    if converged:
+        return x, converged, error, 0, f
+
     # Newton loop
     for i in range(options.newton_max_iter):
-        error = np.linalg.norm(f / scale) / scale.size**0.5
+        # Newton update
+        J = jacobian(x, *jac_args)
+        dx = options.linear_solver(J, f)
+        Delta_x -= dx
+        x = x0 + Delta_x
+
+        # error and convergence check
+        error = np.linalg.norm(dx / scale) / scale.size**0.5
         converged = error < 1
         if converged:
             break
-        J = jacobian(x, *jac_args)
-        x -= options.linear_solver(J, f)
+
         f = np.atleast_1d(fun(x, *fun_args))
 
     if not converged:
         warn(f"fsolve is not converged after {i} iterations with error {error:.2e}")
 
-    return x, converged, error, i, f
+    return x, converged, error, i + 1, f
+
+
+def newton_chord(
+    fun,
+    x0,
+    lu,
+    fun_args=(),
+    options=SolverOptions(),
+):
+    if not isinstance(fun_args, tuple):
+        fun_args = (fun_args,)
+
+    assert isinstance(
+        lu, SuperLU
+    ), f"lu has to be an instance of SuperLU but is '{lu.__class__}'"
+
+    # scaling for convergence test
+    scale = options.newton_atol + np.abs(x0) * options.newton_rtol
+
+    # eliminate round-off errors
+    Delta_x = np.zeros_like(x0)
+    x = x0 + Delta_x
+
+    # initial function value
+    f = np.atleast_1d(fun(x, *fun_args))
+
+    # absolute error of initial guess
+    error = np.linalg.norm(f / options.newton_atol) / scale.size**0.5
+    converged = error < 1
+
+    if converged:
+        return x, converged, error, 0, f
+
+    # Newton loop
+    for i in range(options.newton_max_iter):
+        # Newton update
+        dx = lu.solve(f)
+        Delta_x -= dx
+        x = x0 + Delta_x
+
+        # error and convergence check
+        error = np.linalg.norm(dx / scale) / scale.size**0.5
+        converged = error < 1
+        if converged:
+            break
+
+        f = np.atleast_1d(fun(x, *fun_args))
+
+    if not converged:
+        warn(f"fsolve is not converged after {i} iterations with error {error:.2e}")
+
+    return x, converged, error, i + 1, f
