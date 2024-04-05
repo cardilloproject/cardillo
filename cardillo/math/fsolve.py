@@ -1,17 +1,12 @@
 import numpy as np
 from scipy.linalg import qr, solve_triangular, svd
 from scipy.sparse import csc_array
-from scipy.sparse.linalg import spsolve, splu
+from scipy.sparse.linalg import spsolve
 from scipy.sparse.linalg._dsolve._superlu import SuperLU
 from warnings import warn
 
 from cardillo.math.approx_fprime import approx_fprime
 from cardillo.solver import SolverOptions
-
-
-# from scipy.optimize import root
-# from scipy.optimize._root import _root_nonlin_solve
-from scipy.optimize._nonlin import nonlin_solve, Jacobian
 
 
 def lu_solve(A, b):
