@@ -156,50 +156,6 @@ def fsolve(
         assert callable(jac), "user-defined jacobian must be callable"
         jacobian = jac
 
-    # class ExactJacobian(Jacobian):
-    #     def __init__(self, options=SolverOptions(), **kw):
-    #         super().__init__(**kw)
-    #         self.options = options
-
-    #     def solve(self, rhs, tol=0):
-    #         return options.linear_solver(self.J, rhs)
-
-    #     def update(self, x, f):
-    #         self.J = jacobian(x, *jac_args)
-
-    # # TODO: Chose tolerances as done by scipy and given from SolverOptions
-    # # tol = 1e-3
-    # x, info = nonlin_solve(
-    #     lambda y: fun(y, *fun_args),
-    #     x0,
-    #     jacobian=ExactJacobian(options),
-    #     # iter=nit,
-    #     # verbose=verbose,
-    #     verbose=True,
-    #     # maxiter=maxiter,
-    #     f_tol=options.newton_atol,
-    #     f_rtol=options.newton_rtol,
-    #     x_tol=options.newton_atol,
-    #     x_rtol=options.newton_rtol,
-    #     # f_tol=f_tol,
-    #     # f_rtol=f_rtol,
-    #     # x_tol=x_tol,
-    #     # x_rtol=x_rtol,
-    #     # tol_norm=tol_norm,
-    #     # line_search=line_search,
-    #     line_search=False,
-    #     # line_search="wolfe",
-    #     # callback=_callback,
-    #     full_output=True,
-    #     raise_exception=False,
-    # )
-
-    # converged = info["success"]
-    # error = 0
-    # i = info["nit"]
-    # f = info["fun"]
-    # return x, converged, error, i + 1, f
-
     # scaling for convergence test
     scale = options.newton_atol + np.abs(x0) * options.newton_rtol
 
