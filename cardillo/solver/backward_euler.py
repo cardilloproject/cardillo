@@ -5,7 +5,7 @@ from scipy.sparse.linalg import splu
 from tqdm import tqdm
 
 from cardillo.solver import SolverOptions, SolverSummary, Solution
-from cardillo.math.fsolve import fsolve, newton_chord
+from cardillo.math.fsolve import fsolve
 from cardillo.math.approx_fprime import approx_fprime
 from cardillo.math.prox import estimate_prox_parameter, NegativeOrthant
 
@@ -316,10 +316,10 @@ class BackwardEuler:
 
     def _solve_nonlinear_system(self, x0, y, lu):
         if self.options.reuse_lu_decomposition:
-            x, converged, error, i, _ = newton_chord(
+            x, converged, error, i, _ = fsolve(
                 lambda x, y, *args: self.R_x(x, y, *args),
                 x0,
-                lu=lu,
+                jac=lu,
                 fun_args=(y,),
                 options=self.options,
             )
