@@ -25,6 +25,7 @@ if __name__ == "__main__":
     # simulation parameters
     #######################
     compliance_form = True  # use compliance formulation for force element, i.e., force is Lagrange multiplier la_c.
+    # compliance_form = False
     t0 = 0  # initial time
     t1 = 5  # final time
 

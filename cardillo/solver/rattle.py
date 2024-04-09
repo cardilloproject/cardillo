@@ -1,11 +1,11 @@
 import warnings
 import numpy as np
-from scipy.sparse import csc_array
+from scipy.sparse import lil_array, eye, bmat
+from scipy.sparse.linalg import splu
 from tqdm import tqdm
 
 from cardillo.math.prox import NegativeOrthant, estimate_prox_parameter
 from cardillo.math.fsolve import fsolve
-from cardillo.math.approx_fprime import approx_fprime
 from cardillo.solver import Solution, SolverOptions, SolverSummary
 
 
@@ -15,40 +15,18 @@ class Rattle:
         system,
         t1,
         dt,
-        options=SolverOptions(numerical_jacobian_method="2-point"),
+        options=SolverOptions(),
     ):
         """
-        Nonsmooth extension of RATTLE.
-
-        A nice interpretation of the left and right limes are found in Hante2019.
+        A nonsmooth RATTLE algorithm for mechanical systems with frictional
+        unilateral constraints, see Breuling2024.
 
         References:
         -----------
-        Hante2019: https://doi.org/10.1016/j.cam.2019.112492
+        Breuling2024: https://doi.org/10.1016/j.nahs.2024.101469
         """
         self.system = system
         self.options = options
-
-        if options.numerical_jacobian_method:
-            self.J_x1 = lambda x, y: csc_array(
-                approx_fprime(
-                    x,
-                    lambda x: self.R_x1(x, y),
-                    method=options.numerical_jacobian_method,
-                    eps=options.numerical_jacobian_eps,
-                )
-            )
-            self.J_x2 = lambda x, y: csc_array(
-                approx_fprime(
-                    x,
-                    lambda x: self.R_x2(x, y),
-                    method=options.numerical_jacobian_method,
-                    eps=options.numerical_jacobian_eps,
-                )
-            )
-        else:
-            self.J_x1 = self._J_x1
-            self.J_x2 = self._J_x2
 
         #######################################################################
         # integration time
@@ -109,12 +87,6 @@ class Rattle:
         self.tn = system.t0
         self.qn = system.q0
         self.un = system.u0
-        # self.la_cn = system.la_c0
-        # self.P_gn = dt * system.la_g0
-        # self.P_gamman = dt * system.la_gamma0
-        # self.P_Nn = dt * system.la_N0
-        # self.P_Fn = dt * system.la_F0
-        # self.mu_Sn = np.zeros(self.nla_S)
 
         #######################################################################
         # initial values
@@ -142,6 +114,9 @@ class Rattle:
         # compute quantities for prox estimation
         ###################################################
         self.Mn = self.system.M(self.tn, self.qn, format="csr")
+        self.Bn = self.system.q_dot_u(self.tn, self.qn, format="csr")
+        self.betan = self.system.q_dot(self.tn, self.qn, 0 * self.un)
+        self.W_taun = self.system.W_tau(self.tn, self.qn, format="csr")
         self.W_cn = self.system.W_c(self.tn, self.qn, format="csr")
         self.W_gn = self.system.W_g(self.tn, self.qn, format="csr")
         self.W_gamman = self.system.W_gamma(self.tn, self.qn, format="csr")
@@ -157,7 +132,6 @@ class Rattle:
         tn1 = tn + dt
 
         qn1, un12, la_c1, P_g1, P_gamma1 = np.array_split(x1n1, self.split_x1)
-
         P_N1, P_F1 = np.array_split(y1n1, self.split_y)
 
         R = np.zeros_like(x1n1)
@@ -168,9 +142,9 @@ class Rattle:
         R[: self.split_x1[0]] = (
             qn1
             - qn
-            - 0.5
-            * dt
-            * (self.system.q_dot(tn, qn, un12) + self.system.q_dot(tn1, qn1, un12))
+            - 0.5 * dt
+            # * (self.system.q_dot(tn, qn, un12) + self.system.q_dot(tn1, qn1, un12))
+            * (self.Bn @ un12 + self.betan + self.system.q_dot(tn1, qn1, un12))
         )
 
         ########################
@@ -182,8 +156,7 @@ class Rattle:
             * dt
             * (
                 self.system.h(tn, qn, un12)
-                + self.system.W_tau(tn, qn, format="csr")
-                @ self.system.la_tau(tn, qn, un12)
+                + self.W_taun @ self.system.la_tau(tn, qn, un12)
                 + self.W_cn @ la_c1
             )
             - (
@@ -208,7 +181,76 @@ class Rattle:
         return R
 
     def _J_x1(self, x1n1, y1n1):
-        raise NotImplementedError
+        dt = self.dt
+        tn = self.tn
+        qn = self.qn
+        un = self.un
+
+        tn1 = tn + dt
+
+        qn1, un12, la_c1, _, _ = np.array_split(x1n1, self.split_x1)
+
+        J_x1 = lil_array((self.nx1, self.nx1))
+
+        ####################
+        # kinematic equation
+        ####################
+        J_x1[: self.split_x1[0], : self.split_x1[0]] = eye(
+            self.nq
+        ) - 0.5 * dt * self.system.q_dot_q(tn1, qn1, un12)
+        J_x1[: self.split_x1[0], self.split_x1[0] : self.split_x1[1]] = (
+            -0.5 * dt * (self.Bn + self.system.q_dot_u(tn1, qn1))
+        )
+
+        ########################
+        # euations of motion (1)
+        ########################
+        J_x1[
+            self.split_x1[0] : self.split_x1[1], self.split_x1[0] : self.split_x1[1]
+        ] = self.Mn - 0.5 * dt * (
+            self.system.h_u(tn, qn, un12)
+            + self.system.Wla_tau_u(self.tn, self.qn, un12)
+        )
+        J_x1[
+            self.split_x1[0] : self.split_x1[1], self.split_x1[1] : self.split_x1[2]
+        ] = (-0.5 * dt * self.W_cn)
+        J_x1[
+            self.split_x1[0] : self.split_x1[1], self.split_x1[2] : self.split_x1[3]
+        ] = -self.W_gn
+        J_x1[self.split_x1[0] : self.split_x1[1], self.split_x1[3] :] = -self.W_gamman
+
+        ############
+        # compliance
+        ############
+        J_x1[
+            self.split_x1[1] : self.split_x1[2], self.split_x1[0] : self.split_x1[1]
+        ] = self.system.c_u(tn, qn, un12, la_c1)
+        J_x1[
+            self.split_x1[1] : self.split_x1[2], self.split_x1[1] : self.split_x1[2]
+        ] = self.system.c_la_c()
+
+        #######################
+        # bilateral constraints
+        #######################
+        J_x1[self.split_x1[2] : self.split_x1[3], : self.split_x1[0]] = self.system.g_q(
+            tn1, qn1
+        )
+        J_x1[self.split_x1[3] :, : self.split_x1[0]] = self.system.gamma_q(
+            tn1, qn1, un12
+        )
+        J_x1[
+            self.split_x1[3] :, self.split_x1[0] : self.split_x1[1]
+        ] = self.system.gamma_u(tn1, qn1)
+
+        return J_x1.tocsc()
+
+        # J_x1_num = csc_array(
+        #     approx_fprime(x1n1, lambda x: self.R_x1(x, y1n1), method="cs")
+        # )
+        # diff = J_x1 - J_x1_num
+        # error = np.linalg.norm(diff.toarray())
+        # print(f"error J_x1: {error}")
+        # return J_x1_num
 
     def prox1(self, x1n1, y1n1):
         tn = self.tn
@@ -256,59 +298,6 @@ class Rattle:
                 )
 
         return y1n1p
-
-    def R_x2(self, x2n1, y2n1):
-        dt = self.dt
-        tn = self.tn
-
-        un12 = self.x1n[self.nq : self.nq + self.nu]
-
-        tn1 = tn + dt
-        qn1 = self.x1n[: self.nq]
-        un1, P_g2, P_gamma2 = np.array_split(x2n1, self.split_x2)
-        P_N2, P_F2 = np.array_split(y2n1, self.split_y)
-
-        R = np.zeros_like(x2n1)
-
-        ########################
-        # euations of motion (1)
-        ########################
-        self.Mn = self.system.M(tn1, qn1, format="csr")
-        self.W_cn = self.system.W_c(tn1, qn1, format="csr")
-        self.W_gn = self.system.W_g(tn1, qn1, format="csr")
-        self.W_gamman = self.system.W_gamma(tn1, qn1, format="csr")
-        self.W_Nn = self.system.W_N(tn1, qn1, format="csr")
-        self.W_Fn = self.system.W_F(tn1, qn1, format="csr")
-        self.la_c2 = self.system.la_c(tn1, qn1, un12)
-
-        R[: self.split_x2[0]] = (
-            self.Mn @ (un1 - un12)
-            - 0.5
-            * dt
-            * (
-                self.system.h(tn1, qn1, un12)
-                + self.system.W_tau(tn1, qn1, format="csr")
-                @ self.system.la_tau(tn1, qn1, un12)
-                + self.W_cn @ self.la_c2
-            )
-            - (
-                self.W_gn @ P_g2
-                + self.W_gamman @ P_gamma2
-                + self.W_Nn @ P_N2
-                + self.W_Fn @ P_F2
-            )
-        )
-
-        #######################
-        # bilateral constraints
-        #######################
-        R[self.split_x2[0] : self.split_x2[1]] = self.system.g_dot(tn1, qn1, un1)
-        R[self.split_x2[1] :] = self.system.gamma(tn1, qn1, un1)
-
-        return R
-
-    def _J_x2(self, x2n1, y2n1):
-        raise NotImplementedError
 
     def prox2(self, x2n1, y2n1):
         dt = self.dt
@@ -359,8 +348,92 @@ class Rattle:
 
         return y2n1p - self.y1n
 
+    def _solve_nonlinear_system(self, x0, y, lu):
+        if self.options.reuse_lu_decomposition:
+            x, converged, error, i, _ = fsolve(
+                lambda x, y, *args: self.R_x1(x, y, *args),
+                x0,
+                jac=lu,
+                fun_args=(y,),
+                options=self.options,
+            )
+        else:
+            x, converged, error, i, _ = fsolve(
+                lambda x, y, *args: self.R_x1(x, y, *args),
+                x0,
+                jac=lambda x, y, *args: self._J_x1(x, y, *args),
+                fun_args=(y,),
+                jac_args=(y,),
+                options=self.options,
+            )
+            self.solver_summary.add_lu(i)
+
+        if not converged:
+            if self.options.continue_with_unconverged:
+                warnings.warn("Newton is not converged but integration is continued")
+            else:
+                raise RuntimeError("Newton is not converged")
+
+        return x, error, converged, i
+
+    def _iterative_prjection_method(self, x0, y0, lu=None):
+        # solve nonlinear system
+        (
+            x0,
+            error_newton,
+            converged_newton,
+            i_newton,
+        ) = self._solve_nonlinear_system(x0, y0, lu)
+
+        # fixed-point loop
+        converged = False
+        n_state = self.nx1 - self.nla_g - self.nla_gamma
+        for i_fixed_point in range(self.options.fixed_point_max_iter):
+            # find proximal point
+            y1 = self.prox1(x0, y0)
+
+            # solve nonlinear system
+            (
+                x1,
+                error_newton,
+                converged_newton,
+                i_newton,
+            ) = self._solve_nonlinear_system(x0, y1, lu)
+
+            # convergence in smooth state (without Lagrange multipliers)
+            diff = x1[:n_state] - x0[:n_state]
+
+            # error measure, see Hairer1993, Section II.4
+            sc = (
+                self.options.fixed_point_atol
+                + np.maximum(np.abs(x0[:n_state]), np.abs(x1[:n_state]))
+                * self.options.fixed_point_rtol
+            )
+            error = np.linalg.norm(diff / sc) / sc.size**0.5
+            converged = error < 1.0 and converged_newton
+
+            if converged:
+                break
+            else:
+                # update values
+                x0 = x1.copy()
+                y0 = y1.copy()
+
+        self.solver_summary.add_fixed_point(i_fixed_point, error)
+        self.solver_summary.add_newton(i_newton, error_newton)
+
+        if not converged:
+            if self.options.continue_with_unconverged:
+                warnings.warn(
+                    "fixed-point iteration is not converged in stage 1 but integration is continued"
+                )
+            else:
+                raise RuntimeError("fixed-point iteration is not converged in stage 1")
+
+        return x1, y1, i_fixed_point
+
     def solve(self):
-        solver_summary = SolverSummary("RATTLE")
+        self.solver_summary = SolverSummary("RATTLE")
 
         # lists storing output variables
         _, _, la_c0, P_g0, P_gamma0 = np.array_split(self.x1n, self.split_x1)
@@ -378,11 +451,11 @@ class Rattle:
         pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
         for _ in pbar:
             # only compute optimized prox-parameters once per time step
-            self.prox_r_N = estimate_prox_parameter(
-                self.options.prox_scaling, self.W_Nn, self.Mn
-            )
-            self.prox_r_F = estimate_prox_parameter(
-                self.options.prox_scaling, self.W_Fn, self.Mn
+            self.prox_r_N, self.prox_r_F = np.array_split(
+                estimate_prox_parameter(
+                    self.options.prox_scaling, bmat([[self.W_Nn, self.W_Fn]]), self.Mn
+                ),
+                [self.nla_N],
             )
 
             # perform a solver step
@@ -391,68 +464,70 @@ class Rattle:
             #########
             # Stage 1
             #########
+            # Jacobian and lu-decompositon
+            if self.options.reuse_lu_decomposition:
+                J_x1 = self._J_x1(self.x1n, self.y1n)
+                lu = splu(J_x1)
+                self.solver_summary.add_lu(1)
+            else:
+                lu = None
+
             # fixed-point iterations
-
-            # store old values
-            x1n = self.x1n.copy()
-            y1n = self.y1n.copy()
-
-            # fixed-point loop
-            x1n1 = x1n.copy()
-            y1n1 = y1n.copy()
-            converged = False
-            n_state = self.nx1 - self.nla_g - self.nla_gamma
-            for i_fixed_point in range(self.options.fixed_point_max_iter):
-                # find proximal point
-                y1n1 = self.prox1(x1n1, y1n1)
-
-                x1n1, converged_newton, error_newton, i_newton, _ = fsolve(
-                    self.R_x1,
-                    x1n1,
-                    jac=self.J_x1,
-                    fun_args=(y1n1,),
-                    jac_args=(y1n1,),
-                    options=self.options,
-                )
-                solver_summary.add_lu(i_newton)
-
-                # convergence in smooth state (without Lagrange multipliers)
-                diff = x1n1[:n_state] - x1n[:n_state]
-
-                # error measure, see Hairer1993, Section II.4
-                sc = (
-                    self.options.fixed_point_atol
-                    + np.maximum(np.abs(x1n[:n_state]), np.abs(x1n1[:n_state]))
-                    * self.options.fixed_point_rtol
-                )
-                error = np.linalg.norm(diff / sc) / sc.size**0.5
-                converged = error < 1.0 and converged_newton
-
-                if converged:
-                    break
-                else:
-                    # update values
-                    x1n = x1n1.copy()
-                    y1n = y1n1.copy()
-
-            fixed_point_absolute_error = np.max(np.abs(diff))
-            solver_summary.add_fixed_point(i_fixed_point, fixed_point_absolute_error)
-            solver_summary.add_newton(i_newton, error_newton)
-
-            if not converged:
-                if self.options.continue_with_unconverged:
-                    warnings.warn(
-                        "fixed-point iteration is not converged in stage 1 but integration is continued"
-                    )
-                else:
-                    raise RuntimeError(
-                        "fixed-point iteration is not converged in stage 1"
-                    )
+            x1n1, y1n1, i1_fixed_point = self._iterative_prjection_method(
+                self.x1n, self.y1n, lu
+            )
 
             # save converged quantities of first stage. Required for R_x2
             self.x1n = x1n1.copy()
             self.y1n = y1n1.copy()
 
+            # compute constant quantities for second stage once
+            qn1, un12, _, _, _ = np.array_split(x1n1, self.split_x1)
+            self.Mn = self.system.M(tn1, qn1, format="csr")
+            self.Bn = self.system.q_dot_u(tn1, qn1, format="csr")
+            self.betan = self.system.q_dot(tn1, qn1, 0 * un12)
+            self.W_taun = self.system.W_tau(tn1, qn1, format="csr")
+            self.W_cn = self.system.W_c(tn1, qn1, format="csr")
+            self.W_gn = self.system.W_g(tn1, qn1, format="csr")
+            self.W_gamman = self.system.W_gamma(tn1, qn1, format="csr")
+            self.W_Nn = self.system.W_N(tn1, qn1, format="csr")
+            self.W_Fn = self.system.W_F(tn1, qn1, format="csr")
+            self.W_FNn = bmat([[self.W_Nn, self.W_Fn]], format="csr")
+            self.la_c2 = self.system.la_c(tn1, qn1, un12)
+
+            # constant part of the rhs
+            b0 = np.concatenate(
+                [
+                    -self.Mn @ un12
+                    - 0.5
+                    * self.dt
+                    * (
+                        self.system.h(tn1, qn1, un12)
+                        + self.system.W_tau(tn1, qn1, format="csr")
+                        @ self.system.la_tau(tn1, qn1, un12)
+                        + self.W_cn @ self.la_c2
+                    ),
+                    self.system.chi_g(tn1, qn1),
+                    self.system.chi_gamma(tn1, qn1)
+                ]
+            )
+
+            # iteration matrix
+            g_dot_u = self.system.g_dot_u(tn1, qn1)
+            gamma_u = self.system.gamma_u(tn1, qn1)
+            # fmt: off
+            A = bmat([
+                [self.Mn, -self.W_gn, -self.W_gamman],
+                [g_dot_u,       None,           None],
+                [gamma_u,       None,           None],
+            ], format="csc")
+            # fmt: on
+            lu = splu(A)
+            self.solver_summary.add_lu(1)
+
+            # TODO: Discuss this choice. Otherwise we should use g_Nn1 from above.
+            # g_Nn1 = self.system.g_N(tn1, qn1)
+            # self.I_N = g_Nn1 <= 0
             self.I_N = y1n1[: self.split_y[0]] > 0
 
             #########
@@ -464,24 +539,18 @@ class Rattle:
             x2n = self.x2n.copy()
             y2n = self.y2n.copy()
 
+            # solve LGS
+            b = b0
+            b[:self.nu] -= self.W_FNn @ y2n
+            x2n1 = -lu.solve(b)
+
             # fixed-point loop
-            x2n1 = x2n.copy()
             y2n1 = y2n.copy()
             converged = False
 
-            for i_fixed_point in range(self.options.fixed_point_max_iter):
+            for i2_fixed_point in range(self.options.fixed_point_max_iter):
                 # find proximal point
                 y2n1 = self.prox2(x2n1, y2n1)
-
-                x2n1, converged_newton, error_newton, i_newton, _ = fsolve(
-                    self.R_x2,
-                    x2n1,
-                    jac=self.J_x2,
-                    fun_args=(y2n1,),
-                    jac_args=(y2n1,),
-                    options=self.options,
-                )
-                solver_summary.add_lu(i_newton)
 
                 # convergence in smooth state (without Lagrange multipliers)
                 diff = x2n1[: self.nu] - x2n[: self.nu]
@@ -493,7 +562,7 @@ class Rattle:
                     * self.options.fixed_point_rtol
                 )
                 error = np.linalg.norm(diff / sc) / sc.size**0.5
-                converged = error < 1.0 and converged_newton
+                converged = error < 1.0
 
                 if converged:
                     break
@@ -502,9 +571,12 @@ class Rattle:
                     x2n = x2n1.copy()
                     y2n = y2n1.copy()
 
-            fixed_point_absolute_error = np.max(np.abs(diff))
-            solver_summary.add_fixed_point(i_fixed_point, fixed_point_absolute_error)
-            solver_summary.add_newton(i_newton, error_newton)
+                    # solve LGS
+                    b = b0
+                    b[:self.nu] -= self.W_FNn @ y2n
+                    x2n1 = -lu.solve(b)
+
+            self.solver_summary.add_fixed_point(i2_fixed_point, error)
 
             if not converged:
                 if self.options.continue_with_unconverged:
@@ -518,7 +590,7 @@ class Rattle:
 
             # update progress bar
             pbar.set_description(
-                f"t: {tn1:0.2e}s < {self.t1:0.2e}s; |x1 - x0|: {fixed_point_absolute_error:0.2e} (fixed-point: {i_fixed_point}/{self.options.fixed_point_max_iter}; newton: {i_newton}/{self.options.newton_max_iter})"
+                f"t: {tn1:0.2e}s < {self.t1:0.2e}s; |x1 - x0|_rel: {error:0.2e}; fixed-point: ({i1_fixed_point}, {i2_fixed_point})/{self.options.fixed_point_max_iter}"
             )
 
             # compute state
@@ -546,7 +618,7 @@ class Rattle:
             self.qn = qn1
             self.un = un1
 
-        solver_summary.print()
+        self.solver_summary.print()
         return Solution(
             system=self.system,
             t=np.array(t),
@@ -557,4 +629,5 @@ class Rattle:
             P_gamma=np.array(P_gamma),
             P_N=np.array(P_N),
             P_F=np.array(P_F),
+            solver_summary=self.solver_summary,
         )

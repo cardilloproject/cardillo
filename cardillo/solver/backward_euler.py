@@ -315,37 +315,19 @@ class BackwardEuler:
         return y1
 
     def _solve_nonlinear_system(self, x0, y, lu):
-        # eliminate round-off errors
-        dx = np.zeros_like(x0)
-
-        # newton tolerances
-        scale = self.options.newton_atol + np.abs(x0) * self.options.newton_rtol
-
         if self.options.reuse_lu_decomposition:
-            # compute new residual and check convergence
-            R_x = self.R_x(x0 + dx, y)
-            error = np.linalg.norm(R_x / scale) / scale.size**0.5
-            converged = error < 1
-            if converged:
-                return x0 + dx, error, converged, 0
-
-            # simplified Newton
-            for i in range(self.options.newton_max_iter):
-                # Newton update
-                dx -= lu.solve(R_x)
-
-                # compute new residual and check convergence
-                R_x = self.R_x(x0 + dx, y)
-                error = np.linalg.norm(R_x / scale) / scale.size**0.5
-                converged = error < 1
-
-                if converged:
-                    break
+            x, converged, error, i, _ = fsolve(
+                lambda x, y, *args: self.R_x(x, y, *args),
+                x0,
+                jac=lu,
+                fun_args=(y,),
+                options=self.options,
+            )
         else:
-            dx, converged, error, i, _ = fsolve(
-                lambda dx, y, *args: self.R_x(x0 + dx, y, *args),
-                dx,
-                jac=lambda dx, y, *args: self.J_x(x0 + dx, y, *args),
+            x, converged, error, i, _ = fsolve(
+                lambda x, y, *args: self.R_x(x, y, *args),
+                x0,
+                jac=lambda x, y, *args: self.J_x(x, y, *args),
                 fun_args=(y,),
                 jac_args=(y,),
                 options=self.options,
@@ -358,7 +340,7 @@ class BackwardEuler:
             else:
                 raise RuntimeError("Newton is not converged")
 
-        return x0 + dx, error, converged, i + 1
+        return x, error, converged, i
 
     def solve(self):
         self.solver_summary = SolverSummary("Backward Euler")

@@ -39,7 +39,6 @@ def cantilever(
     nelements=10,
     polynomial_degree=2,
     n_load_steps=3,
-    VTB_export=False,
     reduced_integration=True,
     constitutive_law=Harsch2021,
     title="set_a_plot_title",

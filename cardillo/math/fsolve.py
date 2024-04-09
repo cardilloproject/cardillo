@@ -1,7 +1,8 @@
 import numpy as np
 from scipy.linalg import qr, solve_triangular, svd
 from scipy.sparse import csc_array
-from scipy.sparse.linalg import spsolve
+from scipy.sparse.linalg import spsolve, splu
+from scipy.sparse.linalg._dsolve._superlu import SuperLU
 from warnings import warn
 
 from cardillo.math.approx_fprime import approx_fprime
@@ -132,6 +133,7 @@ def fsolve(
     jac=None,
     fun_args=(),
     jac_args=(),
+    inexact=False,
     options=SolverOptions(),
 ):
     if not isinstance(fun_args, tuple):
@@ -152,26 +154,61 @@ def fsolve(
             )
         )
     else:
-        assert callable(jac), "user-defined jacobian must be callable"
-        jacobian = jac
+        # do inexact newton with given LU-decomposition
+        if isinstance(jac, SuperLU):
+            inexact = True
+            lu = jac
+        else:
+            assert callable(jac), "user-defined jacobian must be callable"
+            jacobian = jac
+            if inexact:
+                lu = splu(jacobian(x0, *jac_args))
 
-    # prepare solution vector; make a copy since we modify the value
-    x = np.atleast_1d(x0).copy()
+    # fmt: off
+    if inexact:
+        def solve(x, rhs):
+            return lu.solve(rhs)
+
+    else:
+        def solve(x, rhs):
+            J = jacobian(x, *jac_args)
+            return options.linear_solver(J, rhs)
+    # fmt: on
+
+    # eliminate round-off errors
+    Delta_x = np.zeros_like(x0)
+    x = x0 + Delta_x
 
     # initial function value
     f = np.atleast_1d(fun(x, *fun_args))
 
+    # absolute error of initial guess
+    error = np.linalg.norm(f / options.newton_atol) / f.size**0.5
+    converged = error < 1
+
+    if converged:
+        return x, converged, error, 0, f
+
     # Newton loop
     for i in range(options.newton_max_iter):
-        error = options.error_function(f)
-        converged = error <= options.newton_atol
+        # Newton update
+        dx = solve(x, f)
+        Delta_x -= dx
+        x = x0 + Delta_x
+
+        # scaling, error and convergence check
+        scale = (
+            options.newton_rtol
+            + np.maximum(np.abs(x), np.abs(x0)) * options.newton_atol
+        )
+        error = np.linalg.norm(dx / scale) / scale.size**0.5
+        converged = error < 1
         if converged:
             break
-        J = jacobian(x, *jac_args)
-        x -= options.linear_solver(J, f)
+
         f = np.atleast_1d(fun(x, *fun_args))
 
     if not converged:
-        warn(f"fsolve is not converged after {i} iterations with error {error:2.3f}")
+        warn(f"fsolve is not converged after {i} iterations with error {error:.2e}")
 
-    return x, converged, error, i, f
+    return x, converged, error, i + 1, f

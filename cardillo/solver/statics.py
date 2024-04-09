@@ -128,7 +128,7 @@ class Newton:
         return (
             f" force iter {force_iter+1:>{self.len_t}d}/{self.nt};"
             f" Newton steps {newton_iter+1:>{self.len_maxIter}d}/{self.options.newton_max_iter};"
-            f" error {error:.4e}/{self.options.newton_atol:.2e}"
+            f" error {error:.4e}"
         )
 
     def solve(self):

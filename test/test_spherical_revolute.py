@@ -43,7 +43,7 @@ def run(joint, Solver, k=None, d=None, **solver_args):
 
     r_OJ1 = np.zeros(3)
     A_IJ1 = np.eye(3)
-    A_IB10 = A_IB_basic(alpha0).z()
+    A_IB10 = A_IB_basic(alpha0).z
     r_OC10 = -0.5 * l * A_IB10[:, 1]
     B1_omega01 = np.array([0, 0, alpha_dot0])
     vS1 = cross3(B1_omega01, r_OC10)
@@ -87,7 +87,7 @@ def run(joint, Solver, k=None, d=None, **solver_args):
 
     r_OJ2 = -l * A_IB10[:, 1]
     A_IJ2 = A_IB10
-    A_IB20 = A_IB10 @ A_IB_basic(beta0).z()
+    A_IB20 = A_IB10 @ A_IB_basic(beta0).z
     r_B2S2 = -0.5 * l * A_IB20[:, 1]
     r_OC20 = r_OJ2 + r_B2S2
     B2_omega02 = np.array([0, 0, alpha_dot0 + beta_dot0])

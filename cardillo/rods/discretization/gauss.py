@@ -1,9 +1,9 @@
 import numpy as np
-from math import sqrt
+from scipy.special import roots_legendre
 
 
-def gauss(nQP, interval=np.array([-1, 1])):
-    """Calculate the abscissae and weights of the nQP Gauss-Legendre points on
+def gauss(n, interval=np.array([-1, 1])):
+    """Calculate the abscissae and weights of the n Gauss-Legendre points on
     an interval [-1,1] and map them onto a given interval [a, b] using linear
     transformation rule.
 
@@ -11,7 +11,7 @@ def gauss(nQP, interval=np.array([-1, 1])):
 
     Parameters
     ----------
-    nQP : int
+    n : int
         Number of desired quadrature points.
     interval : numpy.ndarray
         Interval [a, b] onto which the Quadrature points should be transformed.
@@ -22,19 +22,18 @@ def gauss(nQP, interval=np.array([-1, 1])):
     res : tuple(numpy.ndarray, numpy.ndarray)
         Tuple storing array of quadrature points and their corresponding weights.
     """
-
-    gp, wp = np.polynomial.legendre.leggauss(nQP)
+    points, weights = roots_legendre(n)
 
     # transfrom gauss points on new interval,
     # see https://de.wikipedia.org/wiki/Gau%C3%9F-Quadratur#Variablentransformation_bei_der_Gauß-Quadratur
-    gp = (interval[1] - interval[0]) / 2 * gp + (interval[1] + interval[0]) / 2
-    wp = (interval[1] - interval[0]) / 2 * wp
+    points = (interval[1] - interval[0]) / 2 * points + (interval[1] + interval[0]) / 2
+    weights = (interval[1] - interval[0]) / 2 * weights
 
-    return gp, wp
+    return points, weights
 
 
-def lobatto(nQP, interval=np.array([-1, 1])):
-    """Calculate the abscissae and weights of the nQP Gauss-Lobatto points on
+def lobatto(n, interval=np.array([-1, 1])):
+    """Calculate the abscissae and weights of the n Gauss-Lobatto points on
     an interval [-1,1] and map them onto a given interval [a, b] using linear
     transformation rule.
 
@@ -42,7 +41,7 @@ def lobatto(nQP, interval=np.array([-1, 1])):
 
     Parameters
     ----------
-    nQP : int
+    n : int
         Number of desired quadrature points.
     interval : numpy.ndarray
         Interval [a, b] onto which the gauss points should be transformed.
@@ -53,29 +52,28 @@ def lobatto(nQP, interval=np.array([-1, 1])):
     res : tuple(numpy.ndarray, numpy.ndarray)
         Tuple storing array of quadrature points and their corresponding weights.
     """
+    assert n >= 2, "Number of points must be at least 2."
 
-    assert nQP >= 2
+    # get (n-1)th Legendre basis
+    basis = np.polynomial.legendre.Legendre.basis(n - 1)
 
-    if nQP == 2:
-        gp = np.array([-1, 1], dtype=float)
-        wp = np.array([1, 1], dtype=float)
-    elif nQP == 3:
-        gp = np.array([-1, 0, 1], dtype=float)
-        wp = np.array([1, 4, 1], dtype=float) / 3
-    elif nQP == 4:
-        sqrt15 = sqrt(1 / 5)
-        gp = np.array([-1, -sqrt15, sqrt15, 1], dtype=float)
-        wp = np.array([1, 5, 5, 1], dtype=float) / 6
-    elif nQP == 5:
-        sqrt37 = sqrt(3 / 7)
-        gp = np.array([-1, -sqrt37, 0, sqrt37, 1], dtype=float)
-        wp = np.array([1 / 10, 49 / 90, 32 / 45, 49 / 90, 1 / 10], dtype=float)
-    else:
-        raise NotImplementedError(f"lobatto is not implemented for nQP == {nQP}")
+    # initialize points and add endpoints
+    points = np.empty(n)
+    points[0] = -1
+    points[-1] = 1
+
+    # compute the roots of the (n-1)th Legendre polynomial's derivative
+    points[1:-1] = basis.deriv().roots()
+
+    # compute the weights
+    weights = np.empty(n)
+    weights[0] = 2.0 / (n * (n - 1))
+    weights[-1] = weights[0]
+    weights[1:-1] = 2.0 / (n * (n - 1) * basis(points[1:-1]) ** 2)
 
     # transfrom gauss points on new interval,
     # see https://de.wikipedia.org/wiki/Gau%C3%9F-Quadratur#Variablentransformation_bei_der_Gauß-Quadratur
-    gp = (interval[1] - interval[0]) / 2 * gp + (interval[1] + interval[0]) / 2
-    wp = (interval[1] - interval[0]) / 2 * wp
+    points = (interval[1] - interval[0]) / 2 * points + (interval[1] + interval[0]) / 2
+    weights = (interval[1] - interval[0]) / 2 * weights
 
-    return gp, wp
+    return points, weights

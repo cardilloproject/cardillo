@@ -5,7 +5,7 @@ import trimesh
 
 from cardillo.discrete import RigidBody, Meshed
 from cardillo.system import System
-from cardillo.solver import ScipyIVP
+from cardillo.solver import Rattle
 
 
 if __name__ == "__main__":
@@ -62,7 +62,7 @@ if __name__ == "__main__":
     # simulation
     ############
     dt = 1e-2  # time step
-    solver = ScipyIVP(system, t1, dt)  # create solver
+    solver = Rattle(system, t1, dt)  # create solver
     sol = solver.solve()  # simulate system
 
     # read solution
