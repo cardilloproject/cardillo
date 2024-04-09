@@ -175,9 +175,6 @@ def fsolve(
             return options.linear_solver(J, rhs)
     # fmt: on
 
-    # scaling for convergence test
-    scale = options.newton_atol + np.abs(x0) * options.newton_rtol
-
     # eliminate round-off errors
     Delta_x = np.zeros_like(x0)
     x = x0 + Delta_x
@@ -186,7 +183,7 @@ def fsolve(
     f = np.atleast_1d(fun(x, *fun_args))
 
     # absolute error of initial guess
-    error = np.linalg.norm(f / options.newton_atol) / scale.size**0.5
+    error = np.linalg.norm(f / options.newton_atol) / f.size**0.5
     converged = error < 1
 
     if converged:
@@ -199,7 +196,11 @@ def fsolve(
         Delta_x -= dx
         x = x0 + Delta_x
 
-        # error and convergence check
+        # scaling, error and convergence check
+        scale = (
+            options.newton_rtol
+            + np.maximum(np.abs(x), np.abs(x0)) * options.newton_atol
+        )
         error = np.linalg.norm(dx / scale) / scale.size**0.5
         converged = error < 1
         if converged:

@@ -132,7 +132,7 @@ class RotatingBouncingBall:
         return np.concatenate((r_OC[:, None], r_OPs), axis=-1)
 
 
-def run(case, export=False):
+def run(case):
     """Example 10.1 of Capobianco2021.
 
     Three different cases are implemented:
@@ -148,11 +148,8 @@ def run(case, export=False):
 
     y0 = 1
     y_dot0 = 0
-    # dt = 5e-4
-    # dt = 1e-3
     dt = 5e-3
-    # dt = 1e-2
-    # dt = 5e-2
+    dt = 1e-2
 
     if case == 1:
         e_N, e_F, mu = 0.5, 0, 0
@@ -178,21 +175,12 @@ def run(case, export=False):
         x0 = -0.5
         x_dot0 = 1
         omega = 50
-        # t_final = 1.5
         t_final = 2
     else:
         raise AssertionError("Case not found!")
 
     q0 = np.array([x0, y0, 0], dtype=float)
     u0 = np.array([x_dot0, y_dot0, omega], dtype=float)
-
-    # # TODO: Remove this
-    # q0 = np.array([x0, 0.1, 0], dtype=float)
-    # # x_dot0 = 0.1
-    # # omega = -1
-    # x_dot0 = 1
-    # omega = 0
-    # u0 = np.array([x_dot0, 0, omega], dtype=float)
 
     mass = 1.0
     radius = 0.1
@@ -205,170 +193,68 @@ def run(case, export=False):
 
     system.assemble()
 
-    # solver1, label1 = Moreau(system, t_final, dt), "Moreau"
-    # solver1, label1 = (
-    #     Rattle(
-    #         system,
-    #         t_final,
-    #         dt,
-    #         options=SolverOptions(numerical_jacobian_method="2-point"),
-    #     ),
-    #     "Rattle",
-    # )
-    solver1, label1 = (
-        BackwardEuler(
-            system, t_final, dt, options=SolverOptions(reuse_lu_decomposition=True)
-        ),
-        "BackwardEuler",
-    )
+    solver1, label1 = Moreau(system, t_final, dt), "Moreau"
 
     sol1 = solver1.solve()
     t1 = sol1.t
     q1 = sol1.q
     u1 = sol1.u
-    # la_N1 = sol1.la_N
-    # la_F1 = sol1.la_F
-    # La_N1 = sol1.La_N
-    # La_F1 = sol1.La_F
     P_N1 = sol1.P_N
     P_F1 = sol1.P_F
 
-    solver2, label2 = Moreau(system, t_final, dt), "Moreau"
-    # solver2, label2 = BackwardEuler(system, t_final, dt), "BackwardEuler"
-    # solver2, label2 = Rattle(system, t_final, dt), "Rattle"
+    solver2, label2 = BackwardEuler(system, t_final, dt), "BackwardEuler"
     sol2 = solver2.solve()
-    # sol2 = sol1
-    # label2 = label1
     t2 = sol2.t
     q2 = sol2.q
     u2 = sol2.u
-    # la_N2 = sol2.la_N
-    # la_F2 = sol2.la_F
-    # La_N2 = sol2.La_N
-    # La_F2 = sol2.La_F
     P_N2 = sol2.P_N
     P_F2 = sol2.P_F
 
-    if export:
-        path = Path(__file__)
-
-        ###############
-        # gap functions
-        ###############
-        g_N1 = np.array([system.g_N(ti, qi) for ti, qi in zip(sol1.t, sol1.q)])
-        np.savetxt(
-            path.parent / "g_N1.dat",
-            np.hstack((sol1.t[:, None], g_N1)),
-            delimiter=", ",
-            header="t, g_N",
-            comments="",
-        )
-
-        g_N2 = np.array([system.g_N(ti, qi) for ti, qi in zip(sol2.t, sol2.q)])
-        np.savetxt(
-            path.parent / "g_N2.dat",
-            np.hstack((sol2.t[:, None], g_N2)),
-            delimiter=", ",
-            header="t, g_N",
-            comments="",
-        )
-
-        ################
-        # contact forces
-        ################
-        np.savetxt(
-            path.parent / "P_N1.dat",
-            np.hstack((sol1.t[:, None], P_N1)),
-            delimiter=", ",
-            header="t, P_N",
-            comments="",
-        )
-        np.savetxt(
-            path.parent / "P_N2.dat",
-            np.hstack((sol2.t[:, None], P_N2)),
-            delimiter=", ",
-            header="t, P_N",
-            comments="",
-        )
-        np.savetxt(
-            path.parent / "int_P_N1.dat",
-            np.hstack((sol1.t[:, None], np.cumsum(P_N1, axis=0))),
-            delimiter=", ",
-            header="t, P_N",
-            comments="",
-        )
-        np.savetxt(
-            path.parent / "int_P_N2.dat",
-            np.hstack((sol2.t[:, None], np.cumsum(P_N2, axis=0))),
-            delimiter=", ",
-            header="t, P_N",
-            comments="",
-        )
-
-        #################
-        # friction forces
-        #################
-        if mu > 0:
-            np.savetxt(
-                path.parent / "P_F1.dat",
-                np.hstack((sol1.t[:, None], P_F1)),
-                delimiter=", ",
-                header="t, P_F1, P_F2",
-                comments="",
-            )
-            np.savetxt(
-                path.parent / "P_F2.dat",
-                np.hstack((sol2.t[:, None], P_F2)),
-                delimiter=", ",
-                header="t, P_F1, P_F2",
-                comments="",
-            )
-            np.savetxt(
-                path.parent / "int_P_F1.dat",
-                np.hstack((sol1.t[:, None], np.cumsum(P_F1, axis=0))),
-                delimiter=", ",
-                header="t, P_F1, P_F2",
-                comments="",
-            )
-            np.savetxt(
-                path.parent / "int_P_F2.dat",
-                np.hstack((sol2.t[:, None], np.cumsum(P_F2, axis=0))),
-                delimiter=", ",
-                header="t, P_F1, P_F2",
-                comments="",
-            )
+    solver3, label3 = Rattle(system, t_final, dt), "Rattle"
+    sol3 = solver3.solve()
+    t3 = sol3.t
+    q3 = sol3.q
+    u3 = sol3.u
+    P_N3 = sol3.P_N
+    P_F3 = sol3.P_F
 
     fig, ax = plt.subplots(2, 3)
 
     ax[0, 0].set_title("x(t)")
-    ax[0, 0].plot(t2, q2[:, 0], "-k", label=label2)
-    ax[0, 0].plot(t1, q1[:, 0], "--r", label=label1)
+    ax[0, 0].plot(t1, q1[:, 0], "-k", label=label1)
+    ax[0, 0].plot(t2, q2[:, 0], "--r", label=label2)
+    ax[0, 0].plot(t3, q3[:, 0], "-.b", label=label3)
     ax[0, 0].legend()
 
     ax[1, 0].set_title("u_x(t)")
-    ax[1, 0].plot(t2, u2[:, 0], "-k", label=label2)
-    ax[1, 0].plot(t1, u1[:, 0], "--r", label=label1)
+    ax[1, 0].plot(t1, u1[:, 0], "-k", label=label1)
+    ax[1, 0].plot(t2, u2[:, 0], "--r", label=label2)
+    ax[1, 0].plot(t3, u3[:, 0], "-.b", label=label3)
     ax[1, 0].legend()
 
     ax[0, 1].set_title("y(t)")
     ax[0, 1].plot([t2[0], t2[-1]], [radius, radius], "-b", label="ground")
-    ax[0, 1].plot(t2, q2[:, 1], "-k", label=label2)
-    ax[0, 1].plot(t1, q1[:, 1], "--r", label=label1)
+    ax[0, 1].plot(t1, q1[:, 1], "-k", label=label1)
+    ax[0, 1].plot(t2, q2[:, 1], "--r", label=label2)
+    ax[0, 1].plot(t3, q3[:, 1], "-.b", label=label3)
     ax[0, 1].legend()
 
     ax[1, 1].set_title("u_y(t)")
-    ax[1, 1].plot(t2, u2[:, 1], "-k", label=label2)
-    ax[1, 1].plot(t1, u1[:, 1], "--r", label=label1)
+    ax[1, 1].plot(t1, u1[:, 1], "-k", label=label1)
+    ax[1, 1].plot(t2, u2[:, 1], "--r", label=label2)
+    ax[1, 1].plot(t3, u3[:, 1], "-.b", label=label3)
     ax[1, 1].legend()
 
     ax[0, 2].set_title("phi(t)")
-    ax[0, 2].plot(t2, q2[:, -1], "-k", label=label2)
-    ax[0, 2].plot(t1, q1[:, -1], "--r", label=label1)
+    ax[0, 2].plot(t1, q1[:, -1], "-k", label=label1)
+    ax[0, 2].plot(t2, q2[:, -1], "--r", label=label2)
+    ax[0, 2].plot(t3, q3[:, -1], "-.b", label=label3)
     ax[0, 2].legend()
 
     ax[1, 2].set_title("u_phi(t)")
-    ax[1, 2].plot(t2, u2[:, -1], "-k", label=label2)
-    ax[1, 2].plot(t1, u1[:, -1], "--r", label=label1)
+    ax[1, 2].plot(t1, u1[:, -1], "-k", label=label1)
+    ax[1, 2].plot(t2, u2[:, -1], "--r", label=label2)
+    ax[1, 2].plot(t3, u3[:, -1], "-.b", label=label3)
     ax[1, 2].legend()
 
     plt.tight_layout()
@@ -376,14 +262,16 @@ def run(case, export=False):
     fig, ax = plt.subplots(1, 2)
 
     ax[0].set_title("P_N(t)")
-    ax[0].plot(t2, P_N2[:, 0], "-k", label=label2)
-    ax[0].plot(t1, P_N1[:, 0], "--r", label=label1)
+    ax[0].plot(t1, P_N1[:, 0], "-k", label=label1)
+    ax[0].plot(t2, P_N2[:, 0], "--r", label=label2)
+    ax[0].plot(t3, P_N3[:, 0], "-.b", label=label3)
     ax[0].legend()
 
     if mu > 0:
         ax[1].set_title("P_F(t)")
-        ax[1].plot(t2, P_F2[:, 0], "-k", label=label2)
-        ax[1].plot(t1, P_F1[:, 0], "--r", label=label1)
+        ax[1].plot(t1, P_F1[:, 0], "-k", label=label1)
+        ax[1].plot(t2, P_F2[:, 0], "--r", label=label2)
+        ax[1].plot(t3, P_F3[:, 0], "-.b", label=label3)
         ax[1].legend()
 
     plt.tight_layout()

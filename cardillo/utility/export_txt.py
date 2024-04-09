@@ -8,6 +8,7 @@ def export_txt(
     solution,
     fields=["q", "u"],
     functions=["g_N"],
+    path_append="",
 ):
     header = "t"
     data = [solution.t[:, None]]
@@ -57,7 +58,7 @@ def export_txt(
 
     path = Path(sys.modules["__main__"].__file__)
     np.savetxt(
-        path.parent / f"{path.stem}.dat",
+        path.parent / (path.stem + path_append + ".dat"),
         data,
         delimiter=", ",
         header=header,
