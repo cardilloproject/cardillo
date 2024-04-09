@@ -216,8 +216,8 @@ class Rattle:
         ] = (-0.5 * dt * self.W_cn)
         J_x1[
             self.split_x1[0] : self.split_x1[1], self.split_x1[2] : self.split_x1[3]
-        ] = self.W_gn
-        J_x1[self.split_x1[0] : self.split_x1[1], self.split_x1[3] :] = self.W_gamman
+        ] = -self.W_gn
+        J_x1[self.split_x1[0] : self.split_x1[1], self.split_x1[3] :] = -self.W_gamman
 
         ############
         # compliance
@@ -496,20 +496,29 @@ class Rattle:
             self.la_c2 = self.system.la_c(tn1, qn1, un12)
 
             # constant part of the rhs
-            b0 = -self.Mn @ un12 - 0.5 * self.dt * (
-                self.system.h(tn1, qn1, un12)
-                + self.system.W_tau(tn1, qn1, format="csr")
-                @ self.system.la_tau(tn1, qn1, un12)
-                + self.W_cn @ self.la_c2
+            b0 = np.concatenate(
+                [
+                    -self.Mn @ un12
+                    - 0.5
+                    * self.dt
+                    * (
+                        self.system.h(tn1, qn1, un12)
+                        + self.system.W_tau(tn1, qn1, format="csr")
+                        @ self.system.la_tau(tn1, qn1, un12)
+                        + self.W_cn @ self.la_c2
+                    ),
+                    self.system.chi_g(tn1, qn1),
+                    self.system.chi_gamma(tn1, qn1)
+                ]
             )
 
             # iteration matrix
-            g_u = self.system.g_dot_u(tn1, qn1)
+            g_dot_u = self.system.g_dot_u(tn1, qn1)
             gamma_u = self.system.gamma_u(tn1, qn1)
             # fmt: off
             A = bmat([
                 [self.Mn, -self.W_gn, -self.W_gamman],
-                [    g_u,       None,           None],
+                [g_dot_u,       None,           None],
                 [gamma_u,       None,           None],
             ], format="csc")
             # fmt: on
@@ -531,7 +540,9 @@ class Rattle:
             y2n = self.y2n.copy()
 
             # solve LGS
-            x2n1 = -lu.solve(b0 - self.W_FNn @ y2n)
+            b = b0
+            b[:self.nu] -= self.W_FNn @ y2n
+            x2n1 = -lu.solve(b)
 
             # fixed-point loop
             y2n1 = y2n.copy()
@@ -561,7 +572,9 @@ class Rattle:
                     y2n = y2n1.copy()
 
                     # solve LGS
-                    x2n1 = -lu.solve(b0 - self.W_FNn @ y2n1)
+                    b = b0
+                    b[:self.nu] -= self.W_FNn @ y2n
+                    x2n1 = -lu.solve(b)
 
             self.solver_summary.add_fixed_point(i2_fixed_point, error)
 
