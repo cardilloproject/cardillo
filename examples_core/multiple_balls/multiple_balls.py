@@ -69,7 +69,7 @@ if __name__ == "__main__":
 
     # floor
     floor = Box(Frame)(
-        dimensions=[2, 2, 0.0001],
+        dimensions=[4.5, 4.5, 0.0001],
         name="floor",
         A_IB=A_IB_basic(np.deg2rad(10)).x @ A_IB_basic(np.deg2rad(10)).y,
     )
