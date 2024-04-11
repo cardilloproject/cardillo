@@ -276,6 +276,7 @@ class Rattle:
         ##############################
         g_N = self.system.g_N(tn1, qn1)
         prox_arg = (prox_r_N / self.dt) * g_N - P_N1
+        self.I_N = prox_arg <= 0  # active set for second stage
         y1n1p[: self.split_y[0]] = -NegativeOrthant.prox(prox_arg)
 
         #############################
@@ -376,7 +377,7 @@ class Rattle:
 
         return x, error, converged, i
 
-    def _iterative_prjection_method(self, x0, y0, lu=None):
+    def _iterative_projection_method(self, x0, y0, lu=None):
         # solve nonlinear system
         (
             x0,
@@ -473,7 +474,7 @@ class Rattle:
                 lu = None
 
             # fixed-point iterations
-            x1n1, y1n1, i1_fixed_point = self._iterative_prjection_method(
+            x1n1, y1n1, i1_fixed_point = self._iterative_projection_method(
                 self.x1n, self.y1n, lu
             )
 
@@ -508,7 +509,7 @@ class Rattle:
                         + self.W_cn @ self.la_c2
                     ),
                     self.system.chi_g(tn1, qn1),
-                    self.system.chi_gamma(tn1, qn1)
+                    self.system.chi_gamma(tn1, qn1),
                 ]
             )
 
@@ -525,29 +526,22 @@ class Rattle:
             lu = splu(A)
             self.solver_summary.add_lu(1)
 
-            # TODO: Discuss this choice. Otherwise we should use g_Nn1 from above.
-            # g_Nn1 = self.system.g_N(tn1, qn1)
-            # self.I_N = g_Nn1 <= 0
-            self.I_N = y1n1[: self.split_y[0]] > 0
-
             #########
             # Stage 2
             #########
-            # fixed-point iterations
 
             # store old values
             x2n = self.x2n.copy()
             y2n = self.y2n.copy()
 
             # solve LGS
-            b = b0
-            b[:self.nu] -= self.W_FNn @ y2n
+            b = b0.copy()  # mandatory copy
+            b[: self.nu] -= self.W_FNn @ y2n
             x2n1 = -lu.solve(b)
 
-            # fixed-point loop
+            # fixed-point iterations
             y2n1 = y2n.copy()
             converged = False
-
             for i2_fixed_point in range(self.options.fixed_point_max_iter):
                 # find proximal point
                 y2n1 = self.prox2(x2n1, y2n1)
@@ -572,8 +566,8 @@ class Rattle:
                     y2n = y2n1.copy()
 
                     # solve LGS
-                    b = b0
-                    b[:self.nu] -= self.W_FNn @ y2n
+                    b = b0.copy()  # mandatory copy
+                    b[: self.nu] -= self.W_FNn @ y2n
                     x2n1 = -lu.solve(b)
 
             self.solver_summary.add_fixed_point(i2_fixed_point, error)
