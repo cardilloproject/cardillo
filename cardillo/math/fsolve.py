@@ -135,7 +135,43 @@ def fsolve(
     jac_args=(),
     inexact=False,
     options=SolverOptions(),
-):
+) -> tuple[np.ndarray, bool, float, int, np.ndarray]:
+    """Solve a nonlinear system of equations using (inexact) Newton method.
+    This function is inspired by scipy's `solve_collocation_system` found
+    in `scipy.integrate._ivp.radau`.
+
+    Parameters
+    ----------
+    fun : callable
+        Nonlinear function with signature `fun(x, *fun_args)`.
+    x0 : ndarray, shape (n,)
+        Initial guess.
+    jac : callable, SuperLU, optional
+        Function defining the sparse Jacobian of `fun`. Alternatvely, this
+        can be an `SuperLU` object. Then, an inexact Newton method is
+        performed, see `inexact`.
+    fun_args: tuple
+        Additional arguments passed to `fun`.
+    jac_args: tuple
+        Additional arguments passed to `jac`.
+    inexact: Bool, optional
+        Apply inexact Newton method with constant `J = jac(x0)`.
+    options: SolverOptions
+        Defines all required solver options.
+
+    Returns
+    -------
+    x: ndarray, shape(n,)
+        Found solution
+    converged : bool
+        Whether iterations converged.
+    error: float
+        Relative error of the last step.
+    i : int
+        Number of completed iterations.
+    x: ndarray, shape (n,)
+        Current function value.
+    """
     if not isinstance(fun_args, tuple):
         fun_args = (fun_args,)
     if not jac_args:
@@ -187,7 +223,10 @@ def fsolve(
     converged = error < 1
 
     if converged:
-        return x, converged, error, 0, f
+        return x, converged, error, 0.0, f
+
+    # scaling with relative tolernaces
+    scale = options.newton_rtol + np.abs(x0) * options.newton_atol
 
     # Newton loop
     for i in range(options.newton_max_iter):
@@ -196,16 +235,13 @@ def fsolve(
         Delta_x -= dx
         x = x0 + Delta_x
 
-        # scaling, error and convergence check
-        scale = (
-            options.newton_rtol
-            + np.maximum(np.abs(x), np.abs(x0)) * options.newton_atol
-        )
+        # error and convergence check
         error = np.linalg.norm(dx / scale) / scale.size**0.5
         converged = error < 1
         if converged:
             break
 
+        # new function value if iteration is not converged
         f = np.atleast_1d(fun(x, *fun_args))
 
     if not converged:
