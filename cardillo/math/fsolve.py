@@ -169,7 +169,7 @@ def fsolve(
         Relative error of the last step.
     i : int
         Number of completed iterations.
-    x: ndarray, shape (n,)
+    f: ndarray, shape (n,)
         Current function value.
     """
     if not isinstance(fun_args, tuple):
@@ -223,7 +223,7 @@ def fsolve(
     converged = error < 1
 
     if converged:
-        return x, converged, error, 0.0, f
+        return x, converged, error, 0, f
 
     # scaling with relative tolernaces
     scale = options.newton_rtol + np.abs(x0) * options.newton_atol
