@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from cardillo import System
-from cardillo.solver import Riks, Newton
+from cardillo.solver import Riks, Newton, SolverOptions
 from cardillo.math.approx_fprime import approx_fprime
 
 
@@ -36,21 +36,27 @@ class Truss2D:
         )
 
     def h_q(self, t, q, u):
-        return approx_fprime(q, lambda q: self.h(t, q, u))
+        return approx_fprime(q, lambda q: self.h(t, q, u), method="cs")
 
 
 if __name__ == "__main__":
     force = lambda t: t
-    stiffness = 1
+    stiffness = 1.0
     phi0 = np.pi / 4
-    width = 1
+    width = 1.0
     truss = Truss2D(force, stiffness, phi0, width)
 
     system = System()
     system.add(truss)
     system.assemble()
 
-    sol = Riks(system, la_arc_span=[-1, 1], la_arc0=1e-6, iter_goal=2).solve()
+    sol = Riks(
+        system,
+        la_arc_span=[-1, 1],
+        la_arc0=1e-6,
+        iter_goal=2,
+        options=SolverOptions(newton_atol=1e-8, newton_rtol=1e-8),
+    ).solve()
     # sol = Newton(system, n_load_steps=50).solve()
     t, q = sol.t, sol.q
 
@@ -66,7 +72,7 @@ if __name__ == "__main__":
     u = np.diff(phi)
     v = np.diff(F)
     norm = np.sqrt(u**2 + v**2)
-    n = int(len(u) / 11)
+    n = int(len(u) / 31)
     ax.quiver(
         phi[:-1][::n], F[:-1][::n], (u / norm)[::n], (v / norm)[::n], color="black"
     )

@@ -24,14 +24,14 @@ class SolverSummary:
                 f" - fixed-point iterations: max = {max(self.fixed_point_n_iter_list)}, avg = {sum(self.fixed_point_n_iter_list) / float(len(self.fixed_point_n_iter_list)):.2f}"
             )
             print(
-                f" - fixed-point maximal absolute error: max = {max(self.fixed_point_abs_errors):.3e}, avg = {sum(self.fixed_point_abs_errors) / float(len(self.fixed_point_abs_errors)):.3e}"
+                f" - fixed-point maximal error: max = {max(self.fixed_point_abs_errors):.3e}, avg = {sum(self.fixed_point_abs_errors) / float(len(self.fixed_point_abs_errors)):.3e}"
             )
         if self.newton_n_iter_list:
             print(
                 f" - newton iterations: max = {max(self.newton_n_iter_list)}, avg = {sum(self.newton_n_iter_list) / float(len(self.newton_n_iter_list)):.2f}"
             )
             print(
-                f" - newton maximal absolute error: max = {max(self.newton_abs_errors):.3e}, avg = {sum(self.newton_abs_errors) / float(len(self.newton_abs_errors)):.3e}"
+                f" - newton maximal error: max = {max(self.newton_abs_errors):.3e}, avg = {sum(self.newton_abs_errors) / float(len(self.newton_abs_errors)):.3e}"
             )
         if self.n_lu:
             print(f" - performed lu-decompositions: {self.n_lu}")

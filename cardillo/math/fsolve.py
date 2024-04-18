@@ -3,6 +3,7 @@ from scipy.linalg import qr, solve_triangular, svd
 from scipy.sparse import csc_array
 from scipy.sparse.linalg import spsolve, splu
 from scipy.sparse.linalg._dsolve._superlu import SuperLU
+from scipy.optimize import OptimizeResult
 from warnings import warn
 
 from cardillo.math.approx_fprime import approx_fprime
@@ -138,7 +139,9 @@ def fsolve(
 ) -> tuple[np.ndarray, bool, float, int, np.ndarray]:
     """Solve a nonlinear system of equations using (inexact) Newton method.
     This function is inspired by scipy's `solve_collocation_system` found
-    in `scipy.integrate._ivp.radau`.
+    in `scipy.integrate._ivp.radau`. Absolute and relative errors are used 
+    to terminate the iteration in accordance with Kelly1995 (1.12). See also 
+    Hairer1996 below (8.21).
 
     Parameters
     ----------
@@ -155,23 +158,29 @@ def fsolve(
     jac_args: tuple
         Additional arguments passed to `jac`.
     inexact: Bool, optional
-        Apply inexact Newton method with constant `J = jac(x0)`.
+        Apply inexact Newton method (Newton chord) with constant `J = jac(x0)`.
     options: SolverOptions
         Defines all required solver options.
 
     Returns
     -------
-    x: ndarray, shape(n,)
-        Found solution
-    converged : bool
-        Whether iterations converged.
-    error: float
-        Relative error of the last step.
-    i : int
-        Number of completed iterations.
-    f: ndarray, shape (n,)
-        Current function value.
+    res : OptimizeResult
+        The optimization result represented as a `OptimizeResult` object.
+        Important attributes are: `x` the solution array, `success` a
+        Boolean flag indicating if the optimizer exited successfully, `error` 
+        the relative error, `fun` the current function value and `nit`, 
+        `nfev`, `njev` the counters for number of iterations, function and 
+        Jacobian evaluations, respectively.
+
+    References
+    ----------
+    Kelly1995: https://epubs.siam.org/doi/book/10.1137/1.9780898718898 \\
+    Haireri1996: https://link.springer.com/book/10.1007/978-3-642-05221-7
     """
+    nit = 0
+    nfev = 0
+    njev = 0
+
     if not isinstance(fun_args, tuple):
         fun_args = (fun_args,)
     if not jac_args:
@@ -179,16 +188,27 @@ def fsolve(
     elif not isinstance(jac_args, tuple):
         jac_args = (jac_args,)
 
+    # wrap function
+    def fun(x, *args, f=fun):
+        nonlocal nfev
+        nfev += 1
+        return np.atleast_1d(f(x, *args))
+
     # compute Jacobian matrix using finite differences
-    if options.numerical_jacobian_method:
-        jacobian = lambda x, *args: csc_array(
-            approx_fprime(
-                x,
-                lambda y: fun(y, *args),
-                method=options.numerical_jacobian_method,
-                eps=options.numerical_jacobian_eps,
+    if jac is None or options.numerical_jacobian_method:
+
+        def jacobian(x, *args):
+            nonlocal njev
+            njev += 1
+            return csc_array(
+                approx_fprime(
+                    x,
+                    lambda y: fun(y, *args),
+                    method=options.numerical_jacobian_method,
+                    eps=options.numerical_jacobian_eps,
+                )
             )
-        )
+
     else:
         # do inexact newton with given LU-decomposition
         if isinstance(jac, SuperLU):
@@ -196,20 +216,26 @@ def fsolve(
             lu = jac
         else:
             assert callable(jac), "user-defined jacobian must be callable"
-            jacobian = jac
+
+            # wrap jacobian
+            def jacobian(x, *args):
+                nonlocal njev
+                njev += 1
+                return jac(x, *args)
+
             if inexact:
                 lu = splu(jacobian(x0, *jac_args))
+                njev += 1
 
-    # fmt: off
     if inexact:
+
         def solve(x, rhs):
             return lu.solve(rhs)
 
     else:
+
         def solve(x, rhs):
-            J = jacobian(x, *jac_args)
-            return options.linear_solver(J, rhs)
-    # fmt: on
+            return options.linear_solver(jacobian(x, *jac_args), rhs)
 
     # eliminate round-off errors
     Delta_x = np.zeros_like(x0)
@@ -218,33 +244,39 @@ def fsolve(
     # initial function value
     f = np.atleast_1d(fun(x, *fun_args))
 
-    # absolute error of initial guess
-    error = np.linalg.norm(f / options.newton_atol) / f.size**0.5
+    # scaling with relative and absolute tolerances
+    scale = options.newton_atol + np.abs(f) * options.newton_rtol
+
+    # error of initial guess
+    error = np.linalg.norm(f / scale) / scale.size**0.5
     converged = error < 1
 
-    if converged:
-        return x, converged, error, 0, f
-
-    # scaling with relative tolernaces
-    scale = options.newton_rtol + np.abs(x0) * options.newton_atol
-
     # Newton loop
-    for i in range(options.newton_max_iter):
-        # Newton update
-        dx = solve(x, f)
-        Delta_x -= dx
-        x = x0 + Delta_x
-
-        # error and convergence check
-        error = np.linalg.norm(dx / scale) / scale.size**0.5
-        converged = error < 1
-        if converged:
-            break
-
-        # new function value if iteration is not converged
-        f = np.atleast_1d(fun(x, *fun_args))
-
     if not converged:
-        warn(f"fsolve is not converged after {i} iterations with error {error:.2e}")
+        for i in range(options.newton_max_iter):
+            # Newton update
+            dx = solve(x, f)
+            Delta_x -= dx
+            x = x0 + Delta_x
 
-    return x, converged, error, i + 1, f
+            # new function value, error and convergence check
+            f = np.atleast_1d(fun(x, *fun_args))
+            error = np.linalg.norm(f / scale) / scale.size**0.5
+            converged = error < 1
+            if converged:
+                break
+
+        if not converged:
+            warn(f"fsolve is not converged after {i} iterations with error {error:.2e}")
+
+        nit = i + 1
+
+    return OptimizeResult(
+        x=x,
+        success=converged,
+        error=error,
+        fun=f,
+        nit=nit,
+        nfev=nfev,
+        njev=njev,
+    )

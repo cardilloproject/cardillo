@@ -136,7 +136,7 @@ class Newton:
         if self.verbose:
             pbar = tqdm(pbar, leave=True)
         for i in pbar:
-            self.x[i], converged, error, k, _ = fsolve(
+            sol = fsolve(
                 self.fun,
                 self.x[i],
                 jac=self.jac,
@@ -144,9 +144,10 @@ class Newton:
                 jac_args=(self.load_steps[i],),
                 options=self.options,
             )
-            pbar.set_description(self.__pbar_text(i, k, error))
+            self.x[i] = sol.x
+            pbar.set_description(self.__pbar_text(i, sol.nit, sol.error))
 
-            if not converged and not self.options.continue_with_unconverged:
+            if not sol.success and not self.options.continue_with_unconverged:
                 # return solution up to this iteration
                 if self.verbose:
                     pbar.close()
@@ -293,18 +294,13 @@ class Riks:
             x = np.concatenate((x, [la_arc0]))
             return self.J(x)[:-1, :-1]
 
-        self.x0_bar, converged, _, _, _ = fsolve(
-            fun, self.x0_bar[:-1], jac=jac, options=options
-        )
+        sol = fsolve(fun, self.x0_bar[:-1], jac=jac, options=options)
         assert (
-            converged
-        ), "solving for initial arc-length parameter 'ds' did not converge => chose another 'la_arc0'"
-        self.x0_bar = np.concatenate((self.x0_bar, [la_arc0]))
-        assert (
-            converged
+            sol.success
         ), "solving for initial arc-length parameter 'ds' did not converge => chose another 'la_arc0'"
 
         # compute initial ds from arc-length equation
+        self.x0_bar = np.concatenate((sol.x, [la_arc0]))
         self.ds = self.a(self.x0_bar) ** 0.5
         assert self.ds > 0, "initial ds is zero"
         print(f"initial ds: {self.ds:2.4e}")
@@ -445,17 +441,16 @@ class Riks:
                 xk1 += dx
 
             # solve nonlinear system
-            xk1, converged, error, newton_iter, R = fsolve(
-                self.R, xk1, jac=self.J, options=self.options
-            )
-            assert converged, f"internal newton method is not converged"
+            sol = fsolve(self.R, xk1, jac=self.J, options=self.options)
+            xk1 = sol.x
+            assert sol.success, f"internal newton method is not converged"
 
             # Scale ds such that iter goal is satisfied. Disable scaling if we
             # have halved the ds parameter before or after the first iteration
             # which requires lots of iterations see Crisfield1991, section 9.5
             # (9.40) or (9.41) for the square root scaling.
-            if self.scale_exponent is not None and newton_iter > 0:
-                fac = (self.iter_goal / newton_iter) ** self.scale_exponent
+            if self.scale_exponent is not None and sol.nit > 0:
+                fac = (self.iter_goal / sol.nit) ** self.scale_exponent
                 self.ds *= max(self.MIN_FACTOR, min(fac, self.MAX_FACTOR))
 
             # store last converged newton step
@@ -480,7 +475,7 @@ class Riks:
             )
             pbar.update(i1 - i0)
             pbar.set_description(
-                f"la_arc: {self.la_arc_span[1]:0.2e} <= {la_arc_[0]:0.2e} <= {self.la_arc_span[1]:0.2e}"
+                f"la_arc: {self.la_arc_span[0]:0.2e} <= {la_arc_[0]:0.2e} <= {self.la_arc_span[1]:0.2e}; error: {sol.error:0.2e}; iter: {sol.nit}"
             )
             i0 = i1
 

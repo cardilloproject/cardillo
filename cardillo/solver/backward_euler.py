@@ -316,7 +316,7 @@ class BackwardEuler:
 
     def _solve_nonlinear_system(self, x0, y, lu):
         if self.options.reuse_lu_decomposition:
-            x, converged, error, i, _ = fsolve(
+            sol = fsolve(
                 lambda x, y, *args: self.R_x(x, y, *args),
                 x0,
                 jac=lu,
@@ -324,7 +324,7 @@ class BackwardEuler:
                 options=self.options,
             )
         else:
-            x, converged, error, i, _ = fsolve(
+            sol = fsolve(
                 lambda x, y, *args: self.R_x(x, y, *args),
                 x0,
                 jac=lambda x, y, *args: self.J_x(x, y, *args),
@@ -332,15 +332,14 @@ class BackwardEuler:
                 jac_args=(y,),
                 options=self.options,
             )
-            self.solver_summary.add_lu(i)
 
-        if not converged:
+        if not sol.success:
             if self.options.continue_with_unconverged:
                 warnings.warn("Newton is not converged but integration is continued")
             else:
                 raise RuntimeError("Newton is not converged")
 
-        return x, error, converged, i
+        return sol
 
     def solve(self):
         self.solver_summary = SolverSummary("Backward Euler")
@@ -400,12 +399,9 @@ class BackwardEuler:
                 self.solver_summary.add_lu(1)
 
             # solve nonlinear system
-            (
-                xn1,
-                error_newton,
-                converged_newton,
-                i_newton,
-            ) = self._solve_nonlinear_system(x0, y0, lu)
+            sol = self._solve_nonlinear_system(x0, y0, lu)
+            xn1 = sol.x
+            self.solver_summary.add_lu(sol.njev)
 
             # fixed-point loop
             converged = False
@@ -432,12 +428,9 @@ class BackwardEuler:
                         y0 = yn1.copy()
 
                         # solve nonlinear system
-                        (
-                            xn1,
-                            error_newton,
-                            converged_newton,
-                            i_newton,
-                        ) = self._solve_nonlinear_system(x0, y0, lu)
+                        sol = self._solve_nonlinear_system(x0, y0, lu)
+                        xn1 = sol.x
+                        self.solver_summary.add_lu(sol.njev)
 
             else:
                 converged = True
@@ -453,11 +446,11 @@ class BackwardEuler:
                     raise RuntimeError("fixed-point iteration is not converged")
 
             self.solver_summary.add_fixed_point(i_fixed_point, error)
-            self.solver_summary.add_newton(i_newton, error_newton)
+            self.solver_summary.add_newton(sol.nit, sol.error)
 
             # update progress bar
             pbar.set_description(
-                f"t: {tn1:0.2e}s < {self.t1:0.2e}s; |y1 - y0|_rel: {error:0.2e}; fixed-point: {i_fixed_point}/{self.options.fixed_point_max_iter}; |dx|_rel: {error_newton:0.2e}; newton: {i_newton}/{self.options.newton_max_iter}"
+                f"t: {tn1:0.2e}s < {self.t1:0.2e}s; |y1 - y0|_rel: {error:0.2e}; fixed-point: {i_fixed_point}/{self.options.fixed_point_max_iter}; |dx|_rel: {sol.error:0.2e}; newton: {sol.nit}/{self.options.newton_max_iter}"
             )
 
             # compute state

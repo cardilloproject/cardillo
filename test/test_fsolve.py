@@ -7,13 +7,16 @@ from scipy.optimize import rosen_der, rosen_hess
 def test_fsolve():
     fun = rosen_der
     jac = lambda x: csc_array(rosen_hess(x))
+    # jac = "2-point"
+    jac = None
     x0 = np.array([1.3, 0.7, 0.8, 1.9, 1.2])
-    x, converged, error, i, f = fsolve(fun, x0, jac)
+    sol = fsolve(fun, x0, jac)
+    print(f"sol:\n{sol}")
 
-    assert np.allclose(x, np.ones_like(x))
-    assert converged
-    assert error < 1
-    assert np.allclose(f, np.zeros_like(x))
+    assert np.allclose(sol.x, np.ones_like(x0))
+    assert sol.success
+    assert sol.error < 1
+    assert np.allclose(sol.fun, np.zeros_like(x0))
 
 
 if __name__ == "__main__":

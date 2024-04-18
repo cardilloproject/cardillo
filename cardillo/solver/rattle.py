@@ -351,7 +351,7 @@ class Rattle:
 
     def _solve_nonlinear_system(self, x0, y, lu):
         if self.options.reuse_lu_decomposition:
-            x, converged, error, i, _ = fsolve(
+            sol = fsolve(
                 lambda x, y, *args: self.R_x1(x, y, *args),
                 x0,
                 jac=lu,
@@ -359,7 +359,7 @@ class Rattle:
                 options=self.options,
             )
         else:
-            x, converged, error, i, _ = fsolve(
+            sol = fsolve(
                 lambda x, y, *args: self.R_x1(x, y, *args),
                 x0,
                 jac=lambda x, y, *args: self._J_x1(x, y, *args),
@@ -367,24 +367,20 @@ class Rattle:
                 jac_args=(y,),
                 options=self.options,
             )
-            self.solver_summary.add_lu(i)
 
-        if not converged:
+        if not sol.success:
             if self.options.continue_with_unconverged:
                 warnings.warn("Newton is not converged but integration is continued")
             else:
                 raise RuntimeError("Newton is not converged")
 
-        return x, error, converged, i
+        return sol
 
     def _iterative_projection_method(self, x0, y0, lu=None):
         # solve nonlinear system
-        (
-            x0,
-            error_newton,
-            converged_newton,
-            i_newton,
-        ) = self._solve_nonlinear_system(x0, y0, lu)
+        sol = self._solve_nonlinear_system(x0, y0, lu)
+        x0 = sol.x
+        self.solver_summary.add_lu(sol.njev)
 
         # fixed-point loop
         converged = False
@@ -394,12 +390,9 @@ class Rattle:
             y1 = self.prox1(x0, y0)
 
             # solve nonlinear system
-            (
-                x1,
-                error_newton,
-                converged_newton,
-                i_newton,
-            ) = self._solve_nonlinear_system(x0, y1, lu)
+            sol = self._solve_nonlinear_system(x0, y1, lu)
+            x1 = sol.x
+            self.solver_summary.add_lu(sol.njev)
 
             # convergence in smooth state (without Lagrange multipliers)
             diff = x1[:n_state] - x0[:n_state]
@@ -411,7 +404,7 @@ class Rattle:
                 * self.options.fixed_point_rtol
             )
             error = np.linalg.norm(diff / sc) / sc.size**0.5
-            converged = error < 1.0 and converged_newton
+            converged = error < 1.0 and sol.success
 
             if converged:
                 break
@@ -421,7 +414,7 @@ class Rattle:
                 y0 = y1.copy()
 
         self.solver_summary.add_fixed_point(i_fixed_point, error)
-        self.solver_summary.add_newton(i_newton, error_newton)
+        self.solver_summary.add_newton(sol.nit, sol.error)
 
         if not converged:
             if self.options.continue_with_unconverged:
