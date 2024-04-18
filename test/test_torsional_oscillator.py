@@ -7,12 +7,7 @@ from cardillo import System
 from cardillo.solver import ScipyIVP, BackwardEuler, Moreau
 from cardillo.constraints import Revolute
 from cardillo.discrete import RigidBody
-from cardillo.forces import (
-    LinearSpring,
-    LinearDamper,
-    PDRotational,
-)
-from cardillo.force_laws import KelvinVoigtElement
+from cardillo.force_laws import KelvinVoigtElement as SpringDamper
 from cardillo.math import Exp_SO3, axis_angle2quat, norm
 
 # solver parameters
@@ -74,17 +69,7 @@ def run(Solver, **solver_kwargs):
         A_IJ0=A_IB0,
     )
 
-    spring = KelvinVoigtElement(joint, k, d, l_ref=g_ref)
-    # joint = PDRotational(Revolute, Spring=LinearSpring, Damper=LinearDamper)(
-    #     subsystem1=system.origin,
-    #     subsystem2=rigid_body,
-    #     axis=rotation_axis,
-    #     r_OJ0=np.zeros(3),
-    #     A_IJ0=A_IB0,
-    #     k=k,
-    #     d=d,
-    #     g_ref=g_ref,
-    # )
+    spring = SpringDamper(joint, k, d, l_ref=g_ref)
 
     system.add(rigid_body, joint, spring)
     system.assemble()

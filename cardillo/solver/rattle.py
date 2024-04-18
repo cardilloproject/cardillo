@@ -238,9 +238,9 @@ class Rattle:
         J_x1[self.split_x1[3] :, : self.split_x1[0]] = self.system.gamma_q(
             tn1, qn1, un12
         )
-        J_x1[
-            self.split_x1[3] :, self.split_x1[0] : self.split_x1[1]
-        ] = self.system.gamma_u(tn1, qn1)
+        J_x1[self.split_x1[3] :, self.split_x1[0] : self.split_x1[1]] = (
+            self.system.gamma_u(tn1, qn1)
+        )
 
         return J_x1.tocsc()
 

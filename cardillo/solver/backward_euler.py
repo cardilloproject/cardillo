@@ -249,7 +249,6 @@ class BackwardEuler:
             format="csc",
         )
         # fmt: on
-
         return J
 
     def J_y(self, xn1, yn1):

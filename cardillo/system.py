@@ -314,9 +314,11 @@ class System:
         if self.__M_contr:
             I_constant_mass_matrix = np.array(
                 [
-                    contr.constant_mass_matrix
-                    if hasattr(contr, "constant_mass_matrix")
-                    else False
+                    (
+                        contr.constant_mass_matrix
+                        if hasattr(contr, "constant_mass_matrix")
+                        else False
+                    )
                     for contr in self.__M_contr
                 ]
             )

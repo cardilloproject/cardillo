@@ -144,17 +144,17 @@ if __name__ == "__main__":
     t, q, u, eps_p_dot = sol.t, sol.q, sol.u, sol.la_c
 
     fig, ax = plt.subplots(1, 4)
-    ax[0].plot(t, q[:, 0], label="$\epsilon$")
+    ax[0].plot(t, q[:, 0], label=r"$\epsilon$")
     ax[0].grid()
     ax[0].legend()
     plt.xlabel("$t$")
 
-    ax[1].plot(t, -u[:, 1], label="$-\sigma$")
+    ax[1].plot(t, -u[:, 1], label=r"$-\sigma$")
     ax[1].grid()
     ax[1].legend()
     plt.xlabel("$t$")
 
-    ax[2].plot(t, u[:, 0], label="$\dot\epsilon$")
+    ax[2].plot(t, u[:, 0], label=r"$\dot\epsilon$")
     # if eps_p_dot is not None:
     #     ax[2].plot(t, eps_p_dot[:, 0], "-r", label="$\dot\epsilon_p$")
     ax[2].grid()
@@ -164,7 +164,7 @@ if __name__ == "__main__":
     # TODO: add axis labels
     ax[3].plot(q[:, 0], -u[:, 1])
     ax[3].grid()
-    plt.xlabel("$\epsilon$")
-    plt.ylabel("$-\sigma$")
+    plt.xlabel(r"$\epsilon$")
+    plt.ylabel(r"$-\sigma$")
 
     plt.show()

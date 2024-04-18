@@ -1,5 +1,6 @@
 import numpy as np
 from cardillo.math import norm
+from cardillo.definitions import IS_CLOSE_ATOL
 
 
 class TwoPointInteraction:
@@ -49,6 +50,7 @@ class TwoPointInteraction:
         self._nq1 = len(local_qDOF1)
         self._nq2 = len(local_qDOF2)
         self._nq = self._nq1 + self._nq2
+        self.t0 = self.subsystem1.t0
         q01 = self.subsystem1.q0
         q02 = self.subsystem2.q0
         self.q0 = np.concatenate((q01[local_qDOF1], q02[local_qDOF2]))
@@ -103,6 +105,11 @@ class TwoPointInteraction:
             t, q[self._nq1 :], u[self._nu1 :], self.xi2, self.B_r_CP2
         )
 
+        l0 = norm(self.r_OP2(self.t0, self.q0) - self.r_OP1(self.t0, self.q0))
+        assert (
+            l0 > IS_CLOSE_ATOL
+        ), "Initial distance of two-point interaction is close to zero."
+
     # auxiliary functions
     def l(self, t, q):
         return norm(self.r_OP2(t, q) - self.r_OP1(t, q))
@@ -154,7 +161,6 @@ class TwoPointInteraction:
         P = (np.eye(3) - np.outer(n, n)) / g
         n_q1 = -P @ r_OP1_q
         n_q2 = P @ r_OP2_q
-
         return n_q1, n_q2
 
     def W_l(self, t, q):
@@ -179,7 +185,6 @@ class TwoPointInteraction:
         W_q[:nu1, nq1:] = -J_P1.T @ n_q2
         W_q[nu1:, :nq1] = J_P2.T @ n_q1
         W_q[nu1:, nq1:] = J_P2.T @ n_q2 + np.einsum("i,ijk->jk", n, J_P2_q)
-
         return W_q
 
     def export(self, sol_i, **kwargs):

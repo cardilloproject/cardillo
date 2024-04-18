@@ -165,9 +165,11 @@ class nPointInteraction:
                 len(self.connectivity)
                 * [
                     [
-                        g - self.force_law_spring.g_ref
-                        if self.force_law_spring is not None
-                        else g
+                        (
+                            g - self.force_law_spring.g_ref
+                            if self.force_law_spring is not None
+                            else g
+                        )
                     ]
                 ]
             ],

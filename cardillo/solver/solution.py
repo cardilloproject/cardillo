@@ -62,11 +62,18 @@ class Solution:
                 try:
                     result = self._retVal(
                         *(
-                            None
-                            if self._solution.__getattribute__(key) is None
-                            else self._solution.__getattribute__(key)[:, self._index]
-                            if self._solution.__getattribute__(key).shape[0] == 0
-                            else self._solution.__getattribute__(key)[self._index]
+                            (
+                                None
+                                if self._solution.__getattribute__(key) is None
+                                else (
+                                    self._solution.__getattribute__(key)[:, self._index]
+                                    if self._solution.__getattribute__(key).shape[0]
+                                    == 0
+                                    else self._solution.__getattribute__(key)[
+                                        self._index
+                                    ]
+                                )
+                            )
                             for key in self.keys
                         )
                     )

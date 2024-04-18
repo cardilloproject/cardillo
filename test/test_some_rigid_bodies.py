@@ -1,16 +1,7 @@
 import numpy as np
 from pathlib import Path
 from cardillo.discrete import RigidBody, Frame
-
-# from cardillo.discrete.meshed import (
-#     Cuboid,
-#     Ball,
-#     Cylinder,
-#     FromSTL,
-#     Tetrahedron,
-#     RectangleTrimesh,
-# )
-from cardillo.discrete.meshed import Meshed, Box, Cylinder, Sphere
+from cardillo.discrete.meshed import Meshed, Box, Cylinder, Sphere, Tetrahedron
 from cardillo import System
 from cardillo.solver import Moreau
 from cardillo.visualization import Export
@@ -42,8 +33,7 @@ def test_some_rigid_bodies():
         [   0.0,   0.0, 0.0507],
     ])
     stl_box = Meshed(RigidBody)(
-        path.parent / ".." / "geometry" / "box" / "box.stl",
-        # Path.joinpath(path.parent, "tippedisk.stl")
+        path.parent / "_data" / "box.stl",
         mass=0.0468,
         B_r_CP=B_r_CP,
         B_Theta_C=B_Theta_C,
@@ -67,22 +57,20 @@ def test_some_rigid_bodies():
     q0 = np.array([*(0.5 * dimensions), 1, 0, 0, 0], dtype=float)
     ball = Sphere(RigidBody)(density=1, radius=0.2, q0=q0, u0=u0)
 
-    # ########################
-    # # tetraherdron primitive
-    # ########################
-    # u0 = np.random.rand(6)
-    # q0 = np.array([*(-0.5 * dimensions), 1, 0, 0, 0], dtype=float)
-    # tetrahedron = Tetrahedron(RigidBody)(mass=1, edge=1, q0=q0, u0=u0)
+    ########################
+    # tetraherdron primitive
+    ########################
+    u0 = np.random.rand(6)
+    q0 = np.array([*(-0.5 * dimensions), 1, 0, 0, 0], dtype=float)
+    tetrahedron = Tetrahedron(RigidBody)(density=1, edge=1, q0=q0, u0=u0)
 
     ######################################
     # solve system and generate vtk export
     ######################################
     system = System()
-    # system.add(ball, box, cylinder, stl_box, tetrahedron)
-    system.add(ball, box, cylinder, stl_box)
+    system.add(rectangle, ball, box, cylinder, stl_box, tetrahedron)
     system.assemble()
 
-    # sol = Moreau(system, 10, 1e-2).solve()
     sol = Moreau(system, 1, 1e-2).solve()
 
     e = Export(
@@ -97,7 +85,7 @@ def test_some_rigid_bodies():
     e.export_contr(box)
     e.export_contr(cylinder)
     e.export_contr(stl_box)
-    # e.export_contr(tetrahedron)
+    e.export_contr(tetrahedron)
 
 
 if __name__ == "__main__":

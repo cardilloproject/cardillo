@@ -136,8 +136,8 @@ def cantilever(
     centerline_T = np.loadtxt(
         Path(
             path.parent,
-            "_data_cantilever_tip_force_and_moment",
-            "centerline_T_numeric.txt",
+            "_data_cantilever",
+            "centerline_T_numeric.csv",
         ),
         delimiter=",",
         skiprows=1,
@@ -151,8 +151,8 @@ def cantilever(
     centerline_EB = np.loadtxt(
         Path(
             path.parent,
-            "_data_cantilever_tip_force_and_moment",
-            "centerline_EB_numeric.txt",
+            "_data_cantilever",
+            "centerline_EB_numeric.csv",
         ),
         delimiter=",",
         skiprows=1,
@@ -166,8 +166,8 @@ def cantilever(
     centerline_IEB = np.loadtxt(
         Path(
             path.parent,
-            "_data_cantilever_tip_force_and_moment",
-            "centerline_IEB_analytic.txt",
+            "_data_cantilever",
+            "centerline_IEB_analytic.csv",
         ),
         delimiter=",",
         skiprows=1,

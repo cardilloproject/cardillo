@@ -30,31 +30,31 @@ if __name__ == "__main__":
     plane_mesh = cube_mesh.copy().apply_transform(np.diag([1, 1, 0.001, 1]))
     frame = Meshed(Frame)(plane_mesh, B_r_CP=np.array([0, 0, 0]))
 
-    q10 = np.concatenate([np.array([0, 0, 1]), Spurrier(A_IB_basic(np.pi / 4).x())])
+    q10 = np.concatenate([np.array([0, 0, 1]), Spurrier(A_IB_basic(np.pi / 4).x)])
     rigid_body1 = Box(RigidBody)(
         dimensions=[0.2, 0.2, 0.1], density=2, mass=1, B_Theta_C=np.eye(3), q0=q10
     )
 
-    q20 = np.concatenate([np.array([0, 1, 1]), Spurrier(A_IB_basic(np.pi / 2).x())])
+    q20 = np.concatenate([np.array([0, 1, 1]), Spurrier(A_IB_basic(np.pi / 2).x)])
     rigid_body2 = Meshed(RigidBody)(
         Path.joinpath(path.parent, "_data/tippedisk.stl"), density=1, scale=3, q0=q20
     )
 
-    q30 = np.concatenate([np.array([1, 1, 1]), Spurrier(A_IB_basic(-np.pi / 4).x())])
+    q30 = np.concatenate([np.array([1, 1, 1]), Spurrier(A_IB_basic(-np.pi / 4).x)])
     rigid_body3 = Cone(RigidBody)(
         radius=0.1, height=0.2, mass=1, B_Theta_C=np.eye(3), q0=q30
     )
 
-    q40 = np.concatenate([np.array([1, -1, 1]), Spurrier(A_IB_basic(0).x())])
+    q40 = np.concatenate([np.array([1, -1, 1]), Spurrier(A_IB_basic(0).x)])
     rigid_body4 = Cylinder(RigidBody)(radius=0.1, height=0.2, density=2, q0=q40)
 
     q50 = np.concatenate([np.array([0, -1, 1]), np.array([1, 0, 0, 0])])
     rigid_body5 = Sphere(RigidBody)(radius=0.1, subdivisions=3, density=2, q0=q50)
 
-    q60 = np.concatenate([np.array([1, 0, 1]), Spurrier(A_IB_basic(-np.pi / 3).x())])
+    q60 = np.concatenate([np.array([1, 0, 1]), Spurrier(A_IB_basic(-np.pi / 3).x)])
     rigid_body6 = Capsule(RigidBody)(radius=0.1, height=0.2, density=2, q0=q60)
 
-    q70 = np.concatenate([np.array([-1, 0, 1]), Spurrier(A_IB_basic(0).x())])
+    q70 = np.concatenate([np.array([-1, 0, 1]), Spurrier(A_IB_basic(0).x)])
     rigid_body7 = Tetrahedron(RigidBody)(edge=0.3, density=2, q0=q70)
 
     system = System()

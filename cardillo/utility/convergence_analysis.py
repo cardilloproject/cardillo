@@ -233,9 +233,7 @@ def convergence_analysis(
         ##############
         if nsplit > 1:
             for j in range(1, nsplit):
-                export_data = np.vstack(
-                    (dts, dts**2, dts**3, dts**4, dts**5, dts**6)
-                )
+                export_data = np.vstack((dts, dts**2, dts**3, dts**4, dts**5, dts**6))
                 for field in states:
                     export_data = np.vstack(
                         (

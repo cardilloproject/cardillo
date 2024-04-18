@@ -7,8 +7,6 @@ from scipy.optimize import rosen_der, rosen_hess
 def test_fsolve():
     fun = rosen_der
     jac = lambda x: csc_array(rosen_hess(x))
-    # jac = "2-point"
-    jac = None
     x0 = np.array([1.3, 0.7, 0.8, 1.9, 1.2])
     sol = fsolve(fun, x0, jac)
     print(f"sol:\n{sol}")

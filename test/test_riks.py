@@ -77,8 +77,8 @@ if __name__ == "__main__":
         phi[:-1][::n], F[:-1][::n], (u / norm)[::n], (v / norm)[::n], color="black"
     )
 
-    ax.set_xlabel("$\phi$")
-    ax.set_ylabel("$F(\phi)$")
+    ax.set_xlabel(r"$\phi$")
+    ax.set_ylabel(r"$F(\phi)$")
     ax.legend()
     ax.grid()
     plt.show()

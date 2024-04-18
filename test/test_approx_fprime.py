@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import pytest
 
 
+@pytest.mark.filterwarnings("ignore: 'approx_fprime' is used")
 def test_mathworks(show=False):
     # Complex Step Differentiation example from
     # https://blogs.mathworks.com/cleve/2013/10/14/complex-step-differentiation/
@@ -15,8 +16,7 @@ def test_mathworks(show=False):
         den = np.sin(x) ** 3 + np.cos(x) ** 3
         return np.exp(x) * (
             1.0 / den
-            - (3 * np.cos(x) * np.sin(x) ** 2 - 3 * np.sin(x) * np.cos(x) ** 2)
-            / den**2
+            - (3 * np.cos(x) * np.sin(x) ** 2 - 3 * np.sin(x) * np.cos(x) ** 2) / den**2
         )
 
     x0 = np.pi / 4
@@ -31,15 +31,15 @@ def test_mathworks(show=False):
         err[i, 3] = np.abs(
             approx_derivative(f, x0, rel_step=eps[i], abs_step=eps[i], method="2-point")
             - f_x(x0)
-        )
+        )[0]
         err[i, 4] = np.abs(
             approx_derivative(f, x0, rel_step=eps[i], abs_step=eps[i], method="3-point")
             - f_x(x0)
-        )
+        )[0]
         err[i, 5] = np.abs(
             approx_derivative(f, x0, rel_step=eps[i], abs_step=eps[i], method="cs")
             - f_x(x0)
-        )
+        )[0]
 
     if show:
         fig, ax = plt.subplots()
@@ -65,6 +65,7 @@ test_parameters = [
 
 
 @pytest.mark.parametrize("method, eps, tol", test_parameters)
+@pytest.mark.filterwarnings("ignore: 'approx_fprime' is used")
 def test_quadratic_form(method, eps, tol, show=False):
     A = np.random.rand(2, 2)
 
@@ -88,6 +89,7 @@ def test_quadratic_form(method, eps, tol, show=False):
 
 
 @pytest.mark.parametrize("method, eps, tol", test_parameters)
+@pytest.mark.filterwarnings("ignore: 'approx_fprime' is used")
 def test_matrix_valued(method, eps, tol, show=False):
     def f(X):
         return np.trace(X) * X

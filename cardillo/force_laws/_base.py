@@ -27,36 +27,28 @@ class ScalarForceLaw(ABC):
         self.uDOF = self.subsystem.uDOF
 
     @abstractmethod
-    def _E_pot(self, t, l, l_dot):
-        ...
+    def _E_pot(self, t, l, l_dot): ...
 
     @abstractmethod
-    def _la_c(self, t, l, l_dot):
-        ...
+    def _la_c(self, t, l, l_dot): ...
 
     @abstractmethod
-    def _la_c_l(self, t, l, l_dot):
-        ...
+    def _la_c_l(self, t, l, l_dot): ...
 
     @abstractmethod
-    def _la_c_l_dot(self, t, l, l_dot):
-        ...
+    def _la_c_l_dot(self, t, l, l_dot): ...
 
     @abstractmethod
-    def _c(self, t, l, l_dot, la_c):
-        ...
+    def _c(self, t, l, l_dot, la_c): ...
 
     @abstractmethod
-    def _c_l(self, t, l, l_dot, la_c):
-        ...
+    def _c_l(self, t, l, l_dot, la_c): ...
 
     @abstractmethod
-    def _c_l_dot(self, t, l, l_dot, la_c):
-        ...
+    def _c_l_dot(self, t, l, l_dot, la_c): ...
 
     @abstractmethod
-    def c_la_c(self):
-        ...
+    def c_la_c(self): ...
 
     def E_pot(self, t, q):
         return self._E_pot(t, self.l(t, q))
@@ -72,7 +64,7 @@ class ScalarForceLaw(ABC):
         )
 
     def la_c_u(self, t, q, u):
-        return self._la_c_l_dot(t, self.l(t, q), self.l_dot(t, q, u)) * self.l_dot_q(
+        return self._la_c_l_dot(t, self.l(t, q), self.l_dot(t, q, u)) * self.l_dot_u(
             t, q, u
         )
 
@@ -95,13 +87,17 @@ class ScalarForceLaw(ABC):
         return self.subsystem.W_l(t, q).reshape(self.subsystem._nu, self.nla_c)
 
     def Wla_c_q(self, t, q, la_c):
-        return la_c * self.subsystem.W_l_q(t, q)
+        return la_c * self.subsystem.W_l_q(t, q).reshape(
+            self.subsystem._nu, self.subsystem._nq
+        )
 
     def __h(self, t, q, u):
         return self.la_c(t, q, u) * self.subsystem.W_l(t, q).reshape(self.subsystem._nu)
 
     def __h_q(self, t, q, u):
-        return self.la_c(t, q, u) * self.subsystem.W_l_q(t, q) + np.outer(
+        return self.la_c(t, q, u) * self.subsystem.W_l_q(t, q).reshape(
+            self.subsystem._nu, self.subsystem._nq
+        ) + np.outer(
             self.subsystem.W_l(t, q).reshape(self.subsystem._nu), self.la_c_q(t, q, u)
         )
 

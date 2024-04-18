@@ -4,7 +4,7 @@ from scipy.sparse.linalg import spsolve
 
 
 class NegativeOrthant:
-    """This class collects functions related to the set `C = R_0^{-n}`
+    r"""This class collects functions related to the set `C = R_0^{-n}`
     (negative orthant).
 
     This includes
@@ -56,7 +56,7 @@ class NegativeOrthant:
 
 
 class Sphere:
-    """This class collects functions related to the set `C(z; r) = {y | ||y|| <= r * z}`,
+    r"""This class collects functions related to the set `C(z; r) = {y | ||y|| <= r * z}`,
     a n-dimensional ball of radius `r * z`.
 
     This includes
@@ -125,7 +125,7 @@ class Sphere:
 
 
 def estimate_prox_parameter(alpha, W, M):
-    """
+    r"""
     Estimation of relaxation parameters $r_i$ of prox function for normal contacts
     and friction. The parameters are calculated as follows, whereby $\alpha \in (0,2)$
     is some scaling factor used for both normal and frictional contact:

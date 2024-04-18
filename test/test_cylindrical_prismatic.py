@@ -5,10 +5,12 @@ from scipy.integrate import solve_ivp
 import pytest
 
 from cardillo import System
-from cardillo.solver import ScipyIVP, Moreau, BackwardEuler
+from cardillo.solver import ScipyIVP, Moreau, BackwardEuler, Rattle, SolverOptions
 from cardillo.constraints import RigidConnection, Cylindrical, Prismatic
 from cardillo.discrete import Frame, RigidBody
-from cardillo.forces import Force, ScalarForceTranslational, LinearSpring, LinearDamper
+from cardillo.interactions import TwoPointInteraction
+from cardillo.forces import Force
+from cardillo.force_laws import KelvinVoigtElement as SpringDamper
 from cardillo.math import (
     Exp_SO3,
     T_SO3,
@@ -40,7 +42,7 @@ def run(
     ############
     # parameters
     ############
-    k = 10
+    k = 20
     d = 10
     g = 9.81
     l = 10
@@ -60,6 +62,7 @@ def run(
     e_tt = lambda t: -amplitude * omega * omega * np.cos(omega * t)
 
     n1 = np.random.rand(3)
+
     r_OJ = lambda t: e(t) * n1
     r_OJ_t = lambda t: e_t(t) * n1
     r_OJ_tt = lambda t: e_tt(t) * n1
@@ -128,7 +131,7 @@ def run(
 
     q0 = np.array([*r_OJ0, *Spurrier(A_IJ0)])
     u0 = np.array([*v_P0, *B0_omega_IB0])
-    RB1 = RigidBody(m, B_Theta_C, q0, u0)
+    RB1 = RigidBody(m, B_Theta_C, q0, u0, name="rigid body 1")
 
     rigid_connection = RigidConnection(frame, RB1)
 
@@ -140,7 +143,7 @@ def run(
 
     q0 = np.array([*r_OC0, *Spurrier(A_IB0)])
     u0 = np.array([*v_C0, *K0_omega_IK0])
-    RB2 = RigidBody(m, B_Theta_C, q0, u0)
+    RB2 = RigidBody(m, B_Theta_C, q0, u0, name="rigid body 2")
 
     f_g = Force(np.array([0, 0, -m * g]), RB2)
 
@@ -158,12 +161,17 @@ def run(
         )
 
     # spring force
-    spring = ScalarForceTranslational(
-        frame,
-        RB2,
-        LinearSpring(k, g_ref=0),
-        LinearDamper(d),
-        B_r_CP2=np.array([-0.5 * l, 0, 0]),
+    spring_damper = SpringDamper(
+        TwoPointInteraction(
+            frame,
+            RB2,
+            B_r_CP2=np.array([-0.5 * l, 0, 0.5 * l - z0]),
+        ),
+        k,
+        d,
+        l_ref=0.5 * l,
+        compliance_form=False,
+        name="spring_damper",
     )
 
     #################
@@ -173,7 +181,7 @@ def run(
     system.add(frame, RB1, rigid_connection)
     system.add(RB2, f_g)
     system.add(constraint)
-    system.add(spring)
+    system.add(spring_damper)
     system.assemble()
 
     ############################################################################
@@ -255,7 +263,7 @@ def run(
         )
 
         h = -J_C.T @ (m * nu_C_dot + m * g * e3) - B_J_R.T @ B_Theta_C @ B_nu_R_dot
-        h[0] -= k * (z - z0) + k * z_dot
+        h[0] -= k * (z - z0) + d * z_dot
 
         u_dot = np.linalg.solve(M, h)
 
@@ -366,6 +374,7 @@ solver_and_kwargs = [
     (ScipyIVP, {}),
     (Moreau, {}),
     (BackwardEuler, {}),
+    (Rattle, {}),
 ]
 
 rigid_bodies = [
@@ -396,6 +405,7 @@ if __name__ == "__main__":
     # run("Cylindrical", RigidBody, ScipyIVP, show=True)
     # run("Cylindrical", RigidBody, Moreau, show=True)
     # run("Cylindrical", RigidBody, BackwardEuler, show=True)
+    # run("Cylindrical", RigidBody, Rattle, show=True)
 
     ###########
     # Prismatic
@@ -403,3 +413,4 @@ if __name__ == "__main__":
     # run("Prismatic", RigidBody, ScipyIVP, show=True)
     # run("Prismatic", RigidBody, Moreau, show=True)
     run("Prismatic", RigidBody, BackwardEuler, show=True)
+    # run("Prismatic", RigidBody, Rattle, show=True)

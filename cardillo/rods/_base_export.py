@@ -15,12 +15,10 @@ class RodExportBase(ABC):
         self.cross_section = cross_section
 
     @abstractmethod
-    def r_OP(self, t, q, xi, B_r_CP):
-        ...
+    def r_OP(self, t, q, xi, B_r_CP): ...
 
     @abstractmethod
-    def A_IB(self, t, q, xi):
-        ...
+    def A_IB(self, t, q, xi): ...
 
     def centerline(self, q, num=100):
         q_body = q[self.qDOF]

@@ -5,6 +5,7 @@ on:
     branches:
       - master
       - main
+      - cardillo-core
 
 jobs: 
   lint:
