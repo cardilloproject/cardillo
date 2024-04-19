@@ -26,8 +26,8 @@ def run():
 
     k = 1e2
     d = 2e1
-    k = 0
-    d = 0
+    # k = 0
+    # d = 0
 
     ##############
     # moving frame
@@ -58,11 +58,10 @@ def run():
     ##############
     # rigid bodies
     ##############
-    B_r_CP = np.array([0, -L / 2, 0])  # center of mass single rigid body
     B_r_PC1 = np.array([0, -L / 4, 0])  # center of mass half rigid body 1
     B_r_PC2 = np.array([0, -3 * L / 4, 0])  # center of mass half rigid body 2
 
-    phi0 = 0.5
+    phi0 = 0
     phi_dot0 = 0
     B_omega0 = np.array([0, 0, phi_dot0])
     A_IB0 = A_IB_basic(phi0).z
@@ -136,11 +135,9 @@ def run():
     ax.view_init(vertical_axis="y")
 
     def init(t, q):
-        x_0, y_0, z_0 = r_OP(t)
+        x_0, y_0, z_0 = frame.r_OP(t, q[frame.qDOF])
         x_S1, y_S1, z_S1 = RB1.r_OP(t, q[RB1.qDOF])
         x_S2, y_S2, z_S2 = RB2.r_OP(t, q[RB2.qDOF])
-        # x_RC, y_RC, z_RC = RB1.r_OP(t, q[RB1.qDOF], B_r_CP=B_r_CP1)
-        # x_RB2, y_RB2, z_RB2 = RB2.r_OP(t, q[RB2.qDOF], B_r_CP=B_r_CP1)
 
         A_IB1 = RB1.A_IB(t, q[RB1.qDOF])
         d11 = A_IB1[:, 0]
@@ -152,10 +149,7 @@ def run():
         d22 = A_IB2[:, 1]
         d32 = A_IB2[:, 2]
 
-        # (rb,) = ax.plot(
-        #     [x_0, x_RC, x_RB2], [y_0, y_RC, y_RB2], [z_0, z_RC, z_RB2], "-k"
-        # )
-        (COM,) = ax.plot([x_0, x_S1, x_S2], [y_0, y_S1, y_S2], [z_0, z_S1, z_S2], "ok")
+        (COM,) = ax.plot([x_0, x_S1, x_S2], [y_0, y_S1, y_S2], [z_0, z_S1, z_S2], "-ok")
         (d11_,) = ax.plot(
             [x_S1, x_S1 + d11[0]],
             [y_S1, y_S1 + d11[1]],
@@ -193,21 +187,12 @@ def run():
             "-b",
         )
 
-        # # return COM, rb, d11_, d21_, d31_, d12_, d22_, d32_
-        # return rb, COM
         return COM, d11_, d21_, d31_, d12_, d22_, d32_
 
-    # def update(t, q, COM, rb, d11_, d21_, d31_, d12_, d22_, d32_):
-    # def update(t, q, rb, COM):
     def update(t, q, COM, d11_, d21_, d31_, d12_, d22_, d32_):
-        x_0, y_0, z_0 = r_OP(t)
+        x_0, y_0, z_0 = frame.r_OP(t, q[frame.qDOF])
         x_S1, y_S1, z_S1 = RB1.r_OP(t, q[RB1.qDOF])
         x_S2, y_S2, z_S2 = RB2.r_OP(t, q[RB2.qDOF])
-        # TODO is this -L/2?
-        # x_S1, y_S1, z_S1 = RB1.r_OP(t, q[RB1.qDOF], B_r_CP=np.array([0, -L / 2, 0]))
-        # x_S2, y_S2, z_S2 = RB2.r_OP(t, q[RB2.qDOF], B_r_CP=np.array([0, -L / 2, 0]))
-        # x_RC, y_RC, z_RC = RB1.r_OP(t, q[RB1.qDOF], B_r_CP=B_r_CP1)
-        # x_RB2, y_RB2, z_RB2 = RB2.r_OP(t, q[RB2.qDOF], B_r_CP=B_r_CP1)
 
         A_IB1 = RB1.A_IB(t, q[RB1.qDOF])
         d11 = A_IB1[:, 0]
@@ -218,9 +203,6 @@ def run():
         d12 = A_IB2[:, 0]
         d22 = A_IB2[:, 1]
         d32 = A_IB2[:, 2]
-
-        rb.set_data([x_0, x_RC, x_RB2], [y_0, y_RC, y_RB2])
-        rb.set_3d_properties([z_0, z_RC, z_RB2])
 
         COM.set_data([x_0, x_S1, x_S2], [y_0, y_S1, y_S2])
         COM.set_3d_properties([z_0, z_S1, z_S2])
@@ -243,11 +225,9 @@ def run():
         d32_.set_data([x_S2, x_S2 + d32[0]], [y_S2, y_S2 + d32[1]])
         d32_.set_3d_properties([z_S2, z_S2 + d32[2]])
 
-        # return COM, d11_, d21_, d31_, d12_, d22_, d32_
-        return rb, COM, d11_, d21_, d31_, d12_, d22_, d32_
+        return COM, d11_, d21_, d31_, d12_, d22_, d32_
 
-    # COM, d11_, d21_, d31_, d12_, d22_, d32_ = init(0, q[0])
-    rb, COM, d11_, d21_, d31_, d12_, d22_, d32_ = init(0, q[0])
+    COM, d11_, d21_, d31_, d12_, d22_, d32_ = init(0, q[0])
 
     def animate(i):
         update(t[i], q[i], COM, d11_, d21_, d31_, d12_, d22_, d32_)
@@ -291,11 +271,11 @@ def run():
     fig, ax = plt.subplots(2, 1)
     ax[0].plot(t, x_, "--gx", label="cardillo")
     ax[1].plot(t, y_, "--gx", label="cardillo")
-    x = ref.y
-    t = ref.t
+    x_ref = ref.y
+    t_ref = ref.t
 
-    ax[0].plot(t, e(t) + L / 2 * np.sin(x[0]), "-r", label="ODE")
-    ax[1].plot(t, -L / 2 * np.cos(x[0]), "-r", label="ODE")
+    ax[0].plot(t_ref, e(t_ref) + L / 2 * np.sin(x_ref[0]), "-r", label="ODE")
+    ax[1].plot(t_ref, -L / 2 * np.cos(x_ref[0]), "-r", label="ODE")
 
     ax[0].legend()
     ax[0].grid()
