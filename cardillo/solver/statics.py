@@ -159,8 +159,10 @@ class Newton:
                     system=self.system,
                     t=self.load_steps[: i + 1],
                     q=self.x[: i + 1, : self.split_x[0]],
+                    u=np.zeros((i + 1, self.nu)),
                     la_g=self.x[: i + 1, self.split_x[0] : self.split_x[1]],
-                    la_N=self.x[: i + 1, self.split_x[1] :],
+                    la_c=self.x[: i + 1, self.split_x[1] : self.split_x[2]],
+                    la_N=self.x[: i + 1, self.split_x[2] :],
                 )
 
             # solver step callback
