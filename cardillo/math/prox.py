@@ -140,7 +140,15 @@ def estimate_prox_parameter(alpha, W, M):
     Studer2008: https://doi.org/10.3929/ethz-a-005556821
     Schweizer2015: https://doi.org/10.3929/ethz-a-010464319
     """
-    if W.shape[1] > 0:
-        return alpha / csc_array(W.T @ spsolve(csc_array(M), csc_array(W))).diagonal()
+    cols = W.shape[1]
+    if cols > 0:
+        return (
+            alpha
+            / csc_array(
+                (csc_array(W).T @ spsolve(csc_array(M), csc_array(W))).reshape(
+                    (cols, cols)
+                )
+            ).diagonal()
+        )
     else:
-        return np.full(W.shape[1], alpha, dtype=W.dtype)
+        return np.full(cols, alpha, dtype=W.dtype)
