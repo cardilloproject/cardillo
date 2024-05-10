@@ -6,25 +6,28 @@ e2 = np.array([0, 1, 0], dtype=float)
 e3 = np.array([0, 0, 1], dtype=float)
 
 
-def complex_atan2(y, x):
+def atan2(y, x):
     """Atan2 implementation that can handle complex numbers,
-    see https://de.wikipedia.org/wiki/Arctan2#Formel.
-    It returns atan(y / x).
+    see https://en.wikipedia.org/wiki/Atan2#Definition. It returns
+    atan(y / x).
     """
     if x > 0:
         return np.arctan(y / x)
     elif x < 0:
-        if y > 0:
+        if y >= 0:
             return np.arctan(y / x) + np.pi
         elif y < 0:
             return np.arctan(y / x) - np.pi
-        else:
-            return np.pi
     else:
+        # x == 0
         if y > 0:
             return 0.5 * np.pi
-        else:
+        elif y < 0:
             return -0.5 * np.pi
+        else:
+            # x == 0 and y == 0
+            # this is undefined but we set it to 0
+            return 0
 
 
 def ei(i: int) -> np.ndarray:
