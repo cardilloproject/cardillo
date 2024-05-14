@@ -1,8 +1,9 @@
-import numpy as np
 import warnings
 
+import numpy as np
+
+from cardillo.math.algebra import ax2skew, cross3
 from cardillo.math.approx_fprime import approx_fprime
-from cardillo.math.algebra import cross3, ax2skew
 
 
 def concatenate_qDOF(object):
@@ -190,6 +191,7 @@ class PositionOrientationBase:
         A_IJ0=None,
         xi1=None,
         xi2=None,
+        **kwargs,
     ):
         self.subsystem1 = subsystem1
         self.subsystem2 = subsystem2
@@ -209,6 +211,9 @@ class PositionOrientationBase:
         self.projection_pairs = projection_pairs_rotation
 
         self.constrain_orientation = self.nla_g_rot > 0
+
+        if "name" in kwargs:
+            self.name = kwargs.get("name")
 
     def assembler_callback(self):
         local_qDOF1, local_qDOF2 = concatenate_qDOF(self)
@@ -563,23 +568,49 @@ class ProjectedPositionOrientationBase:
             self.subsystem2.t0, self.subsystem2.q0[local_qDOF2], self.xi2
         )
 
-        A_IB10 = self.subsystem1.A_IB(
-            self.subsystem1.t0, self.subsystem1.q0[local_qDOF1], self.xi1
-        )
-        A_IB20 = self.subsystem2.A_IB(
-            self.subsystem2.t0, self.subsystem2.q0[local_qDOF2], self.xi2
-        )
+        # check for A_IB of subsystem 1
+        if hasattr(self.subsystem1, "A_IB"):
+            A_IB10 = self.subsystem1.A_IB(
+                self.subsystem1.t0, self.subsystem1.q0[local_qDOF1], self.xi1
+            )
+
+            if self.r_OJ0 is None:
+                self.r_OJ0 = r_OP10
+
+            if self.A_IJ0 is None:
+                self.A_IJ0 = A_IB10
+
+            B1_r_P1J0 = A_IB10.T @ (self.r_OJ0 - r_OP10)
+            A_K1J0 = A_IB10.T @ self.A_IJ0
+        else:
+            B1_r_P1J0 = np.zeros(3)
+            A_K1J0 = None  # unused
+            assert self.nla_g_rot == 0  # Spherical case
+
+        # check for A_IB of subsystem 2
+        if hasattr(self.subsystem2, "A_IB"):
+            A_IB20 = self.subsystem2.A_IB(
+                self.subsystem2.t0, self.subsystem2.q0[local_qDOF2], self.xi2
+            )
+
+            if self.r_OJ0 is None:
+                self.r_OJ0 = r_OP20
+
+            if self.A_IJ0 is None:
+                self.A_IJ0 = A_IB20
+
+            B2_r_P2J0 = A_IB20.T @ (self.r_OJ0 - r_OP20)
+            A_K2J0 = A_IB20.T @ self.A_IJ0
+        else:
+            B2_r_P2J0 = np.zeros(3)
+            A_K2J0 = None  # unused
+            assert self.nla_g_rot == 0  # Spherical case
 
         if self.r_OJ0 is None:
             self.r_OJ0 = r_OP10
 
         if self.A_IJ0 is None:
             self.A_IJ0 = A_IB10
-
-        B1_r_P1J0 = A_IB10.T @ (self.r_OJ0 - r_OP10)
-        A_K1J0 = A_IB10.T @ self.A_IJ0
-        B2_r_P2J0 = A_IB20.T @ (self.r_OJ0 - r_OP20)
-        A_K2J0 = A_IB20.T @ self.A_IJ0
 
         auxiliary_functions(self, B1_r_P1J0, B2_r_P2J0, A_K1J0, A_K2J0)
 
