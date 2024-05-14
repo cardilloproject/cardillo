@@ -1,13 +1,14 @@
 import warnings
+
 import numpy as np
-from scipy.sparse import csc_array, coo_array, eye, bmat
+from scipy.sparse import bmat, coo_array, csc_array, eye
 from scipy.sparse.linalg import splu
 from tqdm import tqdm
 
-from cardillo.solver import SolverOptions, SolverSummary, Solution
-from cardillo.math.fsolve import fsolve
 from cardillo.math.approx_fprime import approx_fprime
-from cardillo.math.prox import estimate_prox_parameter, NegativeOrthant
+from cardillo.math.fsolve import fsolve
+from cardillo.math.prox import NegativeOrthant, estimate_prox_parameter
+from cardillo.solver import Solution, SolverOptions, SolverSummary
 
 
 class BackwardEuler:
@@ -332,15 +333,24 @@ class BackwardEuler:
                 options=self.options,
             )
 
-        if not sol.success:
-            if self.options.continue_with_unconverged:
-                warnings.warn("Newton is not converged but integration is continued")
-            else:
-                raise RuntimeError("Newton is not converged")
-
         return sol
 
     def solve(self):
+        def make_solution():
+            return Solution(
+                system=self.system,
+                t=np.array(t),
+                q=np.array(q),
+                u=np.array(u),
+                q_dot=np.array(q_dot),
+                u_dot=np.array(u_dot),
+                la_c=np.array(la_c),
+                P_g=np.array(P_g),
+                P_gamma=np.array(P_gamma),
+                P_N=np.array(P_N),
+                P_F=np.array(P_F),
+            )
+
         self.solver_summary = SolverSummary("Backward Euler")
 
         # lists storing output variables
@@ -402,6 +412,17 @@ class BackwardEuler:
             xn1 = sol.x
             self.solver_summary.add_lu(sol.njev)
 
+            if not sol.success:
+                if self.options.continue_with_unconverged:
+                    warnings.warn(
+                        "Newton is not converged but integration is continued"
+                    )
+                else:
+                    warnings.warn(
+                        f"Newton is not converged. Returning solution up to t={self.tn}."
+                    )
+                    return make_solution()
+
             # fixed-point loop
             converged = False
             if self.nla_N + self.nla_F > 0:
@@ -431,6 +452,17 @@ class BackwardEuler:
                         xn1 = sol.x
                         self.solver_summary.add_lu(sol.njev)
 
+                        if not sol.success:
+                            if self.options.continue_with_unconverged:
+                                warnings.warn(
+                                    "Newton is not converged but integration is continued"
+                                )
+                            else:
+                                RuntimeWarning(
+                                    "Newton is not converged. Returning solution up to t={self.tn}."
+                                )
+                                return make_solution()
+
             else:
                 converged = True
                 i_fixed_point = 0
@@ -442,7 +474,10 @@ class BackwardEuler:
                         "fixed-point iteration is not converged but integration is continued"
                     )
                 else:
-                    raise RuntimeError("fixed-point iteration is not converged")
+                    warnings.warn(
+                        f"fixed-point iteration is not converged. Returning solution up to t={self.tn}."
+                    )
+                    return make_solution()
 
             self.solver_summary.add_fixed_point(i_fixed_point, error)
             self.solver_summary.add_newton(sol.nit, sol.error)
@@ -492,16 +527,4 @@ class BackwardEuler:
         self.solver_summary.print()
 
         # write solution
-        return Solution(
-            system=self.system,
-            t=np.array(t),
-            q=np.array(q),
-            u=np.array(u),
-            q_dot=np.array(q_dot),
-            u_dot=np.array(u_dot),
-            la_c=np.array(la_c),
-            P_g=np.array(P_g),
-            P_gamma=np.array(P_gamma),
-            P_N=np.array(P_N),
-            P_F=np.array(P_F),
-        )
+        return make_solution()

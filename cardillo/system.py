@@ -155,7 +155,10 @@ class System:
             u0 = solution.u[-1]
             for contr in self.contributions:
                 if hasattr(contr, "nu"):
-                    contr.u0 = u0[contr.uDOF]
+                    if hasattr(contr, "uDOF_local"):
+                        contr.u0 = u0[contr.uDOF_local]
+                    else:
+                        contr.u0 = u0[contr.uDOF]
 
         if solution.la_g is not None:
             la_g0 = solution.la_g[-1]
