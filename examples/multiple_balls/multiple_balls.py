@@ -1,4 +1,3 @@
-from matplotlib import pyplot as plt
 import numpy as np
 from pathlib import Path
 
@@ -20,7 +19,7 @@ if __name__ == "__main__":
     # contact parameters
     e_N = 0  # restitution coefficient in normal direction
     e_F = 0.0  # restitution coefficient in tangent direction
-    mu = 0  # frictional coefficient
+    mu = 0.3  # frictional coefficient
 
     # density of ball
     density = 1
@@ -89,10 +88,21 @@ if __name__ == "__main__":
             )
         )
 
+    idx = 0
     while balls:
         for ball in balls[1:]:
+            idx += 1
             system.add(
-                Sphere2Sphere(balls[0], ball, radius, radius, mu, e_N=e_N, e_F=e_F)
+                Sphere2Sphere(
+                    balls[0],
+                    ball,
+                    radius,
+                    radius,
+                    mu,
+                    e_N=e_N,
+                    e_F=e_F,
+                    name=f"sphere2sphere contact{idx}",
+                )
             )
         balls.pop(0)
 
@@ -113,7 +123,7 @@ if __name__ == "__main__":
     #     system,
     #     t1,
     #     dt,
-    #     options=SolverOptions(fixed_point_atol=1e-7, fixed_point_rtol=1e-7),
+    #     options=SolverOptions(prox_scaling=0.5),
     # )  # create solver
     sol = solver.solve()  # simulate system
 

@@ -158,7 +158,7 @@ class Sphere2Plane:
             )
             self.Psi = lambda t, q, u, u_dot: np.zeros(3)
             self.Psi_q = lambda t, q, u, u_dot: np.zeros((3, self.subsystem.nq))
-            self.Psi_q = lambda t, q, u, u_dot: np.zeros((3, self.subsystem.nu))
+            self.Psi_u = lambda t, q, u, u_dot: np.zeros((3, self.subsystem.nu))
 
     ################
     # normal contact
