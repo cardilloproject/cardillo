@@ -10,6 +10,7 @@ class Spherical(PositionOrientationBase):
         r_OJ0,
         xi1=None,
         xi2=None,
+        **kwargs,
     ):
         super().__init__(
             subsystem1,
@@ -19,4 +20,5 @@ class Spherical(PositionOrientationBase):
             projection_pairs_rotation=[],
             xi1=xi1,
             xi2=xi2,
+            **kwargs,
         )
