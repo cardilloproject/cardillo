@@ -148,17 +148,14 @@ class System:
         q0 = solution.q[-1]
         for contr in self.contributions:
             if hasattr(contr, "nq"):
-                contr.q0 = q0[contr.qDOF]
+                contr.q0 = q0[contr.my_qDOF]
 
         # optionally distribute all other solution fields
         if solution.u is not None:
             u0 = solution.u[-1]
             for contr in self.contributions:
                 if hasattr(contr, "nu"):
-                    if hasattr(contr, "uDOF_local"):
-                        contr.u0 = u0[contr.uDOF_local]
-                    else:
-                        contr.u0 = u0[contr.uDOF]
+                    contr.u0 = u0[contr.my_uDOF]
 
         if solution.la_g is not None:
             la_g0 = solution.la_g[-1]
@@ -243,14 +240,15 @@ class System:
 
             # if contribution has position degrees of freedom address position coordinates
             if hasattr(contr, "nq"):
-                contr.qDOF = np.arange(0, contr.nq) + self.nq
-                contr.q_dotDOF = contr.qDOF.copy()
+                contr.my_qDOF = np.arange(0, contr.nq) + self.nq
+                contr.qDOF = contr.my_qDOF.copy()
                 self.nq += contr.nq
                 q0.extend(contr.q0.tolist())
 
             # if contribution has velocity degrees of freedom address velocity coordinates
             if hasattr(contr, "nu"):
-                contr.uDOF = np.arange(0, contr.nu) + self.nu
+                contr.my_uDOF = np.arange(0, contr.nu) + self.nu
+                contr.uDOF = contr.my_uDOF.copy()
                 self.nu += contr.nu
                 u0.extend(contr.u0.tolist())
 
@@ -361,13 +359,13 @@ class System:
     def q_dot(self, t, q, u):
         q_dot = np.zeros(self.nq, dtype=np.common_type(q, u))
         for contr in self.__q_dot_contr:
-            q_dot[contr.q_dotDOF] = contr.q_dot(t, q[contr.qDOF], u[contr.uDOF])
+            q_dot[contr.my_qDOF] = contr.q_dot(t, q[contr.qDOF], u[contr.uDOF])
         return q_dot
 
     def q_dot_q(self, t, q, u, format="coo"):
         coo = CooMatrix((self.nq, self.nq))
         for contr in self.__q_dot_q_contr:
-            coo[contr.q_dotDOF, contr.qDOF] = contr.q_dot_q(
+            coo[contr.my_qDOF, contr.qDOF] = contr.q_dot_q(
                 t, q[contr.qDOF], u[contr.uDOF]
             )
         return coo.asformat(format)
@@ -375,13 +373,13 @@ class System:
     def q_dot_u(self, t, q, format="coo"):
         coo = CooMatrix((self.nq, self.nu))
         for contr in self.__q_dot_u_contr:
-            coo[contr.q_dotDOF, contr.uDOF] = contr.q_dot_u(t, q[contr.qDOF])
+            coo[contr.my_qDOF, contr.uDOF] = contr.q_dot_u(t, q[contr.qDOF])
         return coo.asformat(format)
 
     def q_ddot(self, t, q, u, u_dot):
         q_ddot = np.zeros(self.nq, dtype=np.common_type(q, u, u_dot))
         for contr in self.__q_dot_contr:
-            q_ddot[contr.q_dotDOF] = contr.q_ddot(
+            q_ddot[contr.my_qDOF] = contr.q_ddot(
                 t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF]
             )
         return q_ddot
