@@ -1,9 +1,9 @@
 import numpy as np
 
-from ._base import ScalarForceLaw
+from ._base import ScalarForceLawComplianceForm
 
 
-class KelvinVoigtElement(ScalarForceLaw):
+class KelvinVoigtElement(ScalarForceLawComplianceForm):
     r"""Scalar force law consisting of a linear spring and a linear damper acting in parallel.
 
     Parameters

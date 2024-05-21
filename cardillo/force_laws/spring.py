@@ -1,9 +1,9 @@
 import numpy as np
 
-from ._base import ScalarForceLaw
+from ._base import ScalarForceLawComplianceForm
 
 
-class Spring(ScalarForceLaw):
+class Spring(ScalarForceLawComplianceForm):
     r"""Scalar force law consisting of a linear spring.
 
     Parameters
