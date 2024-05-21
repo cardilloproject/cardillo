@@ -129,59 +129,44 @@ class System:
     def extend(self, contr_list):
         list(map(self.add, contr_list))
 
-    def deepcopy(self, solution, **kwargs):
+    def deepcopy(self):
         """
-        Create a deepcopy of the system and set the original system, which is
-        accessed by `self`, to the state given by the passed Solution.
-        Additionally reassemble the original system.
-
-        Args:
-            solution (Solution): previously calculated solution of system
+        Create a deepcopy of the system.
 
         Returns:
-            system: deepcopy of original system
+        --------
+        system: cardillo.System
+            deepcopy of the system
         """
-        # create copy of the system
-        system_copy = deepcopy(self)
+        return deepcopy(self)
+
+    def set_new_initial_state(self, q0, u0, t0=None, **assemble_kwargs):
+        """
+        Sets the initial state of the system.
+
+        Parameters:
+        -----------
+        q0 : np.ndarray
+            initial position coordinates
+        u0 : np.ndarray
+            initial velocity coordinates
+        t0 : float
+            initial time
+
+        """
+        self.t0 = t0 if t0 is not None else self.t0
 
         # extract final generalized coordiantes and distribute to subsystems
-        q0 = solution.q[-1]
         for contr in self.contributions:
             if hasattr(contr, "nq"):
                 contr.q0 = q0[contr.my_qDOF]
 
         # optionally distribute all other solution fields
-        if solution.u is not None:
-            u0 = solution.u[-1]
-            for contr in self.contributions:
-                if hasattr(contr, "nu"):
-                    contr.u0 = u0[contr.my_uDOF]
+        for contr in self.contributions:
+            if hasattr(contr, "nu"):
+                contr.u0 = u0[contr.my_uDOF]
 
-        if solution.la_g is not None:
-            la_g0 = solution.la_g[-1]
-            for contr in self.contributions:
-                if hasattr(contr, "nla_g"):
-                    contr.la_g0 = la_g0[contr.la_gDOF]
-
-        if solution.la_gamma is not None:
-            la_gamma0 = solution.la_gamma[-1]
-            for contr in self.contributions:
-                if hasattr(contr, "nla_gamma"):
-                    contr.la_gamma0 = la_gamma0[contr.la_gammaDOF]
-
-        if solution.la_N is not None:
-            la_N0 = solution.la_N[-1]
-            for contr in self.contributions:
-                if hasattr(contr, "nla_N"):
-                    contr.la_N0 = la_N0[contr.la_NDOF]
-
-        if solution.la_F is not None:
-            la_F0 = solution.la_F[-1]
-            for contr in self.contributions:
-                if hasattr(contr, "nla_F"):
-                    contr.la_F0 = la_F0[contr.la_FDOF]
-        self.assemble(**kwargs)
-        return system_copy
+        self.assemble(**assemble_kwargs)
 
     def export(self, path, folder_name, solution, overwrite=True, fps=50):
         e = Export(path, folder_name, overwrite, fps, solution)

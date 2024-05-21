@@ -48,13 +48,18 @@ if __name__ == "__main__":
     sol1 = ScipyIVP(system, tM, dt).solve()
     t1, q1, u1 = sol1.t, sol1.q, sol1.u
 
-    system_old = system.deepcopy(sol1)
+    # system_old = system.deepcopy()
+    # system.set_new_initial_state(q1[-1], u1[-1], t0=tM)
+    # system.remove(system.contributions_map["force"])
+    # system.assemble()
+    # sol2 = ScipyIVP(system, tF, dt).solve()
 
-    system.remove(system.contributions_map["force"])
-    system.t0 = tM
-    system.assemble()
+    system_new = system.deepcopy()
+    system_new.set_new_initial_state(q1[-1], u1[-1], t0=tM)
+    system_new.remove(system_new.contributions_map["force"])
+    system_new.assemble()
+    sol2 = ScipyIVP(system_new, tF, dt).solve()
 
-    sol2 = ScipyIVP(system, tF, dt).solve()
     t2, q2, u2 = sol2.t, sol2.q, sol2.u
 
     fig, ax = plt.subplots(1, 2)
