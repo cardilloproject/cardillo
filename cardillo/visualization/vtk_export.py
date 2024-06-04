@@ -9,99 +9,32 @@ from cardillo.solver import Solution
 # https://examples.vtk.org/site/Cxx/GeometricObjects/IsoparametricCellsDemo/
 # https://vtk.org/doc/nightly/html/vtkCellType_8h_source.html
 cell_map = {
-    "vertex": (vtk.VTK_VERTEX, 1),
-    "line": (vtk.VTK_LINE, 2),
-    "triangle": (vtk.VTK_TRIANGLE, 3),
-    "quad": (vtk.VTK_QUAD, 4),
-    "quad8": (vtk.VTK_QUADRATIC_QUAD, 8),
-    "tetra": (vtk.VTK_TETRA, 4),
-    "hexahedron": (vtk.VTK_HEXAHEDRON, 8),
-    "hexahedron20": (vtk.VTK_QUADRATIC_HEXAHEDRON, 20),
-    "hexahedron24": (vtk.VTK_BIQUADRATIC_QUADRATIC_HEXAHEDRON, 24),
-    "wedge": (vtk.VTK_WEDGE, 6),
-    "pyramid": (vtk.VTK_PYRAMID, 5),
-    #
-    "line3": (vtk.VTK_QUADRATIC_EDGE, 3),
-    "triangle6": (vtk.VTK_QUADRATIC_TRIANGLE, 6),
-    "quad9": (vtk.VTK_BIQUADRATIC_QUAD, 9),
-    "tetra10": (vtk.VTK_QUADRATIC_TETRA, 10),
-    "hexahedron27": (vtk.VTK_TRIQUADRATIC_HEXAHEDRON, 27),
-    # "wedge15": 15,
-    # "wedge18": 18,
-    "pyramid13": (vtk.VTK_QUADRATIC_PYRAMID, 13),
-    "pyramid14": (vtk.VTK_TRIQUADRATIC_PYRAMID, 14),
-    #
-    "line4": (vtk.VTK_CUBIC_LINE, 4),
-    # "triangle10": 10,
-    # "quad16": 16,
-    # "tetra20": 20,
-    # "wedge40": 40,
-    # "hexahedron64": 64,
-    # #
-    # "line5": 5,
-    # "triangle15": 15,
-    # "quad25": 25,
-    # "tetra35": 35,
-    # "wedge75": 75,
-    # "hexahedron125": 125,
-    # #
-    # "line6": 6,
-    # "triangle21": 21,
-    # "quad36": 36,
-    # "tetra56": 56,
-    # "wedge126": 126,
-    # "hexahedron216": 216,
-    # #
-    # "line7": 7,
-    # "triangle28": 28,
-    # "quad49": 49,
-    # "tetra84": 84,
-    # "wedge196": 196,
-    # "hexahedron343": 343,
-    # #
-    # "line8": 8,
-    # "triangle36": 36,
-    # "quad64": 64,
-    # "tetra120": 120,
-    # "wedge288": 288,
-    # "hexahedron512": 512,
-    # #
-    # "line9": 9,
-    # "triangle45": 45,
-    # "quad81": 81,
-    # "tetra165": 165,
-    # "wedge405": 405,
-    # "hexahedron729": 729,
-    # #
-    # "line10": 10,
-    # "triangle55": 55,
-    # "quad100": 100,
-    # "tetra220": 220,
-    # "wedge550": 550,
-    # "hexahedron1000": 1000,
-    # "hexahedron1331": 1331,
-    # #
-    # "line11": 11,
-    # "triangle66": 66,
-    # "quad121": 121,
-    # "tetra286": 286,
-    # #
-    # # Arbitrary order Lagrange elements
-    # 68: "VTK_LAGRANGE_CURVE",
-    # 69: "VTK_LAGRANGE_TRIANGLE",
-    # 70: "VTK_LAGRANGE_QUADRILATERAL",
-    # 71: "VTK_LAGRANGE_TETRAHEDRON",
-    # 72: "VTK_LAGRANGE_HEXAHEDRON",
-    # 73: "VTK_LAGRANGE_WEDGE",
-    # 74: "VTK_LAGRANGE_PYRAMID",
-    # Arbitrary order Bezier elements
-    # 75: "VTK_BEZIER_CURVE",
-    # 76: "VTK_BEZIER_TRIANGLE",
-    # 77: "VTK_BEZIER_QUADRILATERAL",
-    # 78: "VTK_BEZIER_TETRAHEDRON",
-    "VTK_BEZIER_HEXAHEDRON": (vtk.VTK_BEZIER_HEXAHEDRON, None),
-    "VTK_BEZIER_WEDGE": (vtk.VTK_BEZIER_WEDGE, None),
-    # 81: "VTK_BEZIER_PYRAMID",
+    "vertex": vtk.VTK_VERTEX,
+    "line": vtk.VTK_LINE,
+    "triangle": vtk.VTK_TRIANGLE,
+    "quad": vtk.VTK_QUAD,
+    "quad8": vtk.VTK_QUADRATIC_QUAD,
+    "tetra": vtk.VTK_TETRA,
+    "hexahedron": vtk.VTK_HEXAHEDRON,
+    "hexahedron20": vtk.VTK_QUADRATIC_HEXAHEDRON,
+    "hexahedron24": vtk.VTK_BIQUADRATIC_QUADRATIC_HEXAHEDRON,
+    "wedge": vtk.VTK_WEDGE,
+    "pyramid": vtk.VTK_PYRAMID,
+    "line3": vtk.VTK_QUADRATIC_EDGE,
+    "triangle6": vtk.VTK_QUADRATIC_TRIANGLE,
+    "quad9": vtk.VTK_BIQUADRATIC_QUAD,
+    "tetra10": vtk.VTK_QUADRATIC_TETRA,
+    "hexahedron27": vtk.VTK_TRIQUADRATIC_HEXAHEDRON,
+    "pyramid13": vtk.VTK_QUADRATIC_PYRAMID,
+    "pyramid14": vtk.VTK_TRIQUADRATIC_PYRAMID,
+    "line4": vtk.VTK_CUBIC_LINE,
+    "VTK_BEZIER_CURVE": vtk.VTK_BEZIER_CURVE,
+    "VTK_BEZIER_TRIANGLE": vtk.VTK_BEZIER_TRIANGLE,
+    "VTK_BEZIER_QUADRILATERAL": vtk.VTK_BEZIER_QUADRILATERAL,
+    "VTK_BEZIER_TETRAHEDRON": vtk.VTK_BEZIER_TETRAHEDRON,
+    "VTK_BEZIER_HEXAHEDRON": vtk.VTK_BEZIER_HEXAHEDRON,
+    "VTK_BEZIER_WEDGE": vtk.VTK_BEZIER_WEDGE,
+    "VTK_BEZIER_PYRAMID": vtk.VTK_BEZIER_PYRAMID,
 }
 
 
@@ -293,9 +226,8 @@ class Export:
             # cells
             ugrid.Allocate(len(cells))
             for cell_type, connections in cells:
-                vtktype, _ = cell_map[cell_type]
+                vtktype = cell_map[cell_type]
                 for cn in connections:
-                    # TODO: Use this instead of hard-coded lengths in cell_map
                     pt_per_cell = len(cn)
                     ugrid.InsertNextCell(vtktype, pt_per_cell, cn)
 
