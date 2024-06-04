@@ -145,7 +145,8 @@ class Newton:
                 options=self.options,
             )
             self.x[i] = sol.x
-            pbar.set_description(self.__pbar_text(i, sol.nit, sol.error))
+            if self.verbose:
+                pbar.set_description(self.__pbar_text(i, sol.nit, sol.error))
 
             if not sol.success and not self.options.continue_with_unconverged:
                 # return solution up to this iteration
