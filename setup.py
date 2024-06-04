@@ -24,12 +24,11 @@ setup(
         "matplotlib>=3.4.3",
         "black>=24.4.0",
         "tqdm>=4.62.3",
-        "meshio @ git+https://github.com/JonasHarsch/meshio.git@master#egg=meshio",  # may cause problems with "rich" -> quick fix it by installing "rich"
-        # "meshio>=5.0.0", # beam export may not work with this!
         "pytest",
         "dill>=0.3.7",
         "cachetools",
         "trimesh>=4.0.5",
+        "vtk==9.3.0",
     ],
     packages=find_packages(),
     python_requires=">=3.10",

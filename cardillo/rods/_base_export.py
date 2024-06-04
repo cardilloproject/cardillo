@@ -416,9 +416,7 @@ class RodExportBase(ABC):
                     n_layer = 6
                     n_cell = (p_zeta + 1) * n_layer
 
-                    higher_order_degrees = [
-                        (np.array([2, 2, p_zeta]),) for _ in range(n_segments)
-                    ]
+                    higher_order_degrees = np.array([[[2, 2, p_zeta]] * n_segments])
 
                     cells = [
                         (
@@ -431,9 +429,7 @@ class RodExportBase(ABC):
                     n_layer = 9
                     n_cell = (p_zeta + 1) * n_layer
 
-                    higher_order_degrees = [
-                        (np.array([2, 2, p_zeta]),) for _ in range(n_segments)
-                    ]
+                    higher_order_degrees = np.array([[[2, 2, p_zeta]] * n_segments])
 
                     cells = [
                         (
@@ -446,9 +442,7 @@ class RodExportBase(ABC):
                 n_layer = 4
                 n_cell = (p_zeta + 1) * n_layer
 
-                higher_order_degrees = [
-                    (np.array([1, 1, p_zeta]),) for _ in range(n_segments)
-                ]
+                higher_order_degrees = np.array([[[1, 1, p_zeta]] * n_segments])
 
                 cells = [
                     (
@@ -463,14 +457,14 @@ class RodExportBase(ABC):
 
             if isinstance(self.cross_section, RectangularCrossSection):
                 point_data = {
-                    "RationalWeights": vtk_points_weights[:, 3],
+                    "RationalWeights": vtk_points_weights[:, 3, None],
                     "d1": vtk_d1_weights,
                     "d2": vtk_d2_weights,
                     "d3": vtk_d3_weights,
                 }
             else:
                 point_data = {
-                    "RationalWeights": vtk_points_weights[:, 3],
+                    "RationalWeights": vtk_points_weights[:, 3, None],
                 }
 
             cell_data = {

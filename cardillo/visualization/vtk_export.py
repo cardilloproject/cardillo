@@ -1,10 +1,108 @@
 import numpy as np
-import meshio
 from xml.dom import minidom
 from pathlib import Path
 from shutil import rmtree
-
+import vtk
 from cardillo.solver import Solution
+
+# https://github.com/nschloe/meshio/wiki/Node-ordering-in-cells
+# https://examples.vtk.org/site/Cxx/GeometricObjects/IsoparametricCellsDemo/
+# https://vtk.org/doc/nightly/html/vtkCellType_8h_source.html
+cell_map = {
+    "vertex": (vtk.VTK_VERTEX, 1),
+    "line": (vtk.VTK_LINE, 2),
+    "triangle": (vtk.VTK_TRIANGLE, 3),
+    "quad": (vtk.VTK_QUAD, 4),
+    "quad8": (vtk.VTK_QUADRATIC_QUAD, 8),
+    "tetra": (vtk.VTK_TETRA, 4),
+    "hexahedron": (vtk.VTK_HEXAHEDRON, 8),
+    "hexahedron20": (vtk.VTK_QUADRATIC_HEXAHEDRON, 20),
+    "hexahedron24": (vtk.VTK_BIQUADRATIC_QUADRATIC_HEXAHEDRON, 24),
+    "wedge": (vtk.VTK_WEDGE, 6),
+    "pyramid": (vtk.VTK_PYRAMID, 5),
+    #
+    "line3": (vtk.VTK_QUADRATIC_EDGE, 3),
+    "triangle6": (vtk.VTK_QUADRATIC_TRIANGLE, 6),
+    "quad9": (vtk.VTK_BIQUADRATIC_QUAD, 9),
+    "tetra10": (vtk.VTK_QUADRATIC_TETRA, 10),
+    "hexahedron27": (vtk.VTK_TRIQUADRATIC_HEXAHEDRON, 27),
+    # "wedge15": 15,
+    # "wedge18": 18,
+    "pyramid13": (vtk.VTK_QUADRATIC_PYRAMID, 13),
+    "pyramid14": (vtk.VTK_TRIQUADRATIC_PYRAMID, 14),
+    #
+    "line4": (vtk.VTK_CUBIC_LINE, 4),
+    # "triangle10": 10,
+    # "quad16": 16,
+    # "tetra20": 20,
+    # "wedge40": 40,
+    # "hexahedron64": 64,
+    # #
+    # "line5": 5,
+    # "triangle15": 15,
+    # "quad25": 25,
+    # "tetra35": 35,
+    # "wedge75": 75,
+    # "hexahedron125": 125,
+    # #
+    # "line6": 6,
+    # "triangle21": 21,
+    # "quad36": 36,
+    # "tetra56": 56,
+    # "wedge126": 126,
+    # "hexahedron216": 216,
+    # #
+    # "line7": 7,
+    # "triangle28": 28,
+    # "quad49": 49,
+    # "tetra84": 84,
+    # "wedge196": 196,
+    # "hexahedron343": 343,
+    # #
+    # "line8": 8,
+    # "triangle36": 36,
+    # "quad64": 64,
+    # "tetra120": 120,
+    # "wedge288": 288,
+    # "hexahedron512": 512,
+    # #
+    # "line9": 9,
+    # "triangle45": 45,
+    # "quad81": 81,
+    # "tetra165": 165,
+    # "wedge405": 405,
+    # "hexahedron729": 729,
+    # #
+    # "line10": 10,
+    # "triangle55": 55,
+    # "quad100": 100,
+    # "tetra220": 220,
+    # "wedge550": 550,
+    # "hexahedron1000": 1000,
+    # "hexahedron1331": 1331,
+    # #
+    # "line11": 11,
+    # "triangle66": 66,
+    # "quad121": 121,
+    # "tetra286": 286,
+    # #
+    # # Arbitrary order Lagrange elements
+    # 68: "VTK_LAGRANGE_CURVE",
+    # 69: "VTK_LAGRANGE_TRIANGLE",
+    # 70: "VTK_LAGRANGE_QUADRILATERAL",
+    # 71: "VTK_LAGRANGE_TETRAHEDRON",
+    # 72: "VTK_LAGRANGE_HEXAHEDRON",
+    # 73: "VTK_LAGRANGE_WEDGE",
+    # 74: "VTK_LAGRANGE_PYRAMID",
+    # Arbitrary order Bezier elements
+    # 75: "VTK_BEZIER_CURVE",
+    # 76: "VTK_BEZIER_TRIANGLE",
+    # 77: "VTK_BEZIER_QUADRILATERAL",
+    # 78: "VTK_BEZIER_TETRAHEDRON",
+    "VTK_BEZIER_HEXAHEDRON": (vtk.VTK_BEZIER_HEXAHEDRON, None),
+    "VTK_BEZIER_WEDGE": (vtk.VTK_BEZIER_WEDGE, None),
+    # 81: "VTK_BEZIER_PYRAMID",
+}
 
 
 class Export:
@@ -15,11 +113,13 @@ class Export:
         overwrite: bool,
         fps: float,
         solution: Solution,
+        write_ascii=True,
     ) -> None:
         self.path = path
         self.folder = self.__create_vtk_folder(folder_name, overwrite)
         self.fps = fps
         self.system = solution.system
+        self.write_ascii = (write_ascii,)
         self.__prepare_data(solution)
 
     # helper functions
@@ -180,131 +280,74 @@ class Export:
             self.__write_time_step_and_name(sol_i.t, file_i)
 
             points, cells, point_data, cell_data = export(sol_i, **kwargs)
-            #######################################################
-            # https://github.com/nschloe/meshio/wiki/Node-ordering-in-cells
-            # https://examples.vtk.org/site/Cxx/GeometricObjects/IsoparametricCellsDemo/
-            from vtk import vtkUnstructuredGrid, vtkXMLUnstructuredGridWriter, vtkPoints, vtkDataArray
-            import vtk
-            cell_map = {
-                "vertex": (vtk.VTK_VERTEX, 1),
-                "line": (vtk.VTK_LINE, 2),
-                "triangle": (vtk.VTK_TRIANGLE, 3),
-                "quad": (vtk.VTK_QUAD, 4),
-                "quad8": (vtk.VTK_QUADRATIC_QUAD, 8),
-                "tetra": (vtk.VTK_TETRA, 4),
-                "hexahedron": (vtk.VTK_HEXAHEDRON, 8),
-                "hexahedron20": (vtk.VTK_QUADRATIC_HEXAHEDRON, 20),
-                "hexahedron24": (vtk.VTK_BIQUADRATIC_QUADRATIC_HEXAHEDRON, 24),
-                "wedge": (vtk.VTK_WEDGE, 6),
-                "pyramid": (vtk.VTK_PYRAMID, 5),
-                #
-                "line3": (vtk.VTK_QUADRATIC_EDGE, 3),
-                "triangle6": (vtk.VTK_QUADRATIC_TRIANGLE, 6),
-                "quad9": (vtk.VTK_BIQUADRATIC_QUAD, 9),
-                "tetra10": (vtk.VTK_QUADRATIC_TETRA, 10),
-                "hexahedron27": (vtk.VTK_TRIQUADRATIC_HEXAHEDRON, 27),
-                # "wedge15": 15,
-                # "wedge18": 18,
-                "pyramid13": (vtk.VTK_QUADRATIC_PYRAMID, 13),
-                "pyramid14": (vtk.VTK_TRIQUADRATIC_PYRAMID, 14),
-                #
-                "line4": (vtk.VTK_CUBIC_LINE, 4),
-                # "triangle10": 10,
-                # "quad16": 16,
-                # "tetra20": 20,
-                # "wedge40": 40,
-                # "hexahedron64": 64,
-                # #
-                # "line5": 5,
-                # "triangle15": 15,
-                # "quad25": 25,
-                # "tetra35": 35,
-                # "wedge75": 75,
-                # "hexahedron125": 125,
-                # #
-                # "line6": 6,
-                # "triangle21": 21,
-                # "quad36": 36,
-                # "tetra56": 56,
-                # "wedge126": 126,
-                # "hexahedron216": 216,
-                # #
-                # "line7": 7,
-                # "triangle28": 28,
-                # "quad49": 49,
-                # "tetra84": 84,
-                # "wedge196": 196,
-                # "hexahedron343": 343,
-                # #
-                # "line8": 8,
-                # "triangle36": 36,
-                # "quad64": 64,
-                # "tetra120": 120,
-                # "wedge288": 288,
-                # "hexahedron512": 512,
-                # #
-                # "line9": 9,
-                # "triangle45": 45,
-                # "quad81": 81,
-                # "tetra165": 165,
-                # "wedge405": 405,
-                # "hexahedron729": 729,
-                # #
-                # "line10": 10,
-                # "triangle55": 55,
-                # "quad100": 100,
-                # "tetra220": 220,
-                # "wedge550": 550,
-                # "hexahedron1000": 1000,
-                # "hexahedron1331": 1331,
-                # #
-                # "line11": 11,
-                # "triangle66": 66,
-                # "quad121": 121,
-                # "tetra286": 286,
-            }
+
+            ugrid = vtk.vtkUnstructuredGrid()
+
             # points
-            vtkpoints = vtkPoints()
-            for i, p in enumerate(points):
-                vtkpoints.InsertPoint(i, p.tolist())
-            # # pointdata
-            # vtkdata = vtkDataArray()
-            # for name, data in point_data:
-            #     vtkdata.SetName(name)
-            # vtkpoints.SetData(vtkdata)
-            ugrid = vtkUnstructuredGrid()
+            vtkpoints = vtk.vtkPoints()
+            vtkpoints.Allocate(len(points))
+            for p in points:
+                vtkpoints.InsertNextPoint(p)
             ugrid.SetPoints(vtkpoints)
-        
+
             # cells
             ugrid.Allocate(len(cells))
             for cell_type, connections in cells:
-                vtktype, pt_per_cell = cell_map[cell_type]
+                vtktype, _ = cell_map[cell_type]
                 for cn in connections:
+                    # TODO: Use this instead of hard-coded lengths in cell_map
+                    pt_per_cell = len(cn)
                     ugrid.InsertNextCell(vtktype, pt_per_cell, cn)
 
+            # point data
+            pdata = ugrid.GetPointData()
+            if point_data is not None:
+                for key, value in point_data.items():
+                    value = np.atleast_2d(value)
+                    n, dim = value.shape
+
+                    parray = vtk.vtkDoubleArray()
+                    parray.SetName(key)
+                    parray.SetNumberOfTuples(n)
+                    parray.SetNumberOfComponents(dim)
+                    for i, vi in enumerate(value):
+                        parray.InsertTuple(i, vi)
+
+                    if key == "RationalWeights":
+                        pdata.SetRationalWeights(parray)
+                    else:
+                        pdata.AddArray(parray)
+
             # cell data
-            # cdata = ugrid.GetCellData()
-            # for key, values in cell_data.items():
-            #     ary = vtk.vtkDoubleArray()
-            #     ary.SetName(key)
-            #     ary.SetNumberOfComponents(3)
-            #     ary.SetNumberOfTuples(len(cells))
-            #     for i, v in enumerate(values):
-            #         ary.SetValue(i, v.flatten())
-            #     cdata.AddArray(ary)
+            cdata = ugrid.GetCellData()
+            if cell_data is not None:
+                for key, value in cell_data.items():
+                    value = np.array(value)
+                    # TODO: I think the first dimension can be removed here but
+                    # has to be implemented in all export functions.
+                    n, m, dim = value.shape
+
+                    for i, vi in enumerate(value):
+                        carray = vtk.vtkDoubleArray()
+                        carray.SetName(key)
+                        carray.SetNumberOfTuples(m)
+                        carray.SetNumberOfComponents(dim)
+                        for j, vij in enumerate(vi):
+                            carray.InsertTuple(j, vij)
+
+                        if key == "HigherOrderDegrees":
+                            cdata.SetHigherOrderDegrees(carray)
+                        else:
+                            cdata.AddArray(carray)
+
             # write data
-            writer = vtkXMLUnstructuredGridWriter()
+            writer = vtk.vtkXMLUnstructuredGridWriter()
             writer.SetInputData(ugrid)
             writer.SetFileName(file_i)
+            if self.write_ascii:
+                writer.SetDataModeToAscii()
+            else:
+                writer.SetDataModeToBinary()
             writer.Write()
-            #######################################################
 
-            # meshio.write_points_cells(
-            #     filename=file_i,
-            #     points=points,
-            #     cells=cells,
-            #     point_data=point_data,
-            #     cell_data=cell_data,
-            #     # binary=False,
-            # )
         self._write_pvd_file(self.path / f"{file_name}.pvd")

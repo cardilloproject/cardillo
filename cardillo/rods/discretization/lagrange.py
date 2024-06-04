@@ -1,7 +1,6 @@
 import numpy as np
 from numpy.polynomial import Polynomial
 from scipy.sparse.linalg import spsolve
-import meshio
 
 
 # data are only the corner nodes

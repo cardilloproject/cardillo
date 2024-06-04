@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 from cardillo.visualization import Export
 from cardillo.solver import Solution
 from pathlib import Path
-import meshio
 
 from scipy.sparse import lil_matrix
 
@@ -363,14 +362,17 @@ def test_volume():
             point_data = None
             cell_data = {"HigherOrderDegrees": higher_order_degrees}
 
-            meshio.write_points_cells(
-                filename=file,
-                points=points,
-                cells=cells,
-                point_data=point_data,
-                cell_data=cell_data,
-                binary=False,
-            )
+            # # TODO: Replace this with vtk if still important
+            # import meshio
+
+            # meshio.write_points_cells(
+            #     filename=file,
+            #     points=points,
+            #     cells=cells,
+            #     point_data=point_data,
+            #     cell_data=cell_data,
+            #     binary=False,
+            # )
 
     mesh = BezierMesh(p, q, r)
 
