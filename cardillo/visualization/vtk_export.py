@@ -8,35 +8,6 @@ from cardillo.solver import Solution
 # https://github.com/nschloe/meshio/wiki/Node-ordering-in-cells
 # https://examples.vtk.org/site/Cxx/GeometricObjects/IsoparametricCellsDemo/
 # https://vtk.org/doc/nightly/html/vtkCellType_8h_source.html
-cell_map = {
-    "vertex": vtk.VTK_VERTEX,
-    "line": vtk.VTK_LINE,
-    "triangle": vtk.VTK_TRIANGLE,
-    "quad": vtk.VTK_QUAD,
-    "quad8": vtk.VTK_QUADRATIC_QUAD,
-    "tetra": vtk.VTK_TETRA,
-    "hexahedron": vtk.VTK_HEXAHEDRON,
-    "hexahedron20": vtk.VTK_QUADRATIC_HEXAHEDRON,
-    "hexahedron24": vtk.VTK_BIQUADRATIC_QUADRATIC_HEXAHEDRON,
-    "wedge": vtk.VTK_WEDGE,
-    "pyramid": vtk.VTK_PYRAMID,
-    "line3": vtk.VTK_QUADRATIC_EDGE,
-    "triangle6": vtk.VTK_QUADRATIC_TRIANGLE,
-    "quad9": vtk.VTK_BIQUADRATIC_QUAD,
-    "tetra10": vtk.VTK_QUADRATIC_TETRA,
-    "hexahedron27": vtk.VTK_TRIQUADRATIC_HEXAHEDRON,
-    "pyramid13": vtk.VTK_QUADRATIC_PYRAMID,
-    "pyramid14": vtk.VTK_TRIQUADRATIC_PYRAMID,
-    "line4": vtk.VTK_CUBIC_LINE,
-    "VTK_BEZIER_CURVE": vtk.VTK_BEZIER_CURVE,
-    "VTK_BEZIER_TRIANGLE": vtk.VTK_BEZIER_TRIANGLE,
-    "VTK_BEZIER_QUADRILATERAL": vtk.VTK_BEZIER_QUADRILATERAL,
-    "VTK_BEZIER_TETRAHEDRON": vtk.VTK_BEZIER_TETRAHEDRON,
-    "VTK_BEZIER_HEXAHEDRON": vtk.VTK_BEZIER_HEXAHEDRON,
-    "VTK_BEZIER_WEDGE": vtk.VTK_BEZIER_WEDGE,
-    "VTK_BEZIER_PYRAMID": vtk.VTK_BEZIER_PYRAMID,
-}
-
 # dtype_map = {
 #     np.float128: vtk.vtkDoubleArray,
 # }
@@ -235,27 +206,15 @@ class Export:
                 vtkpoints.InsertNextPoint(p)
             ugrid.SetPoints(vtkpoints)
 
-            # cells = [
-            #     # ("VTK_LINE", [
-            #     #     [0, 1],
-            #     #     [1, 2],
-            #     # ]),
-            #     # TODO: Implement this approach
-            #     ("VTK_LINE", [0, 1]),
-            #     ("VTK_LINE", [1, 2]),
-            #     ("VTK_QUAD", [[], []]),
-            # ]
-
             # cells
-            # TODO: This allocation is wrong!
+            # TODO: This doesn't really change the performance!
+            # maxcellsize = 0
+            # for cell_type, connectivity in cells:
+            #     maxcellsize = max(maxcellsize, len(connectivity))
+            # ugrid.AllocateEstimate(len(cells), maxcellsize)
             ugrid.Allocate(len(cells))
             for cell_type, connectivity in cells:
-                vtktype = cell_map[cell_type]
-                # this will be replace since we directly use something like
-                # from vtk import VTK_LINE
-                # vtktype = eval("vtk." + cell_type)
-                for con in connectivity:
-                    ugrid.InsertNextCell(vtktype, len(con), con)
+                ugrid.InsertNextCell(cell_type, len(connectivity), connectivity)
 
             # point data
             pdata = ugrid.GetPointData()

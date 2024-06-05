@@ -1,5 +1,5 @@
 import numpy as np
-
+from vtk import VTK_LINE
 from cardillo.math.approx_fprime import approx_fprime
 from cardillo.math.algebra import cross3, ax2skew
 from cardillo.math.prox import Sphere
@@ -261,7 +261,7 @@ class Sphere2Plane:
         r_PC1 = -self.r * n
         r_QC2 = r_OP - self.r_OQ - n * (g_N + self.r)
         points = [r_OP + r_PC1, r_OP - n * (g_N + self.r)]
-        cells = [("line", [[0, 1]])]
+        cells = [(VTK_LINE, [0, 1])]
         A_IB1 = self.A_IB(sol_i.t, sol_i.q[self.qDOF])
         A_IB2 = self.frame.A_IB(sol_i.t)
         point_data = dict(

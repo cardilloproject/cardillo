@@ -1,6 +1,7 @@
 from cachetools import cachedmethod, LRUCache
 from cachetools.keys import hashkey
 import numpy as np
+from vtk import VTK_VERTEX
 
 from cardillo.math import (
     cross3,
@@ -313,7 +314,7 @@ class RigidBody:
         ]
         A_IB = np.vsplit(self.A_IB(sol_i.t, sol_i.q[self.qDOF]).T, 3)
 
-        cells = [("vertex", [[0]])]
+        cells = [(VTK_VERTEX, [0])]
         cell_data = dict(
             v=[vel], Omega=[omega], ex=[A_IB[0]], ey=[A_IB[1]], ez=[A_IB[2]]
         )

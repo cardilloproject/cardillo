@@ -1,4 +1,5 @@
 import numpy as np
+from vtk import VTK_LINE, VTK_BEZIER_WEDGE
 from cardillo.constraints._base import (
     concatenate_qDOF,
     concatenate_uDOF,
@@ -158,7 +159,7 @@ class FixedDistance:
             self.r_OJ2(sol_i.t, sol_i.q[self.qDOF]),
         ]
         if base_export:
-            cells = [("line", [[0, 1]])]
+            cells = [(VTK_LINE, [0, 1])]
             point_data = None
             cell_data = None
         else:
@@ -222,7 +223,7 @@ class FixedDistance:
             hod = [[2, 2, 1]]
             wedge_points = np.array(wedge_points).reshape((-1, 3))
 
-            cells = [("VTB_BEZIER_WEDGE", np.array(con).reshape(-1, 12))]
+            cells = [(VTK_BEZIER_WEDGE, con)]
             point_data = {"RationalWeights": w_i}
             cell_data = {"HigherOrderDegrees": [hod]}
             points = wedge_points

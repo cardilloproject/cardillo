@@ -1,5 +1,6 @@
 import numpy as np
 from cardillo.math import norm
+from vtk import VTK_LINE
 
 
 class nPointInteraction:
@@ -155,7 +156,7 @@ class nPointInteraction:
         for i, _ in enumerate(self.subsystems):
             points.append(self.r_OPk(sol_i.t, sol_i.q[self.qDOF], i))
 
-        cells = [("line", self.connectivity)]
+        cells = [(VTK_LINE, con) for con in self.connectivity]
         g = self.l(sol_i.t, sol_i.q[self.qDOF])
         gamma = self.l_dot(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])
         la = self._la(sol_i.t, g, gamma)

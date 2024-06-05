@@ -2,6 +2,7 @@ from numpy.polynomial import Polynomial
 import numpy as np
 from math import comb
 import matplotlib.pyplot as plt
+from vtk import VTK_BEZIER_HEXAHEDRON
 
 from cardillo.visualization import Export
 from cardillo.solver import Solution
@@ -268,8 +269,6 @@ def test_volume():
             self.p = p
             self.q = q
             self.r = r
-            self.vtk_cell_type = "VTB_BEZIER_HEXAHEDRON"
-            # self.vtk_cell_type = "VTB_LAGRANGE_HEXAHEDRON"
 
         def split_vtk(self, P):
             """Rearranges either a Point Array with dimensions
@@ -349,10 +348,11 @@ def test_volume():
             return np.array(vertices + edges + faces + volume)
 
         # TODO: This is only a single Bezier element!
+        # TODO: Is this function really used? Since it returns nothing!
         def export(self, P, file):
             points = self.points_vtk(P)
-
-            cells = [(self.vtk_cell_type, np.arange(len(points))[None])]
+            # TODO: Check the dimension
+            cells = [(VTK_BEZIER_HEXAHEDRON, np.arange(len(points))[None])]
 
             higher_order_degrees = [
                 np.array([p, q, r])[None],

@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 import numpy as np
+from vtk import VTK_BEZIER_WEDGE, VTK_BEZIER_HEXAHEDRON
 
 from cardillo.utility.bezier import L2_projection_Bezier_curve
 
@@ -420,8 +421,8 @@ class RodExportBase(ABC):
 
                     cells = [
                         (
-                            "VTK_BEZIER_WEDGE",
-                            np.arange(i * n_cell, (i + 1) * n_cell)[None],
+                            VTK_BEZIER_WEDGE,
+                            np.arange(i * n_cell, (i + 1) * n_cell),
                         )
                         for i in range(n_segments)
                     ]
@@ -433,8 +434,8 @@ class RodExportBase(ABC):
 
                     cells = [
                         (
-                            "VTK_BEZIER_HEXAHEDRON",
-                            np.arange(i * n_cell, (i + 1) * n_cell)[None],
+                            VTK_BEZIER_HEXAHEDRON,
+                            np.arange(i * n_cell, (i + 1) * n_cell),
                         )
                         for i in range(n_segments)
                     ]
@@ -446,8 +447,8 @@ class RodExportBase(ABC):
 
                 cells = [
                     (
-                        "VTK_BEZIER_HEXAHEDRON",
-                        np.arange(i * n_cell, (i + 1) * n_cell)[None],
+                        VTK_BEZIER_HEXAHEDRON,
+                        np.arange(i * n_cell, (i + 1) * n_cell),
                     )
                     for i in range(n_segments)
                 ]

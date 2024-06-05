@@ -1,5 +1,5 @@
 import numpy as np
-
+from vtk import VTK_VERTEX
 from cardillo.math import skew2ax
 from cardillo.utility.check_time_derivatives import check_time_derivatives
 
@@ -151,7 +151,7 @@ class Frame:
     ########
     def export(self, sol_i, **kwargs):
         points = [self.r_OP(sol_i.t)]
-        cells = [("vertex", [[0]])]
+        cells = [(VTK_VERTEX, [0])]
         A_IB = np.vsplit(self.A_IB(sol_i.t).T, 3)
         cell_data = dict(
             v=[[self.v_P(sol_i.t)]],

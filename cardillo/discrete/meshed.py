@@ -1,5 +1,6 @@
 import numpy as np
 import trimesh
+from vtk import VTK_TRIANGLE
 
 
 def Meshed(Base):
@@ -123,9 +124,7 @@ def Meshed(Base):
                 A_IB = self.A_IB(sol_i.t, sol_i.q[self.qDOF])
                 points = (r_OC[:, None] + A_IB @ self.B_r_CQi_T).T
 
-                cells = [
-                    ("triangle", self.B_visual_mesh.faces),
-                ]
+                cells = [(VTK_TRIANGLE, face) for face in self.B_visual_mesh.faces]
 
             return points, cells, None, None
 

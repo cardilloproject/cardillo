@@ -1,4 +1,5 @@
 from numpy import einsum, zeros
+from vtk import VTK_VERTEX
 
 
 class Force:
@@ -44,7 +45,7 @@ class Force:
 
     def export(self, sol_i, **kwargs):
         points = [self.r_OP(sol_i.t, sol_i.q[self.qDOF])]
-        cells = [("vertex", [[0]])]
+        cells = [(VTK_VERTEX, [0])]
         F = [self.force(sol_i.t)]
         cell_data = dict(F=[F])
         return points, cells, None, cell_data

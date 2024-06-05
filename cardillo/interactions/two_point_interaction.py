@@ -1,4 +1,6 @@
 import numpy as np
+from vtk import VTK_LINE
+
 from cardillo.math import norm
 from cardillo.definitions import IS_CLOSE_ATOL
 
@@ -192,6 +194,6 @@ class TwoPointInteraction:
             self.r_OP1(sol_i.t, sol_i.q[self.qDOF]),
             self.r_OP2(sol_i.t, sol_i.q[self.qDOF]),
         ]
-        cells = [("line", [[0, 1]])]
+        cells = [(VTK_LINE, [0, 1])]
 
         return points, cells, None, None
