@@ -110,7 +110,7 @@ class PointMass:
     ########
     def export(self, sol_i, **kwargs):
         points = [self.r_OP(sol_i.t, sol_i.q[self.qDOF])]
-        vel = [self.v_P(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])]
+        vel = self.v_P(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])
         cells = [(VTK_VERTEX, [0])]
-        cell_data = dict(v=[[vel]])
+        cell_data = dict(v=[vel])
         return points, cells, None, cell_data

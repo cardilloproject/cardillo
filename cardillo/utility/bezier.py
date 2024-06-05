@@ -348,11 +348,11 @@ def test_volume():
             return np.array(vertices + edges + faces + volume)
 
         # TODO: This is only a single Bezier element!
-        # TODO: Is this function really used? Since it returns nothing, 
+        # TODO: Is this function really used? Since it returns nothing,
         # adaptation for vtk is not complete.
         def export(self, P, file):
             points = self.points_vtk(P)
-            
+
             cells = [(VTK_BEZIER_HEXAHEDRON, np.arange(len(points))[None])]
 
             higher_order_degrees = [

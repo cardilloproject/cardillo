@@ -5,11 +5,12 @@ from shutil import rmtree
 import vtk
 from cardillo.solver import Solution
 
+
 # https://github.com/nschloe/meshio/wiki/Node-ordering-in-cells
 # https://examples.vtk.org/site/Cxx/GeometricObjects/IsoparametricCellsDemo/
 # https://vtk.org/doc/nightly/html/vtkCellType_8h_source.html
 # TODO: check if all possible cases are implemented
-def dtype_map(dtype:np.dtype):
+def dtype_map(dtype: np.dtype):
     # possible vtk arrays: https://vtk.org/doc/nightly/html/classvtkAOSDataArrayTemplate.html
     if np.issubdtype(dtype, np.floating):
         return vtk.vtkDoubleArray
@@ -17,6 +18,7 @@ def dtype_map(dtype:np.dtype):
         return vtk.vtkIntArray
     elif np.issubdtype(dtype, np.bool_):
         return vtk.vtkBitArray
+
 
 class Export:
     def __init__(
@@ -219,7 +221,6 @@ class Export:
                 for key, value in point_data.items():
                     value = np.array(value)
                     n, dim = value.shape
-
                     parray = dtype_map(value.dtype)()
                     parray.SetName(key)
                     parray.SetNumberOfTuples(n)
@@ -237,24 +238,18 @@ class Export:
             if cell_data is not None:
                 for key, value in cell_data.items():
                     value = np.array(value)
-                    # TODO: I think the first dimension can be removed here but
-                    # has to be implemented in all export functions.
-                    n, m, dim = value.shape
-
+                    m, dim = value.shape
+                    carray = dtype_map(value.dtype)()
+                    carray.SetName(key)
+                    carray.SetNumberOfTuples(m)
+                    carray.SetNumberOfComponents(dim)
                     for i, vi in enumerate(value):
-                        # TODO: Mapping numpy.dtype => vtkDataArray
-                        # carray = dtype_map[value.dtype]
-                        carray = vtk.vtkDoubleArray()
-                        carray.SetName(key)
-                        carray.SetNumberOfTuples(m)
-                        carray.SetNumberOfComponents(dim)
-                        for j, vij in enumerate(vi):
-                            carray.InsertTuple(j, vij)
+                        carray.InsertTuple(i, vi)
 
-                        if key == "HigherOrderDegrees":
-                            cdata.SetHigherOrderDegrees(carray)
-                        else:
-                            cdata.AddArray(carray)
+                    if key == "HigherOrderDegrees":
+                        cdata.SetHigherOrderDegrees(carray)
+                    else:
+                        cdata.AddArray(carray)
 
             # write data
             writer = vtk.vtkXMLUnstructuredGridWriter()

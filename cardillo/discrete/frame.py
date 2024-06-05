@@ -152,12 +152,12 @@ class Frame:
     def export(self, sol_i, **kwargs):
         points = [self.r_OP(sol_i.t)]
         cells = [(VTK_VERTEX, [0])]
-        A_IB = np.vsplit(self.A_IB(sol_i.t).T, 3)
+        ex, ey, ez = self.A_IB(sol_i.t).T
         cell_data = dict(
-            v=[[self.v_P(sol_i.t)]],
-            Omega=[[self.A_IB(sol_i.t) @ self.B_Omega(sol_i.t)]],
-            ex=[A_IB[0]],
-            ey=[A_IB[1]],
-            ez=[A_IB[2]],
+            v=[self.v_P(sol_i.t)],
+            Omega=[self.A_IB(sol_i.t) @ self.B_Omega(sol_i.t)],
+            ex=[ex],
+            ey=[ey],
+            ez=[ez],
         )
         return points, cells, None, cell_data

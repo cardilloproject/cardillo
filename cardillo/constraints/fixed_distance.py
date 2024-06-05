@@ -225,6 +225,6 @@ class FixedDistance:
 
             cells = [(VTK_BEZIER_WEDGE, con)]
             point_data = {"RationalWeights": np.array(w_i)[:, None]}
-            cell_data = {"HigherOrderDegrees": [hod]}
+            cell_data = {"HigherOrderDegrees": hod}
             points = wedge_points
         return points, cells, point_data, cell_data

@@ -417,7 +417,7 @@ class RodExportBase(ABC):
                     n_layer = 6
                     n_cell = (p_zeta + 1) * n_layer
 
-                    higher_order_degrees = np.array([[[2, 2, p_zeta]] * n_segments])
+                    higher_order_degrees = np.array([[2, 2, p_zeta]] * n_segments)
 
                     cells = [
                         (
@@ -430,7 +430,7 @@ class RodExportBase(ABC):
                     n_layer = 9
                     n_cell = (p_zeta + 1) * n_layer
 
-                    higher_order_degrees = np.array([[[2, 2, p_zeta]] * n_segments])
+                    higher_order_degrees = np.array([[2, 2, p_zeta]] * n_segments)
 
                     cells = [
                         (
@@ -443,7 +443,7 @@ class RodExportBase(ABC):
                 n_layer = 4
                 n_cell = (p_zeta + 1) * n_layer
 
-                higher_order_degrees = np.array([[[1, 1, p_zeta]] * n_segments])
+                higher_order_degrees = np.array([[1, 1, p_zeta]] * n_segments)
 
                 cells = [
                     (

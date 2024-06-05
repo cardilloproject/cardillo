@@ -174,8 +174,8 @@ class nPointInteraction:
                     ]
                 ]
             ],
-            gamma=[len(self.connectivity) * [[gamma]]],
-            la=[len(self.connectivity) * [[la]]],
+            gamma=len(self.connectivity) * [[gamma]],
+            la=len(self.connectivity) * [[la]],
         )
         # if hasattr(self, "E_pot"):
         #     E_pot = self.E_pot(sol_i.t, sol_i.q[self.qDOF])

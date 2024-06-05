@@ -307,15 +307,13 @@ class RigidBody:
     ########
     def export(self, sol_i, **kwargs):
         points = [self.r_OP(sol_i.t, sol_i.q[self.qDOF])]
-        vel = [self.v_P(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])]
-        omega = [
-            self.A_IB(sol_i.t, sol_i.q[self.qDOF])
-            @ self.B_Omega(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])
-        ]
-        A_IB = np.vsplit(self.A_IB(sol_i.t, sol_i.q[self.qDOF]).T, 3)
+        vel = self.v_P(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])
+        omega = self.A_IB(sol_i.t, sol_i.q[self.qDOF]) @ self.B_Omega(
+            sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF]
+        )
+
+        ex, ey, ez = self.A_IB(sol_i.t, sol_i.q[self.qDOF]).T
 
         cells = [(VTK_VERTEX, [0])]
-        cell_data = dict(
-            v=[vel], Omega=[omega], ex=[A_IB[0]], ey=[A_IB[1]], ez=[A_IB[2]]
-        )
+        cell_data = dict(v=[vel], Omega=[omega], ex=[ex], ey=[ey], ez=[ez])
         return points, cells, None, cell_data

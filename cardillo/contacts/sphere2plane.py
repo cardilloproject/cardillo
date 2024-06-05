@@ -285,13 +285,13 @@ class Sphere2Plane:
             P_N=[P_N, P_N],
         )
         cell_data = dict(
-            g_N=[[g_N]],
-            g_N_dot=[[self.g_N_dot(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])]],
+            g_N=[g_N],
+            g_N_dot=[self.g_N_dot(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])],
         )
 
         if hasattr(self, f"gamma_F"):
             cell_data["gamma_F"] = [
-                [self.gamma_F(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])]
+                self.gamma_F(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])
             ]
             P_F = sol_i.P_F[self.la_FDOF]
             point_data["P_F1"] = [P_F[0], P_F[0]]
