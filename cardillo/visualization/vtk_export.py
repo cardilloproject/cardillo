@@ -37,6 +37,18 @@ cell_map = {
     "VTK_BEZIER_PYRAMID": vtk.VTK_BEZIER_PYRAMID,
 }
 
+# dtype_map = {
+#     np.float128: vtk.vtkDoubleArray,
+# }
+
+# # print(dtype_map[np.int32])
+# print(dtype_map[np.float128])
+
+# exit()
+
+# cell_name = "VTK_BEZIER_WEDGE"
+# var = eval("vtk." + cell_name)
+
 
 class Export:
     def __init__(
@@ -223,13 +235,27 @@ class Export:
                 vtkpoints.InsertNextPoint(p)
             ugrid.SetPoints(vtkpoints)
 
+            # cells = [
+            #     # ("VTK_LINE", [
+            #     #     [0, 1],
+            #     #     [1, 2],
+            #     # ]),
+            #     # TODO: Implement this approach
+            #     ("VTK_LINE", [0, 1]),
+            #     ("VTK_LINE", [1, 2]),
+            #     ("VTK_QUAD", [[], []]),
+            # ]
+
             # cells
+            # TODO: This allocation is wrong!
             ugrid.Allocate(len(cells))
-            for cell_type, connections in cells:
+            for cell_type, connectivity in cells:
                 vtktype = cell_map[cell_type]
-                for cn in connections:
-                    pt_per_cell = len(cn)
-                    ugrid.InsertNextCell(vtktype, pt_per_cell, cn)
+                # this will be replace since we directly use something like
+                # from vtk import VTK_LINE
+                # vtktype = eval("vtk." + cell_type)
+                for con in connectivity:
+                    ugrid.InsertNextCell(vtktype, len(con), con)
 
             # point data
             pdata = ugrid.GetPointData()
@@ -238,6 +264,8 @@ class Export:
                     value = np.atleast_2d(value)
                     n, dim = value.shape
 
+                    # TODO: Mapping numpy.dtype => vtkDataArray
+                    # parray = dtype_map[value.dtype]
                     parray = vtk.vtkDoubleArray()
                     parray.SetName(key)
                     parray.SetNumberOfTuples(n)
@@ -260,6 +288,8 @@ class Export:
                     n, m, dim = value.shape
 
                     for i, vi in enumerate(value):
+                        # TODO: Mapping numpy.dtype => vtkDataArray
+                        # carray = dtype_map[value.dtype]
                         carray = vtk.vtkDoubleArray()
                         carray.SetName(key)
                         carray.SetNumberOfTuples(m)
