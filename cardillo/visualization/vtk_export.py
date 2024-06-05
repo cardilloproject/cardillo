@@ -8,18 +8,15 @@ from cardillo.solver import Solution
 # https://github.com/nschloe/meshio/wiki/Node-ordering-in-cells
 # https://examples.vtk.org/site/Cxx/GeometricObjects/IsoparametricCellsDemo/
 # https://vtk.org/doc/nightly/html/vtkCellType_8h_source.html
-# dtype_map = {
-#     np.float128: vtk.vtkDoubleArray,
-# }
-
-# # print(dtype_map[np.int32])
-# print(dtype_map[np.float128])
-
-# exit()
-
-# cell_name = "VTK_BEZIER_WEDGE"
-# var = eval("vtk." + cell_name)
-
+# TODO: check if all possible cases are implemented
+def dtype_map(dtype:np.dtype):
+    # possible vtk arrays: https://vtk.org/doc/nightly/html/classvtkAOSDataArrayTemplate.html
+    if np.issubdtype(dtype, np.floating):
+        return vtk.vtkDoubleArray
+    elif np.issubdtype(dtype, np.integer):
+        return vtk.vtkIntArray
+    elif np.issubdtype(dtype, np.bool_):
+        return vtk.vtkBitArray
 
 class Export:
     def __init__(
@@ -220,12 +217,10 @@ class Export:
             pdata = ugrid.GetPointData()
             if point_data is not None:
                 for key, value in point_data.items():
-                    value = np.atleast_2d(value)
+                    value = np.array(value)
                     n, dim = value.shape
 
-                    # TODO: Mapping numpy.dtype => vtkDataArray
-                    # parray = dtype_map[value.dtype]
-                    parray = vtk.vtkDoubleArray()
+                    parray = dtype_map(value.dtype)()
                     parray.SetName(key)
                     parray.SetNumberOfTuples(n)
                     parray.SetNumberOfComponents(dim)

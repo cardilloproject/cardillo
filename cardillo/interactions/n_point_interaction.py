@@ -160,7 +160,7 @@ class nPointInteraction:
         g = self.l(sol_i.t, sol_i.q[self.qDOF])
         gamma = self.l_dot(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])
         la = self._la(sol_i.t, g, gamma)
-        point_data = dict(la=len(self.subsystems) * [la])  # , n=[n, -n])
+        point_data = dict(la=len(self.subsystems) * [[la]])  # , n=[n, -n])
         cell_data = dict(
             delta_g=[
                 len(self.connectivity)
