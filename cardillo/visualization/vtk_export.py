@@ -28,7 +28,7 @@ class Export:
         overwrite: bool,
         fps: float,
         solution: Solution,
-        write_ascii=True,
+        write_ascii=False,
     ) -> None:
         self.path = path
         self.folder = self.__create_vtk_folder(folder_name, overwrite)
@@ -206,11 +206,6 @@ class Export:
             ugrid.SetPoints(vtkpoints)
 
             # cells
-            # TODO: This doesn't really change the performance!
-            # maxcellsize = 0
-            # for cell_type, connectivity in cells:
-            #     maxcellsize = max(maxcellsize, len(connectivity))
-            # ugrid.AllocateEstimate(len(cells), maxcellsize)
             ugrid.Allocate(len(cells))
             for cell_type, connectivity in cells:
                 ugrid.InsertNextCell(cell_type, len(connectivity), connectivity)
