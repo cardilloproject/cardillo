@@ -1,10 +1,10 @@
 from setuptools import setup, find_packages
 
 name = "cardillo"
-version = "3.0.0"
-author = "Jonas Harsch, Giuseppe Capobianco, Simon Eugster"
+version = "1.0.0"
+author = "Jonas Breuling, Giuseppe Capobianco, Lisa Eberhardt, Simon Eugster"
 author_email = (
-    "harsch@inm.uni-stuttgart.de, giuseppe.capobianco@fau.de, eugster@inm.uni-stuttgart.de",
+    "breuling@inm.uni-stuttgart.de, giuseppe.capobianco@fau.de, eberhardt@inm.uni-stuttgart.de, s.r.eugster@tue.nl",
 )
 url = ""
 description = "Python package for flexible multibody dynamic problems."
