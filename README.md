@@ -23,7 +23,7 @@
 To install the package, clone or download the current repository, open a console, navigate to the root folder of the project and run `pip install .`.
 
 ```bash
-git clone https://github.tik.uni-stuttgart.de/inm-cardillo/cardillo.git
+git clone https://github.com/cardilloproject/cardillo.git
 cd cardillo3
 pip install -e .
 ```
@@ -70,7 +70,7 @@ Now, `pre-commit` will run on every commit applying format to the files, and thu
 Moreover, it is advised to install the package in editable mode using `pip install -e .`, i.e.,
 
 ```bash
-git clone https://github.tik.uni-stuttgart.de/inm-cardillo/cardillo.git
+git clone https://github.com/cardilloproject/cardillo.git
 cd cardillo3
 pip install -e .
 ```
