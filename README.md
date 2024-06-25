@@ -1,10 +1,6 @@
 # Cardillo
+[![License](https://img.shields.io/badge/License-BSD_3--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause) [![License](https://img.shields.io/badge/code%20standard-PEP8-black)](https://www.python.org/dev/peps/pep-0008/)
 
-<p align="center">
-<a href="https://opensource.org/licenses/BSD-3-Clause"><img src="[https://img.shields.io/badge/License-BSD_3--Clause-blue.svg]" alt="Licensing"/></a>
-<!-- <a href="https://gitlab.com/JonasHarsch/cardillo3/-/tree/main"><img src="https://gitlab.com/JonasHarsch/cardillo3/badges/main/pipeline.svg" alt="gitlab pipeline status"/></a> -->
-<a href="https://www.python.org/dev/peps/pep-0008/"><img alt="Code standard: PEP8" src="https://img.shields.io/badge/code%20standard-PEP8-black"></a>
-</p>
 
 ## Table of Contents
 
