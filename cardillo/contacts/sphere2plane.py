@@ -294,7 +294,6 @@ class Sphere2Plane:
                 self.gamma_F(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])
             ]
             P_F = sol_i.P_F[self.la_FDOF]
-            point_data["P_F1"] = [P_F[0], P_F[0]]
-            point_data["P_F2"] = [P_F[1], P_F[1]]
+            point_data["P_F"] = np.array([P_F, P_F])
 
         return points, cells, point_data, cell_data
