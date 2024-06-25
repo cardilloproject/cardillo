@@ -1,0 +1,3 @@
+The cardillo project is very young. There have not been any contributions yet.
+
+Feel free to contribute and create a pull request.
