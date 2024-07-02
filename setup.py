@@ -26,7 +26,7 @@ setup(
         "tqdm>=4.62.3",
         "pytest",
         "dill>=0.3.7",
-        "cachetools",
+        "cachetools>=5.3.3",
         "trimesh>=4.0.5",
         "vtk==9.3.0",
     ],
