@@ -1,6 +1,13 @@
 import numpy as np
 import trimesh
-from vtk import VTK_TRIANGLE
+from cardillo.visualization.vtk_export import make_ugrid
+from vtk import (
+    VTK_TRIANGLE,
+    vtkTransform,
+    vtkActor,
+    vtkTransformFilter,
+    vtkDataSetMapper,
+)
 
 
 def Meshed(Base):
@@ -127,6 +134,36 @@ def Meshed(Base):
                 cells = [(VTK_TRIANGLE, face) for face in self.B_visual_mesh.faces]
 
             return points, cells, None, None
+
+        def update_vtk_tf(self, sol_i):
+            A_IB = self.A_IB(sol_i.t, sol_i.q, sol_i.u)
+            r_OP = self.r_OP(sol_i.t, sol_i.q, sol_i.u)[:, None]
+            if not hasattr(self, "vtk_tf"):
+                points, cells, point_data, cell_data = self.export(sol_i)
+                ugrid = make_ugrid(points, cells, point_data, cell_data)
+                self.vtk_tf = vtkTransform()
+                tf0 = vtkTransform()
+                tf0.SetMatrix(
+                    np.block([[A_IB.T, -A_IB.T @ r_OP], [0, 0, 0, 1]]).flatten()
+                )
+                tf0.PostMultiply()
+                tf0.Concatenate(self.vtk_tf)
+                tf_filter = vtkTransformFilter()
+                tf_filter.SetTransform(tf0)
+                tf_filter.SetInputData(ugrid)
+                map = vtkDataSetMapper()
+                map.SetInputConnection(tf_filter.GetOutputPort())
+                actor = vtkActor()
+                actor.SetMapper(map)
+                self.actor = actor
+            H_IB = np.block(
+                [
+                    [A_IB, r_OP],
+                    [0, 0, 0, 1],
+                ]
+            )
+            self.vtk_tf.SetMatrix(H_IB.flatten())
+            return self.actor
 
     return _Meshed
 

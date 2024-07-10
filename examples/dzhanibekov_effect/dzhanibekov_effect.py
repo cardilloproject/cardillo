@@ -6,6 +6,7 @@ import trimesh
 from cardillo.discrete import RigidBody, Meshed
 from cardillo.system import System
 from cardillo.solver import Rattle
+from cardillo.visualization import VTKRenderer
 
 
 if __name__ == "__main__":
@@ -57,6 +58,12 @@ if __name__ == "__main__":
 
     # assemble system
     system.assemble()
+
+    ###########
+    # rendering
+    ###########
+    render = VTKRenderer(system)
+    render.start_step_render()
 
     ############
     # simulation
