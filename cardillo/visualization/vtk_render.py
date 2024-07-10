@@ -38,8 +38,8 @@ class VTKRenderer:
 
         self.system.step_callback = decorate_step_callback(self.system.step_callback)
 
-    def step_render(self, t, q, u):
-        sol_i = Solution(self.system, t, q, u)
+    def step_render(self, t_i, q_i, u_i):
+        sol_i = Solution(self.system, t_i, q_i, u_i)
         if not self.active:
             return
         for contr in self.system.contributions:

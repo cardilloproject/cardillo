@@ -54,6 +54,10 @@ class Solution:
         def __init__(self, solution) -> None:
             self._solution = solution
             self.keys = [*self._solution.__dict__.keys()][1:]
+            self.keys = [*self._solution.__dict__.keys()]
+            # remove non-iterable keys
+            self.keys.remove("solver_summary")
+            self.keys.remove("system")
             self._index = 0
             self._retVal = namedtuple("Result", self.keys)
 

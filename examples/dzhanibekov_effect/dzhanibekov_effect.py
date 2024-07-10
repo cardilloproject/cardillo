@@ -22,7 +22,7 @@ if __name__ == "__main__":
     B_Omega0 = np.array((0, 0, phi_dot0)) + B_Omega_disturbance
 
     # simulation parameters
-    t1 = 10  # final time
+    t1 = 2  # final time
 
     # initialize system
     system = System()
@@ -59,11 +59,11 @@ if __name__ == "__main__":
     # assemble system
     system.assemble()
 
-    ###########
-    # rendering
-    ###########
+    ###################
+    # initialize render
+    ###################
     render = VTKRenderer(system)
-    render.start_step_render()
+    # render.start_step_render()
 
     ############
     # simulation
@@ -71,10 +71,15 @@ if __name__ == "__main__":
     dt = 1e-2  # time step
     solver = Rattle(system, t1, dt)  # create solver
     sol = solver.solve()  # simulate system
-
     # read solution
     t = sol.t  # time
     q = sol.q  # position coordinates
+
+    ###########
+    # rendering
+    ###########
+    render.render_solution(sol, repeat=True)
+    render.start_interaction()
 
     #################
     # post-processing
