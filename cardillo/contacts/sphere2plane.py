@@ -1,5 +1,5 @@
 import numpy as np
-from vtk import VTK_LINE
+
 from cardillo.math.approx_fprime import approx_fprime
 from cardillo.math.algebra import cross3, ax2skew
 from cardillo.math.prox import Sphere
@@ -8,6 +8,7 @@ from cardillo.math.prox import Sphere
 # TODO: We have to add a function that computes the correct contact forces by
 # application of A @ la_F. That should be done on system level and the solver
 # calls this before the converged la_F's are stored.
+# TODO: add orientation excitation of plane
 class Sphere2Plane:
     def __init__(
         self,
@@ -70,7 +71,9 @@ class Sphere2Plane:
             ]
             # fmt: on
 
-        self.r_OQ = self.frame.r_OP(0)
+        self.r_OQ = self.frame.r_OP
+        self.v_Q = self.frame.v_P
+        self.a_Q = self.frame.a_P
         self.t1t2 = self.frame.A_IB(0).T[:2]
         self.n = self.frame.A_IB(0)[:, 2]
 
@@ -164,13 +167,13 @@ class Sphere2Plane:
     # normal contact
     ################
     def g_N(self, t, q):
-        return np.array([self.n @ (self.r_OP(t, q) - self.r_OQ)]) - self.r
+        return np.array([self.n @ (self.r_OP(t, q) - self.r_OQ(t))]) - self.r
 
     def g_N_q(self, t, q):
         return np.array([self.n @ self.r_OP_q(t, q)], dtype=q.dtype)
 
     def g_N_dot(self, t, q, u):
-        return np.array([self.n @ self.v_P(t, q, u)], dtype=np.common_type(q, u))
+        return np.array([self.n @ (self.v_P(t, q, u) - self.v_Q(t))], dtype=np.common_type(q, u))
 
     def g_N_dot_q(self, t, q, u):
         return np.array([self.n @ self.v_P_q(t, q, u)], dtype=np.common_type(q, u))
@@ -183,7 +186,7 @@ class Sphere2Plane:
 
     def g_N_ddot(self, t, q, u, u_dot):
         return np.array(
-            [self.n @ self.a_P(t, q, u, u_dot)],
+            [self.n @ (self.a_P(t, q, u, u_dot) - self.a_Q(t))],
             dtype=np.common_type(q, u, u_dot),
         )
 
@@ -205,7 +208,7 @@ class Sphere2Plane:
     ##########
     def __gamma_F(self, t, q, u):
         v_C = self.v_P(t, q, u) + self.r * cross3(self.n, self.Omega(t, q, u))
-        return self.A.T @ self.t1t2 @ v_C
+        return self.A.T @ self.t1t2 @ (v_C - self.vQ(t))
 
     def __gamma_F_q(self, t, q, u):
         # return approx_fprime(q, lambda q: self.gamma_F(t, q, u))
@@ -215,7 +218,7 @@ class Sphere2Plane:
     def gamma_F_dot(self, t, q, u, u_dot):
         r_PC = -self.r * self.n
         a_C = self.a_P(t, q, u, u_dot) + cross3(self.Psi(t, q, u, u_dot), r_PC)
-        return self.A.T @ self.t1t2 @ a_C
+        return self.A.T @ self.t1t2 @ (a_C - self.a_Q(t))
 
     def gamma_F_dot_q(self, t, q, u, u_dot):
         # return approx_fprime(q, lambda q: self.gamma_F_dot(t, q, u, u_dot))
@@ -259,9 +262,9 @@ class Sphere2Plane:
         g_N = self.g_N(sol_i.t, sol_i.q[self.qDOF])
         P_N = sol_i.P_N[self.la_NDOF]
         r_PC1 = -self.r * n
-        r_QC2 = r_OP - self.r_OQ - n * (g_N + self.r)
+        r_QC2 = r_OP - self.r_OQ(sol_i.t) - n * (g_N + self.r)
         points = [r_OP + r_PC1, r_OP - n * (g_N + self.r)]
-        cells = [(VTK_LINE, [0, 1])]
+        cells = [("line", [[0, 1]])]
         A_IB1 = self.A_IB(sol_i.t, sol_i.q[self.qDOF])
         A_IB2 = self.frame.A_IB(sol_i.t)
         point_data = dict(
@@ -285,15 +288,16 @@ class Sphere2Plane:
             P_N=[P_N, P_N],
         )
         cell_data = dict(
-            g_N=[g_N],
-            g_N_dot=[self.g_N_dot(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])],
+            g_N=[[g_N]],
+            g_N_dot=[[self.g_N_dot(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])]],
         )
 
         if hasattr(self, f"gamma_F"):
             cell_data["gamma_F"] = [
-                self.gamma_F(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])
+                [self.gamma_F(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])]
             ]
             P_F = sol_i.P_F[self.la_FDOF]
-            point_data["P_F"] = np.array([P_F, P_F])
+            point_data["P_F1"] = [P_F[0], P_F[0]]
+            point_data["P_F2"] = [P_F[1], P_F[1]]
 
         return points, cells, point_data, cell_data
