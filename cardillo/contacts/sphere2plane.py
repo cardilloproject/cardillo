@@ -8,7 +8,7 @@ from cardillo.math.prox import Sphere
 # TODO: We have to add a function that computes the correct contact forces by
 # application of A @ la_F. That should be done on system level and the solver
 # calls this before the converged la_F's are stored.
-# TODO: add orientation excitation of plane
+# TODO: add orientation excitation of frame
 class Sphere2Plane:
     def __init__(
         self,
@@ -208,7 +208,7 @@ class Sphere2Plane:
     ##########
     def __gamma_F(self, t, q, u):
         v_C = self.v_P(t, q, u) + self.r * cross3(self.n, self.Omega(t, q, u))
-        return self.A.T @ self.t1t2 @ (v_C - self.vQ(t))
+        return self.A.T @ self.t1t2 @ (v_C - self.v_Q(t))
 
     def __gamma_F_q(self, t, q, u):
         # return approx_fprime(q, lambda q: self.gamma_F(t, q, u))
