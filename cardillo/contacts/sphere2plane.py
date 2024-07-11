@@ -1,4 +1,5 @@
 import numpy as np
+from vtk import VTK_LINE
 
 from cardillo.math.approx_fprime import approx_fprime
 from cardillo.math.algebra import cross3, ax2skew
@@ -264,7 +265,7 @@ class Sphere2Plane:
         r_PC1 = -self.r * n
         r_QC2 = r_OP - self.r_OQ(sol_i.t) - n * (g_N + self.r)
         points = [r_OP + r_PC1, r_OP - n * (g_N + self.r)]
-        cells = [("line", [[0, 1]])]
+        cells = [(VTK_LINE, [0, 1])]
         A_IB1 = self.A_IB(sol_i.t, sol_i.q[self.qDOF])
         A_IB2 = self.frame.A_IB(sol_i.t)
         point_data = dict(
@@ -288,16 +289,15 @@ class Sphere2Plane:
             P_N=[P_N, P_N],
         )
         cell_data = dict(
-            g_N=[[g_N]],
-            g_N_dot=[[self.g_N_dot(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])]],
+            g_N=[g_N],
+            g_N_dot=[self.g_N_dot(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])],
         )
 
         if hasattr(self, f"gamma_F"):
             cell_data["gamma_F"] = [
-                [self.gamma_F(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])]
+                self.gamma_F(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])
             ]
             P_F = sol_i.P_F[self.la_FDOF]
-            point_data["P_F1"] = [P_F[0], P_F[0]]
-            point_data["P_F2"] = [P_F[1], P_F[1]]
+            point_data["P_F"] = np.array([P_F, P_F])
 
         return points, cells, point_data, cell_data
