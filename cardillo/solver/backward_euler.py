@@ -337,7 +337,7 @@ class BackwardEuler:
 
     def solve(self):
         self.solver_summary = SolverSummary("Backward Euler")
-        
+
         def make_solution():
             return Solution(
                 system=self.system,
@@ -351,9 +351,8 @@ class BackwardEuler:
                 P_gamma=np.array(P_gamma),
                 P_N=np.array(P_N),
                 P_F=np.array(P_F),
-                solver_summary=self.solver_summary
+                solver_summary=self.solver_summary,
             )
-
 
         # lists storing output variables
         t = [self.tn]

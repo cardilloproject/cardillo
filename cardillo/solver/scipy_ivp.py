@@ -161,5 +161,5 @@ class ScipyIVP:
             la_g=la_g,
             la_gamma=la_gamma,
             la_c=la_c,
-            solver_summary=solver_summary
+            solver_summary=solver_summary,
         )

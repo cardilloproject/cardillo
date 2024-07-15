@@ -66,6 +66,7 @@ system.add(floor, ball2plane)
 # assemble system
 system.assemble()
 
+
 def run(Solver):
     ############
     # simulation
@@ -78,10 +79,9 @@ def run(Solver):
     for sol_i in sol:
         assert True
 
+
 if __name__ == "__main__":
     run(Moreau)
     run(BackwardEuler)
     run(ScipyIVP)
     run(Rattle)
-
-    
