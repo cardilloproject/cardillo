@@ -10,7 +10,8 @@ on:
 jobs:
   build:
     name: Build project
-    runs-on: [self-hosted, linux]
+    # runs-on: [self-hosted, linux]
+    runs-on: [ubuntu-latest]  # TODO do we want to test on various systems and versions?
     # TODO: fix authentication in container
     # container: 
     #   image: python:latest
