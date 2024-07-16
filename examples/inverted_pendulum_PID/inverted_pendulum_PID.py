@@ -10,7 +10,7 @@ from cardillo.constraints import Revolute
 from cardillo.discrete import RigidBody
 from cardillo.forces import Force
 from cardillo.math import A_IB_basic, cross3, smoothstep2
-from cardillo.solver import ScipyIVP
+from cardillo.solver import ScipyIVP, ScipyDAE
 
 
 if __name__ == "__main__":
@@ -118,7 +118,8 @@ if __name__ == "__main__":
     ############
 
     dt = 1e-2
-    sol = ScipyIVP(system, t1, dt).solve()
+    # sol = ScipyIVP(system, t1, dt).solve()
+    sol = ScipyDAE(system, t1, dt).solve()
 
     joint.reset()  # flush internal memory of joint angle
     angle = []

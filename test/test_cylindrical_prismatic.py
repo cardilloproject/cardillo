@@ -5,7 +5,14 @@ from scipy.integrate import solve_ivp
 import pytest
 
 from cardillo import System
-from cardillo.solver import ScipyIVP, Moreau, BackwardEuler, Rattle, SolverOptions
+from cardillo.solver import (
+    ScipyIVP,
+    ScipyDAE,
+    Moreau,
+    BackwardEuler,
+    Rattle,
+    SolverOptions,
+)
 from cardillo.constraints import RigidConnection, Cylindrical, Prismatic
 from cardillo.discrete import Frame, RigidBody
 from cardillo.interactions import TwoPointInteraction
@@ -372,6 +379,7 @@ def run(
 
 solver_and_kwargs = [
     (ScipyIVP, {}),
+    (ScipyDAE, {}),
     (Moreau, {}),
     (BackwardEuler, {}),
     (Rattle, {}),
@@ -403,6 +411,7 @@ if __name__ == "__main__":
     # Cylindrical
     #############
     # run("Cylindrical", RigidBody, ScipyIVP, show=True)
+    run("Cylindrical", RigidBody, ScipyDAE, show=True)
     # run("Cylindrical", RigidBody, Moreau, show=True)
     # run("Cylindrical", RigidBody, BackwardEuler, show=True)
     # run("Cylindrical", RigidBody, Rattle, show=True)
@@ -411,6 +420,7 @@ if __name__ == "__main__":
     # Prismatic
     ###########
     # run("Prismatic", RigidBody, ScipyIVP, show=True)
+    run("Prismatic", RigidBody, ScipyDAE, show=True)
     # run("Prismatic", RigidBody, Moreau, show=True)
-    run("Prismatic", RigidBody, BackwardEuler, show=True)
+    # run("Prismatic", RigidBody, BackwardEuler, show=True)
     # run("Prismatic", RigidBody, Rattle, show=True)

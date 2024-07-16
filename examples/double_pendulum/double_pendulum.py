@@ -7,7 +7,7 @@ from cardillo.constraints import Revolute
 from cardillo.discrete import RigidBody, Frame, Meshed
 from cardillo.forces import Force
 from cardillo.math import A_IB_basic, cross3
-from cardillo.solver import ScipyIVP
+from cardillo.solver import ScipyIVP, ScipyDAE
 
 if __name__ == "__main__":
     ############
@@ -155,7 +155,8 @@ if __name__ == "__main__":
     # simulation
     ############
     dt = 1.0e-2  # time step
-    solver = ScipyIVP(system, t1, dt)  # create solver
+    # solver = ScipyIVP(system, t1, dt)  # create solver
+    solver = ScipyDAE(system, t1, dt)  # create solver
     sol = solver.solve()  # simulate system
 
     # read solution
