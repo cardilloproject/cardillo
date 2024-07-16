@@ -11,7 +11,7 @@ from cardillo.solver import Moreau, BackwardEuler, SolverOptions
 from cardillo.math import A_IB_basic
 
 
-def run(solver=Moreau):
+def run(solver=Moreau, VTK_export=False):
     ############################################################################
     #                   system setup
     ############################################################################
@@ -144,8 +144,9 @@ def run(solver=Moreau):
     sol = solver.solve()  # simulate system
 
     # vtk-export
-    dir_name = Path(__file__).parent
-    system.export(dir_name, "vtk", sol)
+    if VTK_export:
+        dir_name = Path(__file__).parent
+        system.export(dir_name, "vtk", sol)
 
 
 if __name__ == "__main__":
