@@ -153,7 +153,7 @@ class ScipyIVP:
 
         solver_summary.print()
         return Solution(
-            self.system,
+            system=self.system,
             t=t,
             q=q,
             u=u,
@@ -161,4 +161,5 @@ class ScipyIVP:
             la_g=la_g,
             la_gamma=la_gamma,
             la_c=la_c,
+            solver_summary=solver_summary,
         )
