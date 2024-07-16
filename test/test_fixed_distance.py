@@ -72,8 +72,8 @@ solvers_and_kwargs = [
 ]
 
 
-@pytest.mark.parametrize("Solver, kwargs", solvers_and_kwargs)
-def test_fixed_distance(Solver, kwargs, show=False):
+@pytest.mark.parametrize("Solver, solver_kwargs", solvers_and_kwargs)
+def test_fixed_distance(Solver, solver_kwargs, show=False):
     t0 = 0
     t1 = 1
     dt = 1e-3
@@ -142,7 +142,7 @@ def test_fixed_distance(Solver, kwargs, show=False):
 
     system.assemble()
 
-    solver = Solver(system, t1, dt, *kwargs)
+    solver = Solver(system, t1, dt, **solver_kwargs)
 
     sol = solver.solve()
     t = sol.t

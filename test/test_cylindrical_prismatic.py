@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from scipy.integrate import solve_ivp
 import pytest
+from itertools import product
 
 from cardillo import System
 from cardillo.solver import (
@@ -389,21 +390,17 @@ rigid_bodies = [
     RigidBody,
 ]
 
-test_parameters = []
-
-for RB in rigid_bodies:
-    for SK in solver_and_kwargs:
-        test_parameters.append((RB, *SK))
+test_parameters = product(solver_and_kwargs, rigid_bodies)
 
 
-@pytest.mark.parametrize("RigidBody, Solver, kwargs", test_parameters)
-def test_cylindrical(RigidBody, Solver, kwargs):
-    run("Cylindrical", RigidBody, Solver, **kwargs)
+@pytest.mark.parametrize("RigidBody, Solver, solver_kwargs", test_parameters)
+def test_cylindrical(RigidBody, Solver, solver_kwargs):
+    run("Cylindrical", RigidBody, Solver, **solver_kwargs)
 
 
-@pytest.mark.parametrize("RigidBody, Solver, kwargs", test_parameters)
-def test_prismatic(RigidBody, Solver, kwargs):
-    run("Prismatic", RigidBody, Solver, **kwargs)
+@pytest.mark.parametrize("RigidBody, Solver, solver_kwargs", test_parameters)
+def test_prismatic(RigidBody, Solver, solver_kwargs):
+    run("Prismatic", RigidBody, Solver, **solver_kwargs)
 
 
 if __name__ == "__main__":

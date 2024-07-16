@@ -1,4 +1,6 @@
 import numpy as np
+import pytest
+from itertools import product
 from math import pi
 from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
@@ -14,10 +16,29 @@ from cardillo.constraints import (
 from cardillo.discrete import RigidBody
 from cardillo.forces import Force
 from cardillo.force_laws import KelvinVoigtElement
-from cardillo.solver import BackwardEuler, ScipyIVP
+from cardillo.solver import ScipyIVP, ScipyDAE, BackwardEuler, Moreau, Rattle
+
+solvers_and_kwargs = [
+    (ScipyIVP, {}),
+    (ScipyDAE, {}),
+    (BackwardEuler, {}),
+    (Moreau, {}),
+    (Rattle, {}),
+]
+
+joints = [
+    ("Spherical", None, None),
+    ("Revolute", None, None),
+    ("PDRotational", 1e2, 3e1),
+]
+
+test_parameters = product(solvers_and_kwargs, joints)
 
 
-def run(joint, Solver, k=None, d=None, **solver_args):
+@pytest.mark.parametrize("Solver_and_kwargs, joint_and_stiffnesses", test_parameters)
+def test_spherical_revolute(Solver_and_kwargs, joint_and_stiffnesses, show=False):
+    Solver, solver_kwargs = Solver_and_kwargs
+    joint, k, d = joint_and_stiffnesses
     m = 1
     r = 0.1
     l = 2
@@ -133,8 +154,7 @@ def run(joint, Solver, k=None, d=None, **solver_args):
     t0 = 0
     t1 = 3
     dt = 1e-2
-    # dt = 5e-3
-    sol = Solver(system, t1, dt, **solver_args).solve()
+    sol = Solver(system, t1, dt, **solver_kwargs).solve()
     t = sol.t
     q = sol.q
 
@@ -353,27 +373,5 @@ def run(joint, Solver, k=None, d=None, **solver_args):
 
 
 if __name__ == "__main__":
-    #######################
-    # spherical joint tests
-    #######################
-    run("Spherical", BackwardEuler)
-    run("Spherical", ScipyIVP)
-
-    ######################
-    # revolute joint tests
-    ######################
-    run("Revolute", BackwardEuler)
-    run("Revolute", ScipyIVP)
-
-    ###########################
-    # PD rotational joint tests
-    ###########################
-    # k = 1e2
-    k = 1e2
-    d = 3e1
-
-    run("PDRotational", BackwardEuler, k=k, d=d)
-
-    atol = 1e-8
-    rtol = 1e-8
-    run("PDRotational", ScipyIVP, k=k, d=d, atol=atol, rtol=rtol)
+    for p in test_parameters:
+        test_spherical_revolute(*p, show=True)

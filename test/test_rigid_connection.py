@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -9,10 +10,19 @@ from cardillo.discrete import Frame, RigidBody
 from cardillo.constraints import Revolute, RigidConnection
 from cardillo.force_laws import KelvinVoigtElement as SpringDamper
 from cardillo.forces import Force
-from cardillo.solver import BackwardEuler, ScipyIVP, Moreau
+from cardillo.solver import ScipyIVP, ScipyDAE, BackwardEuler, Moreau, Rattle
+
+solvers_and_kwargs = [
+    (ScipyIVP, {}),
+    (ScipyDAE, {}),
+    (BackwardEuler, {}),
+    (Moreau, {}),
+    (Rattle, {}),
+]
 
 
-def run():
+@pytest.mark.parametrize("Solver, kwargs", solvers_and_kwargs)
+def test_rigid_connection(Solver, kwargs, show=False):
     ############
     # parameters
     ############
@@ -111,133 +121,131 @@ def run():
     t0 = 0
     t1 = 2
     dt = 1e-2
-
-    # solver = BackwardEuler(system, t1, dt)
-    solver = ScipyIVP(system, t1, dt)
-    # solver = Moreau(system, t1, dt)
-
-    sol = solver.solve()
+    sol = Solver(system, t1, dt, *kwargs).solve()
     t = sol.t
     q = sol.q
     ############################################################################
     #                   animation
     ############################################################################
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection="3d")
+    if show:
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection="3d")
 
-    ax.set_xlabel("x [m]")
-    ax.set_ylabel("y [m]")
-    ax.set_zlabel("z [m]")
-    scale = L
-    ax.set_xlim3d(left=-scale, right=scale)
-    ax.set_ylim3d(bottom=-scale, top=scale)
-    ax.set_zlim3d(bottom=-scale, top=scale)
-    ax.view_init(vertical_axis="y")
+        ax.set_xlabel("x [m]")
+        ax.set_ylabel("y [m]")
+        ax.set_zlabel("z [m]")
+        scale = L
+        ax.set_xlim3d(left=-scale, right=scale)
+        ax.set_ylim3d(bottom=-scale, top=scale)
+        ax.set_zlim3d(bottom=-scale, top=scale)
+        ax.view_init(vertical_axis="y")
 
-    def init(t, q):
-        x_0, y_0, z_0 = frame.r_OP(t, q[frame.qDOF])
-        x_S1, y_S1, z_S1 = RB1.r_OP(t, q[RB1.qDOF])
-        x_S2, y_S2, z_S2 = RB2.r_OP(t, q[RB2.qDOF])
+        def init(t, q):
+            x_0, y_0, z_0 = frame.r_OP(t, q[frame.qDOF])
+            x_S1, y_S1, z_S1 = RB1.r_OP(t, q[RB1.qDOF])
+            x_S2, y_S2, z_S2 = RB2.r_OP(t, q[RB2.qDOF])
 
-        A_IB1 = RB1.A_IB(t, q[RB1.qDOF])
-        d11 = A_IB1[:, 0]
-        d21 = A_IB1[:, 1]
-        d31 = A_IB1[:, 2]
+            A_IB1 = RB1.A_IB(t, q[RB1.qDOF])
+            d11 = A_IB1[:, 0]
+            d21 = A_IB1[:, 1]
+            d31 = A_IB1[:, 2]
 
-        A_IB2 = RB2.A_IB(t, q[RB2.qDOF])
-        d12 = A_IB2[:, 0]
-        d22 = A_IB2[:, 1]
-        d32 = A_IB2[:, 2]
+            A_IB2 = RB2.A_IB(t, q[RB2.qDOF])
+            d12 = A_IB2[:, 0]
+            d22 = A_IB2[:, 1]
+            d32 = A_IB2[:, 2]
 
-        (COM,) = ax.plot([x_0, x_S1, x_S2], [y_0, y_S1, y_S2], [z_0, z_S1, z_S2], "-ok")
-        (d11_,) = ax.plot(
-            [x_S1, x_S1 + d11[0]],
-            [y_S1, y_S1 + d11[1]],
-            [z_S1, z_S1 + d11[2]],
-            "-r",
+            (COM,) = ax.plot(
+                [x_0, x_S1, x_S2], [y_0, y_S1, y_S2], [z_0, z_S1, z_S2], "-ok"
+            )
+            (d11_,) = ax.plot(
+                [x_S1, x_S1 + d11[0]],
+                [y_S1, y_S1 + d11[1]],
+                [z_S1, z_S1 + d11[2]],
+                "-r",
+            )
+            (d21_,) = ax.plot(
+                [x_S1, x_S1 + d21[0]],
+                [y_S1, y_S1 + d21[1]],
+                [z_S1, z_S1 + d21[2]],
+                "-g",
+            )
+            (d31_,) = ax.plot(
+                [x_S1, x_S1 + d31[0]],
+                [y_S1, y_S1 + d31[1]],
+                [z_S1, z_S1 + d31[2]],
+                "-b",
+            )
+            (d12_,) = ax.plot(
+                [x_S2, x_S2 + d12[0]],
+                [y_S2, y_S2 + d12[1]],
+                [z_S2, z_S2 + d12[2]],
+                "-r",
+            )
+            (d22_,) = ax.plot(
+                [x_S2, x_S2 + d22[0]],
+                [y_S2, y_S2 + d22[1]],
+                [z_S2, z_S2 + d22[2]],
+                "-g",
+            )
+            (d32_,) = ax.plot(
+                [x_S2, x_S2 + d32[0]],
+                [y_S2, y_S2 + d32[1]],
+                [z_S2, z_S2 + d32[2]],
+                "-b",
+            )
+
+            return COM, d11_, d21_, d31_, d12_, d22_, d32_
+
+        def update(t, q, COM, d11_, d21_, d31_, d12_, d22_, d32_):
+            x_0, y_0, z_0 = frame.r_OP(t, q[frame.qDOF])
+            x_S1, y_S1, z_S1 = RB1.r_OP(t, q[RB1.qDOF])
+            x_S2, y_S2, z_S2 = RB2.r_OP(t, q[RB2.qDOF])
+
+            A_IB1 = RB1.A_IB(t, q[RB1.qDOF])
+            d11 = A_IB1[:, 0]
+            d21 = A_IB1[:, 1]
+            d31 = A_IB1[:, 2]
+
+            A_IB2 = RB2.A_IB(t, q[RB2.qDOF])
+            d12 = A_IB2[:, 0]
+            d22 = A_IB2[:, 1]
+            d32 = A_IB2[:, 2]
+
+            COM.set_data([x_0, x_S1, x_S2], [y_0, y_S1, y_S2])
+            COM.set_3d_properties([z_0, z_S1, z_S2])
+
+            d11_.set_data([x_S1, x_S1 + d11[0]], [y_S1, y_S1 + d11[1]])
+            d11_.set_3d_properties([z_S1, z_S1 + d11[2]])
+
+            d21_.set_data([x_S1, x_S1 + d21[0]], [y_S1, y_S1 + d21[1]])
+            d21_.set_3d_properties([z_S1, z_S1 + d21[2]])
+
+            d31_.set_data([x_S1, x_S1 + d31[0]], [y_S1, y_S1 + d31[1]])
+            d31_.set_3d_properties([z_S1, z_S1 + d31[2]])
+
+            d12_.set_data([x_S2, x_S2 + d12[0]], [y_S2, y_S2 + d12[1]])
+            d12_.set_3d_properties([z_S2, z_S2 + d12[2]])
+
+            d22_.set_data([x_S2, x_S2 + d22[0]], [y_S2, y_S2 + d22[1]])
+            d22_.set_3d_properties([z_S2, z_S2 + d22[2]])
+
+            d32_.set_data([x_S2, x_S2 + d32[0]], [y_S2, y_S2 + d32[1]])
+            d32_.set_3d_properties([z_S2, z_S2 + d32[2]])
+
+            return COM, d11_, d21_, d31_, d12_, d22_, d32_
+
+        COM, d11_, d21_, d31_, d12_, d22_, d32_ = init(0, q[0])
+
+        def animate(i):
+            update(t[i], q[i], COM, d11_, d21_, d31_, d12_, d22_, d32_)
+
+        # compute naimation interval according to te - ts = frames * interval / 1000
+        frames = len(t)
+        interval = dt * 1000
+        anim = animation.FuncAnimation(
+            fig, animate, frames=frames, interval=interval, blit=False
         )
-        (d21_,) = ax.plot(
-            [x_S1, x_S1 + d21[0]],
-            [y_S1, y_S1 + d21[1]],
-            [z_S1, z_S1 + d21[2]],
-            "-g",
-        )
-        (d31_,) = ax.plot(
-            [x_S1, x_S1 + d31[0]],
-            [y_S1, y_S1 + d31[1]],
-            [z_S1, z_S1 + d31[2]],
-            "-b",
-        )
-        (d12_,) = ax.plot(
-            [x_S2, x_S2 + d12[0]],
-            [y_S2, y_S2 + d12[1]],
-            [z_S2, z_S2 + d12[2]],
-            "-r",
-        )
-        (d22_,) = ax.plot(
-            [x_S2, x_S2 + d22[0]],
-            [y_S2, y_S2 + d22[1]],
-            [z_S2, z_S2 + d22[2]],
-            "-g",
-        )
-        (d32_,) = ax.plot(
-            [x_S2, x_S2 + d32[0]],
-            [y_S2, y_S2 + d32[1]],
-            [z_S2, z_S2 + d32[2]],
-            "-b",
-        )
-
-        return COM, d11_, d21_, d31_, d12_, d22_, d32_
-
-    def update(t, q, COM, d11_, d21_, d31_, d12_, d22_, d32_):
-        x_0, y_0, z_0 = frame.r_OP(t, q[frame.qDOF])
-        x_S1, y_S1, z_S1 = RB1.r_OP(t, q[RB1.qDOF])
-        x_S2, y_S2, z_S2 = RB2.r_OP(t, q[RB2.qDOF])
-
-        A_IB1 = RB1.A_IB(t, q[RB1.qDOF])
-        d11 = A_IB1[:, 0]
-        d21 = A_IB1[:, 1]
-        d31 = A_IB1[:, 2]
-
-        A_IB2 = RB2.A_IB(t, q[RB2.qDOF])
-        d12 = A_IB2[:, 0]
-        d22 = A_IB2[:, 1]
-        d32 = A_IB2[:, 2]
-
-        COM.set_data([x_0, x_S1, x_S2], [y_0, y_S1, y_S2])
-        COM.set_3d_properties([z_0, z_S1, z_S2])
-
-        d11_.set_data([x_S1, x_S1 + d11[0]], [y_S1, y_S1 + d11[1]])
-        d11_.set_3d_properties([z_S1, z_S1 + d11[2]])
-
-        d21_.set_data([x_S1, x_S1 + d21[0]], [y_S1, y_S1 + d21[1]])
-        d21_.set_3d_properties([z_S1, z_S1 + d21[2]])
-
-        d31_.set_data([x_S1, x_S1 + d31[0]], [y_S1, y_S1 + d31[1]])
-        d31_.set_3d_properties([z_S1, z_S1 + d31[2]])
-
-        d12_.set_data([x_S2, x_S2 + d12[0]], [y_S2, y_S2 + d12[1]])
-        d12_.set_3d_properties([z_S2, z_S2 + d12[2]])
-
-        d22_.set_data([x_S2, x_S2 + d22[0]], [y_S2, y_S2 + d22[1]])
-        d22_.set_3d_properties([z_S2, z_S2 + d22[2]])
-
-        d32_.set_data([x_S2, x_S2 + d32[0]], [y_S2, y_S2 + d32[1]])
-        d32_.set_3d_properties([z_S2, z_S2 + d32[2]])
-
-        return COM, d11_, d21_, d31_, d12_, d22_, d32_
-
-    COM, d11_, d21_, d31_, d12_, d22_, d32_ = init(0, q[0])
-
-    def animate(i):
-        update(t[i], q[i], COM, d11_, d21_, d31_, d12_, d22_, d32_)
-
-    # compute naimation interval according to te - ts = frames * interval / 1000
-    frames = len(t)
-    interval = dt * 1000
-    anim = animation.FuncAnimation(
-        fig, animate, frames=frames, interval=interval, blit=False
-    )
 
     # reference solution
     def eqm(t, x):
@@ -268,21 +276,24 @@ def run():
         r_OC = RB1.r_OP(ti, q[i, RB1.qDOF], B_r_CP=B_r_PC1)
         x_.append(r_OC[0])
         y_.append(r_OC[1])
-    fig, ax = plt.subplots(2, 1)
-    ax[0].plot(t, x_, "--gx", label="cardillo")
-    ax[1].plot(t, y_, "--gx", label="cardillo")
-    x_ref = ref.y
-    t_ref = ref.t
 
-    ax[0].plot(t_ref, e(t_ref) + L / 2 * np.sin(x_ref[0]), "-r", label="ODE")
-    ax[1].plot(t_ref, -L / 2 * np.cos(x_ref[0]), "-r", label="ODE")
+    if show:
+        fig, ax = plt.subplots(2, 1)
+        ax[0].plot(t, x_, "--gx", label="cardillo")
+        ax[1].plot(t, y_, "--gx", label="cardillo")
+        x_ref = ref.y
+        t_ref = ref.t
 
-    ax[0].legend()
-    ax[0].grid()
-    ax[1].legend()
-    ax[1].grid()
-    plt.show()
+        ax[0].plot(t_ref, e(t_ref) + L / 2 * np.sin(x_ref[0]), "-r", label="ODE")
+        ax[1].plot(t_ref, -L / 2 * np.cos(x_ref[0]), "-r", label="ODE")
+
+        ax[0].legend()
+        ax[0].grid()
+        ax[1].legend()
+        ax[1].grid()
+        plt.show()
 
 
 if __name__ == "__main__":
-    run()
+    for p in solvers_and_kwargs:
+        test_rigid_connection(*p, show=True)

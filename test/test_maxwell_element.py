@@ -182,9 +182,9 @@ formulation = [
 test_parameters = product(solvers_and_kwargs, formulation)
 
 
-@pytest.mark.parametrize("Solver, kwargs, formulation", test_parameters)
+@pytest.mark.parametrize("Solver_and_kwargs, formulation", test_parameters)
 def test_maxwell(Solver_and_kwargs, formulation, show=False):
-    Solver, kwargs = Solver_and_kwargs
+    Solver, solver_kwargs = Solver_and_kwargs
     mass = 1e-3
     stiffness = 1e1
     damping = 1
@@ -217,23 +217,9 @@ def test_maxwell(Solver_and_kwargs, formulation, show=False):
         case _:
             raise NotImplementedError
 
-    # # maxwell_element = MaxwellElement(mass, stiffness, damping, l0, q0, u0)
-    # # maxwell_element = MaxwellElementCompliance(
-    # #     mass, stiffness, damping, l0, q0, u0, la_c0
-    # # )
-    # # system = System()
-    # # system.add(maxwell_element)
-    # # system.assemble()
-
-    # system = MaxwellElementForceElement(
-    #     mass, stiffness, damping, l0, x0, x_D0, x_dot0
-    # ).get_system()
-
-    t0 = 0
     t1 = 1
-    t1 = 0.1
     dt = 1e-3
-    sol = Solver(system, t1, dt, *kwargs).solve()
+    sol = Solver(system, t1, dt, *solver_kwargs).solve()
     t, q, u = sol.t, sol.q, sol.u
 
     # - ref. solution
