@@ -9,7 +9,13 @@ from cardillo import System
 from cardillo.discrete import Frame, PointMass
 from cardillo.constraints import FixedDistance
 from cardillo.forces import Force
-from cardillo.solver import ScipyIVP, ScipyDAE, Moreau, BackwardEuler
+from cardillo.solver import (
+    ScipyIVP,
+    ScipyDAE,
+    Moreau,
+    BackwardEuler,
+    Rattle,
+)
 
 
 class Mathematical_pendulum3D_excited:
@@ -69,6 +75,7 @@ solvers_and_kwargs = [
     (ScipyDAE, {}),
     (Moreau, {}),
     (BackwardEuler, {}),
+    (Rattle, {}),
 ]
 
 
