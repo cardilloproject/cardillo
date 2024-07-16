@@ -128,26 +128,22 @@ def make_CosseratRod_Quat(mixed=True, constraints=None):
 
         @staticmethod
         def straight_initial_configuration(
-            polynomial_degree,
-            basis,
             nelement,
             L,
+            polynomial_degree,
             r_OP0=np.zeros(3, dtype=float),
             A_IB0=np.eye(3, dtype=float),
             v_P0=np.zeros(3, dtype=float),
             B_omega_IK0=np.zeros(3, dtype=float),
         ):
             return CosseratRod.straight_initial_configuration(
-                polynomial_degree,
-                polynomial_degree,
-                basis,
-                basis,
                 nelement,
                 L,
-                r_OP0,
-                A_IB0,
-                v_P0,
-                B_omega_IK0,
+                polynomial_degree=polynomial_degree,
+                r_OP0=r_OP0,
+                A_IB0=A_IB0,
+                v_P0=v_P0,
+                B_omega_IK0=B_omega_IK0,
             )
 
         @cachedmethod(
@@ -360,8 +356,8 @@ def make_CosseratRod_SE3(mixed=True, constraints=None):
             L,
             r_OP0=np.zeros(3, dtype=float),
             A_IB0=np.eye(3, dtype=float),
-            v_P=np.zeros(3, dtype=float),
-            B_omega_IK=np.zeros(3, dtype=float),
+            v_P0=np.zeros(3, dtype=float),
+            B_omega_IK0=np.zeros(3, dtype=float),
             **kwargs,
         ):
             return CosseratRod.straight_initial_configuration(
@@ -370,8 +366,8 @@ def make_CosseratRod_SE3(mixed=True, constraints=None):
                 polynomial_degree=1,
                 r_OP0=r_OP0,
                 A_IB0=A_IB0,
-                v_P0=v_P,
-                B_omega_IK0=B_omega_IK,
+                v_P0=v_P0,
+                B_omega_IK0=B_omega_IK0,
             )
 
         @cachedmethod(
