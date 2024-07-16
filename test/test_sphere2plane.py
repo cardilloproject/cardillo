@@ -15,12 +15,13 @@ def run(solver=Moreau):
     ############################################################################
     #                   system setup
     ############################################################################
+
     ###################
     # solver parameters
     ###################
-    t_span = (0.0, 5)
+    t_span = (0.0, 2)
     t0, t1 = t_span
-    dt = 1.0e-2
+    dt = 1.0e-3
 
     ############
     # parameters
@@ -36,18 +37,19 @@ def run(solver=Moreau):
     # initialize system
     system = System()
     # floor
-    omega = 2 * np.pi * 1
-    amplitude = 0.5 * radius
+    omega = 2 * np.pi * 0.5
+    amplitude = radius
     # r_OP=lambda t: amplitude * np.array([np.sin(omega * t), 0.0, 0.0])
     # r_OP=lambda t: amplitude * np.array([0.0, np.sin(omega * t), 0.0])
-    # r_OP = lambda t: amplitude * np.array([0.0, 0.0, np.sin(omega * t)])
-    r_OP = lambda t: amplitude * np.array([0.0, 0.0, 0.0])
+    r_OP = lambda t: amplitude * np.array([0.0, 0.0, np.sin(omega * t)])
+    # r_OP = lambda t: amplitude * np.array([0.0, 0.0, 0.0])
 
     angle = np.deg2rad(20)
     # A_IB = A_IB_basic(np.deg2rad(10)).x @ A_IB_basic(np.deg2rad(10)).y
     # A_IB=lambda t: A_IB_basic(angle * np.sin(omega * t)).x
     # A_IB=lambda t: A_IB_basic(angle * np.sin(omega * t)).y
-    A_IB = lambda t: A_IB_basic(angle * np.sin(omega * t)).z
+    # A_IB = lambda t: A_IB_basic(angle * np.sin(omega * t)).z
+    A_IB = lambda t: A_IB_basic(angle * np.sin(omega * t)).y @ A_IB_basic(angle * np.sin(omega * t)).z
 
     floor = Box(Frame)(
         dimensions=[4.5, 4.5, 0.0001],
@@ -144,5 +146,5 @@ def run(solver=Moreau):
 
 
 if __name__ == "__main__":
-    # run(Moreau)
+    run(Moreau)
     run(BackwardEuler)

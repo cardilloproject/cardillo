@@ -81,8 +81,8 @@ class Sphere2Plane:
         self.n = lambda t: self.frame.A_IB(t)[:, 2]
         self.n_dot = lambda t: self.frame.A_IB_t__(t)[:, 2]
         self.n_ddot = lambda t: self.frame.A_IB_tt__(t)[:, 2]
-        self.Omega_F = self.frame.A_IB_t__
-        self.Psi_F = self.frame.A_IB_tt__
+        self.Omega_F_tilde = self.frame.A_IB_t__
+        self.Psi_F_tilde = self.frame.A_IB_tt__
 
         self.xi = xi
         self.B_r_CP = B_r_CP
@@ -239,7 +239,7 @@ class Sphere2Plane:
         r_PS = -self.r * self.n(t)
         v_S = self.v_P(t, q, u) + cross3(self.Omega(t, q, u), r_PS)
         r_QS = self.r_OP(t, q) + r_PS - self.r_OQ(t)
-        v_F = self.v_Q(t) + self.Omega_F(t) @ r_QS
+        v_F = self.v_Q(t) + self.Omega_F_tilde(t) @ r_QS
         return self.A.T @ self.t1t2(t) @ (v_S - v_F)
 
     def __gamma_F_q(self, t, q, u):
@@ -247,7 +247,7 @@ class Sphere2Plane:
         v_S_q = self.v_P_q(t, q, u) + self.r * ax2skew(self.n(t)) @ self.Omega_q(
             t, q, u
         )
-        v_F_q = self.Omega_F(t) @ self.r_OP_q(t, q)
+        v_F_q = self.Omega_F_tilde(t) @ self.r_OP_q(t, q)
         return self.A.T @ self.t1t2(t) @ (v_S_q - v_F_q)
 
     def gamma_F_dot(self, t, q, u, u_dot):
@@ -261,8 +261,8 @@ class Sphere2Plane:
         )
         r_QS = self.r_OP(t, q) + r_PS - self.r_OQ(t)
         r_QS_dot = self.v_P(t, q, u) + r_PS_dot - self.v_Q(t)
-        v_F = self.v_Q(t) + self.Omega_F(t) @ r_QS
-        a_F = self.a_Q(t) + self.Psi_F(t) @ r_QS + self.Omega_F(t) @ r_QS_dot
+        v_F = self.v_Q(t) + self.Omega_F_tilde(t) @ r_QS
+        a_F = self.a_Q(t) + self.Psi_F_tilde(t) @ r_QS + self.Omega_F_tilde(t) @ r_QS_dot
         return self.A.T @ (self.t1t2(t) @ (a_S - a_F) + self.t1t2_dot(t) @ (v_S - v_F))
 
     def gamma_F_dot_q(self, t, q, u, u_dot):
@@ -276,8 +276,8 @@ class Sphere2Plane:
             - r_PS_dot_tilde @ self.Omega_q(t, q, u)
         )
 
-        v_F_q = self.Omega_F(t) @ self.r_OP_q(t, q)
-        a_F_q = self.Psi_F(t) @ self.r_OP_q(t, q) + self.Omega_F(t) @ self.v_P_q(
+        v_F_q = self.Omega_F_tilde(t) @ self.r_OP_q(t, q)
+        a_F_q = self.Psi_F_tilde(t) @ self.r_OP_q(t, q) + self.Omega_F_tilde(t) @ self.v_P_q(
             t, q, u
         )
 
@@ -290,7 +290,7 @@ class Sphere2Plane:
         r_PS_tilde = ax2skew(-self.r * self.n(t))
         a_S_u = self.a_P_u(t, q, u, u_dot) - r_PS_tilde @ self.Psi_u(t, q, u, u_dot)
         J_P = self.J_P(t, q)
-        a_F_u = self.Omega_F(t) @ J_P
+        a_F_u = self.Omega_F_tilde(t) @ J_P
         J_S = self.J_P - r_PS_tilde @ self.J_R(t, q)
         return self.A.T @ (self.t1t2(t) @ (a_S_u - a_F_u) + self.t1t2_dot(t) @ J_S)
 
