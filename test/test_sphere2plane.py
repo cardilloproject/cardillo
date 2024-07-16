@@ -49,7 +49,10 @@ def run(solver=Moreau):
     # A_IB=lambda t: A_IB_basic(angle * np.sin(omega * t)).x
     # A_IB=lambda t: A_IB_basic(angle * np.sin(omega * t)).y
     # A_IB = lambda t: A_IB_basic(angle * np.sin(omega * t)).z
-    A_IB = lambda t: A_IB_basic(angle * np.sin(omega * t)).y @ A_IB_basic(angle * np.sin(omega * t)).z
+    A_IB = (
+        lambda t: A_IB_basic(angle * np.sin(omega * t)).y
+        @ A_IB_basic(angle * np.sin(omega * t)).z
+    )
 
     floor = Box(Frame)(
         dimensions=[4.5, 4.5, 0.0001],
