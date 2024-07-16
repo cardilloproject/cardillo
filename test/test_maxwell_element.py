@@ -196,7 +196,6 @@ def test_maxwell(Solver_and_kwargs, formulation, show=False):
     u0 = np.array([x_dot0], dtype=float)
     la_c0 = np.array([-5], dtype=float)
 
-    # if formulation == MaxwellElement
     match formulation:
         case "MaxwellElement":
             maxwell_element = MaxwellElement(mass, stiffness, damping, l0, q0, u0)
@@ -222,7 +221,7 @@ def test_maxwell(Solver_and_kwargs, formulation, show=False):
     sol = Solver(system, t1, dt, *solver_kwargs).solve()
     t, q, u = sol.t, sol.q, sol.u
 
-    # - ref. solution
+    # reference solution
     def eqm(t, z):
         x, x_d, u = z
         dx = u

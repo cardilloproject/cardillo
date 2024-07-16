@@ -2,9 +2,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
 import pytest
+from itertools import product
 
 from cardillo import System
-from cardillo.solver import ScipyIVP, BackwardEuler, Moreau
+from cardillo.solver import ScipyIVP, ScipyDAE, BackwardEuler, Moreau, Rattle
 from cardillo.constraints import Revolute
 from cardillo.discrete import RigidBody
 from cardillo.force_laws import KelvinVoigtElement as SpringDamper
@@ -35,10 +36,8 @@ A = 1 / 4 * m * r**2 + 1 / 12 * m * l**2
 C = 1 / 2 * m * r**2
 B_Theta_C = np.diag(np.array([A, A, C]))
 
-show = False
 
-
-def run(Solver, **solver_kwargs):
+def run(Solver, solver_kwargs, show=False):
     ############################################################################
     #                   system setup
     ############################################################################
@@ -113,22 +112,20 @@ def run(Solver, **solver_kwargs):
 ################################################################################
 # test setup
 ################################################################################
-
 test_parameters = [
     (ScipyIVP, {}),
+    (ScipyDAE, {}),
+    (BackwardEuler, {}),
     (Moreau, {}),
-    # (BackwardEuler, {}), # TODO: Fix error here
+    (Rattle, {}),
 ]
 
 
 @pytest.mark.parametrize("Solver, kwargs", test_parameters)
-def test_torsional_oscillator(Solver, kwargs):
-    run(Solver, **kwargs)
+def test_torsional_oscillator(Solver, kwargs, show=False):
+    run(Solver, kwargs, show)
 
 
 if __name__ == "__main__":
-    show = True
-
-    run(ScipyIVP)
-    run(Moreau)
-    run(BackwardEuler)
+    for p in test_parameters:
+        test_torsional_oscillator(*p, show=True)
