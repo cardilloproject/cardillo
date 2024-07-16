@@ -9,7 +9,8 @@ on:
 
 jobs: 
   lint:
-    runs-on: [self-hosted, linux]
+    # runs-on: [self-hosted, linux]
+    runs-on: [ubuntu-latest] 
     steps:
       - uses: actions/checkout@v2
       - run: |
