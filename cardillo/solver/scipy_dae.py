@@ -9,7 +9,7 @@ from cardillo.solver import Solution, SolverSummary
 # TODO:
 # - export more fields if dense output is ready for yp
 # - review events if implementation accepts signature `events(t, y, yp)`
-# - Jacobian for GGl term
+# - Add Jacobian of GGl term if convergence problems occur
 class ScipyDAE:
     """Wrapper around Radau IIA and BDF methods implementted in `scipy_dae`. 
     A stabilized index 1 formulation is used as proposed by Anantharaman and Hiller.
@@ -65,7 +65,7 @@ class ScipyDAE:
                 0 * system.la_c0,
             )
         )
-        self.yp0 = np.concatenate(
+        self.y_dot0 = np.concatenate(
             (
                 system.q_dot0,
                 system.u_dot0,
@@ -182,7 +182,9 @@ class ScipyDAE:
 
         Jy[: self.split[0], : self.split[0]] = -q_dot_q
         Jy[: self.split[0], self.split[0] : self.split[1]] = -q_dot_u
-        # Jy[:self.split[0], self.split[1]:self.split[2]] = g_q_T_mu_q # TODO!
+        # note: Here we ignore the derivative d((dg/dq)^T mu) / dq since
+        # `solve_dae` does performs an inexact Newton.
+        # Jy[:self.split[0], self.split[1]:self.split[2]] = g_q_T_mu_q
 
         Jy[self.split[0] : self.split[1], : self.split[0]] = (
             Mu_q - h_q - Wla_tau_q - Wla_gamma_q - Wla_g_q - Wla_c_q
@@ -217,6 +219,8 @@ class ScipyDAE:
 
         return Jy, Jyp
 
+        # note: Keep this for debugging the Jacobian
+
         # from scipy.optimize._numdiff import approx_derivative
 
         # Jy_num = approx_derivative(lambda y: self.fun(t, y, yp), y, method="2-point")
@@ -238,7 +242,7 @@ class ScipyDAE:
             self.fun,
             self.t_eval[[0, -1]],
             self.y0,
-            self.yp0,
+            self.y_dot0,
             t_eval=self.t_eval,
             method=self.method,
             rtol=self.rtol,
