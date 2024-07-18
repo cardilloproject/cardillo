@@ -115,6 +115,7 @@ class Renderer:
         self.sync = sync or platform == "win32"
         self.active = True
         if self.sync:
+
             def decorate_step_callback(system_step_callback):
                 def __step_callback(t, q, u):
                     if self.active:
