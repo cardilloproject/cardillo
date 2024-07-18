@@ -113,8 +113,8 @@ class Frame:
         return np.array([]).reshape((3, 0))
 
     def B_Omega(self, t, q=None, u=None, xi=None):
-        B_omega_IK = self.A_IB__(t).T @ self.A_IB_t__(t)
-        return skew2ax(B_omega_IK)
+        B_omega_IB = self.A_IB__(t).T @ self.A_IB_t__(t)
+        return skew2ax(B_omega_IB)
 
     def B_Omega_q(self, t, q=None, u=None, xi=None):
         return np.array([]).reshape((3, 0))
@@ -126,10 +126,10 @@ class Frame:
         return np.array([]).reshape((3, 0, 0))
 
     def B_Psi(self, t, q=None, u=None, u_dot=None, xi=None):
-        B_psi_IK = self.A_IB_t__(t).T @ self.A_IB_t__(t) + self.A_IB__(
+        B_psi_IB = self.A_IB_t__(t).T @ self.A_IB_t__(t) + self.A_IB__(
             t
         ).T @ self.A_IB_tt__(t)
-        return skew2ax(B_psi_IK)
+        return skew2ax(B_psi_IB)
 
     def B_Psi_q(self, t, q=None, u=None, u_dot=None, xi=None):
         return np.array([]).reshape((3, 0))
