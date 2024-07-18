@@ -92,17 +92,17 @@ class Renderer:
             if hasattr(contr, "step_render"):
                 contr.step_render(t, q[contr.qDOF], u[contr.uDOF])
             # TODO: rod needs nonlinear subdivision filter
-            elif hasattr(contr, "export"):
-                points, cells, point_data, cell_data = contr.export(
-                    Solution(self.system, t, q, u)
-                )
-                ugrid = make_ugrid(points, cells, point_data, cell_data)
-                if not hasattr(contr, "vtk_data_map"):
-                    contr.vtk_data_map = vtkDataSetMapper()
-                    actor = vtkActor()
-                    actor.SetMapper(contr.vtk_data_map)
-                    self.ren.AddActor(actor)
-                contr.vtk_data_map.SetInputData(ugrid)
+            # elif hasattr(contr, "export"):
+            #     points, cells, point_data, cell_data = contr.export(
+            #         Solution(self.system, t, q, u)
+            #     )
+            #     ugrid = make_ugrid(points, cells, point_data, cell_data)
+            #     if not hasattr(contr, "vtk_data_map"):
+            #         contr.vtk_data_map = vtkDataSetMapper()
+            #         actor = vtkActor()
+            #         actor.SetMapper(contr.vtk_data_map)
+            #         self.ren.AddActor(actor)
+            #     contr.vtk_data_map.SetInputData(ugrid)
         self.renwin.Render()
         self.interactor.ProcessEvents()
 
