@@ -6,7 +6,7 @@ import trimesh
 from cardillo.discrete import RigidBody, Meshed
 from cardillo.system import System
 from cardillo.solver import Rattle
-from cardillo.visualization import VTKRenderer
+from cardillo.visualization import Renderer
 
 
 if __name__ == "__main__":
@@ -22,7 +22,7 @@ if __name__ == "__main__":
     B_Omega0 = np.array((0, 0, phi_dot0)) + B_Omega_disturbance
 
     # simulation parameters
-    t1 = 2  # final time
+    t1 = 10  # final time
 
     # initialize system
     system = System()
@@ -45,7 +45,8 @@ if __name__ == "__main__":
     q0 = RigidBody.pose2q(r_OC0, np.eye(3))
     u0 = np.hstack([v_C0, B_Omega0])
     screwdriver = Meshed(RigidBody)(
-        mesh_obj=mesh,
+        mesh_obj=Path(dir_name, "mesh", "screwdriver.stl"),
+        scale=1e-3,
         B_r_CP=-B_r_PC,
         A_BM=np.eye(3),
         mass=mass,
@@ -62,8 +63,8 @@ if __name__ == "__main__":
     ###################
     # initialize render
     ###################
-    render = VTKRenderer(system)
-    # render.start_step_render()
+    render = Renderer(system)
+    render.start_step_render(sync=False)
 
     ############
     # simulation
@@ -71,42 +72,8 @@ if __name__ == "__main__":
     dt = 1e-2  # time step
     solver = Rattle(system, t1, dt)  # create solver
     sol = solver.solve()  # simulate system
-    # read solution
-    t = sol.t  # time
-    q = sol.q  # position coordinates
-
-    ###########
-    # rendering
-    ###########
+    
+    render.stop_step_render()
     render.render_solution(sol, repeat=True)
-    render.start_interaction()
+    render.start_interaction(sol.t[-1], sol.q[-1], sol.u[-1])
 
-    #################
-    # post-processing
-    #################
-    r_OP = np.array([screwdriver.r_OP(ti, qi) for (ti, qi) in zip(t, q)])
-    e_zB = np.array([screwdriver.A_IB(ti, qi)[:, 2] for (ti, qi) in zip(t, q)])
-
-    fig, ax = plt.subplots(2, 1, figsize=(10, 7))
-    ax[0].set_title("Evolution of center of mass")
-    ax[0].plot(t, r_OP[:, 0], label="x")
-    ax[0].plot(t, r_OP[:, 1], label="y")
-    ax[0].plot(t, r_OP[:, 2], label="z")
-    ax[0].set_xlabel("t")
-    ax[0].grid()
-    ax[0].legend()
-
-    ax[1].set_title("Evolution of body-fixed z-axis")
-    ax[1].plot(t, e_zB[:, 0], label="$(e_{z}^B)_x$")
-    ax[1].plot(t, e_zB[:, 1], label="$(e_{z}^B)_y$")
-    ax[1].plot(t, e_zB[:, 2], label="$(e_{z}^B)_z$")
-    ax[1].set_xlabel("t")
-    ax[1].grid()
-    ax[1].legend()
-
-    plt.tight_layout()
-    plt.show()
-
-    # vtk-export
-    dir_name = Path(__file__).parent
-    system.export(dir_name, "vtk", sol)

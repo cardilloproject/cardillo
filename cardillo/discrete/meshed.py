@@ -1,13 +1,8 @@
 import numpy as np
 import trimesh
 from cardillo.visualization.vtk_export import make_ugrid
-from vtk import (
-    VTK_TRIANGLE,
-    vtkTransform,
-    vtkActor,
-    vtkTransformFilter,
-    vtkDataSetMapper,
-)
+import vtk
+from vtk import VTK_TRIANGLE
 
 
 def Meshed(Base):
@@ -120,6 +115,7 @@ def Meshed(Base):
                 kwargs.update({"mass": mass, "B_Theta_C": B_Theta_C})
 
             super().__init__(**kwargs)
+            self.init_visual(mesh_obj, A_BM, B_r_CP, scale)
 
         def export(self, sol_i, base_export=False, **kwargs):
             if base_export:
@@ -135,35 +131,45 @@ def Meshed(Base):
 
             return points, cells, None, None
 
-        def update_vtk_tf(self, sol_i):
-            A_IB = self.A_IB(sol_i.t, sol_i.q, sol_i.u)
-            r_OP = self.r_OP(sol_i.t, sol_i.q, sol_i.u)[:, None]
-            if not hasattr(self, "vtk_tf"):
-                points, cells, point_data, cell_data = self.export(sol_i)
-                ugrid = make_ugrid(points, cells, point_data, cell_data)
-                self.vtk_tf = vtkTransform()
-                tf0 = vtkTransform()
-                tf0.SetMatrix(
-                    np.block([[A_IB.T, -A_IB.T @ r_OP], [0, 0, 0, 1]]).flatten()
-                )
-                tf0.PostMultiply()
-                tf0.Concatenate(self.vtk_tf)
-                tf_filter = vtkTransformFilter()
-                tf_filter.SetTransform(tf0)
-                tf_filter.SetInputData(ugrid)
-                map = vtkDataSetMapper()
-                map.SetInputConnection(tf_filter.GetOutputPort())
-                actor = vtkActor()
-                actor.SetMapper(map)
-                self.actor = actor
-            H_IB = np.block(
+        def init_visual(self, stl_file, A_BM, B_r_CP, scale, color=(255, 255, 255)):
+            self.actors = []
+            self.H_IB = vtk.vtkMatrix4x4()
+            self.H_IB.Identity()
+            source = vtk.vtkSTLReader()
+            source.SetFileName(stl_file)
+            source.Update()
+
+            H_BM = np.block(
                 [
-                    [A_IB, r_OP],
+                    [A_BM * scale, B_r_CP[:, None]],
                     [0, 0, 0, 1],
                 ]
             )
-            self.vtk_tf.SetMatrix(H_IB.flatten())
-            return self.actor
+            H_IB = vtk.vtkMatrixToLinearTransform()
+            H_IB.SetInput(self.H_IB)
+            H_IM = vtk.vtkTransform()
+            H_IM.PostMultiply()
+            H_IM.SetMatrix(H_BM.flatten())
+            H_IM.Concatenate(H_IB)
+
+            filter = vtk.vtkTransformPolyDataFilter()
+            filter.SetInputConnection(source.GetOutputPort())
+            filter.SetTransform(H_IM)
+
+            mapper = vtk.vtkPolyDataMapper()
+            mapper.SetInputConnection(filter.GetOutputPort())
+            actor = vtk.vtkActor()
+            actor.SetMapper(mapper)
+            actor.GetProperty().SetColor(np.array(color, float) / 255)
+            self.actors.append(actor)
+
+        def step_render(self, t, q, u):
+            A_IB = self.A_IB(t, q)
+            r_OP = self.r_OP(t, q)[:, None]
+            for i in range(3):
+                for j in range(3):
+                    self.H_IB.SetElement(i, j, A_IB[i, j])
+                self.H_IB.SetElement(i, 3, r_OP[i])
 
     return _Meshed
 

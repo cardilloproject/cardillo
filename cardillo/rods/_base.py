@@ -75,7 +75,7 @@ class CosseratRod(RodExportBase, ABC):
 
         """
         # call base class for all export properties
-        super().__init__(cross_section)
+        super().__init__(cross_section, nelement_visual=nelement, non_sub=4)
 
         # rod properties
         self.material_model = material_model
