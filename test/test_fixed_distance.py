@@ -9,7 +9,13 @@ from cardillo import System
 from cardillo.discrete import Frame, PointMass
 from cardillo.constraints import FixedDistance
 from cardillo.forces import Force
-from cardillo.solver import ScipyIVP, Moreau, BackwardEuler
+from cardillo.solver import (
+    ScipyIVP,
+    ScipyDAE,
+    Moreau,
+    BackwardEuler,
+    Rattle,
+)
 
 
 class Mathematical_pendulum3D_excited:
@@ -66,13 +72,15 @@ class Mathematical_pendulum3D_excited:
 
 solvers_and_kwargs = [
     (ScipyIVP, {}),
+    (ScipyDAE, {}),
     (Moreau, {}),
     (BackwardEuler, {}),
+    (Rattle, {}),
 ]
 
 
-@pytest.mark.parametrize("Solver, kwargs", solvers_and_kwargs)
-def test_fixed_distance(Solver, kwargs, show=False):
+@pytest.mark.parametrize("Solver, solver_kwargs", solvers_and_kwargs)
+def test_fixed_distance(Solver, solver_kwargs, show=False):
     t0 = 0
     t1 = 1
     dt = 1e-3
@@ -141,11 +149,7 @@ def test_fixed_distance(Solver, kwargs, show=False):
 
     system.assemble()
 
-    debug = False
-
-    # solver = BackwardEuler(system, t1, dt, debug=debug)
-    # solver = ScipyIVP(system, t1, dt)
-    solver = Solver(system, t1, dt, *kwargs)
+    solver = Solver(system, t1, dt, **solver_kwargs)
 
     sol = solver.solve()
     t = sol.t
@@ -228,5 +232,6 @@ def test_fixed_distance(Solver, kwargs, show=False):
 
 if __name__ == "__main__":
     test_fixed_distance(ScipyIVP, {}, show=True)
+    test_fixed_distance(ScipyDAE, {}, show=True)
     test_fixed_distance(Moreau, {}, show=True)
     test_fixed_distance(BackwardEuler, {}, show=True)

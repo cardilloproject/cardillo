@@ -10,6 +10,7 @@ from ..utility.convergence_analysis import convergence_analysis
 
 # dynamic solvers
 from .scipy_ivp import ScipyIVP
+from .scipy_dae import ScipyDAE
 from .moreau import Moreau
 from .backward_euler import BackwardEuler
 from .rattle import Rattle
