@@ -41,19 +41,23 @@ class Renderer:
 
         if platform != "win32":
             self.queue = Queue()
-            self.interrupt_event = Event()
+            self.exit_event = Event()
 
-            def target():
+            def target(queue, iterrupt):
                 self._init_fps()
-                while not self.interrupt_event.is_set():
-                    el = self.queue.get()
+                while True:
+                    el = queue.get()
                     if el is None:
+                        return
+                    elif iterrupt.is_set():
+                        while self.queue.qsize():
+                            self.queue.get()
                         return
                     self.tot_frame += 1
                     self._update_fps()
                     self.step_render(*el)
 
-            self.process = Process(target=target)
+            self.process = Process(target=target, args=(self.queue, self.exit_event))
 
     def _update_fps(self):
         self.n_frame += 1
@@ -92,17 +96,17 @@ class Renderer:
             if hasattr(contr, "step_render"):
                 contr.step_render(t, q[contr.qDOF], u[contr.uDOF])
             # TODO: rod needs nonlinear subdivision filter
-            # elif hasattr(contr, "export"):
-            #     points, cells, point_data, cell_data = contr.export(
-            #         Solution(self.system, t, q, u)
-            #     )
-            #     ugrid = make_ugrid(points, cells, point_data, cell_data)
-            #     if not hasattr(contr, "vtk_data_map"):
-            #         contr.vtk_data_map = vtkDataSetMapper()
-            #         actor = vtkActor()
-            #         actor.SetMapper(contr.vtk_data_map)
-            #         self.ren.AddActor(actor)
-            #     contr.vtk_data_map.SetInputData(ugrid)
+            elif hasattr(contr, "export"):
+                points, cells, point_data, cell_data = contr.export(
+                    Solution(self.system, t, q, u)
+                )
+                ugrid = make_ugrid(points, cells, point_data, cell_data)
+                if not hasattr(contr, "vtk_data_map"):
+                    contr.vtk_data_map = vtkDataSetMapper()
+                    actor = vtkActor()
+                    actor.SetMapper(contr.vtk_data_map)
+                    self.ren.AddActor(actor)
+                contr.vtk_data_map.SetInputData(ugrid)
         self.renwin.Render()
         self.interactor.ProcessEvents()
 
@@ -137,7 +141,7 @@ class Renderer:
 
                 return __step_callback
 
-            self.interrupt_event.clear()
+            self.exit_event.clear()
             self.process.start()
         # modify system's step callback
         self.system.step_callback = decorate_step_callback(self.system.step_callback)
@@ -150,8 +154,8 @@ class Renderer:
         else:
             self.active = False
             if self.process.is_alive():
+                self.queue.put(None)
                 if wait:
-                    self.queue.put(None)
                     self.process.join()
                 else:
-                    self.interrupt_event.set()
+                    self.exit_event.set()

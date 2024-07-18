@@ -1,12 +1,12 @@
 import numpy as np
 import trimesh
-from abc import ABC, abstractmethod
+from abc import ABC
 import vtk
 from vtk import VTK_TRIANGLE
 from cardillo.visualization.vtk_export import make_ugrid
 
 
-def _check_density(mass, B_Theta_C, kwargs):
+def _check_density_consistency(mass, B_Theta_C, kwargs):
     mass_arg = kwargs.pop("mass", None)
     B_Theta_C_arg = kwargs.pop("B_Theta_C", None)
 
@@ -112,17 +112,7 @@ def Meshed(Base):
                 self.B_visual_mesh.density = density
                 mass = self.B_visual_mesh.mass
                 B_Theta_C = self.B_visual_mesh.moment_inertia
-                mass_arg = kwargs.pop("mass", None)
-                B_Theta_C_arg = kwargs.pop("B_Theta_C", None)
-
-                if (mass_arg is not None) and (not np.allclose(mass, mass_arg)):
-                    print("Specified mass does not correspond to mass of mesh.")
-                if (B_Theta_C_arg is not None) and (
-                    not np.allclose(B_Theta_C, B_Theta_C_arg)
-                ):
-                    print(
-                        "Specified moment of inertia does not correspond to moment of inertia of mesh."
-                    )
+                _check_density_consistency(mass, B_Theta_C, kwargs)
                 kwargs.update({"mass": mass, "B_Theta_C": B_Theta_C})
 
             super().__init__(**kwargs)
@@ -143,54 +133,13 @@ def Meshed(Base):
 
             return points, cells, None, None
 
-        # def init_visual(self, stl_file, A_BM, B_r_CP, scale, color=(255, 255, 255)):
-        #     self.actors = []
-        #     self.H_IB = vtk.vtkMatrix4x4()
-        #     self.H_IB.Identity()
-        #     source = vtk.vtkSTLReader()
-        #     source.SetFileName(stl_file)
-        #     source.Update()
-
-        #     H_BM = np.block(
-        #         [
-        #             [A_BM * scale, B_r_CP[:, None]],
-        #             [0, 0, 0, 1],
-        #         ]
-        #     )
-        #     H_IB = vtk.vtkMatrixToLinearTransform()
-        #     H_IB.SetInput(self.H_IB)
-        #     H_IM = vtk.vtkTransform()
-        #     H_IM.PostMultiply()
-        #     H_IM.SetMatrix(H_BM.flatten())
-        #     H_IM.Concatenate(H_IB)
-
-        #     filter = vtk.vtkTransformPolyDataFilter()
-        #     filter.SetInputConnection(source.GetOutputPort())
-        #     filter.SetTransform(H_IM)
-
-        #     mapper = vtk.vtkPolyDataMapper()
-        #     mapper.SetInputConnection(filter.GetOutputPort())
-        #     actor = vtk.vtkActor()
-        #     actor.SetMapper(mapper)
-        #     actor.GetProperty().SetColor(np.array(color, float) / 255)
-        #     self.actors.append(actor)
-
-        # def step_render(self, t, q, u):
-        #     A_IB = self.A_IB(t, q)
-        #     r_OP = self.r_OP(t, q)[:, None]
-        #     for i in range(3):
-        #         for j in range(3):
-        #             self.H_IB.SetElement(i, j, A_IB[i, j])
-        #         self.H_IB.SetElement(i, 3, r_OP[i])
-
     return _Meshed
 
 
-class MeshedVisualABC(ABC):
+class MeshedVisual(ABC):
     def __init__(
         self, source, A_BM=np.eye(3), B_r_CP=np.zeros(3), color=(255, 255, 255)
     ) -> None:
-        super().__init__()
         self.actors = []
         self.H_IB = vtk.vtkMatrix4x4()
         self.H_IB.Identity()
@@ -236,14 +185,87 @@ class MeshedVisualABC(ABC):
         if base_export:
             return super().export(sol_i, **kwargs)
         else:
-            self.step_render(sol_i.t, sol_i.q, sol_i.u)
+            self.step_render(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])
             self.appendfilter.Update()
             self.ugrid.ShallowCopy(self.appendfilter.GetOutput())
             return self.ugrid
 
 
+def stlMeshed(Base):
+
+    class _Meshed(MeshedVisual, Base):
+        def __init__(
+            self,
+            mesh_obj,
+            density=None,
+            B_r_CP=np.zeros(3),
+            A_BM=np.eye(3),
+            scale=1,
+            color=(255, 255, 255),
+            **kwargs,
+        ):
+            self.B_r_CP = B_r_CP
+            self.A_BM = A_BM
+
+            #############################
+            # consistency checks for mesh
+            #############################
+            if isinstance(mesh_obj, trimesh.Trimesh):
+                trimesh_obj = mesh_obj
+
+                # primitives are converted to mesh
+                if hasattr(trimesh_obj, "to_mesh"):
+                    trimesh_mesh = trimesh_obj.to_mesh()
+                else:
+                    trimesh_mesh = trimesh_obj
+            else:
+                trimesh_mesh = trimesh.load_mesh(mesh_obj)
+
+            trimesh_mesh.apply_transform(np.diag([scale, scale, scale, 1]))
+
+            # check if mesh represents a valid volume
+            if not trimesh_mesh.is_volume:
+                print(
+                    "Imported mesh does not represent a volume, i.e. one of the following properties are not fulfilled: watertight, consistent winding, outward facing normals."
+                )
+                # try to fill the wholes
+                trimesh_mesh.fill_holes()
+                if not trimesh_mesh.is_volume:
+                    print(
+                        "Using mesh that is not a volume. Computed mass and moment of inertia might be unphyical."
+                    )
+                else:
+                    print("Fixed mesh by filling the holes.")
+
+            # store visual mesh in body fixed basis
+            H_KM = np.eye(4)
+            H_KM[:3, 3] = B_r_CP
+            H_KM[:3, :3] = A_BM
+            self.B_visual_mesh = trimesh_mesh.copy().apply_transform(H_KM)
+
+            # compute inertia quantities of body
+            if density is not None:
+                # set density and compute properties
+                self.B_visual_mesh.density = density
+                mass = self.B_visual_mesh.mass
+                B_Theta_C = self.B_visual_mesh.moment_inertia
+                _check_density_consistency(mass, B_Theta_C, kwargs)
+                kwargs.update({"mass": mass, "B_Theta_C": B_Theta_C})
+
+            Base.__init__(self, **kwargs)
+
+            source = vtk.vtkSTLReader()
+            source.SetFileName(mesh_obj)
+            source.Update()
+            MeshedVisual.__init__(
+                self, source, A_BM=A_BM * scale, B_r_CP=B_r_CP, color=color
+            )
+
+    return _Meshed
+
+
 def Box(Base):
-    class _Box(Base, MeshedVisualABC):
+    class _Box(MeshedVisual, Base):
         def __init__(
             self,
             dimensions=np.ones(3),
@@ -264,27 +286,27 @@ def Box(Base):
                     * mass
                     / 12
                 )
-                _check_density(mass, B_Theta_C, kwargs)
+                _check_density_consistency(mass, B_Theta_C, kwargs)
                 kwargs.update({"mass": mass, "B_Theta_C": B_Theta_C})
-            super().__init__(**kwargs)
+            Base.__init__(self, **kwargs)
 
             source = vtk.vtkCubeSource()
             source.SetXLength(dimensions[0])
             source.SetYLength(dimensions[1])
             source.SetZLength(dimensions[2])
-            MeshedVisualABC.__init__(self, source, color=color)
+            MeshedVisual.__init__(self, source, color=color)
 
     return _Box
 
 
 def Cone(Base):
-    class _Cone(Base, MeshedVisualABC):
+    class _Cone(MeshedVisual, Base):
         def __init__(
             self,
             radius=1,
             height=2,
             density=None,
-            resolution=100,
+            resolution=30,
             color=(255, 255, 255),
             **kwargs,
         ):
@@ -293,7 +315,7 @@ def Cone(Base):
             if density is not None:
                 mass = density / 3 * height * np.pi * radius**2
                 B_Theta_C = (
-                    np.array(
+                    np.diag(
                         [
                             0.15 * radius**2 + 0.1 * height**2,
                             0.15 * radius**2 + 0.1 * height**2,
@@ -302,9 +324,9 @@ def Cone(Base):
                     )
                     * mass
                 )
-                _check_density(mass, B_Theta_C, kwargs)
+                _check_density_consistency(mass, B_Theta_C, kwargs)
                 kwargs.update({"mass": mass, "B_Theta_C": B_Theta_C})
-            super().__init__(**kwargs)
+            Base.__init__(self, **kwargs)
 
             source = vtk.vtkConeSource()
             source.SetRadius(radius)
@@ -312,19 +334,19 @@ def Cone(Base):
             source.SetResolution(resolution)
             source.SetDirection(0, 0, 1)
             source.SetCenter(0, 0, height / 4)
-            MeshedVisualABC.__init__(self, source, color=color)
+            MeshedVisual.__init__(self, source, color=color)
 
     return _Cone
 
 
 def Cylinder(Base):
-    class _Cylinder(Base, MeshedVisualABC):
+    class _Cylinder(MeshedVisual, Base):
         def __init__(
             self,
             radius=1,
             height=2,
             density=None,
-            resolution=100,
+            resolution=30,
             color=(255, 255, 255),
             **kwargs,
         ):
@@ -333,7 +355,7 @@ def Cylinder(Base):
             if density is not None:
                 mass = density * height * np.pi * radius**2
                 B_Theta_C = (
-                    np.array(
+                    np.diag(
                         [
                             0.25 * radius**2 + 1 / 12 * height**2,
                             0.25 * radius**2 + 1 / 12 * height**2,
@@ -342,15 +364,15 @@ def Cylinder(Base):
                     )
                     * mass
                 )
-                _check_density(mass, B_Theta_C, kwargs)
+                _check_density_consistency(mass, B_Theta_C, kwargs)
                 kwargs.update({"mass": mass, "B_Theta_C": B_Theta_C})
-            super().__init__(**kwargs)
+            Base.__init__(self, **kwargs)
 
             source = vtk.vtkCylinderSource()
             source.SetRadius(radius)
             source.SetHeight(height)
             source.SetResolution(resolution)
-            MeshedVisualABC.__init__(
+            MeshedVisual.__init__(
                 self,
                 source,
                 A_BM=np.array([[1, 0, 0], [0, 0, -1], [0, 1, 0]]),
@@ -361,65 +383,29 @@ def Cylinder(Base):
 
 
 def Sphere(Base):
-    class _Sphere(Base, MeshedVisualABC):
+    class _Sphere(MeshedVisual, Base):
         def __init__(
             self,
             radius=1,
             density=None,
-            resolution=100,
+            resolution=30,
             color=(255, 255, 255),
             **kwargs,
         ):
             if density is not None:
                 mass = density * 4 / 3 * np.pi * radius**3
                 B_Theta_C = np.eye(3) * 2 / 5 * mass * radius**2
-                _check_density(mass, B_Theta_C, kwargs)
+                _check_density_consistency(mass, B_Theta_C, kwargs)
                 kwargs.update({"mass": mass, "B_Theta_C": B_Theta_C})
-            super().__init__(**kwargs)
+            Base.__init__(self, **kwargs)
 
             source = vtk.vtkSphereSource()
             source.SetRadius(radius)
-            source.SetPhiResolution(resolution)
-            source.SetThetaResolution(resolution * 2 - 2)
-            MeshedVisualABC.__init__(self, source, color=color)
+            source.SetPhiResolution(int(resolution / 2 - 1))
+            source.SetThetaResolution(resolution)
+            MeshedVisual.__init__(self, source, color=color)
 
     return _Sphere
-
-
-# def Sphere(Base):
-#     MeshedBase = Meshed(Base)
-
-#     class _Sphere(MeshedBase):
-#         def __init__(
-#             self,
-#             radius=1,
-#             subdivisions=2,
-#             **kwargs,
-#         ):
-#             self.radius = radius
-#             self.subdivisions = subdivisions
-#             trimesh_obj = trimesh.creation.icosphere(
-#                 radius=radius, subdivisions=subdivisions
-#             )
-#             super().__init__(mesh_obj=trimesh_obj, **kwargs)
-
-#     return _Sphere
-
-
-# def Box(Base):
-#     MeshedBase = Meshed(Base)
-
-#     class _Box(MeshedBase):
-#         def __init__(
-#             self,
-#             dimensions=np.ones(3),
-#             **kwargs,
-#         ):
-#             self.dimensions = dimensions
-#             trimesh_obj = trimesh.creation.box(extents=dimensions)
-#             super().__init__(mesh_obj=trimesh_obj, **kwargs)
-
-#     return _Box
 
 
 def Capsule(Base):
