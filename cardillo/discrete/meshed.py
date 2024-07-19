@@ -138,39 +138,47 @@ def Meshed(Base):
 
 class MeshedVisual(ABC):
     def __init__(
-        self, source, A_BM=np.eye(3), B_r_CP=np.zeros(3), color=(255, 255, 255)
+        self, source_list, A_BM_list=None, B_r_CP_list=None, color_list=None
     ) -> None:
         self.actors = []
         self.H_IB = vtk.vtkMatrix4x4()
         self.H_IB.Identity()
+        if A_BM_list is None:
+            A_BM_list = [np.eye(3)] * len(source_list)
+        if B_r_CP_list is None:
+            B_r_CP_list = [np.zeros(3)] * len(source_list)
+        if color_list is None:
+            color_list = [(255, 255, 255)] * len(source_list)
 
-        H_BM = np.block(
-            [
-                [A_BM, B_r_CP[:, None]],
-                [0, 0, 0, 1],
-            ]
-        )
-        H_IB = vtk.vtkMatrixToLinearTransform()
-        H_IB.SetInput(self.H_IB)
-        H_IM = vtk.vtkTransform()
-        H_IM.PostMultiply()
-        H_IM.SetMatrix(H_BM.flatten())
-        H_IM.Concatenate(H_IB)
-
-        self.tf_filter = vtk.vtkTransformPolyDataFilter()
-        self.tf_filter.SetInputConnection(source.GetOutputPort())
-        self.tf_filter.SetTransform(H_IM)
-
-        mapper = vtk.vtkPolyDataMapper()
-        mapper.SetInputConnection(self.tf_filter.GetOutputPort())
-
-        actor = vtk.vtkActor()
-        actor.SetMapper(mapper)
-        actor.GetProperty().SetColor(np.array(color, float) / 255)
-        # base_actor.GetProperty().SetOpacity(0.2)
-        self.actors.append(actor)
         self.appendfilter = vtk.vtkAppendFilter()
-        self.appendfilter.SetInputConnection(self.tf_filter.GetOutputPort())
+        for source, A_BM, B_r_CP, color in zip(
+            source_list, A_BM_list, B_r_CP_list, color_list
+        ):
+            H_BM = np.block(
+                [
+                    [A_BM, B_r_CP[:, None]],
+                    [0, 0, 0, 1],
+                ]
+            )
+            H_IB = vtk.vtkMatrixToLinearTransform()
+            H_IB.SetInput(self.H_IB)
+            H_IM = vtk.vtkTransform()
+            H_IM.PostMultiply()
+            H_IM.SetMatrix(H_BM.flatten())
+            H_IM.Concatenate(H_IB)
+            tf_filter = vtk.vtkTransformPolyDataFilter()
+            tf_filter.SetInputConnection(source.GetOutputPort())
+            tf_filter.SetTransform(H_IM)
+
+            mapper = vtk.vtkPolyDataMapper()
+            mapper.SetInputConnection(tf_filter.GetOutputPort())
+
+            actor = vtk.vtkActor()
+            actor.SetMapper(mapper)
+            actor.GetProperty().SetColor(np.array(color, float) / 255)
+            # base_actor.GetProperty().SetOpacity(0.2)
+            self.actors.append(actor)
+            self.appendfilter.AddInputConnection(tf_filter.GetOutputPort())
         self.ugrid = vtk.vtkUnstructuredGrid()
 
     def step_render(self, t, q, u):
@@ -180,14 +188,14 @@ class MeshedVisual(ABC):
             for j in range(3):
                 self.H_IB.SetElement(i, j, A_IB[i, j])
             self.H_IB.SetElement(i, 3, r_OP[i])
+        self.appendfilter.Update()
+        self.ugrid.ShallowCopy(self.appendfilter.GetOutput())
 
     def export(self, sol_i, base_export=False, **kwargs):
         if base_export:
             return super().export(sol_i, **kwargs)
         else:
             self.step_render(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])
-            self.appendfilter.Update()
-            self.ugrid.ShallowCopy(self.appendfilter.GetOutput())
             return self.ugrid
 
 
@@ -258,7 +266,11 @@ def stlMeshed(Base):
             source.SetFileName(mesh_obj)
             source.Update()
             MeshedVisual.__init__(
-                self, source, A_BM=A_BM * scale, B_r_CP=B_r_CP, color=color
+                self,
+                [source],
+                A_BM_list=[A_BM * scale],
+                B_r_CP_list=[B_r_CP],
+                color_list=[color],
             )
 
     return _Meshed
@@ -294,7 +306,7 @@ def Box(Base):
             source.SetXLength(dimensions[0])
             source.SetYLength(dimensions[1])
             source.SetZLength(dimensions[2])
-            MeshedVisual.__init__(self, source, color=color)
+            MeshedVisual.__init__(self, [source], color_list=[color])
 
     return _Box
 
@@ -334,7 +346,7 @@ def Cone(Base):
             source.SetResolution(resolution)
             source.SetDirection(0, 0, 1)
             source.SetCenter(0, 0, height / 4)
-            MeshedVisual.__init__(self, source, color=color)
+            MeshedVisual.__init__(self, [source], color_list=[color])
 
     return _Cone
 
@@ -374,9 +386,9 @@ def Cylinder(Base):
             source.SetResolution(resolution)
             MeshedVisual.__init__(
                 self,
-                source,
-                A_BM=np.array([[1, 0, 0], [0, 0, -1], [0, 1, 0]]),
-                color=color,
+                [source],
+                A_BM_list=[np.array([[1, 0, 0], [0, 0, -1], [0, 1, 0]])],
+                color_list=[color],
             )
 
     return _Cylinder
@@ -403,25 +415,64 @@ def Sphere(Base):
             source.SetRadius(radius)
             source.SetPhiResolution(int(resolution / 2 - 1))
             source.SetThetaResolution(resolution)
-            MeshedVisual.__init__(self, source, color=color)
+            MeshedVisual.__init__(self, [source], color_list=[color])
 
     return _Sphere
 
 
 def Capsule(Base):
-    MeshedBase = Meshed(Base)
 
-    class _Capsule(MeshedBase):
+    class _Capsule(MeshedVisual, Base):
         def __init__(
             self,
             radius=1,
             height=2,
+            density=None,
+            resolution=30,
+            color=(255, 255, 255),
             **kwargs,
         ):
             self.radius = radius
             self.height = height
-            trimesh_obj = trimesh.creation.capsule(radius=radius, height=height)
-            super().__init__(mesh_obj=trimesh_obj, **kwargs)
+            if density is not None:
+                # https://www.gamedev.net/tutorials/programming/math-and-physics/capsule-inertia-tensor-r3856/
+                m_cyl = density * height * np.pi * radius**2
+                m_cap = density * 2 / 3 * np.pi * radius**3
+                mass = m_cyl + 2 * m_cap
+                B_Theta_C = (
+                    np.diag(
+                        [
+                            0.25 * radius**2 + 1 / 12 * height**2,
+                            0.25 * radius**2 + 1 / 12 * height**2,
+                            0.5 * radius**2,
+                        ]
+                    )
+                    * m_cyl
+                    + np.diag(
+                        [
+                            0.4 * radius**2 + 0.5 * height**2 + 3 / 8 * height * radius,
+                            0.4 * radius**2 + 0.5 * height**2 + 3 / 8 * height * radius,
+                            0.4 * radius**2,
+                        ]
+                    )
+                    * 2
+                    * m_cap
+                )
+                _check_density_consistency(mass, B_Theta_C, kwargs)
+                kwargs.update({"mass": mass, "B_Theta_C": B_Theta_C})
+            Base.__init__(self, **kwargs)
+
+            source = vtk.vtkCylinderSource()
+            source.SetRadius(radius)
+            source.SetHeight(height)
+            source.SetResolution(resolution)
+            source.CapsuleCapOn()
+            MeshedVisual.__init__(
+                self,
+                [source],
+                A_BM_list=[np.array([[1, 0, 0], [0, 0, -1], [0, 1, 0]])],
+                color_list=[color],
+            )
 
     return _Capsule
 
@@ -454,16 +505,36 @@ def Tetrahedron(Base):
 
 
 def Axis(Base):
-    MeshedBase = Meshed(Base)
 
-    class _Axis(MeshedBase):
+    class _Axis(MeshedVisual, Base):
         def __init__(
             self,
             origin_size=0.04,
+            resolution=30,
             **kwargs,
         ):
-            trimesh_obj = trimesh.creation.axis(origin_size=origin_size)
-            super().__init__(mesh_obj=trimesh_obj, **kwargs)
+            Base.__init__(self, **kwargs)
+            source = vtk.vtkArrowSource()
+            source.SetTipResolution(resolution)
+            source.SetShaftResolution(resolution)
+            A_BM_list = []
+            source_list = [source] * 3
+            color_list = []
+            for i in range(3):
+                if i == 0:
+                    A_BM = np.eye(3)
+                    c = (255, 0, 0)
+                elif i == 1:
+                    A_BM = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 1]])
+                    c = (0, 255, 0)
+                elif i == 2:
+                    A_BM = np.array([[0, 0, -1], [0, 1, 0], [1, 0, 0]])
+                    c = (0, 0, 255)
+                A_BM_list.append(A_BM * origin_size)
+                color_list.append(c)
+            MeshedVisual.__init__(
+                self, source_list, A_BM_list=A_BM_list, color_list=color_list
+            )
 
     return _Axis
 
