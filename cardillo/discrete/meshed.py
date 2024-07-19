@@ -34,7 +34,7 @@ def Meshed(Base):
 
     """
 
-    class _Meshed(Base):
+    class _Meshed(MeshedVisual, Base):
         def __init__(
             self,
             mesh_obj,
@@ -42,6 +42,7 @@ def Meshed(Base):
             B_r_CP=np.zeros(3),
             A_BM=np.eye(3),
             scale=1,
+            color=(255, 255, 255),
             **kwargs,
         ):
             """Generate an object (typically with Base `Frame` or `RigidBody`)
@@ -78,7 +79,9 @@ def Meshed(Base):
                     trimesh_mesh = trimesh_obj.to_mesh()
                 else:
                     trimesh_mesh = trimesh_obj
+                self.file_obj = None
             else:
+                self.file_obj = mesh_obj
                 trimesh_mesh = trimesh.load_mesh(mesh_obj)
 
             trimesh_mesh.apply_transform(np.diag([scale, scale, scale, 1]))
@@ -115,13 +118,29 @@ def Meshed(Base):
                 _check_density_consistency(mass, B_Theta_C, kwargs)
                 kwargs.update({"mass": mass, "B_Theta_C": B_Theta_C})
 
-            super().__init__(**kwargs)
+            Base.__init__(self, **kwargs)
 
-        #     self.init_visual(mesh_obj, A_BM, B_r_CP, scale)
+            if self.file_obj is not None:
+                source = vtk.vtkSTLReader()
+                source.SetFileName(mesh_obj)
+                source.Update()
+                MeshedVisual.__init__(
+                    self,
+                    [source],
+                    A_BM_list=[A_BM * scale],
+                    B_r_CP_list=[B_r_CP],
+                    color_list=[color],
+                )
+
+        def __getattribute__(self, name: str):
+            if name == "step_render" and self.file_obj is None:
+                raise AttributeError
+
+            return super().__getattribute__(name)
 
         def export(self, sol_i, base_export=False, **kwargs):
             if base_export:
-                return super().export(sol_i, **kwargs)
+                return Base.export(self, sol_i, **kwargs)
             else:
                 r_OC = self.r_OP(
                     sol_i.t, sol_i.q[self.qDOF]
@@ -197,83 +216,6 @@ class MeshedVisual(ABC):
         else:
             self.step_render(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])
             return self.ugrid
-
-
-def stlMeshed(Base):
-
-    class _Meshed(MeshedVisual, Base):
-        def __init__(
-            self,
-            mesh_obj,
-            density=None,
-            B_r_CP=np.zeros(3),
-            A_BM=np.eye(3),
-            scale=1,
-            color=(255, 255, 255),
-            **kwargs,
-        ):
-            self.B_r_CP = B_r_CP
-            self.A_BM = A_BM
-
-            #############################
-            # consistency checks for mesh
-            #############################
-            if isinstance(mesh_obj, trimesh.Trimesh):
-                trimesh_obj = mesh_obj
-
-                # primitives are converted to mesh
-                if hasattr(trimesh_obj, "to_mesh"):
-                    trimesh_mesh = trimesh_obj.to_mesh()
-                else:
-                    trimesh_mesh = trimesh_obj
-            else:
-                trimesh_mesh = trimesh.load_mesh(mesh_obj)
-
-            trimesh_mesh.apply_transform(np.diag([scale, scale, scale, 1]))
-
-            # check if mesh represents a valid volume
-            if not trimesh_mesh.is_volume:
-                print(
-                    "Imported mesh does not represent a volume, i.e. one of the following properties are not fulfilled: watertight, consistent winding, outward facing normals."
-                )
-                # try to fill the wholes
-                trimesh_mesh.fill_holes()
-                if not trimesh_mesh.is_volume:
-                    print(
-                        "Using mesh that is not a volume. Computed mass and moment of inertia might be unphyical."
-                    )
-                else:
-                    print("Fixed mesh by filling the holes.")
-
-            # store visual mesh in body fixed basis
-            H_KM = np.eye(4)
-            H_KM[:3, 3] = B_r_CP
-            H_KM[:3, :3] = A_BM
-            self.B_visual_mesh = trimesh_mesh.copy().apply_transform(H_KM)
-
-            # compute inertia quantities of body
-            if density is not None:
-                # set density and compute properties
-                self.B_visual_mesh.density = density
-                mass = self.B_visual_mesh.mass
-                B_Theta_C = self.B_visual_mesh.moment_inertia
-                _check_density_consistency(mass, B_Theta_C, kwargs)
-                kwargs.update({"mass": mass, "B_Theta_C": B_Theta_C})
-
-            Base.__init__(self, **kwargs)
-
-            source = vtk.vtkSTLReader()
-            source.SetFileName(mesh_obj)
-            source.Update()
-            MeshedVisual.__init__(
-                self,
-                [source],
-                A_BM_list=[A_BM * scale],
-                B_r_CP_list=[B_r_CP],
-                color_list=[color],
-            )
-
-    return _Meshed
 
 
 def Box(Base):

@@ -8,7 +8,7 @@ from .vtk_export import make_ugrid
 
 
 class Renderer:
-    def __init__(self, system) -> None:
+    def __init__(self, system, winsize=(1000, 1000)) -> None:
         super().__init__()
         self.active = False
         self.system = system
@@ -24,7 +24,7 @@ class Renderer:
         self.renwin.SetWindowName("")
         self.renwin.AddRenderer(self.ren)
         self.renwin.MakeRenderWindowInteractor()
-        self.renwin.SetSize(800, 800)
+        self.renwin.SetSize(*winsize)
         self.interactor = self.renwin.GetInteractor()
         self.observer = self.interactor.AddObserver(
             vtk.vtkCommand.ExitEvent, self.__handle_window_closed
