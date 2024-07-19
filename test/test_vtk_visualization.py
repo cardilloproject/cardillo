@@ -154,6 +154,7 @@ def dzhanibekov_effect():
         q0=q0,
         u0=u0,
         name="screwdriver",
+        color=(255, 70, 0),
     )
     system.add(screwdriver)
 

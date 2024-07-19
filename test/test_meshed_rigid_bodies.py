@@ -42,22 +42,26 @@ if __name__ == "__main__":
 
     q30 = np.concatenate([np.array([1, 1, 1]), Spurrier(A_IB_basic(-np.pi / 4).x)])
     rigid_body3 = Cone(RigidBody)(
-        radius=0.1, height=0.2, mass=1, B_Theta_C=np.eye(3), q0=q30
+        radius=0.1, height=0.2, resolution=50, mass=1, B_Theta_C=np.eye(3), q0=q30
     )
 
     q40 = np.concatenate([np.array([1, -1, 1]), Spurrier(A_IB_basic(0).x)])
-    rigid_body4 = Cylinder(RigidBody)(radius=0.1, height=0.2, density=2, q0=q40)
+    rigid_body4 = Cylinder(RigidBody)(
+        radius=0.1, height=0.2, resolution=50, density=2, q0=q40
+    )
 
     q50 = np.concatenate([np.array([0, -1, 1]), np.array([1, 0, 0, 0])])
-    rigid_body5 = Sphere(RigidBody)(radius=0.1, subdivisions=3, density=2, q0=q50)
+    rigid_body5 = Sphere(RigidBody)(radius=0.1, resolution=50, density=2, q0=q50)
 
     q60 = np.concatenate([np.array([1, 0, 1]), Spurrier(A_IB_basic(-np.pi / 3).x)])
-    rigid_body6 = Capsule(RigidBody)(radius=0.1, height=0.2, density=2, q0=q60)
+    rigid_body6 = Capsule(RigidBody)(
+        radius=0.1, height=0.2, resolution=50, density=2, q0=q60
+    )
 
     q70 = np.concatenate([np.array([-1, 0, 1]), Spurrier(A_IB_basic(0).x)])
     rigid_body7 = Tetrahedron(RigidBody)(edge=0.3, density=2, q0=q70)
 
-    system = System()
+    system = System(origin_size=1)
     system.add(frame)
     system.add(rigid_body1)
     system.add(rigid_body2)
