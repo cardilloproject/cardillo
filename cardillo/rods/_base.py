@@ -76,7 +76,10 @@ class CosseratRod(RodExportBase, ABC):
         """
         # call base class for all export properties
         nelement_visual = kwargs.pop("nelement_visual", nelement)
-        super().__init__(cross_section, nelement_visual=nelement_visual, non_sub=4)
+        subdivision = kwargs.pop("subdivision", 4)
+        super().__init__(
+            cross_section, nelement_visual=nelement_visual, subdivision=subdivision
+        )
 
         # rod properties
         self.material_model = material_model

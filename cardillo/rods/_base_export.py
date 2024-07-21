@@ -13,9 +13,9 @@ from ._cross_section import (
 
 
 class RodExportBase(ABC):
-    def __init__(self, cross_section: CrossSection, nelement_visual, non_sub=4):
+    def __init__(self, cross_section: CrossSection, nelement_visual, subdivision):
         self.cross_section = cross_section
-        self.init_visualization(nelement_visual, non_sub)
+        self.init_visualization(nelement_visual, subdivision)
 
     @abstractmethod
     def r_OP(self, t, q, xi, B_r_CP): ...
@@ -653,7 +653,7 @@ class RodExportBase(ABC):
 
         return np.array(vtk_points)
 
-    def init_visualization(self, nelement_visual, non_sub=4):
+    def init_visualization(self, nelement_visual, subdivision=4):
         self.nelement_visual = nelement_visual
         self.actors = []
         if isinstance(self.cross_section, CircularCrossSection):
@@ -729,7 +729,7 @@ class RodExportBase(ABC):
 
         filter = vtk.vtkDataSetSurfaceFilter()
         filter.SetInputData(ugrid)
-        filter.SetNonlinearSubdivisionLevel(non_sub)
+        filter.SetNonlinearSubdivisionLevel(subdivision)
 
         mapper = vtk.vtkDataSetMapper()
         mapper.SetInputConnection(filter.GetOutputPort())
