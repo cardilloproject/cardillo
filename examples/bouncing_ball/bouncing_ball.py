@@ -54,7 +54,7 @@ if __name__ == "__main__":
     ball = Sphere(RigidBody)(
         radius=radius,
         density=density,
-        subdivisions=3,
+        resolution=30,
         q0=q0,
         u0=u0,
         name="ball",
