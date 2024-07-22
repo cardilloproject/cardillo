@@ -3,9 +3,16 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from scipy.integrate import solve_ivp
 import pytest
+from itertools import product
 
 from cardillo import System
-from cardillo.solver import ScipyIVP, Moreau, BackwardEuler, Rattle, SolverOptions
+from cardillo.solver import (
+    ScipyIVP,
+    ScipyDAE,
+    Moreau,
+    BackwardEuler,
+    Rattle,
+)
 from cardillo.constraints import RigidConnection, Cylindrical, Prismatic
 from cardillo.discrete import Frame, RigidBody
 from cardillo.interactions import TwoPointInteraction
@@ -26,16 +33,13 @@ def run(
     joint: str,
     RigidBody,
     Solver,
+    solver_kwargs,
     show=False,
-    **solver_kwargs,
 ):
-    ############################################################################
-    #                   system setup
-    ############################################################################
     ###################
     # solver parameters
     ###################
-    t_span = (0.0, 5.0)
+    t_span = (0.0, 1.0)
     t0, t1 = t_span
     dt = 1.0e-2
 
@@ -369,9 +373,9 @@ def run(
 ################################################################################
 # test setup
 ################################################################################
-
 solver_and_kwargs = [
     (ScipyIVP, {}),
+    (ScipyDAE, {}),
     (Moreau, {}),
     (BackwardEuler, {}),
     (Rattle, {}),
@@ -381,36 +385,20 @@ rigid_bodies = [
     RigidBody,
 ]
 
-test_parameters = []
+joints = [
+    "Cylindrical",
+    "Prismatic",
+]
 
-for RB in rigid_bodies:
-    for SK in solver_and_kwargs:
-        test_parameters.append((RB, *SK))
-
-
-@pytest.mark.parametrize("RigidBody, Solver, kwargs", test_parameters)
-def test_cylindrical(RigidBody, Solver, kwargs):
-    run("Cylindrical", RigidBody, Solver, **kwargs)
+test_parameters = product(solver_and_kwargs, rigid_bodies, joints)
 
 
-@pytest.mark.parametrize("RigidBody, Solver, kwargs", test_parameters)
-def test_prismatic(RigidBody, Solver, kwargs):
-    run("Prismatic", RigidBody, Solver, **kwargs)
+@pytest.mark.parametrize("Solver_and_kwargs, RigidBody, joint", test_parameters)
+def test_cylindrical_prismatic(Solver_and_kwargs, RigidBody, joint, show=False):
+    Solver, solver_kwargs = Solver_and_kwargs
+    run(joint, RigidBody, Solver, solver_kwargs, show)
 
 
 if __name__ == "__main__":
-    #############
-    # Cylindrical
-    #############
-    # run("Cylindrical", RigidBody, ScipyIVP, show=True)
-    # run("Cylindrical", RigidBody, Moreau, show=True)
-    # run("Cylindrical", RigidBody, BackwardEuler, show=True)
-    # run("Cylindrical", RigidBody, Rattle, show=True)
-
-    ###########
-    # Prismatic
-    ###########
-    # run("Prismatic", RigidBody, ScipyIVP, show=True)
-    # run("Prismatic", RigidBody, Moreau, show=True)
-    run("Prismatic", RigidBody, BackwardEuler, show=True)
-    # run("Prismatic", RigidBody, Rattle, show=True)
+    for p in test_parameters:
+        test_cylindrical_prismatic(*p, show=True)

@@ -13,7 +13,7 @@ class PIDcontroller(BaseActuator):
         self.kd = kd
 
     def assembler_callback(self):
-        self.qDOF = np.concatenate([self.q_dotDOF, self.subsystem.qDOF])
+        self.qDOF = np.concatenate([self.my_qDOF, self.subsystem.qDOF])
         self._nq = len(self.qDOF)
         self.uDOF = self.subsystem.uDOF
         self._nu = len(self.uDOF)

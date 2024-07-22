@@ -41,6 +41,7 @@ class Solution:
         self.la_c = la_c
         self.la_N = la_N
         self.la_F = la_F
+        self.solver_summary = None
 
         self.__dict__.update(**kwargs)
 
@@ -53,7 +54,11 @@ class Solution:
     class SolutionIterator:
         def __init__(self, solution) -> None:
             self._solution = solution
-            self.keys = [*self._solution.__dict__.keys()][1:]
+            self.keys = [*self._solution.__dict__.keys()]
+            # remove non-iterable keys
+            self.keys.remove("solver_summary")
+            self.keys.remove("system")
+
             self._index = 0
             self._retVal = namedtuple("Result", self.keys)
 
