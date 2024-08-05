@@ -238,6 +238,7 @@ def run():
     anim = animation.FuncAnimation(
         fig, animate, frames=frames, interval=interval, blit=False
     )
+    plt.show()
 
     # reference solution
     def eqm(t, x):

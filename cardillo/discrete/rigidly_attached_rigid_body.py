@@ -23,10 +23,10 @@ class RigidlyAttachedRigidBody:
     def assembler_callback(self):
 
         qDOFp = self.parent.local_qDOF_P(self.xip)
-        self.qDOF =self.parent.qDOF[qDOFp]
+        self.qDOF = self.parent.qDOF[qDOFp]
         # self.nqp = nqp = len(qDOFp)
         self.q0 = self.parent.q0[qDOFp]
-        self.__nq = len(self.qDOF) 
+        self.__nq = len(self.qDOF)
 
         uDOFp = self.parent.local_uDOF_P(self.xip)
         self.uDOF = self.parent.uDOF[uDOFp]
@@ -35,14 +35,12 @@ class RigidlyAttachedRigidBody:
         self.__nu = len(self.uDOF)
 
         # initial orientation of parent
-        A_IBp0 = self.parent.A_IB(
-            self.parent.t0, self.parent.q0[qDOFp], xi=self.xip
-        )
+        A_IBp0 = self.parent.A_IB(self.parent.t0, self.parent.q0[qDOFp], xi=self.xip)
         # relative orientation between this body (B) and parent (Bp) (constant)
         self.A_BpB = A_IBp0.T @ self.A_IB0
         # initial position of the c.o.m. of the parent
         r_OCp0 = self.parent.r_OP(self.parent.t0, self.parent.q0[qDOFp], xi=self.xip)
-        # relative position of the c.o.m. (C) of this body w.r.t. the c.o.m. (Cp) of its parent 
+        # relative position of the c.o.m. (C) of this body w.r.t. the c.o.m. (Cp) of its parent
         self.B_r_CpC = (A_IBp0 @ self.A_BpB).T @ (self.r_OC0 - r_OCp0)
 
     def M(self, t, q):
@@ -124,9 +122,7 @@ class RigidlyAttachedRigidBody:
         return self.parent.A_IB(t, q, xi=self.xip) @ self.A_BpB
 
     def A_IB_q(self, t, q, xi=None):
-        return  np.einsum(
-            "ijk,jl->ilk", self.parent.A_IB(t, q, xi=self.xip),  self.A_BpB
-        )
+        return np.einsum("ijk,jl->ilk", self.parent.A_IB(t, q, xi=self.xip), self.A_BpB)
 
     def r_OP(self, t, q, xi=None, B_r_CP=np.zeros(3)):
         return self.parent.r_OP(
@@ -137,11 +133,12 @@ class RigidlyAttachedRigidBody:
         return self.parent.r_OP_q(
             t, q, self.xip, B_r_CP=self.A_BpB @ (self.B_r_CpC + B_r_CP)
         )
-    
+
     def v_P(self, t, q, u, xi=None, B_r_CP=np.zeros(3)):
         return self.parent.v_P(
             t, q, u, self.xip, B_r_CP=self.A_BpB @ (self.B_r_CpC + B_r_CP)
         )
+
     def v_P_q(self, t, q, u, xi=None, B_r_CP=np.zeros(3)):
         return self.parent.v_P_q(
             t, q, u, self.xip, B_r_CP=self.A_BpB @ (self.B_r_CpC + B_r_CP)
@@ -182,23 +179,28 @@ class RigidlyAttachedRigidBody:
         return self.parent.kappa_P_q(
             t, q, u, self.xip, B_r_CP=self.A_BpB @ (self.B_r_CpC + B_r_CP)
         )
+
     def kappa_P_u(self, t, q, u, xi=None, B_r_CP=np.zeros(3)):
         return self.parent.kappa_P_u(
             t, q, u, self.xip, B_r_CP=self.A_BpB @ (self.B_r_CpC + B_r_CP)
         )
-    
+
     def B_Omega(self, t, q, u, xi=None):
         return self.A_BpB.T @ self.parent.B_Omega(t, q, u, self.xip)
 
     def B_Omega_q(self, t, q, u, xi=None):
-        return  np.einsum("ij,jkl->ikl", self.A_BpB.T, self.parent.B_Omega_q(t, q, u, self.xip))
-        
+        return np.einsum(
+            "ij,jkl->ikl", self.A_BpB.T, self.parent.B_Omega_q(t, q, u, self.xip)
+        )
+
     def B_J_R(self, t, q, xi=None):
         return self.A_BpB.T @ self.parent.B_J_R(t, q, self.xip)
 
     def B_J_R_q(self, t, q, xi=None):
-        return  np.einsum("ij,jkl->ikl", self.A_BpB.T, self.parent.B_J_R_q(t, q, self.xip))
-        
+        return np.einsum(
+            "ij,jkl->ikl", self.A_BpB.T, self.parent.B_J_R_q(t, q, self.xip)
+        )
+
     def B_Psi(self, t, q, u, u_dot, xi=None):
         return self.A_BpB.T @ self.parent.B_Psi(t, q, u, u_dot, self.xip)
 
@@ -207,9 +209,11 @@ class RigidlyAttachedRigidBody:
         return self.A_BpB.T @ self.parent.B_kappa_R(t, q, u, self.xip)
 
     def B_kappa_R_q(self, t, q, u, xi=None):
-        return np.einsum("ij,jkl->ikl", self.A_BpB.T, self.parent.B_kappa_R_q(t, q, u, self.xip))
-        
+        return np.einsum(
+            "ij,jkl->ikl", self.A_BpB.T, self.parent.B_kappa_R_q(t, q, u, self.xip)
+        )
 
     def B_kappa_R_u(self, t, q, u, xi=None):
-        return np.einsum("ij,jkl->ikl", self.A_BpB.T, self.parent.B_kappa_R_u(t, q, u, self.xip))
-        
+        return np.einsum(
+            "ij,jkl->ikl", self.A_BpB.T, self.parent.B_kappa_R_u(t, q, u, self.xip)
+        )
