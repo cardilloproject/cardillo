@@ -1,10 +1,8 @@
 from pathlib import Path
 from shutil import rmtree
 from xml.dom import minidom
-
 import numpy as np
 import vtk
-
 from cardillo.solver import Solution
 
 
