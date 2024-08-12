@@ -117,7 +117,7 @@ The export function of the subsystem returns a tuple containing `(points, cells,
 
 - **points**: A list of 3-dimensional NumPy arrays, each representing the coordinates of a point in space.
 - **cells**: A list of tuples, where each tuple consists of a VTK cell type (`VTK_CELL_TYPE`) and the associated connectivity information. The `VTK_CELL_TYPE` defines the type of geometric cell, and connectivities define how points are connected within that cell. For reference, some useful `VTK_CELL_TYPE` examples can be found at:
-  - [Linear Cells](https://examples.vtk.org/site/Cxx/GeometricObjects/LinearCellsDemo/)
-  - [Isoparametric Cells](https://examples.vtk.org/site/Cxx/GeometricObjects/IsoparametricCellsDemo/)
+  - [Linear Cells](https://examples.vtk.org/site/Python/GeometricObjects/LinearCellsDemo/)
+  - [Isoparametric Cells](https://examples.vtk.org/site/Python/GeometricObjects/IsoparametricCellsDemo/)
 - **point_data**: A dictionary where each key corresponds to a dataset, and the associated value is a list with a length equal to the number of points, providing additional data or attributes for each point.
 - **cell_data**: A dictionary where each key corresponds to a dataset, and the associated value is a list with a length equal to the number of cells, providing additional data or attributes for each cell.
