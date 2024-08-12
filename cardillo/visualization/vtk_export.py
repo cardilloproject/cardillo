@@ -1,8 +1,10 @@
-import numpy as np
-from xml.dom import minidom
 from pathlib import Path
 from shutil import rmtree
+from xml.dom import minidom
+
+import numpy as np
 import vtk
+
 from cardillo.solver import Solution
 
 
@@ -153,9 +155,8 @@ class Export:
             p, c, p_data, c_data = contr.export(sol_i, **kwargs)
             l = len(points)
             points.extend(p)
-            cells.extend(
-                [(tup[0], [[i + l for i in idx] for idx in tup[1]]) for tup in c]
-            )
+
+            cells.extend([(tup[0], [idx + l for idx in tup[1]]) for tup in c])
             if c_data is not None:
                 self.__add_key(c_data, cell_data)
             if p_data is not None:

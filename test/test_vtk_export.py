@@ -9,24 +9,39 @@ from cardillo.visualization import Export
 
 g = 10
 
-def create_subsystems(nx, ny, dist, mass, frame):
+
+def create_subsystems(nx, ny, dist, mass, frame, height):
     pms, grav, contacts = [], [], []
     for ix in range(nx):
         for iy in range(ny):
-            pms.append(PointMass(mass=mass, q0=np.array((ix*dist, iy*dist, 0)), name=f"point_mass_{ix}_{iy}"))
-            grav.append(Force(np.array((0, 0, -mass*g)), pms[-1], name=f"force_{ix}_{iy}"))
-            contacts.append(Sphere2Plane(frame, pms[-1], mu=0, r=0, e_N=0.2, name=f"contact_{ix}_{iy}"))
+            pms.append(
+                PointMass(
+                    mass=mass,
+                    q0=np.array((ix * dist, iy * dist, height)),
+                    name=f"point_mass_{ix}_{iy}",
+                )
+            )
+            grav.append(
+                Force(np.array((0, 0, -mass * g)), pms[-1], name=f"force_{ix}_{iy}")
+            )
+            contacts.append(
+                Sphere2Plane(
+                    frame, pms[-1], mu=0, r=0, e_N=0.2, name=f"contact_{ix}_{iy}"
+                )
+            )
     return pms, grav, contacts
 
-if __name__== "__main__":
+
+def test_vtk_export(delete_files=True):
     nx, ny = 3, 3
     dist = 0.5
     mass = 1
-    
+    height = 1
+
     system = System()
     frame = system.origin
 
-    PMs, grav_forces, contacts = create_subsystems(nx, ny, dist, mass, frame)
+    PMs, grav_forces, contacts = create_subsystems(nx, ny, dist, mass, frame, height)
 
     system.add(*PMs, *grav_forces, *contacts)
     system.assemble()
@@ -42,7 +57,16 @@ if __name__== "__main__":
     path = f"{TEST_FOLDER}/_data"
     folder_name = "test_vtk_export"
     e = Export(path, folder_name, overwrite=True, fps=60, solution=solution)
+    e.export_contr(contacts)
     e.export_contr(PMs, name="PMs")
     e.export_contr(frame)
     e.export_contr(grav_forces)
-    e.export_contr(contacts)
+
+    if delete_files:
+        from shutil import rmtree
+
+        rmtree(f"{path}/{folder_name}")
+
+
+if __name__ == "__main__":
+    test_vtk_export(delete_files=False)
