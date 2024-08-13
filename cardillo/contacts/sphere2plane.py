@@ -1,7 +1,8 @@
 import numpy as np
 from vtk import VTK_LINE
+
+from cardillo.math.algebra import ax2skew, cross3
 from cardillo.math.approx_fprime import approx_fprime
-from cardillo.math.algebra import cross3, ax2skew
 from cardillo.math.prox import Sphere
 
 
@@ -150,6 +151,7 @@ class Sphere2Plane:
                 t, q, xi=self.xi
             ) @ self.subsystem.B_Psi_u(t, q, u, a, xi=self.xi)
         else:
+            self.A_IB = lambda t, q: np.eye(3)
             self.Omega = lambda t, q, u: np.zeros(3)
             self.Omega_q = lambda t, q, u: np.zeros((3, self.subsystem.nq))
             self.J_R = lambda t, q: np.zeros((self.subsystem.nu, 3))
