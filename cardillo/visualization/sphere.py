@@ -1,4 +1,5 @@
-from numpy import array, arange
+from numpy import arange, array
+from vtk import VTK_BEZIER_HEXAHEDRON
 
 weights = array(
     (
@@ -525,6 +526,6 @@ def vtk_sphere(radius):
         cell:       connectivity of Bezier Hexahedron cell
         point_data: additional data needed for Bezier Hexahedron cell
     """
-    cell = ("VTB_BEZIER_HEXAHEDRON", connectivity)
+    cell = (VTK_BEZIER_HEXAHEDRON, connectivity)
     point_data = {"RationalWeights": weights}
     return radius * points, cell, point_data
