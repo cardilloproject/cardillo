@@ -69,9 +69,6 @@ class PointMass:
     def local_uDOF_P(self, xi=None):
         return np.arange(self.nu)
 
-    def A_IB(self, t, q, xi=None):
-        return np.eye(3)
-
     def r_OP(self, t, q, xi=None, B_r_CP=np.zeros(3)):
         r = np.zeros(3, dtype=q.dtype)
         r[: self.nq] = q
