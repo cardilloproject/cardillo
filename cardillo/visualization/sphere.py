@@ -129,7 +129,7 @@ weights = array(
         0.5580507098857228,
         0.613144968432394,
     )
-)
+)[:, None]
 
 
 points = array(
@@ -512,7 +512,7 @@ points = array(
     ]
 ).reshape(-1, 3)
 
-connectivity = arange(125)[None]
+connectivity = arange(125)
 
 
 def vtk_sphere(radius):

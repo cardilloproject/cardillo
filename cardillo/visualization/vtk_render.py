@@ -8,10 +8,11 @@ from .vtk_export import make_ugrid
 
 
 class Renderer:
-    def __init__(self, system, winsize=(1000, 1000)) -> None:
+    def __init__(self, system, contributions = None, winsize=(1000, 1000)) -> None:
         super().__init__()
         self.active = False
         self.system = system
+        self.contributions = system.contributions if contributions is None else contributions
         self.ren = vtk.vtkRenderer()
         # self.ren.SetBackground(vtkNamedColors().GetColor3d("Grey"))
         self.ren.SetBackground(vtk.vtkNamedColors().GetColor3d("DarkGreen"))
@@ -34,7 +35,7 @@ class Renderer:
         self.cam_widget.On()
         self.camera = self.ren.GetActiveCamera()
 
-        for contr in self.system.contributions:
+        for contr in self.contributions:
             if hasattr(contr, "actors"):
                 for actor in contr.actors:
                     self.ren.AddActor(actor)
@@ -80,9 +81,7 @@ class Renderer:
         self.active = True
         while True:
             self._init_fps(len(solution.t))
-            for i, sol_i in enumerate(
-                Solution(solution.system, t=solution.t, q=solution.q, u=solution.u)
-            ):
+            for sol_i in solution:
                 self._update_fps()
                 self.step_render(sol_i.t, sol_i.q, sol_i.u)
                 if not self.active:
@@ -92,7 +91,7 @@ class Renderer:
                 return
 
     def step_render(self, t, q, u):
-        for contr in self.system.contributions:
+        for contr in self.contributions:
             if hasattr(contr, "step_render"):
                 contr.step_render(t, q[contr.qDOF], u[contr.uDOF])
             # TODO: rod needs nonlinear subdivision filter
