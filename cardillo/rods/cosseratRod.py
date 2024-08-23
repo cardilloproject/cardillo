@@ -103,6 +103,7 @@ def make_CosseratRod_Quat(mixed=True, constraints=None):
             polynomial_degree=2,
             reduced_integration=True,
             cross_section_inertias=CrossSectionInertias(),
+            **kwargs,
         ):
             nquadrature = polynomial_degree
             nquadrature_dyn = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
@@ -124,6 +125,7 @@ def make_CosseratRod_Quat(mixed=True, constraints=None):
                 u0=u0,
                 nquadrature_dyn=nquadrature_dyn,
                 cross_section_inertias=cross_section_inertias,
+                **kwargs,
             )
 
         @staticmethod
@@ -320,6 +322,7 @@ def make_CosseratRod_SE3(mixed=True, constraints=None):
                 u0=u0,
                 nquadrature_dyn=2,
                 cross_section_inertias=cross_section_inertias,
+                **kwargs,
             )
 
         @staticmethod
@@ -577,6 +580,7 @@ def make_CosseratRod_R12(mixed=True, constraints=None):
             polynomial_degree=2,
             reduced_integration=True,
             cross_section_inertias=CrossSectionInertias(),
+            **kwargs,
         ):
             nquadrature = polynomial_degree
             nquadrature_dyn = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
@@ -598,6 +602,7 @@ def make_CosseratRod_R12(mixed=True, constraints=None):
                 u0=u0,
                 nquadrature_dyn=nquadrature_dyn,
                 cross_section_inertias=cross_section_inertias,
+                **kwargs,
             )
 
         # returns interpolated positions, orientations and strains at xi in [0,1]

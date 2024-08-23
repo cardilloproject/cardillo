@@ -75,7 +75,11 @@ class CosseratRod(RodExportBase, ABC):
 
         """
         # call base class for all export properties
-        super().__init__(cross_section)
+        nelement_visual = kwargs.pop("nelement_visual", nelement)
+        subdivision = kwargs.pop("subdivision", 4)
+        super().__init__(
+            cross_section, nelement_visual=nelement_visual, subdivision=subdivision
+        )
 
         # rod properties
         self.material_model = material_model
@@ -1212,6 +1216,7 @@ class CosseratRodMixed(CosseratRod):
         nquadrature_dyn=None,
         cross_section_inertias=CrossSectionInertias(),
         idx_mixed=np.arange(6),
+        **kwargs,
     ):
         """Base class for mixed Petrov-Galerkin Cosserat rod formulations with
         quaternions for the nodal orientation parametrization.
@@ -1277,6 +1282,7 @@ class CosseratRodMixed(CosseratRod):
             u0=u0,
             nquadrature_dyn=nquadrature_dyn,
             cross_section_inertias=cross_section_inertias,
+            **kwargs,
         )
 
         #######################################################
@@ -1718,6 +1724,7 @@ def make_CosseratRodConstrained(mixed, constraints):
             u0=None,
             nquadrature_dyn=None,
             cross_section_inertias=CrossSectionInertias(),
+            **kwargs,
         ):
             """Base class for Petrov-Galerkin Cosserat rod formulations with
             additional constraints with quaternions for the nodal orientation
@@ -1773,6 +1780,7 @@ def make_CosseratRodConstrained(mixed, constraints):
                 nquadrature_dyn=nquadrature_dyn,
                 cross_section_inertias=cross_section_inertias,
                 idx_mixed=idx_mixed,
+                **kwargs,
             )
 
             ##################################################################

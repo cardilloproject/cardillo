@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 import numpy as np
+import vtk
 from vtk import VTK_BEZIER_WEDGE, VTK_BEZIER_HEXAHEDRON
 
 from cardillo.utility.bezier import L2_projection_Bezier_curve
@@ -12,8 +13,9 @@ from ._cross_section import (
 
 
 class RodExportBase(ABC):
-    def __init__(self, cross_section: CrossSection):
+    def __init__(self, cross_section: CrossSection, nelement_visual, subdivision):
         self.cross_section = cross_section
+        self.init_visualization(nelement_visual, subdivision)
 
     @abstractmethod
     def r_OP(self, t, q, xi, B_r_CP): ...
@@ -476,3 +478,270 @@ class RodExportBase(ABC):
             raise NotImplementedError
 
         return vtk_points, cells, point_data, cell_data
+
+    def bezier_volume_projection(self, q, case="C1"):
+        ################################
+        # project on cubic Bezier volume
+        ################################
+        r = []
+        d2 = []
+        d3 = []
+
+        num = self.nelement_visual * 4
+        for xi in np.linspace(0, 1, num):
+            xi = (xi,)
+            qp = q[self.local_qDOF_P(xi)]
+            r.append(self.r_OP(1, qp, xi))
+
+            _, d2i, d3i = self.A_IB(1, qp, xi).T
+            d2.extend([d2i])
+            d3.extend([d3i])
+
+        r_OPs, d2s, d3s = np.array(r).T, np.array(d2).T, np.array(d3).T
+        target_points_centerline = r_OPs.T
+
+        # create points of the target curves (three characteristic points
+        # of the cross section)
+        if isinstance(self.cross_section, CircularCrossSection):
+            ri = self.cross_section.radius
+            ru = 2 * ri
+            a = 2 * np.sqrt(3) * ri
+
+            target_points_0 = np.array(
+                [r_OP - ri * d3 for (r_OP, d3) in zip(r_OPs.T, d3s.T)]
+            )
+
+            target_points_1 = np.array(
+                [
+                    r_OP + d2 * a / 2 - ri * d3
+                    for (r_OP, d2, d3) in zip(r_OPs.T, d2s.T, d3s.T)
+                ]
+            )
+
+            target_points_2 = np.array(
+                [r_OP + d3 * ru for (r_OP, d3) in zip(r_OPs.T, d3s.T)]
+            )
+        elif isinstance(self.cross_section, RectangularCrossSection):
+            target_points_0 = target_points_centerline
+            target_points_1 = np.array(
+                [
+                    r_OP + d2 * self.cross_section.width / 2
+                    for (r_OP, d2) in zip(r_OPs.T, d2s.T)
+                ]
+            )
+            target_points_2 = np.array(
+                [
+                    r_OP + d3 * self.cross_section.height / 2
+                    for (r_OP, d3) in zip(r_OPs.T, d3s.T)
+                ]
+            )
+        else:
+            raise NotImplementedError
+
+        # project target points on cubic C1 Bézier curve
+        _, _, points_segments_0 = L2_projection_Bezier_curve(
+            target_points_0, self.nelement_visual, case=case
+        )
+        _, _, points_segments_1 = L2_projection_Bezier_curve(
+            target_points_1, self.nelement_visual, case=case
+        )
+        _, _, points_segments_2 = L2_projection_Bezier_curve(
+            target_points_2, self.nelement_visual, case=case
+        )
+
+        if isinstance(self.cross_section, CircularCrossSection):
+
+            def compute_missing_points(segment, layer):
+                P0 = points_segments_0[segment, layer]
+                P3 = points_segments_1[segment, layer]
+                P4 = points_segments_2[segment, layer]
+
+                P5 = 2 * P0 - P3
+                P1 = 0.5 * (P3 + P4)
+                P0 = 0.5 * (P5 + P3)
+                P2 = 0.5 * (P4 + P5)
+                return np.array([P0, P1, P2, P3, P4, P5])
+
+            # create correct VTK ordering, see
+            # https://coreform.com/papers/implementation-of-rational-bezier-cells-into-VTK-report.pdf:
+            vtk_points = []
+            for i in range(self.nelement_visual):
+                # compute all missing points of the layer
+                points_layer0 = compute_missing_points(i, 0)
+                points_layer1 = compute_missing_points(i, 1)
+                points_layer2 = compute_missing_points(i, 2)
+                points_layer3 = compute_missing_points(i, 3)
+
+                #######################
+                # 1. vertices (corners)
+                #######################
+
+                # bottom
+                for j in range(3):
+                    vtk_points.append(points_layer0[j])
+
+                # top
+                for j in range(3):
+                    vtk_points.append(points_layer3[j])
+
+                ##########
+                # 2. edges
+                ##########
+
+                # bottom
+                for j in range(3, 6):
+                    vtk_points.append(points_layer0[j])
+
+                # top
+                for j in range(3, 6):
+                    vtk_points.append(points_layer3[j])
+
+                # first and second
+                for j in range(3):
+                    vtk_points.append(points_layer1[j])
+                    vtk_points.append(points_layer2[j])
+
+                ##########
+                # 3. faces
+                ##########
+
+                # first and second
+                for j in range(3, 6):
+                    vtk_points.append(points_layer1[j])
+                    vtk_points.append(points_layer2[j])
+
+        elif isinstance(self.cross_section, RectangularCrossSection):
+
+            def compute_missing_points(segment, layer):
+                Q0 = points_segments_0[segment, layer]
+                Q1 = points_segments_1[segment, layer]
+                Q2 = points_segments_2[segment, layer]
+                P0 = Q0 - (Q2 - Q0) - (Q1 - Q0)
+                P1 = Q0 - (Q2 - Q0) + (Q1 - Q0)
+                P2 = Q0 + (Q2 - Q0) + (Q1 - Q0)
+                P3 = Q0 + (Q2 - Q0) - (Q1 - Q0)
+
+                return np.array([P0, P1, P2, P3])
+
+            vtk_points = []
+            for i in range(self.nelement_visual):
+                # compute all missing points of the layer
+                points_layer0 = compute_missing_points(i, 0)
+                points_layer1 = compute_missing_points(i, 1)
+                points_layer2 = compute_missing_points(i, 2)
+                points_layer3 = compute_missing_points(i, 3)
+
+                #######################
+                # 1. vertices (corners)
+                #######################
+
+                # bottom
+                for j in range(4):
+                    vtk_points.append(points_layer0[j])
+                # top
+                for j in range(4):
+                    vtk_points.append(points_layer3[j])
+
+                ##########
+                # 2. edges
+                ##########
+                # first and second
+                # for j in [0, 1, 3, 2]:  # ordering for vtu file version<2.0, e.g. 0.1
+                for j in range(4):  # ordering for vtu file version>=2.0
+                    vtk_points.append(points_layer1[j])
+                    vtk_points.append(points_layer2[j])
+
+        return np.array(vtk_points)
+
+    def init_visualization(self, nelement_visual, subdivision=4):
+        self.nelement_visual = nelement_visual
+        self.actors = []
+        if isinstance(self.cross_section, CircularCrossSection):
+            npts = 24
+            weights = [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                0.5,
+                0.5,
+                0.5,
+                0.5,
+                0.5,
+                0.5,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                0.5,
+                0.5,
+                0.5,
+                0.5,
+                0.5,
+                0.5,
+            ]
+            degrees = [2, 2, 3]
+            ctype = vtk.VTK_BEZIER_WEDGE
+        elif isinstance(self.cross_section, RectangularCrossSection):
+            npts = 16
+            weights = [1] * 16
+            degrees = [1, 1, 3]
+            ctype = vtk.VTK_BEZIER_HEXAHEDRON
+        else:
+            raise NotImplementedError
+
+        ugrid = vtk.vtkUnstructuredGrid()
+
+        # points
+        self.vtkpoints = vtk.vtkPoints()
+        self.vtkpoints.SetNumberOfPoints(npts * self.nelement_visual)
+        ugrid.SetPoints(self.vtkpoints)
+
+        # cells
+        ugrid.Allocate(self.nelement_visual)
+        for i in range(self.nelement_visual):
+            ugrid.InsertNextCell(ctype, npts, list(range(i * npts, (i + 1) * npts)))
+
+        # point data
+        pdata = ugrid.GetPointData()
+        value = weights * self.nelement_visual
+        parray = vtk.vtkDoubleArray()
+        parray.SetName("RationalWeights")
+        parray.SetNumberOfTuples(npts)
+        parray.SetNumberOfComponents(1)
+        for i, vi in enumerate(value):
+            parray.InsertTuple(i, [vi])
+        pdata.SetRationalWeights(parray)
+
+        # cell data
+        cdata = ugrid.GetCellData()
+        carray = vtk.vtkIntArray()
+        carray.SetName("HigherOrderDegrees")
+        carray.SetNumberOfTuples(self.nelement_visual)
+        carray.SetNumberOfComponents(3)
+        for i in range(self.nelement_visual):
+            carray.InsertTuple(i, degrees)
+        cdata.SetHigherOrderDegrees(carray)
+
+        filter = vtk.vtkDataSetSurfaceFilter()
+        filter.SetInputData(ugrid)
+        filter.SetNonlinearSubdivisionLevel(subdivision)
+
+        mapper = vtk.vtkDataSetMapper()
+        mapper.SetInputConnection(filter.GetOutputPort())
+
+        actor = vtk.vtkActor()
+        actor.SetMapper(mapper)
+        actor.GetProperty().SetColor(82 / 255, 108 / 255, 164 / 255)
+        # actor.GetProperty().SetOpacity(0.2)
+        self.actors.append(actor)
+
+    def step_render(self, t, q, u):
+        points = self.bezier_volume_projection(q)
+        for i, p in enumerate(points):
+            self.vtkpoints.SetPoint(i, p)
+        self.vtkpoints.Modified()
