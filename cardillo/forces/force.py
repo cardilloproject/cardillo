@@ -92,7 +92,7 @@ class B_Force:
         return einsum(
             "ijk,j,il->lk", self.A_IB_q(t, q), self.force(t), self.J_P(t, q)
         ) + einsum("i,ijk->jk", self.A_IB(t, q) @ self.force(t), self.J_P_q(t, q))
-    
+
     def export(self, sol_i, **kwargs):
         r_OP = self.r_OP(sol_i.t, sol_i.q[self.qDOF])
         A_IB = self.A_IB(sol_i.t, sol_i.q[self.qDOF])
