@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 import numpy as np
 from vtk import VTK_BEZIER_WEDGE, VTK_BEZIER_HEXAHEDRON
+from warnings import warn
 
 from cardillo.utility.bezier import L2_projection_Bezier_curve
 
@@ -474,3 +475,144 @@ class RodExportBase(ABC):
             raise NotImplementedError
 
         return vtk_points, cells, point_data, cell_data
+
+
+class RodExportBaseStress(RodExportBase):
+
+    @abstractmethod
+    def eval_stresses(self, t, q, la_c, la_g, xi): ...
+
+    def export(
+        self, sol_i, continuity="C1", circle_as_wedge=True, level="volume", **kwargs
+    ):
+
+        vtk_points, cells, point_data, cell_data = super().export(
+            sol_i,
+            continuity=continuity,
+            circle_as_wedge=circle_as_wedge,
+            level=level,
+            **kwargs,
+        )
+
+        export_stress = isinstance(self.cross_section, RectangularCrossSection)
+        if export_stress:
+            B_n_weights, B_m_weights = self.export_stresses(
+                sol_i, level=level, circle_as_wedge=circle_as_wedge, **kwargs
+            )
+            point_data["B_n"] = B_n_weights
+            point_data["B_m"] = B_m_weights
+        else:
+            warn("Stresses will not be exported: No rectangular cross section.")
+
+        return vtk_points, cells, point_data, cell_data
+
+    def export_stresses(self, sol_i, level="volume", circle_as_wedge=True, **kwargs):
+
+        assert (
+            level == "volume"
+        ), "Stress export is only implemented for level='volume'."
+        assert isinstance(
+            self.cross_section, RectangularCrossSection
+        ), "Stress export is only implemented for RectangularCrossSection."
+
+        t = sol_i.t
+        q = sol_i.q
+        la_c = sol_i.la_c
+        la_g = sol_i.la_g
+
+        if "num" in kwargs:
+            num = kwargs["num"]
+        else:
+            num = self.nelement * 4
+
+        # TODO: to represent discontinuities in contact forces and moment, xis may not be located at the element boundaries
+        B_ns = np.empty((3, num))
+        B_ms = np.empty((3, num))
+        xis = np.linspace(0, 1, num=num)
+        for j in range(num):
+            B_ns[:, j], B_ms[:, j] = self.eval_stresses(t, q, la_c, la_g, xis[j])
+
+        if level == "volume":
+            assert isinstance(
+                self.cross_section, (CircularCrossSection, RectangularCrossSection)
+            ), "Volume export is only implemented for CircularCrossSection and RectangularCrossSection."
+
+            ################################
+            # project on cubic Bezier volume
+            ################################
+            if "n_segments" in kwargs:
+                n_segments = kwargs["n_segments"]
+            else:
+                n_segments = self.nelement
+
+            xis_e_int = np.linspace(0, 1, self.nelement + 1)[1:-1]
+            for xi_e in xis_e_int:
+                assert (
+                    xi_e not in xis
+                ), f"xis for fitting may not contain internal element boundaries to represent discontinuities in stresses. \nInternal boundaries at {xis_e_int}, \nxis_fitting={xis}."
+
+            assert num >= 2 * n_segments
+
+            n_cont = "C-1"
+            if hasattr(self, "G1_continuity"):
+                if not self.G1_continuity:
+                    n_cont = "C0"
+
+            # project contact forces and moments on cubic C1 bezier curve
+            _, _, B_n_segments = L2_projection_Bezier_curve(
+                B_ns.T,
+                n_segments,
+                case=n_cont,
+            )
+            _, _, B_m_segments = L2_projection_Bezier_curve(
+                B_ms.T,
+                n_segments,
+                case="C-1",
+            )
+
+            if isinstance(self.cross_section, RectangularCrossSection):
+
+                # create correct VTK ordering, see
+                # https://coreform.com/papers/implementation-of-rational-bezier-cells-into-VTK-report.pdf:
+                vtk_B_n_weights = []
+                vtk_B_m_weights = []
+                for i in range(n_segments):
+                    # set all values the same per layer for contact forces and couples
+                    B_n_layer0 = np.repeat([B_n_segments[i, 0]], 4, axis=0)
+                    B_n_layer1 = np.repeat([B_n_segments[i, 1]], 4, axis=0)
+                    B_n_layer2 = np.repeat([B_n_segments[i, 2]], 4, axis=0)
+                    B_n_layer3 = np.repeat([B_n_segments[i, 3]], 4, axis=0)
+                    B_m_layer0 = np.repeat([B_m_segments[i, 0]], 4, axis=0)
+                    B_m_layer1 = np.repeat([B_m_segments[i, 1]], 4, axis=0)
+                    B_m_layer2 = np.repeat([B_m_segments[i, 2]], 4, axis=0)
+                    B_m_layer3 = np.repeat([B_m_segments[i, 3]], 4, axis=0)
+
+                    #######################
+                    # 1. vertices (corners)
+                    #######################
+
+                    # bottom
+                    for j in range(4):
+                        vtk_B_n_weights.append(B_n_layer0[j])
+                        vtk_B_m_weights.append(B_m_layer0[j])
+
+                    # top
+                    for j in range(4):
+                        vtk_B_n_weights.append(B_n_layer3[j])
+                        vtk_B_m_weights.append(B_m_layer3[j])
+
+                    ##########
+                    # 2. edges
+                    ##########
+                    # first and second
+                    # for j in [0, 1, 3, 2]:  # ordering for vtu file version<2.0, e.g. 0.1
+                    for j in range(4):  # ordering for vtu file version>=2.0
+                        vtk_B_n_weights.append(B_n_layer1[j])
+                        vtk_B_n_weights.append(B_n_layer2[j])
+                        vtk_B_m_weights.append(B_m_layer1[j])
+                        vtk_B_m_weights.append(B_m_layer2[j])
+
+        else:
+            raise NotImplementedError
+
+        return vtk_B_n_weights, vtk_B_m_weights
