@@ -4,6 +4,7 @@ from vtk import VTK_VERTEX
 
 class B_Moment:
     """Moment defined in the body-fixed basis of a subsystem."""
+
     def __init__(self, B_M, subsystem, xi=zeros(3), name="moment"):
         if not callable(B_M):
             self.B_M = lambda t: B_M
@@ -75,4 +76,3 @@ class Moment:
         cells = [(VTK_VERTEX, [0])]
         cell_data = dict(M=[I_M])
         return points, cells, None, cell_data
-    
