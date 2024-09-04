@@ -13,7 +13,7 @@ class Force:
         Object on which force acts.
     xi : #TODO
     B_r_CP : np.ndarray (3,)
-        Position vector of point of attack (P) w.r.t. center of mass (C) in body-fixed K-basis.
+        Position vector of point of attack (P) w.r.t. center of mass (C) in body-fixed B-basis.
     name : str
         Name of contribution.
     """
@@ -51,28 +51,29 @@ class Force:
 
 
 class B_Force:
-    r"""Force represented w.r.t. body-fixed K-basis
+    r"""Force represented w.r.t. body-fixed B-basis
 
     Parameters
     ----------
     force : np.ndarray (3,)
-        Force w.r.t. body-fixed K-basis as a callable function of time t.
+        Force w.r.t. body-fixed B-basis as a callable function of time t.
     subsystem : object
         Object on which force acts.
     xi : #TODO
     B_r_CP : np.ndarray (3,)
-        Position vector of point of attack (P) w.r.t. center of mass (C) in body-fixed K-basis.
+        Position vector of point of attack (P) w.r.t. center of mass (C) in body-fixed B-basis.
     name : str
         Name of contribution.
     """
 
-    def __init__(self, force, subsystem, xi=zeros(3), B_r_CP=zeros(3)):
+    def __init__(self, force, subsystem, xi=zeros(3), B_r_CP=zeros(3), name="force"):
         if not callable(force):
             self.force = lambda t: force
         else:
             self.force = force
         self.subsystem = subsystem
         self.xi = xi
+        self.name = name
 
         self.A_IB = lambda t, q: subsystem.A_IB(t, q, xi=xi)
         self.A_IB_q = lambda t, q: subsystem.A_IB_q(t, q, xi=xi)
@@ -91,3 +92,13 @@ class B_Force:
         return einsum(
             "ijk,j,il->lk", self.A_IB_q(t, q), self.force(t), self.J_P(t, q)
         ) + einsum("i,ijk->jk", self.A_IB(t, q) @ self.force(t), self.J_P_q(t, q))
+    
+    def export(self, sol_i, **kwargs):
+        r_OP = self.r_OP(sol_i.t, sol_i.q[self.qDOF])
+        A_IB = self.A_IB(sol_i.t, sol_i.q[self.qDOF])
+        I_F = A_IB @ self.force(sol_i.t)
+
+        points = [r_OP]
+        cells = [(VTK_VERTEX, [0])]
+        cell_data = dict(F=[I_F])
+        return points, cells, None, cell_data
