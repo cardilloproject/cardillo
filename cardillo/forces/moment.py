@@ -3,13 +3,24 @@ from vtk import VTK_VERTEX
 
 
 class B_Moment:
-    """Moment defined in the body-fixed basis of a subsystem."""
+    r"""Moment represented w.r.t. body-fixed B-basis
 
-    def __init__(self, B_M, subsystem, xi=zeros(3), name="moment"):
-        if not callable(B_M):
-            self.B_M = lambda t: B_M
+    Parameters
+    ----------
+    moment : np.ndarray (3,)
+        Moment w.r.t. body-fixed B-basis as a callable function of time t.
+    subsystem : object
+        Object on which moment acts.
+    xi : #TODO
+    name : str
+        Name of contribution.
+    """
+
+    def __init__(self, moment, subsystem, xi=zeros(3), name="moment"):
+        if not callable(moment):
+            self.moment = lambda t: moment
         else:
-            self.B_M = B_M
+            self.moment = moment
         self.subsystem = subsystem
         self.xi = xi
         self.name = name
@@ -22,15 +33,15 @@ class B_Moment:
         self.uDOF = self.subsystem.uDOF[self.subsystem.local_uDOF_P(self.xi)]
 
     def h(self, t, q, u):
-        return self.B_M(t) @ self.B_J_R(t, q)
+        return self.moment(t) @ self.B_J_R(t, q)
 
     def h_q(self, t, q, u):
-        return einsum("i,ijk->jk", self.B_M(t), self.B_J_R_q(t, q))
+        return einsum("i,ijk->jk", self.moment(t), self.B_J_R_q(t, q))
 
     def export(self, sol_i, **kwargs):
         r_OP = self.subsystem.r_OP(sol_i.t, sol_i.q[self.qDOF], xi=self.xi)
         A_IB = self.subsystem.A_IB(sol_i.t, sol_i.q[self.qDOF], xi=self.xi)
-        I_M = A_IB @ self.B_M(sol_i.t)
+        I_M = A_IB @ self.moment(sol_i.t)
 
         points = [r_OP]
         cells = [(VTK_VERTEX, [0])]
@@ -39,13 +50,24 @@ class B_Moment:
 
 
 class Moment:
-    """Moment defined in the inertial fixed."""
+    r"""Moment represented w.r.t. I-basis
 
-    def __init__(self, I_M, subsystem, xi=zeros(3), name="moment"):
-        if not callable(I_M):
-            self.I_M = lambda t: I_M
+    Parameters
+    ----------
+    moment : np.ndarray (3,)
+        Moment w.r.t. inertial I-basis as a callable function of time t.
+    subsystem : object
+        Object on which moment acts.
+    xi : #TODO
+    name : str
+        Name of contribution.
+    """
+
+    def __init__(self, moment, subsystem, xi=zeros(3), name="moment"):
+        if not callable(moment):
+            self.moment = lambda t: moment
         else:
-            self.I_M = I_M
+            self.moment = moment
         self.subsystem = subsystem
         self.xi = xi
         self.name = name
@@ -60,17 +82,17 @@ class Moment:
         self.uDOF = self.subsystem.uDOF[self.subsystem.local_uDOF_P(self.xi)]
 
     def h(self, t, q, u):
-        return (self.I_M(t) @ self.A_IB(t, q)) @ self.B_J_R(t, q)
+        return (self.moment(t) @ self.A_IB(t, q)) @ self.B_J_R(t, q)
 
     def h_q(self, t, q, u):
-        I_M = self.I_M(t)
+        I_M = self.moment(t)
         return einsum(
             "i,ijl,jk->kl", I_M, self.A_IB_q(t, q), self.B_J_R(t, q)
         ) + einsum("i,ijk->jk", I_M @ self.A_IB(t, q), self.B_J_R_q(t, q))
 
     def export(self, sol_i, **kwargs):
         r_OP = self.subsystem.r_OP(sol_i.t, sol_i.q[self.qDOF], xi=self.xi)
-        I_M = self.I_M(sol_i.t)
+        I_M = self.moment(sol_i.t)
 
         points = [r_OP]
         cells = [(VTK_VERTEX, [0])]
