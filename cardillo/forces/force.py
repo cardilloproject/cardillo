@@ -26,6 +26,7 @@ class Force:
         self.subsystem = subsystem
         self.xi = xi
         self.name = name
+
         self.r_OP = lambda t, q: subsystem.r_OP(t, q, xi, B_r_CP)
         self.J_P = lambda t, q: subsystem.J_P(t, q, xi, B_r_CP)
         self.J_P_q = lambda t, q: subsystem.J_P_q(t, q, xi, B_r_CP)
