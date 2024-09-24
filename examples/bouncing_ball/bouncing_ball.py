@@ -149,7 +149,7 @@ if __name__ == "__main__":
     ax[1, 1].grid()
 
     # plot time evolution of angular velocity around y-axis
-    ax[1, 2].plot(t, phi_dot, "-g", label="$\dot{\varphi}$")
+    ax[1, 2].plot(t, phi_dot, "-g", label=r"$\dot{\varphi}$")
     ax[1, 2].set_title("Evolution of angular velocity")
     ax[1, 2].set_xlabel("t")
     ax[1, 2].set_ylabel("v_phi")

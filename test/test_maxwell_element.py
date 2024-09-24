@@ -1,4 +1,6 @@
 import numpy as np
+import pytest
+from itertools import product
 import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
 
@@ -6,7 +8,7 @@ from cardillo import System
 from cardillo.discrete import PointMass
 from cardillo.interactions import TwoPointInteraction
 from cardillo.force_laws import MaxwellElement as MaxwellElementFL
-from cardillo.solver import BackwardEuler, Moreau, ScipyIVP, Rattle
+from cardillo.solver import ScipyIVP, ScipyDAE, BackwardEuler, Moreau, Rattle
 
 
 class MaxwellElement:
@@ -163,8 +165,26 @@ class MaxwellElementForceElement:
         return self.system
 
 
-# TODO: Make this a parametrized test!
-if __name__ == "__main__":
+solvers_and_kwargs = [
+    (ScipyIVP, {}),
+    (ScipyDAE, {}),
+    (BackwardEuler, {}),
+    (Moreau, {}),
+    (Rattle, {}),
+]
+
+formulation = [
+    "MaxwellElement",
+    "MaxwellElementCompliance",
+    "MaxwellElementForceElement",
+]
+
+test_parameters = product(solvers_and_kwargs, formulation)
+
+
+@pytest.mark.parametrize("Solver_and_kwargs, formulation", test_parameters)
+def test_maxwell(Solver_and_kwargs, formulation, show=False):
+    Solver, solver_kwargs = Solver_and_kwargs
     mass = 1e-3
     stiffness = 1e1
     damping = 1
@@ -176,28 +196,32 @@ if __name__ == "__main__":
     u0 = np.array([x_dot0], dtype=float)
     la_c0 = np.array([-5], dtype=float)
 
-    # maxwell_element = MaxwellElement(mass, stiffness, damping, l0, q0, u0)
-    # maxwell_element = MaxwellElementCompliance(
-    #     mass, stiffness, damping, l0, q0, u0, la_c0
-    # )
-    # system = System()
-    # system.add(maxwell_element)
-    # system.assemble()
+    match formulation:
+        case "MaxwellElement":
+            maxwell_element = MaxwellElement(mass, stiffness, damping, l0, q0, u0)
+            system = System()
+            system.add(maxwell_element)
+            system.assemble()
+        case "MaxwellElementCompliance":
+            maxwell_element = MaxwellElementCompliance(
+                mass, stiffness, damping, l0, q0, u0, la_c0
+            )
+            system = System()
+            system.add(maxwell_element)
+            system.assemble()
+        case "MaxwellElementForceElement":
+            system = MaxwellElementForceElement(
+                mass, stiffness, damping, l0, x0, x_D0, x_dot0
+            ).get_system()
+        case _:
+            raise NotImplementedError
 
-    system = MaxwellElementForceElement(
-        mass, stiffness, damping, l0, x0, x_D0, x_dot0
-    ).get_system()
-
-    t0 = 0
     t1 = 1
     dt = 1e-3
-    sol = BackwardEuler(system, t1, dt).solve()
-    # sol = ScipyIVP(system, t1, dt).solve()
-    # sol = Moreau(system, t1, dt).solve()
-    # sol = Rattle(system, t1, dt).solve()
+    sol = Solver(system, t1, dt, *solver_kwargs).solve()
     t, q, u = sol.t, sol.q, sol.u
 
-    # - ref. solution
+    # reference solution
     def eqm(t, z):
         x, x_d, u = z
         dx = u
@@ -209,17 +233,23 @@ if __name__ == "__main__":
     t_ref = sol_ref.t
     z_ref = sol_ref.y
 
-    fig, ax = plt.subplots(1, 2)
-    ax[0].plot(t, q[:, 0], "-b", label="x")
-    ax[0].plot(t_ref, z_ref[0], "--b", label="x_ref")
-    ax[0].plot(t, q[:, -1], "-r", label="x_D")
-    ax[0].plot(t_ref, z_ref[1], "--r", label="x_D_ref")
-    ax[0].grid()
-    ax[0].legend()
-    ax[1].plot(t, u[:, 0], "-b", label="x_dot")
-    ax[1].plot(t_ref, z_ref[2], "--b", label="x_dot_ref")
-    ax[1].grid()
+    if show:
+        fig, ax = plt.subplots(1, 2)
+        ax[0].plot(t, q[:, 0], "-b", label="x")
+        ax[0].plot(t_ref, z_ref[0], "--b", label="x_ref")
+        ax[0].plot(t, q[:, -1], "-r", label="x_D")
+        ax[0].plot(t_ref, z_ref[1], "--r", label="x_D_ref")
+        ax[0].grid()
+        ax[0].legend()
+        ax[1].plot(t, u[:, 0], "-b", label="x_dot")
+        ax[1].plot(t_ref, z_ref[2], "--b", label="x_dot_ref")
+        ax[1].grid()
 
-    ax[0].legend()
-    ax[1].legend()
-    plt.show()
+        ax[0].legend()
+        ax[1].legend()
+        plt.show()
+
+
+if __name__ == "__main__":
+    for p in test_parameters:
+        test_maxwell(*p, show=True)

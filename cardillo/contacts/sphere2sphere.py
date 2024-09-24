@@ -155,6 +155,7 @@ class Sphere2Sphere:
                 t, q[:nq1], xi=self.xi1
             ) @ self.subsystem1.B_Psi_u(t, q[:nq1], u[:nu1], a[:nu1], xi=self.xi1)
         else:
+            self.A_IB1 = lambda t, q: np.eye(3)
             self.Omega1 = lambda t, q, u: np.zeros(3)
             self.Omega1_q1 = lambda t, q, u: np.zeros((3, self.subsystem1.nq))
             self.J1_R = lambda t, q: np.zeros((self.subsystem1.nu, 3))
@@ -227,6 +228,7 @@ class Sphere2Sphere:
                 t, q[nq1:], xi=self.xi
             ) @ self.subsystem2.B_Psi_u(t, q[nq1:], u[nu1:], a[nu1:], xi=self.xi)
         else:
+            self.A_IB2 = lambda t, q: np.eye(3)
             self.Omega2 = lambda t, q, u: np.zeros(3)
             self.Omega2_q2 = lambda t, q, u: np.zeros((3, self.subsystem2.nq))
             self.J2_R = lambda t, q: np.zeros((self.subsystem2.nu, 3))

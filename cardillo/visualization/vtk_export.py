@@ -1,7 +1,7 @@
-import numpy as np
-from xml.dom import minidom
 from pathlib import Path
 from shutil import rmtree
+from xml.dom import minidom
+import numpy as np
 import vtk
 from cardillo.solver import Solution
 
@@ -68,57 +68,28 @@ class Export:
         with (path).open("w") as f:
             f.write(xml_str)
 
-    def __prepare_data(self, sol):
-        frames = len(sol.t)
+    def __prepare_data(self, solution):
+        frames = len(solution.t)
         # target_frames = min(len(t), 100)
-        animation_time_ = sol.t[-1] - sol.t[0]
+        animation_time_ = solution.t[-1] - solution.t[0]
         target_frames = max(1, int(animation_time_ * self.fps))
         frac = max(1, int(frames / target_frames))
 
         frames = target_frames
-        t = sol.t[::frac]
-        q = sol.q[::frac]
-        if sol.u is not None:
-            u = sol.u[::frac]
-        else:
-            u = None
-        if sol.u_dot is not None:
-            u_dot = sol.u_dot[::frac]
-        else:
-            u_dot = None
-        if sol.la_g is not None:
-            la_g = sol.la_g[::frac]
-        else:
-            la_g = None
-        if sol.la_gamma is not None:
-            la_gamma = sol.la_gamma[::frac]
-        else:
-            la_gamma = None
-        if hasattr(sol, "q_dot"):
-            q_dot = sol.q_dot[::frac]
-        else:
-            q_dot = None
-        if hasattr(sol, "P_N"):
-            P_N = sol.P_N[::frac]
-        else:
-            P_N = None
-        if hasattr(sol, "P_F"):
-            P_F = sol.P_F[::frac]
-        else:
-            P_F = None
+        keys = [*solution.__dict__.keys()]
+        keys.remove("solver_summary")
+        keys.remove("system")
 
-        # TODO default values + not None values of solution object
+        new_solution = {}
+        for key in keys:
+            try:
+                new_solution[key] = solution.__getattribute__(key)[::frac]
+            except:
+                new_solution[key] = None
         self.solution = Solution(
-            sol.system,
-            t=t,
-            q=q,
-            u=u,
-            q_dot=q_dot,
-            u_dot=u_dot,
-            la_g=la_g,
-            la_gamma=la_gamma,
-            P_N=P_N,
-            P_F=P_F,
+            system=solution.system,
+            solver_summary=solution.solver_summary,
+            **new_solution,
         )
 
     def __create_vtk_folder(self, folder_name: str, overwrite: bool):
@@ -143,7 +114,7 @@ class Export:
                 if isinstance(data_read[key], list):
                     data_write[key].extend(data_read[key])
                 else:
-                    data_write[key] = np.hstack((data_write[key], data_read[key]))
+                    data_write[key] = np.vstack((data_write[key], data_read[key]))
 
     def __export_list(self, sol_i, **kwargs):
         contr_list = kwargs.pop("contr_list")
@@ -153,9 +124,8 @@ class Export:
             p, c, p_data, c_data = contr.export(sol_i, **kwargs)
             l = len(points)
             points.extend(p)
-            cells.extend(
-                [(tup[0], [[i + l for i in idx] for idx in tup[1]]) for tup in c]
-            )
+
+            cells.extend([(tup[0], [idx + l for idx in tup[1]]) for tup in c])
             if c_data is not None:
                 self.__add_key(c_data, cell_data)
             if p_data is not None:
@@ -214,7 +184,7 @@ class Export:
             pdata = ugrid.GetPointData()
             if point_data is not None:
                 for key, value in point_data.items():
-                    value = np.array(value)
+                    value = np.atleast_2d(value).reshape((len(value), -1))
                     n, dim = value.shape
                     parray = dtype_map(value.dtype)()
                     parray.SetName(key)
@@ -232,7 +202,7 @@ class Export:
             cdata = ugrid.GetCellData()
             if cell_data is not None:
                 for key, value in cell_data.items():
-                    value = np.array(value)
+                    value = np.atleast_2d(value).reshape((len(value), -1))
                     m, dim = value.shape
                     carray = dtype_map(value.dtype)()
                     carray.SetName(key)

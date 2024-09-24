@@ -7,6 +7,7 @@ from cardillo.forces import Force
 from cardillo.force_laws import KelvinVoigtElement as SpringDamper
 from cardillo.interactions import TwoPointInteraction
 from cardillo.solver import BackwardEuler, SolverOptions, save_solution
+from cardillo.solver import ScipyDAE
 
 if __name__ == "__main__":
     ###################
@@ -78,9 +79,10 @@ if __name__ == "__main__":
     # simulation
     ############
     dt = 1e-2  # time step
-    solver = BackwardEuler(
-        system, t1, dt, options=SolverOptions(newton_max_iter=50)
-    )  # create solver
+    # solver = BackwardEuler(
+    #     system, t1, dt, options=SolverOptions(newton_max_iter=50)
+    # )  # create solver
+    solver = ScipyDAE(system, t1, dt, atol=1e-3, rtol=1e-3)
     sol = solver.solve()  # simulate system
 
     ###############
