@@ -363,7 +363,7 @@ class CosseratRod(RodExportBaseStress, ABC):
         r_OP0=np.zeros(3, dtype=float),
         A_IB0=np.eye(3, dtype=float),
         v_P0=np.zeros(3, dtype=float),
-        B_omega_IK0=np.zeros(3, dtype=float),
+        B_omega_IB0=np.zeros(3, dtype=float),
     ):
         """ "Compute initial generalized position and velocity coordinates for straight configuration"""
         nnodes = polynomial_degree * nelement + 1
@@ -389,13 +389,13 @@ class CosseratRod(RodExportBaseStress, ABC):
         # centerline velocities
         v_P = np.zeros_like(r_OP, dtype=float)
         for i in range(nnodes):
-            v_P[:, i] = v_P0 + cross3(A_IB0 @ B_omega_IK0, (r_OP[:, i] - r_OP0))
+            v_P[:, i] = v_P0 + cross3(A_IB0 @ B_omega_IB0, (r_OP[:, i] - r_OP0))
 
         # reshape generalized velocity coordinates to nodal ordering
         u_r = v_P.reshape(-1, order="C")
 
         # all nodes share the same angular velocity
-        u_p = np.repeat(B_omega_IK0, nnodes)
+        u_p = np.repeat(B_omega_IB0, nnodes)
 
         q0 = np.concatenate([q_r, q_p])
         u0 = np.concatenate([u_r, u_p])
