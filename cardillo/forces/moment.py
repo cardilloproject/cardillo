@@ -42,10 +42,11 @@ class B_Moment:
         r_OP = self.subsystem.r_OP(sol_i.t, sol_i.q[self.qDOF], xi=self.xi)
         A_IB = self.subsystem.A_IB(sol_i.t, sol_i.q[self.qDOF], xi=self.xi)
         I_M = A_IB @ self.moment(sol_i.t)
+        I_M1 = A_IB @ self.moment(1)
 
         points = [r_OP]
         cells = [(VTK_VERTEX, [0])]
-        cell_data = dict(M=[I_M])
+        cell_data = dict(M=[I_M], M1=[I_M1])
         return points, cells, None, cell_data
 
 
@@ -93,8 +94,9 @@ class Moment:
     def export(self, sol_i, **kwargs):
         r_OP = self.subsystem.r_OP(sol_i.t, sol_i.q[self.qDOF], xi=self.xi)
         I_M = self.moment(sol_i.t)
+        I_M1 = self.moment(1)
 
         points = [r_OP]
         cells = [(VTK_VERTEX, [0])]
-        cell_data = dict(M=[I_M])
+        cell_data = dict(M=[I_M], M1=[I_M1])
         return points, cells, None, cell_data
