@@ -47,7 +47,7 @@ class Force:
     def export(self, sol_i, **kwargs):
         points = [self.r_OP(sol_i.t, sol_i.q[self.qDOF])]
         cells = [(VTK_VERTEX, [0])]
-        cell_data = dict(F=[self.force(sol_i.t)])
+        cell_data = dict(F=[self.force(sol_i.t)], F1=[self.force(1)])
         return points, cells, None, cell_data
 
 
@@ -98,8 +98,9 @@ class B_Force:
         r_OP = self.r_OP(sol_i.t, sol_i.q[self.qDOF])
         A_IB = self.A_IB(sol_i.t, sol_i.q[self.qDOF])
         I_F = A_IB @ self.force(sol_i.t)
+        I_F1 = A_IB @ self.force(1)
 
         points = [r_OP]
         cells = [(VTK_VERTEX, [0])]
-        cell_data = dict(F=[I_F])
+        cell_data = dict(F=[I_F], F1=[I_F1])
         return points, cells, None, cell_data
