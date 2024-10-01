@@ -134,7 +134,7 @@ def make_CosseratRod_Quat(mixed=True, constraints=None):
             r_OP0=np.zeros(3, dtype=float),
             A_IB0=np.eye(3, dtype=float),
             v_P0=np.zeros(3, dtype=float),
-            B_omega_IK0=np.zeros(3, dtype=float),
+            B_omega_IB0=np.zeros(3, dtype=float),
         ):
             return CosseratRod.straight_initial_configuration(
                 nelement,
@@ -143,7 +143,7 @@ def make_CosseratRod_Quat(mixed=True, constraints=None):
                 r_OP0=r_OP0,
                 A_IB0=A_IB0,
                 v_P0=v_P0,
-                B_omega_IK0=B_omega_IK0,
+                B_omega_IB0=B_omega_IB0,
             )
 
         @cachedmethod(
@@ -357,7 +357,7 @@ def make_CosseratRod_SE3(mixed=True, constraints=None):
             r_OP0=np.zeros(3, dtype=float),
             A_IB0=np.eye(3, dtype=float),
             v_P0=np.zeros(3, dtype=float),
-            B_omega_IK0=np.zeros(3, dtype=float),
+            B_omega_IB0=np.zeros(3, dtype=float),
             **kwargs,
         ):
             return CosseratRod.straight_initial_configuration(
@@ -367,7 +367,7 @@ def make_CosseratRod_SE3(mixed=True, constraints=None):
                 r_OP0=r_OP0,
                 A_IB0=A_IB0,
                 v_P0=v_P0,
-                B_omega_IK0=B_omega_IK0,
+                B_omega_IB0=B_omega_IB0,
             )
 
         @cachedmethod(
