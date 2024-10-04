@@ -59,8 +59,6 @@ class RodExportBase(ABC):
         else:
             num = self.nelement * 4
 
-        r_OPs, d1s, d2s, d3s = self.frames(q, num=num)
-
         if level == "centerline + directors":
             #######################################
             # simple export of points and directors
@@ -161,16 +159,6 @@ class RodExportBase(ABC):
                 target_points_2, n_segments, case=continuity
             )
 
-            # project directors on cubic C1 bezier curve
-            _, _, d1_segments = L2_projection_Bezier_curve(
-                d1s.T, n_segments, case=continuity
-            )
-            _, _, d2_segments = L2_projection_Bezier_curve(
-                d2s.T, n_segments, case=continuity
-            )
-            _, _, d3_segments = L2_projection_Bezier_curve(
-                d3s.T, n_segments, case=continuity
-            )
             if isinstance(self.cross_section, CircularCrossSection):
                 if circle_as_wedge:
 
@@ -332,6 +320,16 @@ class RodExportBase(ABC):
                         vtk_points_weights.append(points_layer2[-1])
 
             elif isinstance(self.cross_section, RectangularCrossSection):
+                # project directors on cubic C1 bezier curve
+                _, _, d1_segments = L2_projection_Bezier_curve(
+                    d1s.T, n_segments, case=continuity
+                )
+                _, _, d2_segments = L2_projection_Bezier_curve(
+                    d2s.T, n_segments, case=continuity
+                )
+                _, _, d3_segments = L2_projection_Bezier_curve(
+                    d3s.T, n_segments, case=continuity
+                )
 
                 def compute_missing_points(segment, layer):
                     Q0 = points_segments_0[segment, layer]
