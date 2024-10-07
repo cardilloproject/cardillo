@@ -123,6 +123,7 @@ class RodExportBase(ABC):
             # determines also the number of layers per cell (p_zeta + 1 = 4), which is also very hardcoded here with 'points_layer_0' ... 'points_layer3'
             if isinstance(self.cross_section, CircularCrossSection):
                 if self._export_dict["circle_as_wedge"]:
+                    self._export_dict["hasCap"] = True
                     # TODO: document this, when it is completed with the possibility for discontinuous stresses
                     points_per_layer = 6
                     points_per_cell = (p_zeta + 1) * points_per_layer
@@ -182,6 +183,7 @@ class RodExportBase(ABC):
                             )
 
                 else:
+                    self._export_dict["hasCap"] = False
                     points_per_layer = 9
                     points_per_cell = (p_zeta + 1) * points_per_layer
 
@@ -201,6 +203,7 @@ class RodExportBase(ABC):
                         for i in range(ncells)
                     ]
             elif isinstance(self.cross_section, RectangularCrossSection):
+                self._export_dict["hasCap"] = False
                 points_per_layer = 4
                 points_per_cell = (p_zeta + 1) * points_per_layer
 
@@ -210,8 +213,28 @@ class RodExportBase(ABC):
                 )[:-1]
 
                 # connectivities
-                connectivity_main = np.arange(points_per_cell)
-                connectivity_flat = np.array([4, 5, 6, 7, 16, 17, 18, 19])
+                # ordering for vtu file version>=2.0
+                # ordering for vtu file version<2.0, e.g. 0.1 changes order of edges! like [0, 1, 3, 2]
+                # fmt: off
+                connectivity_main = np.array(
+                    [
+                         0,  1,  2,  3,     # vertices bottom
+                        12, 13, 14, 15,     # vertices top
+                         4,  8,             # edge1
+                         5,  9,             # edge2
+                         6, 10,             # edge3
+                         7, 11,             # edge4
+                    ],
+                    dtype=int
+                )
+                connectivity_flat = np.array(
+                    [
+                        12, 13, 14, 15,
+                        16, 17, 18, 19
+                    ],
+                    dtype=int
+                )
+                # fmt: on
 
                 # connectivity with points
                 cells = []
@@ -580,13 +603,6 @@ class RodExportBase(ABC):
                         vtk_d2_weights.append(d2_layer0[j])
                         vtk_d3_weights.append(d3_layer0[j])
 
-                    # top
-                    for j in range(4):
-                        vtk_points_weights.append(points_layer3[j])
-                        vtk_d1_weights.append(d1_layer3[j])
-                        vtk_d2_weights.append(d2_layer3[j])
-                        vtk_d3_weights.append(d3_layer3[j])
-
                     ##########
                     # 2. edges
                     ##########
@@ -594,13 +610,21 @@ class RodExportBase(ABC):
                     # for j in [0, 1, 3, 2]:  # ordering for vtu file version<2.0, e.g. 0.1
                     for j in range(4):  # ordering for vtu file version>=2.0
                         vtk_points_weights.append(points_layer1[j])
-                        vtk_points_weights.append(points_layer2[j])
                         vtk_d1_weights.append(d1_layer1[j])
-                        vtk_d1_weights.append(d1_layer2[j])
                         vtk_d2_weights.append(d2_layer1[j])
-                        vtk_d2_weights.append(d2_layer2[j])
                         vtk_d3_weights.append(d3_layer1[j])
+                    for j in range(4):  # ordering for vtu file version>=2.0
+                        vtk_points_weights.append(points_layer2[j])
+                        vtk_d1_weights.append(d1_layer2[j])
+                        vtk_d2_weights.append(d2_layer2[j])
                         vtk_d3_weights.append(d3_layer2[j])
+
+                    # top
+                    for j in range(4):
+                        vtk_points_weights.append(points_layer3[j])
+                        vtk_d1_weights.append(d1_layer3[j])
+                        vtk_d2_weights.append(d2_layer3[j])
+                        vtk_d3_weights.append(d3_layer3[j])
 
             # points to export is just the R^3 part
             vtk_points_weights = np.array(vtk_points_weights)
@@ -655,9 +679,13 @@ class RodExportBase(ABC):
                     case="C-1",
                 )[2]
 
-                # duplicate points for end cap
-                vtk_B_n = [B_n_segments[0, 0] for _ in range(ppl)]
-                vtk_B_m = [B_m_segments[0, 0] for _ in range(ppl)]
+                if self._export_dict["hasCap"]:
+                    # duplicate points for end cap
+                    vtk_B_n = [B_n_segments[0, 0] for _ in range(ppl)]
+                    vtk_B_m = [B_m_segments[0, 0] for _ in range(ppl)]
+                else:
+                    vtk_B_n = []
+                    vtk_B_m = []
 
                 for i in range(ncells):
                     for layer in range(p_zeta + 1):
@@ -676,9 +704,10 @@ class RodExportBase(ABC):
                             )
                         )
 
-                # duplicate points for end cap
-                vtk_B_n.extend([B_n_segments[-1, -1] for _ in range(ppl)])
-                vtk_B_m.extend([B_m_segments[-1, -1] for _ in range(ppl)])
+                if self._export_dict["hasCap"]:
+                    # duplicate points for end cap
+                    vtk_B_n.extend([B_n_segments[-1, -1] for _ in range(ppl)])
+                    vtk_B_m.extend([B_m_segments[-1, -1] for _ in range(ppl)])
 
                 point_data["B_n"] = vtk_B_n
                 point_data["B_m"] = vtk_B_m
