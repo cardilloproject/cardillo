@@ -223,6 +223,7 @@ class RodExportBase(ABC):
 
             self._export_dict["cells"] = cells
             self._export_dict["points_per_layer"] = points_per_layer
+            self._export_dict["p_zeta"] = p_zeta
 
         elif self._export_dict["level"] == "None" or self._export_dict["level"] == None:
             self._export_dict["cells"] = []
@@ -287,6 +288,8 @@ class RodExportBase(ABC):
             d3_segments = L2_projection_Bezier_curve(d3s.T, ncells, case=continuity)[2]
 
             # compute points
+            ppl = self._export_dict["points_per_layer"]
+            p_zeta = self._export_dict["p_zeta"]
             if isinstance(self.cross_section, CircularCrossSection):
                 if circle_as_wedge:
 
@@ -343,9 +346,9 @@ class RodExportBase(ABC):
                         points_weights[0] = np.array([*P0, 1])
                         points_weights[1] = np.array([*P1, 1])
                         points_weights[2] = np.array([*P2, 1])
-                        points_weights[3] = np.array([*P3, 0])  # 1 / 2])
-                        points_weights[4] = np.array([*P4, 0])  # 1 / 2])
-                        points_weights[5] = np.array([*P5, 0])  # 1 / 2])
+                        points_weights[3] = np.array([*P3, 1 / 2])
+                        points_weights[4] = np.array([*P4, 1 / 2])
+                        points_weights[5] = np.array([*P5, 1 / 2])
 
                         return points_weights
 
@@ -375,10 +378,10 @@ class RodExportBase(ABC):
                             d1i_neg = -d1_segments[0, 0]
 
                             # points and edges
-                            for j in range(6):
-                                vtk_points_weights.append(points[j])
-                                vtk_surface_normals.append(d1i_neg)
-
+                            vtk_points_weights.extend(points)
+                            vtk_surface_normals.extend(
+                                np.repeat([d1i_neg], ppl, axis=0)
+                            )
                             continue
 
                         if i == ncells:
@@ -387,40 +390,19 @@ class RodExportBase(ABC):
                             d1i = d1_segments[-1, -1]
 
                             # points and edges
-                            for j in range(6):
-                                vtk_points_weights.append(points[j])
-                                vtk_surface_normals.append(d1i)
-
+                            vtk_points_weights.extend(points)
+                            vtk_surface_normals.extend(np.repeat([d1i], ppl, axis=0))
                             continue
 
-                        # compute all missing points of the layer
-                        points_layer0 = compute_missing_points(i, 0)
-                        points_layer1 = compute_missing_points(i, 1)
-                        points_layer2 = compute_missing_points(i, 2)
-                        points_layer3 = compute_missing_points(i, 3)
+                        # iterate all layers
+                        for layer in range(p_zeta + 1):
+                            # get all points and normals of the layer
+                            points_layer = compute_missing_points(i, layer)
+                            normal_layer = compute_normals(i, layer)
 
-                        # set all values the same per layer for directors
-                        normal_layer0 = compute_normals(i, 0)
-                        normal_layer1 = compute_normals(i, 1)
-                        normal_layer2 = compute_normals(i, 2)
-                        normal_layer3 = compute_normals(i, 3)
-
-                        # bottom
-                        # points and edges
-                        vtk_points_weights.extend(points_layer0)
-                        vtk_surface_normals.extend(normal_layer0)
-
-                        # first and second
-                        # edges and faces
-                        vtk_points_weights.extend(points_layer1)
-                        vtk_points_weights.extend(points_layer2)
-                        vtk_surface_normals.extend(normal_layer1)
-                        vtk_surface_normals.extend(normal_layer2)
-
-                        # top
-                        # points and edges
-                        vtk_points_weights.extend(points_layer3)
-                        vtk_surface_normals.extend(normal_layer3)
+                            # and add them
+                            vtk_points_weights.extend(points_layer)
+                            vtk_surface_normals.extend(normal_layer)
 
                 else:
                     from warnings import warn
@@ -673,13 +655,12 @@ class RodExportBase(ABC):
                     case="C-1",
                 )[2]
 
-                ppl = self._export_dict["points_per_layer"]
                 # duplicate points for end cap
                 vtk_B_n = [B_n_segments[0, 0] for _ in range(ppl)]
                 vtk_B_m = [B_m_segments[0, 0] for _ in range(ppl)]
 
                 for i in range(ncells):
-                    for layer in range(4):
+                    for layer in range(p_zeta + 1):
                         vtk_B_n.extend(
                             np.repeat(
                                 [B_n_segments[i, layer]],
