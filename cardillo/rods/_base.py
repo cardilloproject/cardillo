@@ -11,13 +11,13 @@ from cardillo.math.rotations import Log_SO3_quat, T_SO3_inv_quat, T_SO3_inv_quat
 from cardillo.utility.coo_matrix import CooMatrix
 from cardillo.utility.check_time_derivatives import check_time_derivatives
 
-from ._base_export import RodExportBase, RodExportBaseStress
+from ._base_export import RodExportBase
 from ._cross_section import CrossSectionInertias
 from .discretization.lagrange import LagrangeKnotVector
 from .discretization.mesh1D import Mesh1D
 
 
-class CosseratRod(RodExportBaseStress, ABC):
+class CosseratRod(RodExportBase, ABC):
     def __init__(
         self,
         cross_section,
