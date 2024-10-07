@@ -114,6 +114,10 @@ class RodExportBase(ABC):
             ]
 
         elif self._export_dict["level"] == "volume":
+            assert isinstance(
+                self.cross_section, (CircularCrossSection, RectangularCrossSection)
+            ), "Volume export is only implemented for CircularCrossSection and RectangularCrossSection."
+
             # always use 4 here
             # this is only the number of points we use for the projection
             self._export_dict["num_frames"] = 4 * ncells + 1
@@ -248,6 +252,21 @@ class RodExportBase(ABC):
             self._export_dict["points_per_layer"] = points_per_layer
             self._export_dict["p_zeta"] = p_zeta
 
+            ###############################
+            # assertion for stress export #
+            ###############################
+            # TODO: remove this assertion, when we compute the stresses on element level
+            # stresses are evaluated at xis
+            # stresses are very likely to jump at xis_e_int
+            # therfore, we shouldn't evaluate them at these points
+            num = self._export_dict["num_frames"] - 1
+            xis = np.linspace(0, 1, num=num)
+            xis_e_int = np.linspace(0, 1, self.nelement + 1)[1:-1]
+            for xi_e in xis_e_int:
+                assert (
+                    xi_e not in xis
+                ), f"xis for fitting may not contain internal element boundaries to represent discontinuities in stresses. \nInternal boundaries at {xis_e_int}, \nxis_fitting={xis}."
+
         elif self._export_dict["level"] == "None" or self._export_dict["level"] == None:
             self._export_dict["cells"] = []
 
@@ -289,10 +308,6 @@ class RodExportBase(ABC):
             return vtk_points, self._export_dict["cells"], point_data, cell_data
 
         elif level == "volume":
-            assert isinstance(
-                self.cross_section, (CircularCrossSection, RectangularCrossSection)
-            ), "Volume export is only implemented for CircularCrossSection and RectangularCrossSection."
-
             ################################
             # project on cubic Bezier volume
             ################################
@@ -572,59 +587,20 @@ class RodExportBase(ABC):
                 vtk_d2_weights = []
                 vtk_d3_weights = []
                 for i in range(ncells):
-                    # compute all missing points of the layer
-                    points_layer0 = compute_missing_points(i, 0)
-                    points_layer1 = compute_missing_points(i, 1)
-                    points_layer2 = compute_missing_points(i, 2)
-                    points_layer3 = compute_missing_points(i, 3)
 
-                    # set all values the same per layer for directors
-                    d1_layer0 = np.repeat([d1_segments[i, 0]], 4, axis=0)
-                    d1_layer1 = np.repeat([d1_segments[i, 1]], 4, axis=0)
-                    d1_layer2 = np.repeat([d1_segments[i, 2]], 4, axis=0)
-                    d1_layer3 = np.repeat([d1_segments[i, 3]], 4, axis=0)
-                    d2_layer0 = np.repeat([d2_segments[i, 0]], 4, axis=0)
-                    d2_layer1 = np.repeat([d2_segments[i, 1]], 4, axis=0)
-                    d2_layer2 = np.repeat([d2_segments[i, 2]], 4, axis=0)
-                    d2_layer3 = np.repeat([d2_segments[i, 3]], 4, axis=0)
-                    d3_layer0 = np.repeat([d3_segments[i, 0]], 4, axis=0)
-                    d3_layer1 = np.repeat([d3_segments[i, 1]], 4, axis=0)
-                    d3_layer2 = np.repeat([d3_segments[i, 2]], 4, axis=0)
-                    d3_layer3 = np.repeat([d3_segments[i, 3]], 4, axis=0)
+                    # iterate all layers
+                    for layer in range(p_zeta + 1):
+                        # get all points and directors of the layer
+                        points_layer = compute_missing_points(i, layer)
+                        d1_layer = np.repeat([d1_segments[i, layer]], ppl, axis=0)
+                        d2_layer = np.repeat([d2_segments[i, layer]], ppl, axis=0)
+                        d3_layer = np.repeat([d3_segments[i, layer]], ppl, axis=0)
 
-                    #######################
-                    # 1. vertices (corners)
-                    #######################
-
-                    # bottom
-                    for j in range(4):
-                        vtk_points_weights.append(points_layer0[j])
-                        vtk_d1_weights.append(d1_layer0[j])
-                        vtk_d2_weights.append(d2_layer0[j])
-                        vtk_d3_weights.append(d3_layer0[j])
-
-                    ##########
-                    # 2. edges
-                    ##########
-                    # first and second
-                    # for j in [0, 1, 3, 2]:  # ordering for vtu file version<2.0, e.g. 0.1
-                    for j in range(4):  # ordering for vtu file version>=2.0
-                        vtk_points_weights.append(points_layer1[j])
-                        vtk_d1_weights.append(d1_layer1[j])
-                        vtk_d2_weights.append(d2_layer1[j])
-                        vtk_d3_weights.append(d3_layer1[j])
-                    for j in range(4):  # ordering for vtu file version>=2.0
-                        vtk_points_weights.append(points_layer2[j])
-                        vtk_d1_weights.append(d1_layer2[j])
-                        vtk_d2_weights.append(d2_layer2[j])
-                        vtk_d3_weights.append(d3_layer2[j])
-
-                    # top
-                    for j in range(4):
-                        vtk_points_weights.append(points_layer3[j])
-                        vtk_d1_weights.append(d1_layer3[j])
-                        vtk_d2_weights.append(d2_layer3[j])
-                        vtk_d3_weights.append(d3_layer3[j])
+                        # and add them
+                        vtk_points_weights.extend(points_layer)
+                        vtk_d1_weights.extend(d1_layer)
+                        vtk_d2_weights.extend(d2_layer)
+                        vtk_d3_weights.extend(d3_layer)
 
             # points to export is just the R^3 part
             vtk_points_weights = np.array(vtk_points_weights)
@@ -647,15 +623,8 @@ class RodExportBase(ABC):
 
             if self._export_dict["stresses"]:
                 # TODO: do this on element basis when eval_stresses accepts el as argument
-                # TODO: put this then into preprocessor of export
                 num = self._export_dict["num_frames"] - 1
                 xis = np.linspace(0, 1, num=num)
-                xis_e_int = np.linspace(0, 1, self.nelement + 1)[1:-1]
-                for xi_e in xis_e_int:
-                    assert (
-                        xi_e not in xis
-                    ), f"xis for fitting may not contain internal element boundaries to represent discontinuities in stresses. \nInternal boundaries at {xis_e_int}, \nxis_fitting={xis}."
-
                 B_ns = np.zeros([3, num])
                 B_ms = np.zeros([3, num])
 
