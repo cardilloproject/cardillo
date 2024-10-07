@@ -1,9 +1,10 @@
 from abc import ABC, abstractmethod
 import numpy as np
-from vtk import VTK_BEZIER_WEDGE, VTK_BEZIER_HEXAHEDRON
+from vtk import VTK_BEZIER_WEDGE, VTK_BEZIER_HEXAHEDRON, VTK_LAGRANGE_CURVE
 from warnings import warn
 
 from cardillo.utility.bezier import L2_projection_Bezier_curve
+from cardillo.math import cross3
 
 from ._cross_section import (
     CrossSection,
@@ -16,6 +17,14 @@ class RodExportBase(ABC):
     def __init__(self, cross_section: CrossSection):
         self.cross_section = cross_section
 
+        self._export_dict = {
+            # "level": "centerline + directors",
+            "level": "volume",
+            "stresses": False,
+            "num_per_cell": "Auto",
+            "ncells": "Auto",
+        }
+
     @abstractmethod
     def r_OP(self, t, q, xi, B_r_CP): ...
 
@@ -26,7 +35,6 @@ class RodExportBase(ABC):
         q_body = q[self.qDOF]
         r = []
         for xi in np.linspace(0, 1, num):
-            xi = (xi,)
             qp = q_body[self.local_qDOF_P(xi)]
             r.append(self.r_OP(1, qp, xi))
         return np.array(r).T
@@ -39,7 +47,6 @@ class RodExportBase(ABC):
         d3 = []
 
         for xi in np.linspace(0, 1, num=num):
-            xi = (xi,)
             qp = q_body[self.local_qDOF_P(xi)]
             r.append(self.r_OP(1, qp, xi))
 
@@ -50,33 +57,56 @@ class RodExportBase(ABC):
 
         return np.array(r).T, np.array(d1).T, np.array(d2).T, np.array(d3).T
 
-    def export(
-        self, sol_i, continuity="C1", circle_as_wedge=True, level="volume", **kwargs
-    ):
+    def export(self, sol_i, continuity="C1", circle_as_wedge=True, **kwargs):
         q = sol_i.q
 
-        if "num" in kwargs:
-            num = kwargs["num"]
-        else:
-            num = self.nelement * 4
+        ncells = self._export_dict["ncells"]
+        if ncells == "Auto":
+            ncells = self.nelement
 
+        continuity = "C0"
+        circle_as_wedge = True
+
+        level = self._export_dict["level"]
         if level == "centerline + directors":
             #######################################
             # simple export of points and directors
             #######################################
+            # TODO: maybe export directors with respect to their polynomialdegree (to see them at their nodes)
+            # for polynomial shape functions this should be the best.
+            # But for other interpolations (SE3) this is not good!
+
+            num_per_cell = self._export_dict["num_per_cell"]
+            if num_per_cell == "Auto":
+                p = self.polynomial_degree_r
+            else:
+                p = num_per_cell - 1
+
+            # compute number of frames
+            num = p * ncells + 1
+
+            # get frames
             r_OPs, d1s, d2s, d3s = self.frames(q, num=num)
 
+            # fill structs for centerline and directors
             vtk_points = r_OPs.T
-
-            cells = [("line", [[i, i + 1] for i in range(num - 1)])]
-
-            cell_data = {}
+            cells = [
+                (
+                    VTK_LAGRANGE_CURVE,
+                    np.concatenate([[0], [p], np.arange(1, p)]) + i * p,
+                )
+                for i in range(ncells)
+            ]
 
             point_data = {
                 "d1": d1s.T,
                 "d2": d2s.T,
                 "d3": d3s.T,
             }
+            # TODO: add stresses here?
+            cell_data = {}
+
+            return vtk_points, cells, point_data, cell_data
 
         elif level == "volume":
             assert isinstance(
@@ -86,87 +116,74 @@ class RodExportBase(ABC):
             ################################
             # project on cubic Bezier volume
             ################################
-            if "n_segments" in kwargs:
-                n_segments = kwargs["n_segments"]
-            else:
-                n_segments = self.nelement
-
-            assert num >= 2 * n_segments
-
+            # always use 4 here
+            # this is only the number of points we use for the projection
+            num = 4 * ncells + 1
             r_OPs, d1s, d2s, d3s = self.frames(q, num=num)
-            target_points_centerline = r_OPs.T
 
-            # create points of the target curves (three characteristic points
-            # of the cross section)
+            # project directors on cubic C1 bezier curve
+            # TODO: if that is the case, export them also for circular cross sections
+            # TODO: I think this is a but useless:
+            #       Will anyone color the mesh based on the components of the directors?
+            #       Or place glyphs at all vertices?
+            # TODO: I think there is time-saving potential in the L2_projection_Bezier_curve (e.g., the matrix A there is constant, but created and filled everytime)
+            # TODO: can we get rid of the d1 projection?
+            r_OP_segments = L2_projection_Bezier_curve(
+                r_OPs.T, ncells, case=continuity
+            )[2]
+            d1_segments = L2_projection_Bezier_curve(d1s.T, ncells, case=continuity)[2]
+            d2_segments = L2_projection_Bezier_curve(d2s.T, ncells, case=continuity)[2]
+            d3_segments = L2_projection_Bezier_curve(d3s.T, ncells, case=continuity)[2]
+
+            p_zeta = 3  # polynomial_degree of the cell along the rod. Always 3, this is hardcoded in L2_projection when BernsteinBasis is called!
+            # determines also the number of layers per cell (p_zeta + 1 = 4), which is also very hardcoded here wth 'points_layer_0' ... 'points_layer3'
+
+            # compute points
             if isinstance(self.cross_section, CircularCrossSection):
                 if circle_as_wedge:
+
+                    # points:
+                    #         ^ d3
+                    #         |
+                    #         x  P4
+                    #       / | \
+                    #      /-----\
+                    # P2  x   |   x  P1
+                    #    /|---o---|\--> d2
+                    #   / \   |   / \
+                    #  x---\--x--/---x
+                    #  P5     P0     P3
+                    #
+                    # P0-P1-P2 form the inner equilateral triangle. Later refered to as points for layer 0 and 3 or edges for layer 1 and 2. They are weighted with 1
+                    # P3-P4-P5 from the outer equilateral traingle. Later refered to as edges for layer 0 and 3 or faces for layer 1 and 2. They are weighted with 1/2
+                    #
+
+                    # TODO: maybe preprocess these or maybe add them to Cross-Section?
+
+                    # alpha measures the angle to d2
+                    alpha0 = np.pi * 3 / 2
+                    alpha1 = np.pi / 6
+                    alpha2 = np.pi * 5 / 6
+                    alpha3 = np.pi * 11 / 6
+                    alpha4 = np.pi / 2
+                    alpha5 = np.pi * 7 / 6
+
+                    alphas = [alpha0, alpha1, alpha2, alpha3, alpha4, alpha5]
+                    trig_alphas = [(np.sin(alpha), np.cos(alpha)) for alpha in alphas]
+
+                    # radii
                     ri = self.cross_section.radius
                     ru = 2 * ri
                     a = 2 * np.sqrt(3) * ri
 
-                    target_points_0 = np.array(
-                        [r_OP - ri * d3 for (r_OP, d3) in zip(r_OPs.T, d3s.T)]
-                    )
-
-                    target_points_1 = np.array(
-                        [
-                            r_OP + d2 * a / 2 - ri * d3
-                            for (r_OP, d2, d3) in zip(r_OPs.T, d2s.T, d3s.T)
-                        ]
-                    )
-
-                    target_points_2 = np.array(
-                        [r_OP + d3 * ru for (r_OP, d3) in zip(r_OPs.T, d3s.T)]
-                    )
-                else:
-                    target_points_0 = target_points_centerline
-                    target_points_1 = np.array(
-                        [
-                            r_OP + d2 * self.cross_section.radius
-                            for (r_OP, d2) in zip(r_OPs.T, d2s.T)
-                        ]
-                    )
-                    target_points_2 = np.array(
-                        [
-                            r_OP + d3 * self.cross_section.radius
-                            for (r_OP, d3) in zip(r_OPs.T, d3s.T)
-                        ]
-                    )
-            elif isinstance(self.cross_section, RectangularCrossSection):
-                target_points_0 = target_points_centerline
-                target_points_1 = np.array(
-                    [
-                        r_OP + d2 * self.cross_section.width / 2
-                        for (r_OP, d2) in zip(r_OPs.T, d2s.T)
-                    ]
-                )
-                target_points_2 = np.array(
-                    [
-                        r_OP + d3 * self.cross_section.height / 2
-                        for (r_OP, d3) in zip(r_OPs.T, d3s.T)
-                    ]
-                )
-            else:
-                raise NotImplementedError
-
-            # project target points on cubic C1 Bézier curve
-            _, _, points_segments_0 = L2_projection_Bezier_curve(
-                target_points_0, n_segments, case=continuity
-            )
-            _, _, points_segments_1 = L2_projection_Bezier_curve(
-                target_points_1, n_segments, case=continuity
-            )
-            _, _, points_segments_2 = L2_projection_Bezier_curve(
-                target_points_2, n_segments, case=continuity
-            )
-
-            if isinstance(self.cross_section, CircularCrossSection):
-                if circle_as_wedge:
-
                     def compute_missing_points(segment, layer):
-                        P0 = points_segments_0[segment, layer]
-                        P3 = points_segments_1[segment, layer]
-                        P4 = points_segments_2[segment, layer]
+                        r_OP = r_OP_segments[segment, layer]
+                        d2 = d2_segments[segment, layer]
+                        d3 = d3_segments[segment, layer]
+
+                        P0 = r_OP - ri * d3
+                        P3 = r_OP + a / 2 * d2 - ri * d3
+                        P4 = r_OP + d3 * ru
 
                         P5 = 2 * P0 - P3
                         P1 = 0.5 * (P3 + P4)
@@ -184,59 +201,103 @@ class RodExportBase(ABC):
 
                         return points_weights
 
+                    def compute_normals(segment, layer):
+                        # TODO: these are not the normals if there is shear!
+                        d2ii = d2_segments[segment, layer]
+                        d3ii = d3_segments[segment, layer]
+
+                        normals = np.zeros([6, 3])
+                        for i in range(6):
+                            salpha, calpha = trig_alphas[i]
+                            normals[i, :] = calpha * d2ii + salpha * d3ii
+
+                        return normals
+
                     # create correct VTK ordering, see
                     # https://coreform.com/papers/implementation-of-rational-bezier-cells-into-VTK-report.pdf:
                     vtk_points_weights = []
-                    for i in range(n_segments):
+                    vtk_surface_normals = []
+                    # iterate two more to get the end faces clean
+                    for i in range(-1, ncells + 1):
+
+                        if i == -1:
+                            # take points of 1st layer in 1st cell
+                            points = compute_missing_points(0, 0)
+                            d2i = d2_segments[0, 0]
+                            d3i = d3_segments[0, 0]
+                            d1i_neg = cross3(d3i, d2i)
+
+                            # points and edges
+                            for j in range(6):
+                                vtk_points_weights.append(points[j])
+                                vtk_surface_normals.append(d1i_neg)
+
+                            continue
+
+                        if i == ncells:
+                            # take points of last layer in last cell
+                            points = compute_missing_points(ncells - 1, 3)
+                            d2i = d2_segments[ncells - 1, 3]
+                            d3i = d3_segments[ncells - 1, 3]
+                            d1i = cross3(d2i, d3i)
+
+                            # points and edges
+                            for j in range(6):
+                                vtk_points_weights.append(points[j])
+                                vtk_surface_normals.append(d1i)
+
+                            continue
+
                         # compute all missing points of the layer
                         points_layer0 = compute_missing_points(i, 0)
                         points_layer1 = compute_missing_points(i, 1)
                         points_layer2 = compute_missing_points(i, 2)
                         points_layer3 = compute_missing_points(i, 3)
 
-                        #######################
-                        # 1. vertices (corners)
-                        #######################
+                        # set all values the same per layer for directors
+                        normal_layer0 = compute_normals(i, 0)
+                        normal_layer1 = compute_normals(i, 1)
+                        normal_layer2 = compute_normals(i, 2)
+                        normal_layer3 = compute_normals(i, 3)
 
                         # bottom
-                        for j in range(3):
-                            vtk_points_weights.append(points_layer0[j])
-
-                        # top
-                        for j in range(3):
-                            vtk_points_weights.append(points_layer3[j])
-
-                        ##########
-                        # 2. edges
-                        ##########
-
-                        # bottom
-                        for j in range(3, 6):
-                            vtk_points_weights.append(points_layer0[j])
-
-                        # top
-                        for j in range(3, 6):
-                            vtk_points_weights.append(points_layer3[j])
+                        # we need the bottom points only once, as they are the top points from the previous segment
+                        if i == 0:
+                            # points and edges
+                            for j in range(6):
+                                vtk_points_weights.append(points_layer0[j])
+                                vtk_surface_normals.append(normal_layer0[j])
 
                         # first and second
-                        for j in range(3):
+                        # edges and faces
+                        for j in range(6):
                             vtk_points_weights.append(points_layer1[j])
                             vtk_points_weights.append(points_layer2[j])
+                            vtk_surface_normals.append(normal_layer1[j])
+                            vtk_surface_normals.append(normal_layer2[j])
 
-                        ##########
-                        # 3. faces
-                        ##########
+                        # top
+                        # points and edges
+                        for j in range(6):
+                            vtk_points_weights.append(points_layer3[j])
+                            vtk_surface_normals.append(normal_layer3[j])
 
-                        # first and second
-                        for j in range(3, 6):
-                            vtk_points_weights.append(points_layer1[j])
-                            vtk_points_weights.append(points_layer2[j])
                 else:
+                    from warnings import warn
+
+                    warn(
+                        f"Test rod export: circle as VTK_BEZIER_HEXAHEDRON may leads to unexpected results!"
+                    )
 
                     def compute_missing_points(segment, layer):
-                        P2 = points_segments_2[segment, layer]
-                        P1 = points_segments_1[segment, layer]
-                        P8 = points_segments_0[segment, layer]
+                        r_OP = r_OP_segments[segment, layer]
+                        d2 = d2_segments[segment, layer]
+                        d3 = d3_segments[segment, layer]
+
+                        P2 = r_OP + d3 * self.cross_section.radius
+                        P1 = r_OP + d2 * self.cross_section.radius
+                        P8 = r_OP
+
                         P0 = 2 * P8 - P2
                         P3 = 2 * P8 - P1
                         P4 = (P0 + P1) - P8
@@ -262,7 +323,7 @@ class RodExportBase(ABC):
                     # create correct VTK ordering, see
                     # https://coreform.com/papers/implementation-of-rational-bezier-cells-into-VTK-report.pdf:
                     vtk_points_weights = []
-                    for i in range(n_segments):
+                    for i in range(ncells):
                         # compute all missing points of the layer
                         points_layer0 = compute_missing_points(i, 0)
                         points_layer1 = compute_missing_points(i, 1)
@@ -321,25 +382,34 @@ class RodExportBase(ABC):
                         vtk_points_weights.append(points_layer2[-1])
 
             elif isinstance(self.cross_section, RectangularCrossSection):
-                # project directors on cubic C1 bezier curve
-                _, _, d1_segments = L2_projection_Bezier_curve(
-                    d1s.T, n_segments, case=continuity
-                )
-                _, _, d2_segments = L2_projection_Bezier_curve(
-                    d2s.T, n_segments, case=continuity
-                )
-                _, _, d3_segments = L2_projection_Bezier_curve(
-                    d3s.T, n_segments, case=continuity
-                )
 
                 def compute_missing_points(segment, layer):
-                    Q0 = points_segments_0[segment, layer]
-                    Q1 = points_segments_1[segment, layer]
-                    Q2 = points_segments_2[segment, layer]
-                    P0 = Q0 - (Q2 - Q0) - (Q1 - Q0)
-                    P1 = Q0 - (Q2 - Q0) + (Q1 - Q0)
-                    P2 = Q0 + (Q2 - Q0) + (Q1 - Q0)
-                    P3 = Q0 + (Q2 - Q0) - (Q1 - Q0)
+                    r_OP = r_OP_segments[segment, layer]
+                    d2 = d2_segments[segment, layer]
+                    d3 = d3_segments[segment, layer]
+
+                    #       ^ d3
+                    # P3    |     P2
+                    # x-----Q2----x
+                    # |     |     |
+                    # |-----Q0----Q1--> d2
+                    # |           |
+                    # x-----------x
+                    # P0          P1
+
+                    r_PP2 = (
+                        d2 * self.cross_section.width / 2
+                        + d3 * self.cross_section.height / 2
+                    )
+                    r_PP1 = (
+                        d2 * self.cross_section.width / 2
+                        - d3 * self.cross_section.height / 2
+                    )
+
+                    P0 = r_OP - r_PP2
+                    P1 = r_OP + r_PP1
+                    P2 = r_OP + r_PP2
+                    P3 = r_OP - r_PP1
 
                     dim = len(P0)
                     points_weights = np.zeros((4, dim + 1))
@@ -356,7 +426,7 @@ class RodExportBase(ABC):
                 vtk_d1_weights = []
                 vtk_d2_weights = []
                 vtk_d3_weights = []
-                for i in range(n_segments):
+                for i in range(ncells):
                     # compute all missing points of the layer
                     points_layer0 = compute_missing_points(i, 0)
                     points_layer1 = compute_missing_points(i, 1)
@@ -410,66 +480,125 @@ class RodExportBase(ABC):
                         vtk_d3_weights.append(d3_layer1[j])
                         vtk_d3_weights.append(d3_layer2[j])
 
-            p_zeta = 3
+            # make cells
             if isinstance(self.cross_section, CircularCrossSection):
                 if circle_as_wedge:
-                    n_layer = 6
-                    n_cell = (p_zeta + 1) * n_layer
+                    # TODO: document this, when it is completed with the possibility for discontinuous stresses
+                    points_per_layer = 6
+                    points_per_cell = (p_zeta + 1) * points_per_layer
 
-                    higher_order_degrees = np.array([[2, 2, p_zeta]] * n_segments)
+                    # BiQuadratic(p_zeta) cells with BiQuadratic (flat) end cells for the end faces
+                    higher_order_degrees = np.vstack(
+                        [[2, 2, 1], [[2, 2, p_zeta]] * ncells, [2, 2, 1]]
+                    )
 
-                    cells = [
-                        (
-                            VTK_BEZIER_WEDGE,
-                            np.arange(i * n_cell, (i + 1) * n_cell),
-                        )
-                        for i in range(n_segments)
-                    ]
+                    # Note: if there is a closed rod (ring):
+                    #   we have to set the ids for the top of the last cell
+                    #   to the ids of the bottom from the first cell:
+                    #   last_cell[0:3] = [0, 1, 2]
+                    #   last_cell[6:9] = [3, 4, 5]
+                    #   what should be also done: do not add them into "vtk_points_weights"
+                    #   in this case, the first and last cell must not be used
+                    # fmt: off
+                    end_cell = np.array(
+                        [
+                             0,  1,  2, # vertices bottom
+                             6,  7,  8, # vertices top
+                             3,  4,  5, # edges bottom
+                             9, 10, 11, # edges top
+                        ],
+                        dtype=int
+                    )
+                    this_cell = np.array(
+                        [
+                             0,  1,  2, # vertices bottom 
+                            18, 19, 20, # vertices top
+                             3,  4,  5, # edges bottom
+                            21, 22, 23, # edges top
+                             6,  7,  8, # edges middle
+                             9, 10, 11, # edges middle   
+                            12, 13, 14, # faces middle
+                            15, 16, 17  # faces middle
+                        ], 
+                        dtype=int
+                    )
+                    # fmt: on
+                    cells = [(VTK_BEZIER_WEDGE, end_cell)]
+                    cells.extend(
+                        [
+                            (VTK_BEZIER_WEDGE, this_cell + i * 18 + 6)
+                            for i in range(ncells)
+                        ]
+                    )
+                    cells.append((VTK_BEZIER_WEDGE, end_cell + ncells * 18 + 6))
+
                 else:
-                    n_layer = 9
-                    n_cell = (p_zeta + 1) * n_layer
+                    points_per_layer = 9
+                    points_per_cell = (p_zeta + 1) * points_per_layer
 
-                    higher_order_degrees = np.array([[2, 2, p_zeta]] * n_segments)
+                    # TODO: add here the BiQuadraticLinear cells with 0-width to remove inner walls when opacity is reduced
 
+                    # BiQuadratic(p_zeta) cells
+                    higher_order_degrees = np.array([[2, 2, p_zeta]] * ncells)
+
+                    # connectivity with points
                     cells = [
                         (
                             VTK_BEZIER_HEXAHEDRON,
-                            np.arange(i * n_cell, (i + 1) * n_cell),
+                            np.arange(i * points_per_cell, (i + 1) * points_per_cell),
                         )
-                        for i in range(n_segments)
+                        for i in range(ncells)
                     ]
-            if isinstance(self.cross_section, RectangularCrossSection):
-                n_layer = 4
-                n_cell = (p_zeta + 1) * n_layer
+            elif isinstance(self.cross_section, RectangularCrossSection):
+                points_per_layer = 4
+                points_per_cell = (p_zeta + 1) * points_per_layer
 
-                higher_order_degrees = np.array([[1, 1, p_zeta]] * n_segments)
-
-                cells = [
-                    (
-                        VTK_BEZIER_HEXAHEDRON,
-                        np.arange(i * n_cell, (i + 1) * n_cell),
-                    )
-                    for i in range(n_segments)
+                # BiLinear(p_zeta) cells, alternattely with BiLinearLinear cells with 0-width to remove inner walls when opacity is reduced and to keep posibility for dicontiuous stresses
+                higher_order_degrees = np.array([[1, 1, p_zeta], [1, 1, 1]] * ncells)[
+                    :-1
                 ]
 
+                # connectivities
+                connectivity_main = np.arange(points_per_cell)
+                connectivity_internal = np.array([4, 5, 6, 7, 16, 17, 18, 19])
+
+                # connectivity with points
+                cells = []
+                for i in range(0, ncells):
+                    for c in [connectivity_main, connectivity_internal]:
+                        cells.append((VTK_BEZIER_HEXAHEDRON, c + i * points_per_cell))
+                # remove last (internal) cell
+                cells = cells[:-1]
+
+            # points to export is just the R^3 part
             vtk_points_weights = np.array(vtk_points_weights)
             vtk_points = vtk_points_weights[:, :3]
 
-            if isinstance(self.cross_section, RectangularCrossSection):
-                point_data = {
-                    "RationalWeights": vtk_points_weights[:, 3, None],
-                    "d1": vtk_d1_weights,
-                    "d2": vtk_d2_weights,
-                    "d3": vtk_d3_weights,
-                }
-            else:
-                point_data = {
-                    "RationalWeights": vtk_points_weights[:, 3, None],
-                }
+            # the 4th component are the rational weights
+            point_data = {
+                "RationalWeights": vtk_points_weights[:, 3, None],
+            }
 
+            # add other fields for points
+            if isinstance(self.cross_section, CircularCrossSection):
+                if circle_as_wedge:
+                    point_data["surface_normal"] = vtk_surface_normals
+
+            elif isinstance(self.cross_section, RectangularCrossSection):
+                point_data["d1"] = vtk_d1_weights
+                point_data["d2"] = vtk_d2_weights
+                point_data["d3"] = vtk_d3_weights
+
+            # add cell data
             cell_data = {
                 "HigherOrderDegrees": higher_order_degrees,
             }
+
+        elif level == "None" or level == None:
+            vtk_points = []
+            cells = []
+            point_data = {}
+            cell_data = {}
 
         else:
             raise NotImplementedError
