@@ -20,10 +20,13 @@ class RodExportBase(ABC):
         self._export_dict = {
             # "level": "centerline + directors",
             "level": "volume",
-            "stresses": False,
             "num_per_cell": "Auto",
             "ncells": "Auto",
+            "stresses": False,
+            "surface_normals": True,
         }
+
+        self.preprocessed_export = False
 
     @abstractmethod
     def r_OP(self, t, q, xi, B_r_CP): ...
@@ -57,21 +60,37 @@ class RodExportBase(ABC):
 
         return np.array(r).T, np.array(d1).T, np.array(d2).T, np.array(d3).T
 
-    def export(self, sol_i, continuity="C1", circle_as_wedge=True, **kwargs):
-        q = sol_i.q
+    def preprocess_export(self):
+        ########################
+        # evaluate export dict #
+        ########################
+        # number if cells to be exported
+        if self._export_dict["ncells"] == "Auto":
+            self._export_dict["ncells"] = self.nelement
 
+        assert isinstance(self._export_dict["ncells"], int)
+        assert self._export_dict["ncells"] >= 1
         ncells = self._export_dict["ncells"]
-        if ncells == "Auto":
-            ncells = self.nelement
 
-        continuity = "C0"
-        circle_as_wedge = True
+        # continuity for L2 projection
+        self._export_dict["continuity"] = "C0"
 
-        level = self._export_dict["level"]
-        if level == "centerline + directors":
-            #######################################
-            # simple export of points and directors
-            #######################################
+        # export options for circle
+        # TODO: maybe this should be part of the cross section
+        self._export_dict["circle_as_wedge"] = True
+
+        # what shall be exported
+        assert self._export_dict["level"] in [
+            "centerline + directors",
+            "volume",
+            "None",
+            None,
+        ]
+
+        ########################################################
+        # get number of frames for export and make cell-arrays #
+        ########################################################
+        if self._export_dict["level"] == "centerline + directors":
             # TODO: maybe export directors with respect to their polynomialdegree (to see them at their nodes)
             # for polynomial shape functions this should be the best.
             # But for other interpolations (SE3) this is not good!
@@ -83,20 +102,146 @@ class RodExportBase(ABC):
                 p = num_per_cell - 1
 
             # compute number of frames
-            num = p * ncells + 1
+            self._export_dict["num_frames"] = p * ncells + 1
 
-            # get frames
-            r_OPs, d1s, d2s, d3s = self.frames(q, num=num)
-
-            # fill structs for centerline and directors
-            vtk_points = r_OPs.T
-            cells = [
+            # create cells
+            self._export_dict["cells"] = [
                 (
                     VTK_LAGRANGE_CURVE,
                     np.concatenate([[0], [p], np.arange(1, p)]) + i * p,
                 )
                 for i in range(ncells)
             ]
+
+        elif self._export_dict["level"] == "volume":
+            # always use 4 here
+            # this is only the number of points we use for the projection
+            self._export_dict["num_frames"] = 4 * ncells + 1
+
+            # make cells
+            p_zeta = 3  # polynomial_degree of the cell along the rod. Always 3, this is hardcoded in L2_projection when BernsteinBasis is called!
+            # determines also the number of layers per cell (p_zeta + 1 = 4), which is also very hardcoded here wth 'points_layer_0' ... 'points_layer3'
+            if isinstance(self.cross_section, CircularCrossSection):
+                if self._export_dict["circle_as_wedge"]:
+                    # TODO: document this, when it is completed with the possibility for discontinuous stresses
+                    points_per_layer = 6
+                    points_per_cell = (p_zeta + 1) * points_per_layer
+
+                    # BiQuadratic(p_zeta) cells with BiQuadratic (flat) end cells for the end faces
+                    self._export_dict["higher_order_degrees"] = np.vstack(
+                        [[2, 2, 1], [[2, 2, p_zeta]] * ncells, [2, 2, 1]]
+                    )
+
+                    # Note: if there is a closed rod (ring):
+                    #   we have to set the ids for the top of the last cell
+                    #   to the ids of the bottom from the first cell:
+                    #   last_cell[0:3] = [0, 1, 2]
+                    #   last_cell[6:9] = [3, 4, 5]
+                    #   what should be also done: do not add them into "vtk_points_weights"
+                    #   in this case, the first and last cell must not be used
+                    # fmt: off
+                    end_cell = np.array(
+                        [
+                             0,  1,  2, # vertices bottom
+                             6,  7,  8, # vertices top
+                             3,  4,  5, # edges bottom
+                             9, 10, 11, # edges top
+                        ],
+                        dtype=int
+                    )
+                    this_cell = np.array(
+                        [
+                             0,  1,  2, # vertices bottom 
+                            18, 19, 20, # vertices top
+                             3,  4,  5, # edges bottom
+                            21, 22, 23, # edges top
+                             6,  7,  8, # edges middle
+                             9, 10, 11, # edges middle   
+                            12, 13, 14, # faces middle
+                            15, 16, 17  # faces middle
+                        ], 
+                        dtype=int
+                    )
+                    # fmt: on
+                    cells = [(VTK_BEZIER_WEDGE, end_cell)]
+                    cells.extend(
+                        [
+                            (VTK_BEZIER_WEDGE, this_cell + i * 18 + 6)
+                            for i in range(ncells)
+                        ]
+                    )
+                    cells.append((VTK_BEZIER_WEDGE, end_cell + ncells * 18 + 6))
+
+                else:
+                    points_per_layer = 9
+                    points_per_cell = (p_zeta + 1) * points_per_layer
+
+                    # TODO: add here the BiQuadraticLinear cells with 0-width to remove inner walls when opacity is reduced
+
+                    # BiQuadratic(p_zeta) cells
+                    self._export_dict["higher_order_degrees"] = np.array(
+                        [[2, 2, p_zeta]] * ncells
+                    )
+
+                    # connectivity with points
+                    cells = [
+                        (
+                            VTK_BEZIER_HEXAHEDRON,
+                            np.arange(i * points_per_cell, (i + 1) * points_per_cell),
+                        )
+                        for i in range(ncells)
+                    ]
+            elif isinstance(self.cross_section, RectangularCrossSection):
+                points_per_layer = 4
+                points_per_cell = (p_zeta + 1) * points_per_layer
+
+                # BiLinear(p_zeta) cells, alternattely with BiLinearLinear cells with 0-width to remove inner walls when opacity is reduced and to keep posibility for dicontiuous stresses
+                self._export_dict["higher_order_degrees"] = np.array(
+                    [[1, 1, p_zeta], [1, 1, 1]] * ncells
+                )[:-1]
+
+                # connectivities
+                connectivity_main = np.arange(points_per_cell)
+                connectivity_internal = np.array([4, 5, 6, 7, 16, 17, 18, 19])
+
+                # connectivity with points
+                cells = []
+                for i in range(0, ncells):
+                    for c in [connectivity_main, connectivity_internal]:
+                        cells.append((VTK_BEZIER_HEXAHEDRON, c + i * points_per_cell))
+                # remove last (internal) cell
+                cells = cells[:-1]
+
+            self._export_dict["cells"] = cells
+
+        elif self._export_dict["level"] == "None" or self._export_dict["level"] == None:
+            self._export_dict["cells"] = []
+
+        # set flag value to True
+        self.preprocessed_export = True
+
+    def export(self, sol_i, **kwargs):
+        q = sol_i.q
+
+        if not self.preprocessed_export:
+            self.preprocess_export()
+
+        # get values that very computed in preprocess into local scope
+        ncells = self._export_dict["ncells"]
+        continuity = self._export_dict["continuity"]
+        circle_as_wedge = self._export_dict["circle_as_wedge"]
+        level = self._export_dict["level"]
+        num = self._export_dict["num_frames"]
+
+        # get frames
+        r_OPs, d1s, d2s, d3s = self.frames(q, num=num)
+
+        if level == "centerline + directors":
+            #######################################
+            # simple export of points and directors
+            #######################################
+            # fill structs for centerline and directors
+            vtk_points = r_OPs.T
 
             point_data = {
                 "d1": d1s.T,
@@ -106,7 +251,7 @@ class RodExportBase(ABC):
             # TODO: add stresses here?
             cell_data = {}
 
-            return vtk_points, cells, point_data, cell_data
+            return vtk_points, self._export_dict["cells"], point_data, cell_data
 
         elif level == "volume":
             assert isinstance(
@@ -116,11 +261,6 @@ class RodExportBase(ABC):
             ################################
             # project on cubic Bezier volume
             ################################
-            # always use 4 here
-            # this is only the number of points we use for the projection
-            num = 4 * ncells + 1
-            r_OPs, d1s, d2s, d3s = self.frames(q, num=num)
-
             # project directors on cubic C1 bezier curve
             # TODO: if that is the case, export them also for circular cross sections
             # TODO: I think this is a but useless:
@@ -134,9 +274,6 @@ class RodExportBase(ABC):
             d1_segments = L2_projection_Bezier_curve(d1s.T, ncells, case=continuity)[2]
             d2_segments = L2_projection_Bezier_curve(d2s.T, ncells, case=continuity)[2]
             d3_segments = L2_projection_Bezier_curve(d3s.T, ncells, case=continuity)[2]
-
-            p_zeta = 3  # polynomial_degree of the cell along the rod. Always 3, this is hardcoded in L2_projection when BernsteinBasis is called!
-            # determines also the number of layers per cell (p_zeta + 1 = 4), which is also very hardcoded here wth 'points_layer_0' ... 'points_layer3'
 
             # compute points
             if isinstance(self.cross_section, CircularCrossSection):
@@ -201,6 +338,7 @@ class RodExportBase(ABC):
 
                         return points_weights
 
+                    # TODO: think about how to proceed with the normals
                     def compute_normals(segment, layer):
                         # TODO: these are not the normals if there is shear!
                         d2ii = d2_segments[segment, layer]
@@ -223,9 +361,10 @@ class RodExportBase(ABC):
                         if i == -1:
                             # take points of 1st layer in 1st cell
                             points = compute_missing_points(0, 0)
-                            d2i = d2_segments[0, 0]
-                            d3i = d3_segments[0, 0]
-                            d1i_neg = cross3(d3i, d2i)
+                            # d2i = d2_segments[0, 0]
+                            # d3i = d3_segments[0, 0]
+                            # d1i_neg = cross3(d3i, d2i)
+                            d1i_neg = -d1_segments[0, 0]
 
                             # points and edges
                             for j in range(6):
@@ -237,9 +376,10 @@ class RodExportBase(ABC):
                         if i == ncells:
                             # take points of last layer in last cell
                             points = compute_missing_points(ncells - 1, 3)
-                            d2i = d2_segments[ncells - 1, 3]
-                            d3i = d3_segments[ncells - 1, 3]
-                            d1i = cross3(d2i, d3i)
+                            # d2i = d2_segments[ncells - 1, 3]
+                            # d3i = d3_segments[ncells - 1, 3]
+                            # d1i = cross3(d2i, d3i)
+                            d1i = d1_segments[ncells - 1, 3]
 
                             # points and edges
                             for j in range(6):
@@ -480,96 +620,6 @@ class RodExportBase(ABC):
                         vtk_d3_weights.append(d3_layer1[j])
                         vtk_d3_weights.append(d3_layer2[j])
 
-            # make cells
-            if isinstance(self.cross_section, CircularCrossSection):
-                if circle_as_wedge:
-                    # TODO: document this, when it is completed with the possibility for discontinuous stresses
-                    points_per_layer = 6
-                    points_per_cell = (p_zeta + 1) * points_per_layer
-
-                    # BiQuadratic(p_zeta) cells with BiQuadratic (flat) end cells for the end faces
-                    higher_order_degrees = np.vstack(
-                        [[2, 2, 1], [[2, 2, p_zeta]] * ncells, [2, 2, 1]]
-                    )
-
-                    # Note: if there is a closed rod (ring):
-                    #   we have to set the ids for the top of the last cell
-                    #   to the ids of the bottom from the first cell:
-                    #   last_cell[0:3] = [0, 1, 2]
-                    #   last_cell[6:9] = [3, 4, 5]
-                    #   what should be also done: do not add them into "vtk_points_weights"
-                    #   in this case, the first and last cell must not be used
-                    # fmt: off
-                    end_cell = np.array(
-                        [
-                             0,  1,  2, # vertices bottom
-                             6,  7,  8, # vertices top
-                             3,  4,  5, # edges bottom
-                             9, 10, 11, # edges top
-                        ],
-                        dtype=int
-                    )
-                    this_cell = np.array(
-                        [
-                             0,  1,  2, # vertices bottom 
-                            18, 19, 20, # vertices top
-                             3,  4,  5, # edges bottom
-                            21, 22, 23, # edges top
-                             6,  7,  8, # edges middle
-                             9, 10, 11, # edges middle   
-                            12, 13, 14, # faces middle
-                            15, 16, 17  # faces middle
-                        ], 
-                        dtype=int
-                    )
-                    # fmt: on
-                    cells = [(VTK_BEZIER_WEDGE, end_cell)]
-                    cells.extend(
-                        [
-                            (VTK_BEZIER_WEDGE, this_cell + i * 18 + 6)
-                            for i in range(ncells)
-                        ]
-                    )
-                    cells.append((VTK_BEZIER_WEDGE, end_cell + ncells * 18 + 6))
-
-                else:
-                    points_per_layer = 9
-                    points_per_cell = (p_zeta + 1) * points_per_layer
-
-                    # TODO: add here the BiQuadraticLinear cells with 0-width to remove inner walls when opacity is reduced
-
-                    # BiQuadratic(p_zeta) cells
-                    higher_order_degrees = np.array([[2, 2, p_zeta]] * ncells)
-
-                    # connectivity with points
-                    cells = [
-                        (
-                            VTK_BEZIER_HEXAHEDRON,
-                            np.arange(i * points_per_cell, (i + 1) * points_per_cell),
-                        )
-                        for i in range(ncells)
-                    ]
-            elif isinstance(self.cross_section, RectangularCrossSection):
-                points_per_layer = 4
-                points_per_cell = (p_zeta + 1) * points_per_layer
-
-                # BiLinear(p_zeta) cells, alternattely with BiLinearLinear cells with 0-width to remove inner walls when opacity is reduced and to keep posibility for dicontiuous stresses
-                higher_order_degrees = np.array([[1, 1, p_zeta], [1, 1, 1]] * ncells)[
-                    :-1
-                ]
-
-                # connectivities
-                connectivity_main = np.arange(points_per_cell)
-                connectivity_internal = np.array([4, 5, 6, 7, 16, 17, 18, 19])
-
-                # connectivity with points
-                cells = []
-                for i in range(0, ncells):
-                    for c in [connectivity_main, connectivity_internal]:
-                        cells.append((VTK_BEZIER_HEXAHEDRON, c + i * points_per_cell))
-                # remove last (internal) cell
-                cells = cells[:-1]
-
             # points to export is just the R^3 part
             vtk_points_weights = np.array(vtk_points_weights)
             vtk_points = vtk_points_weights[:, :3]
@@ -591,19 +641,15 @@ class RodExportBase(ABC):
 
             # add cell data
             cell_data = {
-                "HigherOrderDegrees": higher_order_degrees,
+                "HigherOrderDegrees": self._export_dict["higher_order_degrees"],
             }
 
         elif level == "None" or level == None:
             vtk_points = []
-            cells = []
             point_data = {}
             cell_data = {}
 
-        else:
-            raise NotImplementedError
-
-        return vtk_points, cells, point_data, cell_data
+        return vtk_points, self._export_dict["cells"], point_data, cell_data
 
 
 class RodExportBaseStress(RodExportBase):
