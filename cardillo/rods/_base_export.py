@@ -142,14 +142,17 @@ class RodExportBase(ABC):
                     # fmt: off
                     connectivity_main = np.array(
                         [
-                             0,  1,  2, # vertices bottom 
-                            18, 19, 20, # vertices top
-                             3,  4,  5, # edges bottom
-                            21, 22, 23, # edges top
-                             6,  7,  8, # edges middle
-                             9, 10, 11, # edges middle   
-                            12, 13, 14, # faces middle
-                            15, 16, 17  # faces middle
+                             0,  1,  2, # vertices bottom   l0
+                            18, 19, 20, # vertices top      l3
+                             3,  4,  5, # edges bottom      l0
+                            21, 22, 23, # edges top         l3
+                             6, 12,     # edge1 middle      l1&l2
+                             7, 13,     # edge2 middle      l1&l2
+                             8, 14,     # edge3 middle      l1&l2
+                             9, 15,     # faces1 middle     l1&l2
+                            10, 16,     # faces2 middle     l1&l2
+                            11, 17,     # faces3 middle     l1&l2
+                        # l1|^, |^l2
                         ], 
                         dtype=int
                     )
@@ -340,9 +343,9 @@ class RodExportBase(ABC):
                         points_weights[0] = np.array([*P0, 1])
                         points_weights[1] = np.array([*P1, 1])
                         points_weights[2] = np.array([*P2, 1])
-                        points_weights[3] = np.array([*P3, 1 / 2])
-                        points_weights[4] = np.array([*P4, 1 / 2])
-                        points_weights[5] = np.array([*P5, 1 / 2])
+                        points_weights[3] = np.array([*P3, 0])  # 1 / 2])
+                        points_weights[4] = np.array([*P4, 0])  # 1 / 2])
+                        points_weights[5] = np.array([*P5, 0])  # 1 / 2])
 
                         return points_weights
 
@@ -404,23 +407,20 @@ class RodExportBase(ABC):
 
                         # bottom
                         # points and edges
-                        for j in range(6):
-                            vtk_points_weights.append(points_layer0[j])
-                            vtk_surface_normals.append(normal_layer0[j])
+                        vtk_points_weights.extend(points_layer0)
+                        vtk_surface_normals.extend(normal_layer0)
 
                         # first and second
                         # edges and faces
-                        for j in range(6):
-                            vtk_points_weights.append(points_layer1[j])
-                            vtk_points_weights.append(points_layer2[j])
-                            vtk_surface_normals.append(normal_layer1[j])
-                            vtk_surface_normals.append(normal_layer2[j])
+                        vtk_points_weights.extend(points_layer1)
+                        vtk_points_weights.extend(points_layer2)
+                        vtk_surface_normals.extend(normal_layer1)
+                        vtk_surface_normals.extend(normal_layer2)
 
                         # top
                         # points and edges
-                        for j in range(6):
-                            vtk_points_weights.append(points_layer3[j])
-                            vtk_surface_normals.append(normal_layer3[j])
+                        vtk_points_weights.extend(points_layer3)
+                        vtk_surface_normals.extend(normal_layer3)
 
                 else:
                     from warnings import warn
