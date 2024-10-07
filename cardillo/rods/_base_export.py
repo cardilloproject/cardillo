@@ -219,6 +219,7 @@ class RodExportBase(ABC):
                 cells = cells[:-1]
 
             self._export_dict["cells"] = cells
+            self._export_dict["points_per_layer"] = points_per_layer
 
         elif self._export_dict["level"] == "None" or self._export_dict["level"] == None:
             self._export_dict["cells"] = []
@@ -255,6 +256,7 @@ class RodExportBase(ABC):
                 "d3": d3s.T,
             }
             # TODO: add stresses here?
+            # here is a bit more work to do, as the points allo for now only C0 continuity in stresses!
             cell_data = {}
 
             return vtk_points, self._export_dict["cells"], point_data, cell_data
@@ -367,9 +369,6 @@ class RodExportBase(ABC):
                         if i == -1:
                             # take points of 1st layer in 1st cell
                             points = compute_missing_points(0, 0)
-                            # d2i = d2_segments[0, 0]
-                            # d3i = d3_segments[0, 0]
-                            # d1i_neg = cross3(d3i, d2i)
                             d1i_neg = -d1_segments[0, 0]
 
                             # points and edges
@@ -381,11 +380,8 @@ class RodExportBase(ABC):
 
                         if i == ncells:
                             # take points of last layer in last cell
-                            points = compute_missing_points(ncells - 1, 3)
-                            # d2i = d2_segments[ncells - 1, 3]
-                            # d3i = d3_segments[ncells - 1, 3]
-                            # d1i = cross3(d2i, d3i)
-                            d1i = d1_segments[ncells - 1, 3]
+                            points = compute_missing_points(-1, -1)
+                            d1i = d1_segments[-1, -1]
 
                             # points and edges
                             for j in range(6):
@@ -633,7 +629,7 @@ class RodExportBase(ABC):
                 "RationalWeights": vtk_points_weights[:, 3, None],
             }
 
-            # add other fields for points
+            # add other fields for point data
             if isinstance(self.cross_section, CircularCrossSection):
                 if circle_as_wedge:
                     point_data["surface_normal"] = vtk_surface_normals
@@ -642,6 +638,69 @@ class RodExportBase(ABC):
                 point_data["d1"] = vtk_d1_weights
                 point_data["d2"] = vtk_d2_weights
                 point_data["d3"] = vtk_d3_weights
+
+            if self._export_dict["stresses"]:
+                # TODO: do this on element basis when eval_stresses accepts el as argument
+                # TODO: put this then into preprocessor of export
+                num = self._export_dict["num_frames"] - 1
+                xis = np.linspace(0, 1, num=num)
+                xis_e_int = np.linspace(0, 1, self.nelement + 1)[1:-1]
+                for xi_e in xis_e_int:
+                    assert (
+                        xi_e not in xis
+                    ), f"xis for fitting may not contain internal element boundaries to represent discontinuities in stresses. \nInternal boundaries at {xis_e_int}, \nxis_fitting={xis}."
+
+                B_ns = np.zeros([3, num])
+                B_ms = np.zeros([3, num])
+
+                t = sol_i.t
+                la_c = sol_i.la_c
+                la_g = sol_i.la_g
+                for j in range(num):
+                    B_ns[:, j], B_ms[:, j] = self.eval_stresses(
+                        t, q, la_c, la_g, xis[j]
+                    )
+
+                # project contact forces and moments on cubic C1 bezier curve
+                B_n_segments = L2_projection_Bezier_curve(
+                    B_ns.T,
+                    ncells,
+                    case="C-1",
+                )[2]
+                B_m_segments = L2_projection_Bezier_curve(
+                    B_ms.T,
+                    ncells,
+                    case="C-1",
+                )[2]
+
+                ppl = self._export_dict["points_per_layer"]
+                # duplicate points for end cap
+                vtk_B_n = [B_n_segments[0, 0] for _ in range(ppl)]
+                vtk_B_m = [B_m_segments[0, 0] for _ in range(ppl)]
+
+                for i in range(ncells):
+                    for layer in range(4):
+                        vtk_B_n.extend(
+                            np.repeat(
+                                [B_n_segments[i, layer]],
+                                ppl,
+                                axis=0,
+                            )
+                        )
+                        vtk_B_m.extend(
+                            np.repeat(
+                                [B_m_segments[i, layer]],
+                                ppl,
+                                axis=0,
+                            )
+                        )
+
+                # duplicate points for end cap
+                vtk_B_n.extend([B_n_segments[-1, -1] for _ in range(ppl)])
+                vtk_B_m.extend([B_m_segments[-1, -1] for _ in range(ppl)])
+
+                point_data["B_n"] = vtk_B_n
+                point_data["B_m"] = vtk_B_m
 
             # add cell data
             cell_data = {
@@ -678,8 +737,8 @@ class RodExportBaseStress(RodExportBase):
             B_n_weights, B_m_weights = self.export_stresses(
                 sol_i, level=level, circle_as_wedge=circle_as_wedge, **kwargs
             )
-            point_data["B_n"] = B_n_weights
-            point_data["B_m"] = B_m_weights
+            point_data["B_n_old"] = B_n_weights
+            point_data["B_m_old"] = B_m_weights
         else:
             warn("Stresses will not be exported: No rectangular cross section.")
 
