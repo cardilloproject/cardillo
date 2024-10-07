@@ -12,6 +12,11 @@ from ._cross_section import (
     RectangularCrossSection,
 )
 
+"""
+very usefull for the ordering: 
+https://coreform.com/papers/implementation-of-rational-bezier-cells-into-VTK-report.pdf
+"""
+
 
 class RodExportBase(ABC):
     def __init__(self, cross_section: CrossSection):
@@ -23,7 +28,8 @@ class RodExportBase(ABC):
             "num_per_cell": "Auto",
             "ncells": "Auto",
             "stresses": False,
-            "surface_normals": True,
+            "volume_directors": False,
+            "surface_normals": False,
         }
 
         self.preprocessed_export = False
@@ -267,6 +273,15 @@ class RodExportBase(ABC):
                     xi_e not in xis
                 ), f"xis for fitting may not contain internal element boundaries to represent discontinuities in stresses. \nInternal boundaries at {xis_e_int}, \nxis_fitting={xis}."
 
+            #################################
+            # assertion for surface normals #
+            #################################
+            if self._export_dict["surface_normals"]:
+                assert isinstance(self.cross_section, CircularCrossSection)
+                warn(
+                    "surface normals are not implmented correctly! They are wrong when shear is present!"
+                )
+
         elif self._export_dict["level"] == "None" or self._export_dict["level"] == None:
             self._export_dict["cells"] = []
 
@@ -325,7 +340,7 @@ class RodExportBase(ABC):
             d2_segments = L2_projection_Bezier_curve(d2s.T, ncells, case=continuity)[2]
             d3_segments = L2_projection_Bezier_curve(d3s.T, ncells, case=continuity)[2]
 
-            # compute points
+            # define functions to get points, normals, ...
             ppl = self._export_dict["points_per_layer"]
             p_zeta = self._export_dict["p_zeta"]
             if isinstance(self.cross_section, CircularCrossSection):
@@ -403,48 +418,7 @@ class RodExportBase(ABC):
 
                         return normals
 
-                    # create correct VTK ordering, see
-                    # https://coreform.com/papers/implementation-of-rational-bezier-cells-into-VTK-report.pdf:
-                    vtk_points_weights = []
-                    vtk_surface_normals = []
-                    # iterate two more to get the end faces clean
-                    for i in range(-1, ncells + 1):
-
-                        if i == -1:
-                            # take points of 1st layer in 1st cell
-                            points = compute_missing_points(0, 0)
-                            d1i_neg = -d1_segments[0, 0]
-
-                            # points and edges
-                            vtk_points_weights.extend(points)
-                            vtk_surface_normals.extend(
-                                np.repeat([d1i_neg], ppl, axis=0)
-                            )
-                            continue
-
-                        if i == ncells:
-                            # take points of last layer in last cell
-                            points = compute_missing_points(-1, -1)
-                            d1i = d1_segments[-1, -1]
-
-                            # points and edges
-                            vtk_points_weights.extend(points)
-                            vtk_surface_normals.extend(np.repeat([d1i], ppl, axis=0))
-                            continue
-
-                        # iterate all layers
-                        for layer in range(p_zeta + 1):
-                            # get all points and normals of the layer
-                            points_layer = compute_missing_points(i, layer)
-                            normal_layer = compute_normals(i, layer)
-
-                            # and add them
-                            vtk_points_weights.extend(points_layer)
-                            vtk_surface_normals.extend(normal_layer)
-
                 else:
-                    from warnings import warn
-
                     warn(
                         f"Test rod export: circle as VTK_BEZIER_HEXAHEDRON may leads to unexpected results!"
                     )
@@ -580,27 +554,23 @@ class RodExportBase(ABC):
 
                     return points_weights
 
-                # create correct VTK ordering, see
-                # https://coreform.com/papers/implementation-of-rational-bezier-cells-into-VTK-report.pdf:
-                vtk_points_weights = []
-                vtk_d1_weights = []
-                vtk_d2_weights = []
-                vtk_d3_weights = []
-                for i in range(ncells):
+            ##################
+            # compute points #
+            ##################
+            vtk_points_weights = []
+            # cap at xi=0
+            if self._export_dict["hasCap"]:
+                vtk_points_weights.extend(compute_missing_points(0, 0))
 
-                    # iterate all layers
-                    for layer in range(p_zeta + 1):
-                        # get all points and directors of the layer
-                        points_layer = compute_missing_points(i, layer)
-                        d1_layer = np.repeat([d1_segments[i, layer]], ppl, axis=0)
-                        d2_layer = np.repeat([d2_segments[i, layer]], ppl, axis=0)
-                        d3_layer = np.repeat([d3_segments[i, layer]], ppl, axis=0)
+            # iterate all cells
+            for i in range(ncells):
+                # iterate all layers
+                for layer in range(p_zeta + 1):
+                    vtk_points_weights.extend(compute_missing_points(i, layer))
 
-                        # and add them
-                        vtk_points_weights.extend(points_layer)
-                        vtk_d1_weights.extend(d1_layer)
-                        vtk_d2_weights.extend(d2_layer)
-                        vtk_d3_weights.extend(d3_layer)
+            # cap at xi=1
+            if self._export_dict["hasCap"]:
+                vtk_points_weights.extend(compute_missing_points(-1, -1))
 
             # points to export is just the R^3 part
             vtk_points_weights = np.array(vtk_points_weights)
@@ -611,16 +581,9 @@ class RodExportBase(ABC):
                 "RationalWeights": vtk_points_weights[:, 3, None],
             }
 
-            # add other fields for point data
-            if isinstance(self.cross_section, CircularCrossSection):
-                if circle_as_wedge:
-                    point_data["surface_normal"] = vtk_surface_normals
-
-            elif isinstance(self.cross_section, RectangularCrossSection):
-                point_data["d1"] = vtk_d1_weights
-                point_data["d2"] = vtk_d2_weights
-                point_data["d3"] = vtk_d3_weights
-
+            ################
+            # add stresses #
+            ################
             if self._export_dict["stresses"]:
                 # TODO: do this on element basis when eval_stresses accepts el as argument
                 num = self._export_dict["num_frames"] - 1
@@ -648,40 +611,89 @@ class RodExportBase(ABC):
                     case="C-1",
                 )[2]
 
+                # fill lists
+                vtk_B_n = []
+                vtk_B_m = []
+                # cap at xi=0
                 if self._export_dict["hasCap"]:
-                    # duplicate points for end cap
-                    vtk_B_n = [B_n_segments[0, 0] for _ in range(ppl)]
-                    vtk_B_m = [B_m_segments[0, 0] for _ in range(ppl)]
-                else:
-                    vtk_B_n = []
-                    vtk_B_m = []
+                    vtk_B_n.extend(np.repeat([B_n_segments[0, 0]], ppl, axis=0))
+                    vtk_B_m.extend(np.repeat([B_m_segments[0, 0]], ppl, axis=0))
 
+                # iterate all cells
                 for i in range(ncells):
+                    # iterate all layers
                     for layer in range(p_zeta + 1):
-                        vtk_B_n.extend(
-                            np.repeat(
-                                [B_n_segments[i, layer]],
-                                ppl,
-                                axis=0,
-                            )
-                        )
-                        vtk_B_m.extend(
-                            np.repeat(
-                                [B_m_segments[i, layer]],
-                                ppl,
-                                axis=0,
-                            )
-                        )
+                        vtk_B_n.extend(np.repeat([B_n_segments[i, layer]], ppl, axis=0))
+                        vtk_B_m.extend(np.repeat([B_m_segments[i, layer]], ppl, axis=0))
 
+                # cap at xi=1
                 if self._export_dict["hasCap"]:
-                    # duplicate points for end cap
-                    vtk_B_n.extend([B_n_segments[-1, -1] for _ in range(ppl)])
-                    vtk_B_m.extend([B_m_segments[-1, -1] for _ in range(ppl)])
+                    vtk_B_n.extend(np.repeat([B_n_segments[-1, -1]], ppl, axis=0))
+                    vtk_B_m.extend(np.repeat([B_m_segments[-1, -1]], ppl, axis=0))
 
+                # add them to dictionary with point data
                 point_data["B_n"] = vtk_B_n
                 point_data["B_m"] = vtk_B_m
 
-            # add cell data
+            ########################
+            # add volume directors #
+            ########################
+            if self._export_dict["volume_directors"]:
+                vtk_d1 = []
+                vtk_d2 = []
+                vtk_d3 = []
+                # cap at xi=0
+                if self._export_dict["hasCap"]:
+                    vtk_d1.extend(np.repeat([d1_segments[0, 0]], ppl, axis=0))
+                    vtk_d2.extend(np.repeat([d2_segments[0, 0]], ppl, axis=0))
+                    vtk_d3.extend(np.repeat([d3_segments[0, 0]], ppl, axis=0))
+
+                # iterate all cells
+                for i in range(ncells):
+                    # iterate all layers
+                    for layer in range(p_zeta + 1):
+                        vtk_d1.extend(np.repeat([d1_segments[i, layer]], ppl, axis=0))
+                        vtk_d2.extend(np.repeat([d2_segments[i, layer]], ppl, axis=0))
+                        vtk_d3.extend(np.repeat([d3_segments[i, layer]], ppl, axis=0))
+
+                # cap at xi=1
+                if self._export_dict["hasCap"]:
+                    vtk_d1.extend(np.repeat([d1_segments[-1, -1]], ppl, axis=0))
+                    vtk_d2.extend(np.repeat([d2_segments[-1, -1]], ppl, axis=0))
+                    vtk_d3.extend(np.repeat([d3_segments[-1, -1]], ppl, axis=0))
+
+                # add them to dictionary with point data
+                point_data["d1"] = vtk_d1
+                point_data["d2"] = vtk_d2
+                point_data["d3"] = vtk_d3
+
+            #######################
+            # add surface normals #
+            #######################
+            if self._export_dict["surface_normals"]:
+                vtk_surface_normals = []
+                # cap at xi=0
+                if self._export_dict["hasCap"]:
+                    vtk_surface_normals.extend(
+                        np.repeat([-d1_segments[0, 0]], ppl, axis=0)
+                    )
+
+                # iterate all cells
+                for i in range(ncells):
+                    # iterate all layers
+                    for layer in range(p_zeta + 1):
+                        vtk_surface_normals.extend(compute_normals(i, layer))
+
+                # cap at xi=1
+                if self._export_dict["hasCap"]:
+                    vtk_points_weights.extend(compute_normals(-1, -1))
+
+                # add them to dictionary with point data
+                point_data["surface_normal"] = vtk_surface_normals
+
+            #################
+            # add cell data #
+            #################
             cell_data = {
                 "HigherOrderDegrees": self._export_dict["higher_order_degrees"],
             }
