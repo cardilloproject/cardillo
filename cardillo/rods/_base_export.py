@@ -7,7 +7,7 @@ from cardillo.utility.bezier import L2_projection_Bezier_curve
 from cardillo.math import cross3
 
 from ._cross_section import (
-    CrossSection,
+    ExportableCrossSection,
     CircularCrossSection,
     RectangularCrossSection,
 )
@@ -19,7 +19,7 @@ https://coreform.com/papers/implementation-of-rational-bezier-cells-into-VTK-rep
 
 
 class RodExportBase(ABC):
-    def __init__(self, cross_section: CrossSection):
+    def __init__(self, cross_section: ExportableCrossSection):
         self.cross_section = cross_section
 
         self._export_dict = {
@@ -121,16 +121,21 @@ class RodExportBase(ABC):
 
         elif self._export_dict["level"] == "volume":
             assert isinstance(
-                self.cross_section, (CircularCrossSection, RectangularCrossSection)
-            ), "Volume export is only implemented for CircularCrossSection and RectangularCrossSection."
+                self.cross_section, (ExportableCrossSection)
+            ), "Volume export is only implemented for Classes derived from ExportableCrossSection."
 
             # always use 4 here
             # this is only the number of points we use for the projection
             self._export_dict["num_frames"] = 4 * ncells + 1
 
             # make cells
+            p_cs = self.cross_section.vtk_degree
             p_zeta = 3  # polynomial_degree of the cell along the rod. Always 3, this is hardcoded in L2_projection when BernsteinBasis is called!
             # determines also the number of layers per cell (p_zeta + 1 = 4), which is also very hardcoded here with 'points_layer_0' ... 'points_layer3'
+
+            higher_order_degree_main = [p_cs, p_cs, p_zeta]
+            higher_order_degree_flat = [p_cs, p_cs, 1]
+
             if isinstance(self.cross_section, CircularCrossSection):
                 if self._export_dict["circle_as_wedge"]:
                     self._export_dict["hasCap"] = True
@@ -138,11 +143,6 @@ class RodExportBase(ABC):
                     points_per_cell = (
                         p_zeta + 1
                     ) * self.cross_section.vtk_points_per_layer
-
-                    # BiQuadratic(p_zeta) cells alternating with BiQuadraticLinear (flat) cells for the end faces and to remove the internal faces in the rod
-                    self._export_dict["higher_order_degrees"] = np.vstack(
-                        [[2, 2, 1], [[2, 2, p_zeta], [2, 2, 1]] * ncells]
-                    )
 
                     # Note: if there is a closed rod (ring):
                     #   we have to set the ids for the top of the last cell
@@ -222,11 +222,6 @@ class RodExportBase(ABC):
                 self._export_dict["hasCap"] = False
                 points_per_cell = (p_zeta + 1) * self.cross_section.vtk_points_per_layer
 
-                # BiLinear(p_zeta) cells, alternattely with BiLinearLinear cells with 0-width to remove inner walls when opacity is reduced and to keep posibility for dicontiuous stresses
-                self._export_dict["higher_order_degrees"] = np.array(
-                    [[1, 1, p_zeta], [1, 1, 1]] * ncells
-                )[:-1]
-
                 # connectivities
                 # ordering for vtu file version>=2.0
                 # ordering for vtu file version<2.0, e.g. 0.1 changes order of edges! like [0, 1, 3, 2]
@@ -261,6 +256,24 @@ class RodExportBase(ABC):
 
             self._export_dict["cells"] = cells
             self._export_dict["p_zeta"] = p_zeta
+
+            higher_order_degree = []
+            # cap at xi=0
+            if self._export_dict["hasCap"]:
+                higher_order_degree.append(higher_order_degree_flat)
+
+            # iterate all cells
+            for i in range(ncells):
+                higher_order_degree.extend(
+                    [higher_order_degree_main, higher_order_degree_flat]
+                )
+
+            # remove cap at xi=1
+            if not self._export_dict["hasCap"]:
+                higher_order_degree = higher_order_degree[:-1]
+
+            # save for later use
+            self._export_dict["higher_order_degrees"] = higher_order_degree
 
             ###############################
             # assertion for stress export #

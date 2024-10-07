@@ -27,6 +27,10 @@ class CrossSection(ABC):
 class ExportableCrossSection(CrossSection):
     @property
     @abstractmethod
+    def vtk_degree(self): ...
+
+    @property
+    @abstractmethod
     def vtk_points_per_layer(self): ...
 
     @abstractmethod
@@ -98,6 +102,10 @@ class CircularCrossSection(ExportableCrossSection):
     @property
     def radius(self):
         return self._radius
+
+    @property
+    def vtk_degree(self):
+        return 2
 
     @property
     def vtk_points_per_layer(self):
@@ -270,6 +278,10 @@ class RectangularCrossSection(ExportableCrossSection):
     @property
     def height(self):
         return self._height
+
+    @property
+    def vtk_degree(self):
+        return 1
 
     @property
     def vtk_points_per_layer(self):
