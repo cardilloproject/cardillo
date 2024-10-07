@@ -120,16 +120,16 @@ class RodExportBase(ABC):
 
             # make cells
             p_zeta = 3  # polynomial_degree of the cell along the rod. Always 3, this is hardcoded in L2_projection when BernsteinBasis is called!
-            # determines also the number of layers per cell (p_zeta + 1 = 4), which is also very hardcoded here wth 'points_layer_0' ... 'points_layer3'
+            # determines also the number of layers per cell (p_zeta + 1 = 4), which is also very hardcoded here with 'points_layer_0' ... 'points_layer3'
             if isinstance(self.cross_section, CircularCrossSection):
                 if self._export_dict["circle_as_wedge"]:
                     # TODO: document this, when it is completed with the possibility for discontinuous stresses
                     points_per_layer = 6
                     points_per_cell = (p_zeta + 1) * points_per_layer
 
-                    # BiQuadratic(p_zeta) cells with BiQuadratic (flat) end cells for the end faces
+                    # BiQuadratic(p_zeta) cells alternating with BiQuadraticLinear (flat) cells for the end faces and to remove the internal faces in the rod
                     self._export_dict["higher_order_degrees"] = np.vstack(
-                        [[2, 2, 1], [[2, 2, p_zeta]] * ncells, [2, 2, 1]]
+                        [[2, 2, 1], [[2, 2, p_zeta], [2, 2, 1]] * ncells]
                     )
 
                     # Note: if there is a closed rod (ring):
@@ -140,16 +140,7 @@ class RodExportBase(ABC):
                     #   what should be also done: do not add them into "vtk_points_weights"
                     #   in this case, the first and last cell must not be used
                     # fmt: off
-                    end_cell = np.array(
-                        [
-                             0,  1,  2, # vertices bottom
-                             6,  7,  8, # vertices top
-                             3,  4,  5, # edges bottom
-                             9, 10, 11, # edges top
-                        ],
-                        dtype=int
-                    )
-                    this_cell = np.array(
+                    connectivity_main = np.array(
                         [
                              0,  1,  2, # vertices bottom 
                             18, 19, 20, # vertices top
@@ -162,15 +153,30 @@ class RodExportBase(ABC):
                         ], 
                         dtype=int
                     )
-                    # fmt: on
-                    cells = [(VTK_BEZIER_WEDGE, end_cell)]
-                    cells.extend(
+                    connectivity_flat = np.array(
                         [
-                            (VTK_BEZIER_WEDGE, this_cell + i * 18 + 6)
-                            for i in range(ncells)
-                        ]
+                            18, 19, 20, # vertiecs bottom
+                            24, 25, 26, # vertices top
+                            21, 22, 23, # edges bottom
+                            27, 28, 29, # edges top
+                        ],
+                        dtype=int
                     )
-                    cells.append((VTK_BEZIER_WEDGE, end_cell + ncells * 18 + 6))
+                    # fmt: on
+                    cells = [
+                        (
+                            VTK_BEZIER_WEDGE,
+                            connectivity_flat - points_per_cell + points_per_layer,
+                        )
+                    ]
+                    for i in range(ncells):
+                        for c in [connectivity_main, connectivity_flat]:
+                            cells.append(
+                                (
+                                    VTK_BEZIER_WEDGE,
+                                    c + i * points_per_cell + points_per_layer,
+                                )
+                            )
 
                 else:
                     points_per_layer = 9
@@ -202,12 +208,12 @@ class RodExportBase(ABC):
 
                 # connectivities
                 connectivity_main = np.arange(points_per_cell)
-                connectivity_internal = np.array([4, 5, 6, 7, 16, 17, 18, 19])
+                connectivity_flat = np.array([4, 5, 6, 7, 16, 17, 18, 19])
 
                 # connectivity with points
                 cells = []
-                for i in range(0, ncells):
-                    for c in [connectivity_main, connectivity_internal]:
+                for i in range(ncells):
+                    for c in [connectivity_main, connectivity_flat]:
                         cells.append((VTK_BEZIER_HEXAHEDRON, c + i * points_per_cell))
                 # remove last (internal) cell
                 cells = cells[:-1]
@@ -401,12 +407,10 @@ class RodExportBase(ABC):
                         normal_layer3 = compute_normals(i, 3)
 
                         # bottom
-                        # we need the bottom points only once, as they are the top points from the previous segment
-                        if i == 0:
-                            # points and edges
-                            for j in range(6):
-                                vtk_points_weights.append(points_layer0[j])
-                                vtk_surface_normals.append(normal_layer0[j])
+                        # points and edges
+                        for j in range(6):
+                            vtk_points_weights.append(points_layer0[j])
+                            vtk_surface_normals.append(normal_layer0[j])
 
                         # first and second
                         # edges and faces
