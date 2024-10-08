@@ -68,10 +68,7 @@ class UserDefinedCrossSection(CrossSection):
 
 
 class CircularCrossSection(ExportableCrossSection):
-    # circle_as_wedge = True
-    circle_as_wedge = False
-
-    def __init__(self, radius):
+    def __init__(self, radius, *, export_as_wedge=True):
         """Circular cross-section.
 
         Parameters
@@ -85,6 +82,8 @@ class CircularCrossSection(ExportableCrossSection):
         self._first_moment = np.zeros(3)
         # https://en.wikipedia.org/wiki/List_of_second_moments_of_area
         self._second_moment = np.diag([2, 1, 1]) / 4 * np.pi * radius**4
+
+        self.circle_as_wedge = export_as_wedge
 
     @property
     def area(self):
