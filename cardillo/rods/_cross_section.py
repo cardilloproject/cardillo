@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 import numpy as np
+from vtk import VTK_BEZIER_WEDGE, VTK_BEZIER_HEXAHEDRON
 
 
 class CrossSection(ABC):
@@ -36,7 +37,8 @@ class ExportableCrossSection(CrossSection):
     @abstractmethod
     def vtk_compute_points(self, r_OP_segments, d2_segments, d3_segments): ...
 
-
+    @abstractmethod
+    def vtk_connectivity(self, p_zeta): ...
 class UserDefinedCrossSection(CrossSection):
     def __init__(self, area, first_moment, second_moment):
         """User defined cross-section.
@@ -111,6 +113,74 @@ class CircularCrossSection(ExportableCrossSection):
             return 6
         else:
             return 9
+
+    def vtk_connectivity(self, p_zeta):
+        assert p_zeta == 3
+        if self.circle_as_wedge:
+            VTK_CELL_TYPE = VTK_BEZIER_WEDGE
+            # fmt: off
+            connectivity_flat = np.array(
+                [
+                    18, 19, 20, # vertiecs bottom
+                    24, 25, 26, # vertices top
+                    21, 22, 23, # edges bottom
+                    27, 28, 29, # edges top
+                ],
+                dtype=int
+            )
+            connectivity_main = np.array(
+                [
+                        0,  1,  2, # vertices bottom   l0
+                    18, 19, 20, # vertices top      l3
+                        3,  4,  5, # edges bottom      l0
+                    21, 22, 23, # edges top         l3
+                        6, 12,     # edge1 middle      l1&l2
+                        7, 13,     # edge2 middle      l1&l2
+                        8, 14,     # edge3 middle      l1&l2
+                        9, 15,     # faces1 middle     l1&l2
+                    10, 16,     # faces2 middle     l1&l2
+                    11, 17,     # faces3 middle     l1&l2
+                # l1|^, |^l2
+                ], 
+                dtype=int
+            )
+            # fmt: on
+        else:
+            VTK_CELL_TYPE = VTK_BEZIER_HEXAHEDRON
+            # fmt: off
+            connectivity_main = np.array(
+                [
+                        0,  1,  2,  3, # vertices bottom
+                    27, 28, 29, 30, # vertices top
+                        4,  5,  6,  7, # edges bottom
+                    31, 32, 33, 34, # edges top
+                        9, 18,         # edges middle 0
+                    10, 19,         # edges middle 1
+                    11, 20,         # edges middle 2
+                    12, 21,         # edges middle 3
+                    16, 25,         # faces middle 7
+                    14, 23,         # faces middle 5
+                    13, 22,         # faces middle 4
+                    15, 24,         # faces middle 6
+                        8,             # face bottom    
+                    35,             # face top
+                    17, 26,         # volume middle 8
+                ],
+                dtype=int,
+            )
+            connectivity_flat = np.array(
+                [
+                    27, 28, 29, 30,
+                    36, 37, 38, 39,
+                    31, 32, 33, 34,
+                    40, 41, 42, 43,
+                    35, 44
+                ],
+                dtype=int
+            )
+            # fmt: on
+
+        return VTK_CELL_TYPE, connectivity_main, connectivity_flat
 
     def vtk_compute_points(self, r_OP_segments, d2_segments, d3_segments):
         if self.circle_as_wedge:
@@ -291,6 +361,32 @@ class RectangularCrossSection(ExportableCrossSection):
     @property
     def vtk_points_per_layer(self):
         return 4
+
+    def vtk_connectivity(self, p_zeta):
+        assert p_zeta == 3
+        VTK_CELL_TYPE = VTK_BEZIER_HEXAHEDRON
+        # fmt: off
+        connectivity_main = np.array(
+            [
+                    0,  1,  2,  3,  # vertices bottom
+                12, 13, 14, 15,     # vertices top
+                    4,  8,          # edge1
+                    5,  9,          # edge2
+                    6, 10,          # edge3
+                    7, 11,          # edge4
+            ],
+            dtype=int
+        )
+        connectivity_flat = np.array(
+            [
+                12, 13, 14, 15,
+                16, 17, 18, 19
+            ],
+            dtype=int
+        )
+        # fmt: on
+
+        return VTK_CELL_TYPE, connectivity_main, connectivity_flat
 
     def vtk_compute_points(self, r_OP_segments, d2_segments, d3_segments):
         def compute_points(segment, layer):

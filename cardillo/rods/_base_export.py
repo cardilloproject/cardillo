@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 import numpy as np
-from vtk import VTK_BEZIER_WEDGE, VTK_BEZIER_HEXAHEDRON, VTK_LAGRANGE_CURVE
+from vtk import VTK_LAGRANGE_CURVE
 from warnings import warn
 
 from cardillo.utility.bezier import L2_projection_Bezier_curve
@@ -30,6 +30,7 @@ class RodExportBase(ABC):
             "stresses": False,
             "volume_directors": False,
             "surface_normals": False,
+            "hasCap": False,
         }
 
         self.preprocessed_export = False
@@ -127,7 +128,8 @@ class RodExportBase(ABC):
             # make cells
             p_cs = self.cross_section.vtk_degree
             p_zeta = 3  # polynomial_degree of the cell along the rod. Always 3, this is hardcoded in L2_projection when BernsteinBasis is called!
-            # determines also the number of layers per cell (p_zeta + 1 = 4), which is also very hardcoded here with 'points_layer_0' ... 'points_layer3'
+            # determines also the number of layers per cell (p_zeta + 1 = 4)
+            self._export_dict["p_zeta"] = p_zeta
 
             higher_order_degree_main = [p_cs, p_cs, p_zeta]
             higher_order_degree_flat = [p_cs, p_cs, 1]
@@ -135,114 +137,9 @@ class RodExportBase(ABC):
             # get infos from cross section
             ppl = self.cross_section.vtk_points_per_layer
             points_per_cell = (p_zeta + 1) * ppl
-            # # TODO: get from cross section
-            # VTK_CELL_TYPE, connectivity_main, connectivity_flat = self.cross_section.vtk_connectivites(p_zeta)
-            # hasCap = self.cross_section ???
-
-            if isinstance(self.cross_section, CircularCrossSection):
-                if self.cross_section.circle_as_wedge:
-                    self._export_dict["hasCap"] = True
-                    VTK_CELL_TYPE = VTK_BEZIER_WEDGE
-
-                    # Note: if there is a closed rod (ring):
-                    #   we have to set the ids for the top of the last cell
-                    #   to the ids of the bottom from the first cell:
-                    #   last_cell[0:3] = [0, 1, 2]
-                    #   last_cell[6:9] = [3, 4, 5]
-                    #   what should be also done: do not add them into "vtk_points_weights"
-                    #   in this case, the first and last cell must not be used
-                    # fmt: off
-                    connectivity_main = np.array(
-                        [
-                             0,  1,  2, # vertices bottom   l0
-                            18, 19, 20, # vertices top      l3
-                             3,  4,  5, # edges bottom      l0
-                            21, 22, 23, # edges top         l3
-                             6, 12,     # edge1 middle      l1&l2
-                             7, 13,     # edge2 middle      l1&l2
-                             8, 14,     # edge3 middle      l1&l2
-                             9, 15,     # faces1 middle     l1&l2
-                            10, 16,     # faces2 middle     l1&l2
-                            11, 17,     # faces3 middle     l1&l2
-                        # l1|^, |^l2
-                        ], 
-                        dtype=int
-                    )
-                    connectivity_flat = np.array(
-                        [
-                            18, 19, 20, # vertiecs bottom
-                            24, 25, 26, # vertices top
-                            21, 22, 23, # edges bottom
-                            27, 28, 29, # edges top
-                        ],
-                        dtype=int
-                    )
-                    # fmt: on
-
-                else:
-                    self._export_dict["hasCap"] = False
-                    VTK_CELL_TYPE = VTK_BEZIER_HEXAHEDRON
-                    # fmt: off
-                    connectivity_main = np.array(
-                        [
-                             0,  1,  2,  3, # vertices bottom
-                            27, 28, 29, 30, # vertices top
-                             4,  5,  6,  7, # edges bottom
-                            31, 32, 33, 34, # edges top
-                             9, 18,         # edges middle 0
-                            10, 19,         # edges middle 1
-                            11, 20,         # edges middle 2
-                            12, 21,         # edges middle 3
-                            16, 25,         # faces middle 7
-                            14, 23,         # faces middle 5
-                            13, 22,         # faces middle 4
-                            15, 24,         # faces middle 6
-                             8,             # face bottom    
-                            35,             # face top
-                            17, 26,         # volume middle 8
-                        ],
-                        dtype=int,
-                    )
-                    connectivity_flat = np.array(
-                        [
-                            27, 28, 29, 30,
-                            36, 37, 38, 39,
-                            31, 32, 33, 34,
-                            40, 41, 42, 43,
-                            35, 44
-                        ],
-                        dtype=int
-                    )
-                    # fmt: on
-
-            elif isinstance(self.cross_section, RectangularCrossSection):
-                self._export_dict["hasCap"] = False
-                VTK_CELL_TYPE = VTK_BEZIER_HEXAHEDRON
-                # connectivities
-                # ordering for vtu file version>=2.0
-                # ordering for vtu file version<2.0, e.g. 0.1 changes order of edges! like [0, 1, 3, 2]
-                # fmt: off
-                connectivity_main = np.array(
-                    [
-                         0,  1,  2,  3,     # vertices bottom
-                        12, 13, 14, 15,     # vertices top
-                         4,  8,             # edge1
-                         5,  9,             # edge2
-                         6, 10,             # edge3
-                         7, 11,             # edge4
-                    ],
-                    dtype=int
-                )
-                connectivity_flat = np.array(
-                    [
-                        12, 13, 14, 15,
-                        16, 17, 18, 19
-                    ],
-                    dtype=int
-                )
-                # fmt: on
-
-            self._export_dict["p_zeta"] = p_zeta
+            VTK_CELL_TYPE, connectivity_main, connectivity_flat = (
+                self.cross_section.vtk_connectivity(p_zeta)
+            )
 
             # create cells and higher_order_degrees
             cells = []
@@ -271,6 +168,8 @@ class RodExportBase(ABC):
             if not self._export_dict["hasCap"]:
                 cells = cells[:-1]
                 higher_order_degree = higher_order_degree[:-1]
+
+            # Note: if there is a closed rod (ring), this should be handled here
 
             # save for later use
             self._export_dict["higher_order_degrees"] = higher_order_degree
