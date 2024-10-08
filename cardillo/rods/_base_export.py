@@ -252,13 +252,14 @@ class RodExportBase(ABC):
             d2_segments = L2_projection_Bezier_curve(d2s.T, ncells, case=continuity)[2]
             d3_segments = L2_projection_Bezier_curve(d3s.T, ncells, case=continuity)[2]
 
-            # define functions to get points, normals, ...
-            ppl = self.cross_section.vtk_points_per_layer
-            p_zeta = self._export_dict["p_zeta"]
-
-            compute_missing_points = self.cross_section.vtk_compute_points(
+            # get characteristic points from the cross-section
+            compute_points = self.cross_section.vtk_compute_points(
                 r_OP_segments, d2_segments, d3_segments
             )
+
+            # get some values for shortcuts
+            ppl = self.cross_section.vtk_points_per_layer
+            p_zeta = self._export_dict["p_zeta"]
 
             ##################
             # compute points #
@@ -266,17 +267,17 @@ class RodExportBase(ABC):
             vtk_points_weights = []
             # cap at xi=0
             if self._export_dict["hasCap"]:
-                vtk_points_weights.extend(compute_missing_points(0, 0))
+                vtk_points_weights.extend(compute_points(0, 0))
 
             # iterate all cells
             for i in range(ncells):
                 # iterate all layers
                 for layer in range(p_zeta + 1):
-                    vtk_points_weights.extend(compute_missing_points(i, layer))
+                    vtk_points_weights.extend(compute_points(i, layer))
 
             # cap at xi=1
             if self._export_dict["hasCap"]:
-                vtk_points_weights.extend(compute_missing_points(-1, -1))
+                vtk_points_weights.extend(compute_points(-1, -1))
 
             # points to export is just the R^3 part
             vtk_points_weights = np.array(vtk_points_weights)
@@ -287,9 +288,10 @@ class RodExportBase(ABC):
                 "RationalWeights": vtk_points_weights[:, 3, None],
             }
 
-            ################
-            # add stresses #
-            ################
+            ###################
+            # add points data #
+            ###################
+            # streses
             if self._export_dict["stresses"]:
                 # TODO: do this on element basis when eval_stresses accepts el as argument
                 num = self._export_dict["num_frames"] - 1
@@ -341,9 +343,7 @@ class RodExportBase(ABC):
                 point_data["B_n"] = vtk_B_n
                 point_data["B_m"] = vtk_B_m
 
-            ########################
-            # add volume directors #
-            ########################
+            # volume directors
             if self._export_dict["volume_directors"]:
                 vtk_d1 = []
                 vtk_d2 = []
@@ -372,30 +372,6 @@ class RodExportBase(ABC):
                 point_data["d1"] = vtk_d1
                 point_data["d2"] = vtk_d2
                 point_data["d3"] = vtk_d3
-
-            #######################
-            # add surface normals #
-            #######################
-            if self._export_dict["surface_normals"]:
-                vtk_surface_normals = []
-                # cap at xi=0
-                if self._export_dict["hasCap"]:
-                    vtk_surface_normals.extend(
-                        np.repeat([-d1_segments[0, 0]], ppl, axis=0)
-                    )
-
-                # iterate all cells
-                for i in range(ncells):
-                    # iterate all layers
-                    for layer in range(p_zeta + 1):
-                        vtk_surface_normals.extend(compute_normals(i, layer))
-
-                # cap at xi=1
-                if self._export_dict["hasCap"]:
-                    vtk_points_weights.extend(compute_normals(-1, -1))
-
-                # add them to dictionary with point data
-                point_data["surface_normal"] = vtk_surface_normals
 
             #################
             # add cell data #

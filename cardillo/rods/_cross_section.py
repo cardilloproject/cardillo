@@ -274,37 +274,6 @@ class CircularCrossSection(ExportableCrossSection):
 
             return compute_points
 
-    def vtk_compute_surface_normals(self, r_OP_segments, d2_segments, d3_segments):
-        if self.circle_as_wedge:
-            # TODO: think about how to proceed with the normals
-
-            # TODO: preprocess these
-
-            # alpha measures the angle to d2
-            alpha0 = np.pi * 3 / 2
-            alpha1 = np.pi / 6
-            alpha2 = np.pi * 5 / 6
-            alpha3 = np.pi * 11 / 6
-            alpha4 = np.pi / 2
-            alpha5 = np.pi * 7 / 6
-
-            alphas = [alpha0, alpha1, alpha2, alpha3, alpha4, alpha5]
-            trig_alphas = [(np.sin(alpha), np.cos(alpha)) for alpha in alphas]
-
-            def compute_normals(segment, layer):
-                # TODO: these are not the normals if there is shear!
-                d2ii = d2_segments[segment, layer]
-                d3ii = d3_segments[segment, layer]
-
-                normals = np.zeros([6, 3])
-                for i in range(6):
-                    salpha, calpha = trig_alphas[i]
-                    normals[i, :] = calpha * d2ii + salpha * d3ii
-
-                return normals
-
-            return compute_normals
-
 
 class RectangularCrossSection(ExportableCrossSection):
     def __init__(self, width, height):
