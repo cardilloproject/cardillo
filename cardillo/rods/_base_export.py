@@ -83,7 +83,10 @@ class RodExportBase(ABC):
 
         # export options for circle
         # TODO: maybe this should be part of the cross section
-        self._export_dict["circle_as_wedge"] = True
+        if hasattr(self.cross_section, "circle_as_wedge"):
+            self._export_dict["circle_as_wedge"] = self.cross_section.circle_as_wedge
+        else:
+            self._export_dict["circle_as_wedge"] = False
 
         # what shall be exported
         assert self._export_dict["level"] in [
@@ -206,18 +209,51 @@ class RodExportBase(ABC):
                     # TODO: add here the BiQuadraticLinear cells with 0-width to remove inner walls when opacity is reduced
 
                     # BiQuadratic(p_zeta) cells
-                    self._export_dict["higher_order_degrees"] = np.array(
-                        [[2, 2, p_zeta]] * ncells
+                    higher_order_degrees_HEXA = np.array([[2, 2, p_zeta]] * ncells)
+
+                    # fmt: off
+                    connectivity_main = np.array(
+                        [
+                             0,  1,  2,  3, # vertices bottom
+                            27, 28, 29, 30, # vertices top
+                             4,  5,  6,  7, # edges bottom
+                            31, 32, 33, 34, # edges top
+                             9, 18,         # edges middle 0
+                            10, 19,         # edges middle 1
+                            11, 20,         # edges middle 2
+                            12, 21,         # edges middle 3
+                            16, 25,         # faces middle 7
+                            14, 23,         # faces middle 5
+                            13, 22,         # faces middle 4
+                            15, 24,         # faces middle 6
+                             8,             # face bottom    
+                            35,             # face top
+                            17, 26,         # volume middle 8
+                        ],
+                        dtype=int,
                     )
+                    connectivity_flat = np.array(
+                        [
+                            27, 28, 29, 30,
+                            36, 37, 38, 39,
+                            31, 32, 33, 34,
+                            40, 41, 42, 43,
+                            35, 44
+                        ],
+                        dtype=int
+                    )
+                    # fmt: on
 
                     # connectivity with points
-                    cells = [
-                        (
-                            VTK_BEZIER_HEXAHEDRON,
-                            np.arange(i * points_per_cell, (i + 1) * points_per_cell),
-                        )
-                        for i in range(ncells)
-                    ]
+                    cells = []
+                    for i in range(ncells):
+                        for c in [connectivity_main, connectivity_flat]:
+                            cells.append(
+                                (VTK_BEZIER_HEXAHEDRON, c + i * points_per_cell)
+                            )
+                    # remove last (internal) cell
+                    cells = cells[:-1]
+
             elif isinstance(self.cross_section, RectangularCrossSection):
                 self._export_dict["hasCap"] = False
                 points_per_cell = (p_zeta + 1) * self.cross_section.vtk_points_per_layer
@@ -274,6 +310,12 @@ class RodExportBase(ABC):
 
             # save for later use
             self._export_dict["higher_order_degrees"] = higher_order_degree
+
+            # if isinstance(self.cross_section, CircularCrossSection):
+            #     if not self.cross_section.circle_as_wedge:
+            #         self._export_dict["higher_order_degrees"] = (
+            #             higher_order_degrees_HEXA
+            #         )
 
             ###############################
             # assertion for stress export #
@@ -364,9 +406,12 @@ class RodExportBase(ABC):
                 isinstance(self.cross_section, CircularCrossSection)
                 and not circle_as_wedge
             ):
+                compute_missing_points = self.cross_section.vtk_compute_points(
+                    r_OP_segments, d2_segments, d3_segments
+                )
                 # create correct VTK ordering, see
                 # https://coreform.com/papers/implementation-of-rational-bezier-cells-into-VTK-report.pdf:
-                vtk_points_weights = []
+                vtk_points_weights_HEXA = []
                 for i in range(ncells):
                     # compute all missing points of the layer
                     points_layer0 = compute_missing_points(i, 0)
@@ -374,56 +419,41 @@ class RodExportBase(ABC):
                     points_layer2 = compute_missing_points(i, 2)
                     points_layer3 = compute_missing_points(i, 3)
 
-                    #######################
-                    # 1. vertices (corners)
-                    #######################
-
                     # bottom
-                    for j in range(4):
-                        vtk_points_weights.append(points_layer0[j])
-
-                    # top
-                    for j in range(4):
-                        vtk_points_weights.append(points_layer3[j])
-
-                    ##########
-                    # 2. edges
-                    ##########
-
-                    # bottom
-                    for j in range(4, 8):
-                        vtk_points_weights.append(points_layer0[j])
-
-                    # top
-                    for j in range(4, 8):
-                        vtk_points_weights.append(points_layer3[j])
+                    vtk_points_weights_HEXA.extend(points_layer0)
 
                     # first and second
                     # for j in [0, 1, 3, 2]:  # ordering for vtu file version<2.0, e.g. 0.1
-                    for j in range(4):  # ordering for vtu file version>=2.0
-                        vtk_points_weights.append(points_layer1[j])
-                        vtk_points_weights.append(points_layer2[j])
+                    vtk_points_weights_HEXA.extend(points_layer1)
+                    vtk_points_weights_HEXA.extend(points_layer2)
+                    # for j in range(4, 8):
+                    #     vtk_points_weights_HEXA.append(points_layer1[j])
+                    # vtk_points_weights_HEXA.append(points_layer1[-1])
 
-                    ##########
-                    # 3. faces
-                    ##########
+                    # for j in range(4):  # ordering for vtu file version>=2.0
+                    #     vtk_points_weights_HEXA.append(points_layer2[j])
+                    # top
+                    vtk_points_weights_HEXA.extend(points_layer3)
 
-                    # first and second
-                    for j in [7, 5, 4, 6]:
-                        vtk_points_weights.append(points_layer1[j])
-                        vtk_points_weights.append(points_layer2[j])
+                    # ##########
+                    # # 3. faces
+                    # ##########
 
-                    # bottom and top
-                    vtk_points_weights.append(points_layer0[0])
-                    vtk_points_weights.append(points_layer3[-1])
+                    # # next idx:
+                    # # print(len(vtk_points_weights_HEXA))
 
-                    ############
-                    # 3. volumes
-                    ############
+                    # # first and second
+                    # # for j in [7, 5, 4, 6]:
 
-                    # first and second
-                    vtk_points_weights.append(points_layer1[0])
-                    vtk_points_weights.append(points_layer2[-1])
+                    # for j in range(4, 8):
+                    #     vtk_points_weights_HEXA.append(points_layer2[j])
+
+                    # ############
+                    # # 3. volumes
+                    # ############
+
+                    # # first and second
+                    # vtk_points_weights_HEXA.append(points_layer2[-1])
 
             compute_missing_points = self.cross_section.vtk_compute_points(
                 r_OP_segments, d2_segments, d3_segments
@@ -446,6 +476,10 @@ class RodExportBase(ABC):
             # cap at xi=1
             if self._export_dict["hasCap"]:
                 vtk_points_weights.extend(compute_missing_points(-1, -1))
+
+            if isinstance(self.cross_section, CircularCrossSection):
+                if not self.cross_section.circle_as_wedge:
+                    vtk_points_weights = vtk_points_weights_HEXA
 
             # points to export is just the R^3 part
             vtk_points_weights = np.array(vtk_points_weights)

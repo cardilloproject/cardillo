@@ -67,11 +67,10 @@ class UserDefinedCrossSection(CrossSection):
         return self._second_moment
 
 
-circle_as_wedge = True
-# circle_as_wedge = False
-
-
 class CircularCrossSection(ExportableCrossSection):
+    # circle_as_wedge = True
+    circle_as_wedge = False
+
     def __init__(self, radius):
         """Circular cross-section.
 
@@ -109,13 +108,13 @@ class CircularCrossSection(ExportableCrossSection):
 
     @property
     def vtk_points_per_layer(self):
-        if circle_as_wedge:
+        if self.circle_as_wedge:
             return 6
         else:
             return 9
 
     def vtk_compute_points(self, r_OP_segments, d2_segments, d3_segments):
-        if circle_as_wedge:
+        if self.circle_as_wedge:
 
             # points:
             #         ^ d3
@@ -171,16 +170,23 @@ class CircularCrossSection(ExportableCrossSection):
                 d2 = d2_segments[segment, layer]
                 d3 = d3_segments[segment, layer]
 
-                P2 = r_OP + d3 * self.radius
-                P1 = r_OP + d2 * self.radius
-                P8 = r_OP
+                rd2 = d2 * self.radius
+                rd3 = d3 * self.radius
 
-                P0 = 2 * P8 - P2
-                P3 = 2 * P8 - P1
-                P4 = (P0 + P1) - P8
-                P5 = (P1 + P2) - P8
-                P6 = (P2 + P3) - P8
-                P7 = (P3 + P0) - P8
+                # points on the circle
+                P0 = r_OP - rd3
+                P1 = r_OP + rd2
+                P2 = r_OP + rd3
+                P3 = r_OP - rd2
+
+                # points on the outer square
+                P4 = r_OP - rd3 + rd2
+                P5 = r_OP + rd2 + rd3
+                P6 = r_OP + rd3 - rd2
+                P7 = r_OP - rd2 - rd3
+
+                # center point
+                P8 = r_OP
 
                 dim = len(P0)
                 s22 = np.sqrt(2) / 2
@@ -200,7 +206,7 @@ class CircularCrossSection(ExportableCrossSection):
             return compute_points
 
     def vtk_compute_surface_normals(self, r_OP_segments, d2_segments, d3_segments):
-        if circle_as_wedge:
+        if self.circle_as_wedge:
             # TODO: think about how to proceed with the normals
 
             # TODO: preprocess these
