@@ -86,6 +86,7 @@ class CircularCrossSection(ExportableCrossSection):
         self._second_moment = np.diag([2, 1, 1]) / 4 * np.pi * radius**4
 
         self.circle_as_wedge = export_as_wedge
+        self.compute_my_alphas()
 
     @property
     def area(self):
@@ -102,6 +103,41 @@ class CircularCrossSection(ExportableCrossSection):
     @property
     def radius(self):
         return self._radius
+
+    def compute_my_alphas(self):
+        # alpha measures the angle to d2
+        if self.circle_as_wedge:
+            self.alphas = [
+                np.pi * 3 / 2,
+                np.pi / 6,
+                np.pi * 5 / 6,
+                np.pi * 11 / 6,
+                np.pi / 2,
+                np.pi * 7 / 6,
+            ]
+
+        else:
+            self.alphas = [
+                np.pi * 3 / 2,
+                0,
+                np.pi / 2,
+                np.pi,
+                np.pi * 7 / 4,
+                np.pi / 4,
+                np.pi * 3 / 4,
+                np.pi * 5 / 4,
+                0,
+            ]
+
+    @property
+    def point_etas(self):
+        return self.alphas
+
+    def B_r_PQ(self, eta):
+        return self.radius * np.array([0, np.cos(eta), np.sin(eta)])
+
+    def B_r_PQ_eta(self, eta):
+        return self.radius * np.array([0, -np.sin(eta), np.cos(eta)])
 
     @property
     def vtk_degree(self):
@@ -130,14 +166,14 @@ class CircularCrossSection(ExportableCrossSection):
             )
             connectivity_main = np.array(
                 [
-                        0,  1,  2, # vertices bottom   l0
+                     0,  1,  2, # vertices bottom   l0
                     18, 19, 20, # vertices top      l3
-                        3,  4,  5, # edges bottom      l0
+                     3,  4,  5, # edges bottom      l0
                     21, 22, 23, # edges top         l3
-                        6, 12,     # edge1 middle      l1&l2
-                        7, 13,     # edge2 middle      l1&l2
-                        8, 14,     # edge3 middle      l1&l2
-                        9, 15,     # faces1 middle     l1&l2
+                     6, 12,     # edge1 middle      l1&l2
+                     7, 13,     # edge2 middle      l1&l2
+                     8, 14,     # edge3 middle      l1&l2
+                     9, 15,     # faces1 middle     l1&l2
                     10, 16,     # faces2 middle     l1&l2
                     11, 17,     # faces3 middle     l1&l2
                 # l1|^, |^l2
@@ -150,11 +186,11 @@ class CircularCrossSection(ExportableCrossSection):
             # fmt: off
             connectivity_main = np.array(
                 [
-                        0,  1,  2,  3, # vertices bottom
+                     0,  1,  2,  3, # vertices bottom
                     27, 28, 29, 30, # vertices top
-                        4,  5,  6,  7, # edges bottom
+                     4,  5,  6,  7, # edges bottom
                     31, 32, 33, 34, # edges top
-                        9, 18,         # edges middle 0
+                     9, 18,         # edges middle 0
                     10, 19,         # edges middle 1
                     11, 20,         # edges middle 2
                     12, 21,         # edges middle 3
@@ -162,7 +198,7 @@ class CircularCrossSection(ExportableCrossSection):
                     14, 23,         # faces middle 5
                     13, 22,         # faces middle 4
                     15, 24,         # faces middle 6
-                        8,             # face bottom    
+                     8,             # face bottom    
                     35,             # face top
                     17, 26,         # volume middle 8
                 ],
@@ -337,12 +373,12 @@ class RectangularCrossSection(ExportableCrossSection):
         # fmt: off
         connectivity_main = np.array(
             [
-                    0,  1,  2,  3,  # vertices bottom
-                12, 13, 14, 15,     # vertices top
-                    4,  8,          # edge1
-                    5,  9,          # edge2
-                    6, 10,          # edge3
-                    7, 11,          # edge4
+                 0,  1,  2,  3,  # vertices bottom
+                12, 13, 14, 15,  # vertices top
+                 4,  8,          # edge1
+                 5,  9,          # edge2
+                 6, 10,          # edge3
+                 7, 11,          # edge4
             ],
             dtype=int
         )

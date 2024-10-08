@@ -137,6 +137,8 @@ def cantilever(
         rod_volume_circle._export_dict["level"] = "volume"
         rod_volume_circle._export_dict["stresses"] = True
         rod_volume_circle._export_dict["volume_directors"] = True
+        rod_volume_circle._export_dict["surface_normals"] = True
+        rod_volume_circle._export_dict["hasCap"] = True
 
         # export with circular cross-section (wedge cells)
         rod_volume_circle_wedge = deepcopy(cantilever)
@@ -145,6 +147,8 @@ def cantilever(
         rod_volume_circle_wedge._export_dict["level"] = "volume"
         rod_volume_circle_wedge._export_dict["stresses"] = True
         rod_volume_circle_wedge._export_dict["volume_directors"] = True
+        rod_volume_circle_wedge._export_dict["surface_normals"] = True
+        rod_volume_circle_wedge._export_dict["hasCap"] = True
 
         # export only centerline & directors
         cantilever.name = "cantilever"
@@ -161,7 +165,7 @@ if __name__ == "__main__":
         Rod=make_CosseratRod(mixed=True),  # , constraints=[0, 1, 2]),
         # load_type="moment",
         load_type="constant_end_load",
-        nelements=10,
+        nelements=4,
         VTK_export=True,
         name="Cosserat mixed",
     )

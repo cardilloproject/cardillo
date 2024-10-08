@@ -4,7 +4,7 @@ from vtk import VTK_LAGRANGE_CURVE
 from warnings import warn
 
 from cardillo.utility.bezier import L2_projection_Bezier_curve
-from cardillo.math import cross3
+from cardillo.math import cross3, norm
 
 from ._cross_section import (
     ExportableCrossSection,
@@ -66,6 +66,43 @@ class RodExportBase(ABC):
             d3.extend([d3i])
 
         return np.array(r).T, np.array(d1).T, np.array(d2).T, np.array(d3).T
+
+    def surface(self, q, xi, eta, el):
+        q_body = q[self.qDOF]
+        qp = q_body[self.elDOF[el]]
+        # TODO: get the basis functions based on the element
+        N, N_xi = self.basis_functions_r(xi)
+        eval = self._eval(qp, xi, N, N_xi)
+        r_OP = eval[0]
+        A_IB = eval[1]
+        # B_gamma = eval[2]
+        # B_kappa_IB = eval[3]
+
+        B_r_PQ = self.cross_section.B_r_PQ(eta)
+
+        r_OQ = r_OP + A_IB @ B_r_PQ
+        return r_OQ
+
+    def surface_normal(self, q, xi, eta, el):
+        q_body = q[self.qDOF]
+        qp = q_body[self.elDOF[el]]
+        # TODO: get the basis functions based on the element
+        N, N_xi = self.basis_functions_r(xi)
+        eval = self._eval(qp, xi, N, N_xi)
+        # r_OP = eval[0]
+        A_IB = eval[1]
+        B_gamma = eval[2]
+        B_kappa_IB = eval[3]
+
+        B_r_PQ = self.cross_section.B_r_PQ(eta)
+        B_r_PQ_eta = self.cross_section.B_r_PQ_eta(eta)
+
+        # r_OQ = r_OP + A_IB @ B_r_PQ
+        r_OQ_xi = A_IB @ B_gamma + A_IB @ cross3(B_kappa_IB, B_r_PQ)
+        r_OQ_eta = A_IB @ B_r_PQ_eta
+
+        n = cross3(r_OQ_eta, r_OQ_xi)
+        return n / norm(n)
 
     def preprocess_export(self):
         ########################
@@ -195,10 +232,14 @@ class RodExportBase(ABC):
             # assertion for surface normals #
             #################################
             if self._export_dict["surface_normals"]:
+                assert hasattr(self.cross_section, "B_r_PQ")
+                assert hasattr(self.cross_section, "B_r_PQ_eta")
                 assert isinstance(self.cross_section, CircularCrossSection)
-                warn(
-                    "surface normals are not implmented correctly! They are wrong when shear is present!"
-                )
+                warn("Implementation of surface normals is experimental!")
+                if not self._export_dict["hasCap"]:
+                    warn(
+                        "It is recommended to set 'hasCap=True' in rod._export_dict when surface normals are exported!"
+                    )
 
         elif self._export_dict["level"] == "None" or self._export_dict["level"] == None:
             self._export_dict["cells"] = []
@@ -372,6 +413,41 @@ class RodExportBase(ABC):
                 point_data["d1"] = vtk_d1
                 point_data["d2"] = vtk_d2
                 point_data["d3"] = vtk_d3
+
+            # surface normals
+            if self._export_dict["surface_normals"]:
+                # eta values of the points in each layer
+                etas = self.cross_section.point_etas
+                vtk_surface_normals = []
+                # cap at xi=0
+                if self._export_dict["hasCap"]:
+                    vtk_surface_normals.extend(
+                        np.repeat([-d1_segments[0, 0]], ppl, axis=0)
+                    )
+
+                # iterate all cells
+                for i in range(ncells):
+                    # iterate all layers
+                    for layer in range(p_zeta + 1):
+                        el = i
+                        xi = (i + layer / p_zeta) / ncells
+                        # TODO: do this cleaner (computation of el)
+                        # TODO: remove the workaround when we can call the basis functions with element number
+                        if i != ncells and layer == p_zeta:
+                            xi -= 1e-9
+                        for point in range(ppl):
+                            vtk_surface_normals.append(
+                                self.surface_normal(q, xi, etas[point], el)
+                            )
+
+                # cap at xi=1
+                if self._export_dict["hasCap"]:
+                    vtk_surface_normals.extend(
+                        np.repeat([d1_segments[-1, -1]], ppl, axis=0)
+                    )
+
+                # add them to dictionary with point data
+                point_data["surface_normal"] = vtk_surface_normals
 
             #################
             # add cell data #
