@@ -20,6 +20,59 @@ def dtype_map(dtype: np.dtype):
         return vtk.vtkBitArray
 
 
+def make_ugrid(points, cells, point_data, cell_data):
+    ugrid = vtk.vtkUnstructuredGrid()
+
+    # points
+    vtkpoints = vtk.vtkPoints()
+    vtkpoints.Allocate(len(points))
+    for p in points:
+        vtkpoints.InsertNextPoint(p)
+    ugrid.SetPoints(vtkpoints)
+
+    # cells
+    ugrid.Allocate(len(cells))
+    for cell_type, connectivity in cells:
+        ugrid.InsertNextCell(cell_type, len(connectivity), connectivity)
+
+    # point data
+    pdata = ugrid.GetPointData()
+    if point_data is not None:
+        for key, value in point_data.items():
+            value = np.array(value)
+            n, dim = value.shape
+            parray = dtype_map(value.dtype)()
+            parray.SetName(key)
+            parray.SetNumberOfTuples(n)
+            parray.SetNumberOfComponents(dim)
+            for i, vi in enumerate(value):
+                parray.InsertTuple(i, vi)
+
+            if key == "RationalWeights":
+                pdata.SetRationalWeights(parray)
+            else:
+                pdata.AddArray(parray)
+
+    # cell data
+    cdata = ugrid.GetCellData()
+    if cell_data is not None:
+        for key, value in cell_data.items():
+            value = np.array(value)
+            m, dim = value.shape
+            carray = dtype_map(value.dtype)()
+            carray.SetName(key)
+            carray.SetNumberOfTuples(m)
+            carray.SetNumberOfComponents(dim)
+            for i, vi in enumerate(value):
+                carray.InsertTuple(i, vi)
+
+            if key == "HigherOrderDegrees":
+                cdata.SetHigherOrderDegrees(carray)
+            else:
+                cdata.AddArray(carray)
+    return ugrid
+
+
 class Export:
     def __init__(
         self,
@@ -166,55 +219,7 @@ class Export:
 
             points, cells, point_data, cell_data = export(sol_i, **kwargs)
 
-            ugrid = vtk.vtkUnstructuredGrid()
-
-            # points
-            vtkpoints = vtk.vtkPoints()
-            vtkpoints.Allocate(len(points))
-            for p in points:
-                vtkpoints.InsertNextPoint(p)
-            ugrid.SetPoints(vtkpoints)
-
-            # cells
-            ugrid.Allocate(len(cells))
-            for cell_type, connectivity in cells:
-                ugrid.InsertNextCell(cell_type, len(connectivity), connectivity)
-
-            # point data
-            pdata = ugrid.GetPointData()
-            if point_data is not None:
-                for key, value in point_data.items():
-                    value = np.atleast_2d(value).reshape((len(value), -1))
-                    n, dim = value.shape
-                    parray = dtype_map(value.dtype)()
-                    parray.SetName(key)
-                    parray.SetNumberOfTuples(n)
-                    parray.SetNumberOfComponents(dim)
-                    for i, vi in enumerate(value):
-                        parray.InsertTuple(i, vi)
-
-                    if key == "RationalWeights":
-                        pdata.SetRationalWeights(parray)
-                    else:
-                        pdata.AddArray(parray)
-
-            # cell data
-            cdata = ugrid.GetCellData()
-            if cell_data is not None:
-                for key, value in cell_data.items():
-                    value = np.atleast_2d(value).reshape((len(value), -1))
-                    m, dim = value.shape
-                    carray = dtype_map(value.dtype)()
-                    carray.SetName(key)
-                    carray.SetNumberOfTuples(m)
-                    carray.SetNumberOfComponents(dim)
-                    for i, vi in enumerate(value):
-                        carray.InsertTuple(i, vi)
-
-                    if key == "HigherOrderDegrees":
-                        cdata.SetHigherOrderDegrees(carray)
-                    else:
-                        cdata.AddArray(carray)
+            ugrid = make_ugrid(points, cells, point_data, cell_data)
 
             # write data
             writer = vtk.vtkXMLUnstructuredGridWriter()
