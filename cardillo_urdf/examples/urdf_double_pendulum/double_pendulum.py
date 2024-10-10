@@ -1,12 +1,12 @@
 import numpy as np
 from cardillo_urdf.urdf import load_urdf
 
-from cardillo.math import A_IK_basic
+from cardillo.math import A_IB_basic
 from pathlib import Path
 from cardillo import System
 from cardillo.actuators import PDcontroller
 from cardillo.solver import Rattle, BackwardEuler
-from cardillo.visualization import Export
+from cardillo.visualization import Export, Renderer
 from cardillo.visualization.trimesh import animate_system, show_system
 
 if __name__ == "__main__":
@@ -36,13 +36,15 @@ if __name__ == "__main__":
             "urdf",
             "double_pendulum.urdf",
         ),
-        r_OS0=np.array([0, 0, 0]),
-        # A_IS0=A_IK_basic(0).y() @ A_IK_basic(np.pi).x(),
-        v_S0=np.zeros(3),
-        S0_Omega_0=np.array([0, 0, 0]),
+        r_OC0=np.array([0, 0, 0]),
+        A_IC0=A_IB_basic(0).y @ A_IB_basic(np.pi).x,
+        v_C0=np.zeros(3),
+        C0_Omega_0=np.array([0, 0, 0]),
         initial_config=initial_config,
         initial_vel=initial_vel,
-        base_link_is_floating=False,
+        
+
+
         gravitational_acceleration=np.array([0, -1, 0]),
     )
     show_system(system, 0, system.q0)
@@ -57,11 +59,11 @@ if __name__ == "__main__":
     system.contributions_map["PD_joint2"].tau = lambda t: np.array([np.pi/4, 0])
     system.assemble()
 
+    render = Renderer(system, system.contributions)
     sol = BackwardEuler(system, 5, 1e-2).solve()
-
+    render.render_solution(sol, repeat=True)
     # show_system(system, sol.t[5], sol.q[5])
     # animate_system(system, sol.t, sol.q, t_factor=1)
-
     path = Path(__file__)
     e = Export(
         path=path.parent,

@@ -41,9 +41,9 @@ def Meshed(Base):
                 Mass density for the computation of the inertia properties of the
                 mesh. If set to None, user specified mass and B_Theta_C are used.
             B_r_CP : np.ndarray (3,)
-                Offset center of mass (C) from (C)TL origin (P) in body fixed K-basis.
+                Offset center of mass (C) from (C)TL origin (P) in body fixed B-basis.
             A_BM: np.ndarray (3, 3)
-                Tansformation from mesh-fixed basis (M) to body-fixed basis (K).
+                Tansformation from mesh-fixed basis (M) to body-fixed basis (B).
             scale: float
                 Factor scaling the mesh after import.
             kwargs: dict,
@@ -83,10 +83,10 @@ def Meshed(Base):
                     print("Fixed mesh by filling the holes.")
 
             # store visual mesh in body fixed basis
-            H_KM = np.eye(4)
-            H_KM[:3, 3] = B_r_CP
-            H_KM[:3, :3] = A_BM
-            self.B_visual_mesh = trimesh_mesh.copy().apply_transform(H_KM)
+            H_BM = np.eye(4)
+            H_BM[:3, 3] = B_r_CP
+            H_BM[:3, :3] = A_BM
+            self.B_visual_mesh = trimesh_mesh.copy().apply_transform(H_BM)
 
             # vectors (transposed) from (C) to vertices (Qi) represented in body-fixed basis
             self.B_r_CQi_T = self.B_visual_mesh.vertices.view(np.ndarray).T
