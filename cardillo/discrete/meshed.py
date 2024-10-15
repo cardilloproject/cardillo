@@ -138,10 +138,38 @@ def Box(Base):
         def __init__(
             self,
             dimensions=np.ones(3),
+            density=None,
             **kwargs,
         ):
             self.dimensions = dimensions
             trimesh_obj = trimesh.creation.box(extents=dimensions)
+            # compute inertia quantities of body
+            if density is not None:
+                mass = density * dimensions[0] * dimensions[1] * dimensions[2]
+                B_Theta_C = (
+                    np.diag(
+                        [
+                            dimensions[1] ** 2 + dimensions[2] ** 2,
+                            dimensions[0] ** 2 + dimensions[2] ** 2,
+                            dimensions[0] ** 2 + dimensions[1] ** 2,
+                        ]
+                    )
+                    * mass
+                    / 12
+                )
+
+                mass_arg = kwargs.pop("mass", None)
+                B_Theta_C_arg = kwargs.pop("B_Theta_C", None)
+
+                if (mass_arg is not None) and (not np.allclose(mass, mass_arg)):
+                    print("Specified mass does not correspond to mass of mesh.")
+                if (B_Theta_C_arg is not None) and (
+                    not np.allclose(B_Theta_C, B_Theta_C_arg)
+                ):
+                    print(
+                        "Specified moment of inertia does not correspond to moment of inertia of mesh."
+                    )
+                kwargs.update({"mass": mass, "B_Theta_C": B_Theta_C})
             super().__init__(mesh_obj=trimesh_obj, **kwargs)
 
     return _Box
@@ -155,11 +183,38 @@ def Cone(Base):
             self,
             radius=1,
             height=2,
+            density=None,
             **kwargs,
         ):
             self.radius = radius
             self.height = height
             trimesh_obj = trimesh.creation.cone(radius, height)
+            # compute inertia quantities of body
+            if density is not None:
+                mass = density / 3 * height * np.pi * radius**2
+                B_Theta_C = (
+                    np.diag(
+                        [
+                            0.15 * radius**2 + 0.1 * height**2,
+                            0.15 * radius**2 + 0.1 * height**2,
+                            0.3 * radius**2,
+                        ]
+                    )
+                    * mass
+                )
+
+                mass_arg = kwargs.pop("mass", None)
+                B_Theta_C_arg = kwargs.pop("B_Theta_C", None)
+
+                if (mass_arg is not None) and (not np.allclose(mass, mass_arg)):
+                    print("Specified mass does not correspond to mass of mesh.")
+                if (B_Theta_C_arg is not None) and (
+                    not np.allclose(B_Theta_C, B_Theta_C_arg)
+                ):
+                    print(
+                        "Specified moment of inertia does not correspond to moment of inertia of mesh."
+                    )
+                kwargs.update({"mass": mass, "B_Theta_C": B_Theta_C})
             super().__init__(mesh_obj=trimesh_obj, **kwargs)
 
     return _Cone
@@ -173,11 +228,38 @@ def Cylinder(Base):
             self,
             radius=1,
             height=2,
+            density=None,
             **kwargs,
         ):
             self.radius = radius
             self.height = height
             trimesh_obj = trimesh.creation.cylinder(radius, height=height)
+            # compute inertia quantities of body
+            if density is not None:
+                mass = density * height * np.pi * radius**2
+                B_Theta_C = (
+                    np.diag(
+                        [
+                            0.25 * radius**2 + 1 / 12 * height**2,
+                            0.25 * radius**2 + 1 / 12 * height**2,
+                            0.5 * radius**2,
+                        ]
+                    )
+                    * mass
+                )
+
+                mass_arg = kwargs.pop("mass", None)
+                B_Theta_C_arg = kwargs.pop("B_Theta_C", None)
+
+                if (mass_arg is not None) and (not np.allclose(mass, mass_arg)):
+                    print("Specified mass does not correspond to mass of mesh.")
+                if (B_Theta_C_arg is not None) and (
+                    not np.allclose(B_Theta_C, B_Theta_C_arg)
+                ):
+                    print(
+                        "Specified moment of inertia does not correspond to moment of inertia of mesh."
+                    )
+                kwargs.update({"mass": mass, "B_Theta_C": B_Theta_C})
             super().__init__(mesh_obj=trimesh_obj, **kwargs)
 
     return _Cylinder
@@ -191,6 +273,7 @@ def Sphere(Base):
             self,
             radius=1,
             subdivisions=2,
+            density=None,
             **kwargs,
         ):
             self.radius = radius
@@ -198,6 +281,23 @@ def Sphere(Base):
             trimesh_obj = trimesh.creation.icosphere(
                 radius=radius, subdivisions=subdivisions
             )
+            # compute inertia quantities of body
+            if density is not None:
+                mass = density * 4 / 3 * np.pi * radius**3
+                B_Theta_C = np.eye(3) * 2 / 5 * mass * radius**2
+
+                mass_arg = kwargs.pop("mass", None)
+                B_Theta_C_arg = kwargs.pop("B_Theta_C", None)
+
+                if (mass_arg is not None) and (not np.allclose(mass, mass_arg)):
+                    print("Specified mass does not correspond to mass of mesh.")
+                if (B_Theta_C_arg is not None) and (
+                    not np.allclose(B_Theta_C, B_Theta_C_arg)
+                ):
+                    print(
+                        "Specified moment of inertia does not correspond to moment of inertia of mesh."
+                    )
+                kwargs.update({"mass": mass, "B_Theta_C": B_Theta_C})
             super().__init__(mesh_obj=trimesh_obj, **kwargs)
 
     return _Sphere
@@ -211,11 +311,50 @@ def Capsule(Base):
             self,
             radius=1,
             height=2,
+            density=None,
             **kwargs,
         ):
             self.radius = radius
             self.height = height
             trimesh_obj = trimesh.creation.capsule(radius=radius, height=height)
+            # compute inertia quantities of body
+            if density is not None:
+                # https://www.gamedev.net/tutorials/programming/math-and-physics/capsule-inertia-tensor-r3856/
+                m_cyl = density * height * np.pi * radius**2
+                m_cap = density * 2 / 3 * np.pi * radius**3
+                mass = m_cyl + 2 * m_cap
+                B_Theta_C = (
+                    np.diag(
+                        [
+                            0.25 * radius**2 + 1 / 12 * height**2,
+                            0.25 * radius**2 + 1 / 12 * height**2,
+                            0.5 * radius**2,
+                        ]
+                    )
+                    * m_cyl
+                    + np.diag(
+                        [
+                            0.4 * radius**2 + 0.5 * height**2 + 3 / 8 * height * radius,
+                            0.4 * radius**2 + 0.5 * height**2 + 3 / 8 * height * radius,
+                            0.4 * radius**2,
+                        ]
+                    )
+                    * 2
+                    * m_cap
+                )
+
+                mass_arg = kwargs.pop("mass", None)
+                B_Theta_C_arg = kwargs.pop("B_Theta_C", None)
+
+                if (mass_arg is not None) and (not np.allclose(mass, mass_arg)):
+                    print("Specified mass does not correspond to mass of mesh.")
+                if (B_Theta_C_arg is not None) and (
+                    not np.allclose(B_Theta_C, B_Theta_C_arg)
+                ):
+                    print(
+                        "Specified moment of inertia does not correspond to moment of inertia of mesh."
+                    )
+                kwargs.update({"mass": mass, "B_Theta_C": B_Theta_C})
             super().__init__(mesh_obj=trimesh_obj, **kwargs)
 
     return _Capsule
@@ -228,6 +367,7 @@ def Tetrahedron(Base):
         def __init__(
             self,
             edge=1,
+            density=None,
             **kwargs,
         ):
             # see https://de.wikipedia.org/wiki/Tetraeder
@@ -243,6 +383,23 @@ def Tetrahedron(Base):
             faces = np.array([[0, 1, 3], [1, 2, 3], [2, 0, 3], [0, 2, 1]])
 
             trimesh_obj = trimesh.Trimesh(vertices, faces)
+            # compute inertia quantities of body
+            if density is not None:
+                mass = density * edge**3 * np.sqrt(2) / 12
+                B_Theta_C = np.eye(3) * mass * edge**2 / 20
+
+                mass_arg = kwargs.pop("mass", None)
+                B_Theta_C_arg = kwargs.pop("B_Theta_C", None)
+
+                if (mass_arg is not None) and (not np.allclose(mass, mass_arg)):
+                    print("Specified mass does not correspond to mass of mesh.")
+                if (B_Theta_C_arg is not None) and (
+                    not np.allclose(B_Theta_C, B_Theta_C_arg)
+                ):
+                    print(
+                        "Specified moment of inertia does not correspond to moment of inertia of mesh."
+                    )
+                kwargs.update({"mass": mass, "B_Theta_C": B_Theta_C})
             super().__init__(mesh_obj=trimesh_obj, **kwargs)
 
     return _Tetrahedron
