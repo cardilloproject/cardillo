@@ -34,11 +34,17 @@ class ExportableCrossSection(CrossSection):
     @abstractmethod
     def vtk_points_per_layer(self): ...
 
+    @property
+    @abstractmethod
+    def vtk_rational_weights(self): ...
+
     @abstractmethod
     def vtk_compute_points(self, r_OP_segments, d2_segments, d3_segments): ...
 
     @abstractmethod
     def vtk_connectivity(self, p_zeta): ...
+
+
 class UserDefinedCrossSection(CrossSection):
     def __init__(self, area, first_moment, second_moment):
         """User defined cross-section.
@@ -218,6 +224,14 @@ class CircularCrossSection(ExportableCrossSection):
 
         return VTK_CELL_TYPE, connectivity_main, connectivity_flat
 
+    @property
+    def vtk_rational_weights(self):
+        if self.circle_as_wedge:
+            return np.array([1, 1, 1, 1 / 2, 1 / 2, 1 / 2])
+        else:
+            s22 = np.sqrt(2) / 2
+            return np.array([1, 1, 1, 1, s22, s22, s22, s22, 1])
+
     def vtk_compute_points(self, r_OP_segments, d2_segments, d3_segments):
         if self.circle_as_wedge:
 
@@ -255,16 +269,16 @@ class CircularCrossSection(ExportableCrossSection):
                 P0 = 0.5 * (P5 + P3)
                 P2 = 0.5 * (P4 + P5)
 
-                dim = len(P0)
-                points_weights = np.zeros((6, dim + 1))
-                points_weights[0] = np.array([*P0, 1])
-                points_weights[1] = np.array([*P1, 1])
-                points_weights[2] = np.array([*P2, 1])
-                points_weights[3] = np.array([*P3, 1 / 2])
-                points_weights[4] = np.array([*P4, 1 / 2])
-                points_weights[5] = np.array([*P5, 1 / 2])
+                # assemble array to return
+                points = np.zeros((6, 3))
+                points[0] = P0
+                points[1] = P1
+                points[2] = P2
+                points[3] = P3
+                points[4] = P4
+                points[5] = P5
 
-                return points_weights
+                return points
 
             return compute_points
 
@@ -293,20 +307,19 @@ class CircularCrossSection(ExportableCrossSection):
                 # center point
                 P8 = r_OP
 
-                dim = len(P0)
-                s22 = np.sqrt(2) / 2
-                points_weights = np.zeros((9, dim + 1))
-                points_weights[0] = np.array([*P0, 1])
-                points_weights[1] = np.array([*P1, 1])
-                points_weights[2] = np.array([*P2, 1])
-                points_weights[3] = np.array([*P3, 1])
-                points_weights[4] = np.array([*P4, s22])
-                points_weights[5] = np.array([*P5, s22])
-                points_weights[6] = np.array([*P6, s22])
-                points_weights[7] = np.array([*P7, s22])
-                points_weights[8] = np.array([*P8, 1])
+                # assemble array to return
+                points = np.zeros((9, 3))
+                points[0] = P0
+                points[1] = P1
+                points[2] = P2
+                points[3] = P3
+                points[4] = P4
+                points[5] = P5
+                points[6] = P6
+                points[7] = P7
+                points[8] = P8
 
-                return points_weights
+                return points
 
             return compute_points
 
@@ -393,6 +406,10 @@ class RectangularCrossSection(ExportableCrossSection):
 
         return VTK_CELL_TYPE, connectivity_main, connectivity_flat
 
+    @property
+    def vtk_rational_weights(self):
+        return np.repeat(1, 4)
+
     def vtk_compute_points(self, r_OP_segments, d2_segments, d3_segments):
         def compute_points(segment, layer):
             r_OP = r_OP_segments[segment, layer]
@@ -416,14 +433,13 @@ class RectangularCrossSection(ExportableCrossSection):
             P2 = r_OP + r_PP2
             P3 = r_OP - r_PP1
 
-            dim = len(P0)
-            points_weights = np.zeros((4, dim + 1))
-            points_weights[0] = np.array([*P0, 1])
-            points_weights[1] = np.array([*P1, 1])
-            points_weights[2] = np.array([*P2, 1])
-            points_weights[3] = np.array([*P3, 1])
+            points = np.zeros((4, 3))
+            points[0] = P0
+            points[1] = P1
+            points[2] = P2
+            points[3] = P3
 
-            return points_weights
+            return points
 
         return compute_points
 

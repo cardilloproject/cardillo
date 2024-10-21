@@ -167,6 +167,7 @@ class RodExportBase(ABC):
             p_zeta = 3  # polynomial_degree of the cell along the rod. Always 3, this is hardcoded in L2_projection when BernsteinBasis is called!
             # determines also the number of layers per cell (p_zeta + 1 = 4)
             self._export_dict["p_zeta"] = p_zeta
+            nlayers = (p_zeta + 1) * ncells + (2 if self._export_dict["hasCap"] else 0)
 
             higher_order_degree_main = [p_cs, p_cs, p_zeta]
             higher_order_degree_flat = [p_cs, p_cs, 1]
@@ -211,6 +212,9 @@ class RodExportBase(ABC):
             # save for later use
             self._export_dict["higher_order_degrees"] = higher_order_degree
             self._export_dict["cells"] = cells
+            self._export_dict["RationalWeights"] = np.tile(
+                [self.cross_section.vtk_rational_weights], nlayers
+            ).T
 
             ###############################
             # assertion for stress export #
@@ -305,28 +309,27 @@ class RodExportBase(ABC):
             ##################
             # compute points #
             ##################
-            vtk_points_weights = []
+            vtk_points = []
             # cap at xi=0
             if self._export_dict["hasCap"]:
-                vtk_points_weights.extend(compute_points(0, 0))
+                vtk_points.extend(compute_points(0, 0))
 
             # iterate all cells
             for i in range(ncells):
                 # iterate all layers
                 for layer in range(p_zeta + 1):
-                    vtk_points_weights.extend(compute_points(i, layer))
+                    vtk_points.extend(compute_points(i, layer))
 
             # cap at xi=1
             if self._export_dict["hasCap"]:
-                vtk_points_weights.extend(compute_points(-1, -1))
+                vtk_points.extend(compute_points(-1, -1))
 
             # points to export is just the R^3 part
-            vtk_points_weights = np.array(vtk_points_weights)
-            vtk_points = vtk_points_weights[:, :3]
+            vtk_points = np.array(vtk_points)
 
             # the 4th component are the rational weights
             point_data = {
-                "RationalWeights": vtk_points_weights[:, 3, None],
+                "RationalWeights": self._export_dict["RationalWeights"],
             }
 
             ###################
