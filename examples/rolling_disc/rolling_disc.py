@@ -85,11 +85,6 @@ class RollingCondition:
             self.nla_g, self.subsystem.nq
         )
 
-    def g_ddot_q(self, t, q, u, u_dot):
-        return approx_fprime(q, lambda q: self.g_ddot(t, q, u, u_dot)).reshape(
-            self.nla_g, self.subsystem.nq
-        )
-
     def W_g(self, t, q):
         J_C = self.subsystem.J_P(
             t, q, B_r_CP=self.subsystem.A_IB(t, q).T @ self.r_CP(t, q)

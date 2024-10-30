@@ -82,39 +82,6 @@ class FixedDistance:
 
         return 2 * v_J1J2 @ v_J1J2 + 2 * r_J1J2 @ a_J1J2
 
-    def g_ddot_q(self, t, q, u, u_dot):
-        r_J1J2 = self.r_OJ2(t, q) - self.r_OJ1(t, q)
-        v_J1J2 = self.v_J2(t, q, u) - self.v_J1(t, q, u)
-        a_J1J2 = self.a_J2(t, q, u, u_dot) - self.a_J1(t, q, u, u_dot)
-
-        g_ddot_q = np.zeros((self.nla_g, self._nq), dtype=np.common_type(q, u, u_dot))
-        g_ddot_q[:, : self._nq1] = -2 * (
-            2 * v_J1J2 @ self.v_J1_q1(t, q, u)
-            + a_J1J2 @ self.r_OJ1_q1(t, q)
-            + r_J1J2 @ self.a_J1_q1(t, q, u, u_dot)
-        )
-        g_ddot_q[:, self._nq1 :] = 2 * (
-            2 * v_J1J2 @ self.v_J2_q2(t, q, u)
-            + a_J1J2 @ self.r_OJ2_q2(t, q)
-            + r_J1J2 @ self.a_J2_q2(t, q, u, u_dot)
-        )
-
-        return g_ddot_q
-
-    def g_ddot_u(self, t, q, u, u_dot):
-        r_J1J2 = self.r_OJ2(t, q) - self.r_OJ1(t, q)
-        v_J1J2 = self.v_J2(t, q, u) - self.v_J1(t, q, u)
-
-        g_ddot_u = np.zeros((self.nla_g, self._nu), dtype=np.common_type(t, u, u_dot))
-        g_ddot_u[:, : self._nu1] = -2 * (
-            2 * v_J1J2 @ self.J_J1(t, q) + r_J1J2 @ self.a_J1_u1(t, q, u, u_dot)
-        )
-        g_ddot_u[:, self._nu1 :] = 2 * (
-            2 * v_J1J2 @ self.J_J2(t, q) + r_J1J2 @ self.a_J2_u2(t, q, u, u_dot)
-        )
-
-        return g_ddot_u
-
     def g_q_T_mu_q(self, t, q, mu):
         warnings.warn("FixedDistance.g_q_T_mu_q uses approx_fprime.")
         return approx_fprime(q, lambda q: self.g_q(t, q).T @ mu)

@@ -359,12 +359,6 @@ class Sphere2Sphere:
             [self.n(t, q) @ (self.a_C2(t, q, u, u_dot) - self.a_C1(t, q, u, u_dot))]
         )
 
-    def g_N_ddot_q(self, t, q, u, u_dot):
-        raise NotImplementedError
-
-    def g_N_ddot_u(self, t, q, u, u_dot):
-        raise NotImplementedError
-
     def Wla_N_q(self, t, q, la_N):
         Wla_N_q = np.zeros((self._nu, self._nq), dtype=np.common_type(q, la_N))
         n = self.n(t, q)

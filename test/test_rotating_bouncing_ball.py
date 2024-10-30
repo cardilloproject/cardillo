@@ -44,9 +44,6 @@ class RotatingBouncingBall:
     def q_dot(self, t, q, u):
         return u
 
-    def q_ddot(self, t, q, u, u_dot):
-        return u_dot
-
     def q_dot_u(self, t, q):
         return np.eye(self.nq)
 
