@@ -110,23 +110,6 @@ class RigidBody:
         q_dot_u[3:, 3:] = T_SO3_inv_quat(q[3:], normalize=False)
         return q_dot_u
 
-    def q_ddot(self, t, q, u, u_dot):
-        raise NotImplementedError
-        p = q[3:]
-        p2 = p @ p
-        B = T_SO3_inv_quat(p) / (p @ p)
-        p_dot = B @ u[3:]
-        p_ddot = (
-            B @ u_dot[3:]
-            + np.einsum("ijk,k,j->i", T_SO3_inv_quat_P(q[3:]), p_dot, u[3:])
-            + 2 * p_dot * (p @ p_dot) / p2
-        )
-
-        q_ddot = np.zeros(self.nq, dtype=np.common_type(q, u, u_dot))
-        q_ddot[:3] = u_dot[:3]
-        q_ddot[3:] = p_ddot
-        return q_ddot
-
     def step_callback(self, t, q, u):
         q[3:] = q[3:] / norm(q[3:])
         return q, u

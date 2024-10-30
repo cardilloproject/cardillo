@@ -361,14 +361,6 @@ class System:
             coo[contr.my_qDOF, contr.uDOF] = contr.q_dot_u(t, q[contr.qDOF])
         return coo.asformat(format)
 
-    def q_ddot(self, t, q, u, u_dot):
-        q_ddot = np.zeros(self.nq, dtype=np.common_type(q, u, u_dot))
-        for contr in self.__q_dot_contr:
-            q_ddot[contr.my_qDOF] = contr.q_ddot(
-                t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF]
-            )
-        return q_ddot
-
     def step_callback(self, t, q, u):
         for contr in self.__step_callback_contr:
             q[contr.qDOF], u[contr.uDOF] = contr.step_callback(
@@ -601,22 +593,6 @@ class System:
             )
         return g_ddot
 
-    def g_ddot_q(self, t, q, u, u_dot, format="coo"):
-        coo = CooMatrix((self.nla_g, self.nq))
-        for contr in self.__g_contr:
-            coo[contr.la_gDOF, contr.qDOF] = contr.g_ddot_q(
-                t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF]
-            )
-        return coo.asformat(format)
-
-    def g_ddot_u(self, t, q, u, u_dot, format="coo"):
-        coo = CooMatrix((self.nla_g, self.nu))
-        for contr in self.__g_contr:
-            coo[contr.la_gDOF, contr.uDOF] = contr.g_ddot_u(
-                t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF]
-            )
-        return coo.asformat(format)
-
     # TODO: Assemble zeta_g for efficency
     def zeta_g(self, t, q, u):
         return self.g_ddot(t, q, u, np.zeros(self.nu))
@@ -775,22 +751,6 @@ class System:
         coo = CooMatrix((self.nla_N, self.nu))
         for contr in self.__g_N_contr:
             coo[contr.la_NDOF, contr.uDOF] = contr.g_N_dot_u(t, q[contr.qDOF])
-        return coo.asformat(format)
-
-    def g_N_ddot_q(self, t, q, u, u_dot, format="coo"):
-        coo = CooMatrix((self.nla_N, self.nu))
-        for contr in self.__g_N_contr:
-            coo[contr.la_NDOF, contr.qDOF] = contr.g_N_ddot_q(
-                t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF]
-            )
-        return coo.asformat(format)
-
-    def g_N_ddot_u(self, t, q, u, u_dot, format="coo"):
-        coo = CooMatrix((self.nla_N, self.nu))
-        for contr in self.__g_N_contr:
-            coo[contr.la_NDOF, contr.uDOF] = contr.g_N_ddot_u(
-                t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF]
-            )
         return coo.asformat(format)
 
     def Wla_N_q(self, t, q, la_N, format="coo"):
