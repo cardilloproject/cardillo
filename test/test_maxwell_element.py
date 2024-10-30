@@ -37,13 +37,6 @@ class MaxwellElement:
         q_dot[1] = (self.stiffness / self.damping) * (x - x_D - self.l0)
         return q_dot
 
-    def q_ddot(self, t, q, u, u_dot):
-        x_dot, x_D_dot = self.q_dot(t, q, u)
-        q_ddot = np.zeros(self.nq)
-        q_ddot[0] = u_dot[0]
-        q_ddot[1] = (self.stiffness / self.damping) * (x_dot - x_D_dot)
-        return q_ddot
-
     def q_dot_q(self, t, q, u):
         q_dot_q = np.zeros((self.nq, self.nq))
         ratio = self.stiffness / self.damping
@@ -95,13 +88,6 @@ class MaxwellElementCompliance:
         q_dot[0] = u[0]
         q_dot[1] = (self.stiffness / self.damping) * (x - x_D - self.l0)
         return q_dot
-
-    def q_ddot(self, t, q, u, u_dot):
-        x_dot, x_D_dot = self.q_dot(t, q, u)
-        q_ddot = np.zeros(self.nq)
-        q_ddot[0] = u_dot[0]
-        q_ddot[1] = (self.stiffness / self.damping) * (x_dot - x_D_dot)
-        return q_ddot
 
     def q_dot_q(self, t, q, u):
         q_dot_q = np.zeros((self.nq, self.nq))

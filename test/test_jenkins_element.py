@@ -39,11 +39,6 @@ class JenkinsElement:
         q_dot[0] = u[0]
         return q_dot
 
-    def q_ddot(self, t, q, u, u_dot):
-        q_ddot = np.zeros(self.nq)
-        q_ddot[0] = u_dot[0]
-        return q_ddot
-
     def q_dot_q(self, t, q, u):
         q_dot_q = np.zeros((self.nq, self.nq))
         return q_dot_q

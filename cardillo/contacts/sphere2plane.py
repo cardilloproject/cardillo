@@ -212,25 +212,6 @@ class Sphere2Plane:
             dtype=np.common_type(q, u, u_dot),
         )
 
-    def g_N_ddot_q(self, t, q, u, u_dot):
-        return np.array(
-            [
-                self.n(t) @ self.a_P_q(t, q, u, u_dot)
-                + 2 * self.n_dot(t) @ self.v_P_q(t, q, u)
-                + self.n_ddot(t) @ self.r_OP_q(t, q)
-            ],
-            dtype=np.common_type(q, u, u_dot),
-        )
-
-    def g_N_ddot_u(self, t, q, u, u_dot):
-        return np.array(
-            [
-                self.n(t) @ self.a_P_u(t, q, u, u_dot)
-                + 2 * self.n_dot(t) @ self.J_P(t, q)
-            ],
-            dtype=np.common_type(q, u, u_dot),
-        )
-
     def Wla_N_q(self, t, q, la_N):
         return la_N[0] * np.einsum("i,ijk->jk", self.n(t), self.J_P_q(t, q))
 
