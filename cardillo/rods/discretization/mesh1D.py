@@ -31,7 +31,8 @@ class Mesh1D:
             )
 
         self.lagrangebasis = LagrangeBasis(self.degree)
-
+        self.value_basis = {}
+        
         # we might have different meshes for q and u, e.g. quaternions for
         # describing spatial rotations
         if dim_u is None:
@@ -163,16 +164,14 @@ class Mesh1D:
             return N
 
     def eval_basis(self, xi):
-        if not hasattr(self, "val_basis"):
-            self.val_basis = {}
-        if xi in self.val_basis.keys():
-            return self.val_basis[xi]
+        if xi in self.value_basis.keys():
+            return self.value_basis[xi]
         else:
             if self.basis == "Lagrange":
                 ret = self.lagrange_basis1D(xi, squeeze=True)
             elif self.basis == "Lagrange_Disc":
                 ret = self.lagrange_basis1D(xi, squeeze=False)
-            self.val_basis[xi] = ret
+            self.value_basis[xi] = ret
         return ret
 
     def quadrature_points(self):
