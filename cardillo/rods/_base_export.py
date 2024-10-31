@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 import numpy as np
-from vtk import VTK_BEZIER_WEDGE, VTK_BEZIER_HEXAHEDRON
+from vtk import VTK_BEZIER_WEDGE, VTK_BEZIER_HEXAHEDRON, VTK_POLY_LINE
 
 from cardillo.utility.bezier import L2_projection_Bezier_curve
 
@@ -69,7 +69,7 @@ class RodExportBase(ABC):
 
             vtk_points = r_OPs.T
 
-            cells = [("line", [[i, i + 1] for i in range(num - 1)])]
+            cells = [(VTK_POLY_LINE, list(range(num)))]
 
             cell_data = {}
 
