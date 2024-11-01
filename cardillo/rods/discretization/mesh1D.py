@@ -1,4 +1,6 @@
 import numpy as np
+from cachetools import cachedmethod, LRUCache
+from cachetools.keys import hashkey
 from .lagrange import LagrangeBasis
 from .gauss import gauss, lobatto
 
@@ -31,8 +33,8 @@ class Mesh1D:
             )
 
         self.lagrangebasis = LagrangeBasis(self.degree)
-        self.value_basis = {}
-        
+        self._eval_basis_cache = LRUCache(self.nelement * self.degree + 1)
+
         # we might have different meshes for q and u, e.g. quaternions for
         # describing spatial rotations
         if dim_u is None:
@@ -163,16 +165,15 @@ class Mesh1D:
         else:
             return N
 
+    @cachedmethod(
+        lambda self: self._eval_basis_cache,
+        key=lambda self, xi: hashkey(xi),
+    )
     def eval_basis(self, xi):
-        if xi in self.value_basis.keys():
-            return self.value_basis[xi]
-        else:
-            if self.basis == "Lagrange":
-                ret = self.lagrange_basis1D(xi, squeeze=True)
-            elif self.basis == "Lagrange_Disc":
-                ret = self.lagrange_basis1D(xi, squeeze=False)
-            self.value_basis[xi] = ret
-        return ret
+        if self.basis == "Lagrange":
+            return self.lagrange_basis1D(xi, squeeze=True)
+        elif self.basis == "Lagrange_Disc":
+            return self.lagrange_basis1D(xi, squeeze=False)
 
     def quadrature_points(self):
         self.qp = np.zeros((self.nelement, self.nquadrature))
