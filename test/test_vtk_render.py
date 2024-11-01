@@ -11,14 +11,9 @@ from cardillo.constraints import RigidConnection
 from cardillo.solver import Newton, SolverOptions, Rattle
 from cardillo.forces import Force, B_Moment
 from cardillo.math import e2, e3
-from cardillo.discrete import RigidBody
-from cardillo.visualization import RendererLinux as Renderer
+from cardillo.discrete import RigidBody, Meshed
+from cardillo.visualization import Renderer
 from cardillo import System
-from cardillo.visualization import (
-    decorate_stl,
-    decorate_rod,
-    decorate_coordinate_system,
-)
 
 
 def dzhanibekov_effect():
@@ -57,7 +52,9 @@ def dzhanibekov_effect():
 
     q0 = RigidBody.pose2q(r_OC0, np.eye(3))
     u0 = np.hstack([v_C0, B_Omega0])
-    screwdriver = RigidBody(
+    screwdriver = Meshed(RigidBody)(
+        path,
+        scale=1e-3,
         mass=mass,
         B_Theta_C=B_Theta_C,
         q0=q0,
@@ -69,36 +66,19 @@ def dzhanibekov_effect():
     # assemble system
     system.assemble()
 
-    ###################
-    # initialize render
-    ###################
-    decorate_coordinate_system(system.origin, 0.05)
-    decorate_stl(screwdriver, path, scale=scale, B_r_CP=-B_r_PC, color=(255, 0, 0))
-    render = Renderer(system, [screwdriver, system.origin])
-    render.start_step_render()
-
     ############
     # simulation
     ############
     dt = 1e-2  # time step
-    solver = Rattle(system, t1, dt)  # create solver
-    sol = solver.solve()  # simulate system
+    solver = Rattle(system, t1, dt)
+
+    render = Renderer(system, [screwdriver, system.origin])
+    render.start_step_render()
+
+    sol = solver.solve()
 
     render.stop_step_render()
     render.render_solution(sol, repeat=True)
-    render.start_interaction(sol.t[-1], sol.q[-1], sol.u[-1])
-
-
-""" Cantilever beam example from
-
-Harsch, J., Capobianco, G. and Eugster, S. R., "Finite element formulations for constrained spatial nonlinear beam theories", 2021.
-https://doi.org/10.1177/10812865211000790
-
-4.1 Elliptic integral solutions of Euler's elastica
-
-It is a test for the static analysis of all different rod formulations in their different versions: 
-(constrained) displacement-based and (constrained) mixed formulations.
-"""
 
 
 def cantilever(
@@ -110,7 +90,6 @@ def cantilever(
     constitutive_law=Harsch2021,
     title="set_a_plot_title",
 ):
-    print(title)
     # geometry of the rod
     length = 2 * np.pi
 
@@ -162,23 +141,20 @@ def cantilever(
 
     system.assemble(options=SolverOptions(compute_consistent_initial_conditions=False))
 
-    decorate_coordinate_system(system.origin, length / 10)
-    decorate_rod(cantilever, 1, 3)
-
-    ren = Renderer(system, [cantilever, system.origin])
-    ren.start_step_render()
-
     # add Newton solver
     solver = Newton(
         system,
         n_load_steps=n_load_steps,
         options=SolverOptions(newton_max_iter=30, newton_atol=1.0e-8),
     )
-    # solve nonlinear static equilibrium equations
+
+    ren = Renderer(system, [cantilever])
+    ren.start_step_render()
+
     sol = solver.solve()
 
     ren.stop_step_render()
-    ren.render_solution(sol, True)
+    ren.render_solution(sol, repeat=True)
 
 
 if __name__ == "__main__":
@@ -187,7 +163,7 @@ if __name__ == "__main__":
 
     cantilever(
         Rod=make_CosseratRod(interpolation="Quaternion", mixed=False),
-        n_load_steps=1000,
         constitutive_law=Harsch2021,
         title="shear-deformable (blue): D-B quaternion interpolation",
+        n_load_steps=30,
     )
