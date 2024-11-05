@@ -71,20 +71,33 @@ class LagrangeBasis:
         # them on interval
         self.li = np.ones(degree + 1, dtype=object)
         for i in range(degree + 1):
-            self.li[i] = Polynomial([1.0], domain=interval, window=[0, 1])
+            self.li[i] = Polynomial([1.0], domain=[0, 1], window=[0, 1])
             for j in range(degree + 1):
                 if i != j:
                     diff = nus[i] - nus[j]
                     self.li[i] *= Polynomial(
-                        [-nus[j] / diff, 1.0 / diff], domain=interval, window=[0, 1]
+                        [-nus[j] / diff, 1.0 / diff], domain=[0, 1], window=[0, 1]
                     )
+        self.set_interval(interval)
+
+    def set_interval(self, interval):
+        self.__interval = interval
+        self.__interval_len = interval[1] - interval[0]
+
+    def __normalize_xi(self, xi):
+        if xi == self.__interval[0]:
+            return 0
+        elif xi == self.__interval[1]:
+            return 1
+        else:
+            return (xi - self.__interval[0]) / self.__interval_len
 
     def __call__(self, xis):
         xis = np.atleast_1d(xis)
         values = np.zeros((len(xis), self.degree + 1), dtype=float)
         for i, xii in enumerate(xis):
             for j in range(self.degree + 1):
-                values[i, j] = self.li[j](xii)
+                values[i, j] = self.li[j](self.__normalize_xi(xii))
         return values
 
     def deriv(self, xis, n=1):
@@ -92,7 +105,9 @@ class LagrangeBasis:
         values = np.zeros((len(xis), self.degree + 1), dtype=float)
         for i, xii in enumerate(xis):
             for j in range(self.degree + 1):
-                values[i, j] = self.li[j].deriv(n)(xii)
+                values[i, j] = (
+                    self.li[j].deriv(n)(self.__normalize_xi(xii)) / self.__interval_len
+                )
         return values
 
 
@@ -101,9 +116,11 @@ def lagrange_basis1D(degree, xis, derivative, knot_vector, squeeze=True):
     xis = np.atleast_1d(xis)
     nxis = len(xis)
     N = np.zeros((derivative + 1, nxis, degree + 1))
+    basis = LagrangeBasis(degree)
     for i, xi in enumerate(xis):
         el = knot_vector.element_number(xi)[0]
-        basis = LagrangeBasis(degree, interval=knot_vector.element_interval(el))
+        interval = knot_vector.element_interval(el)
+        basis.set_interval(interval)
         N[0, i] = basis(xi)
         if derivative:
             for j in range(1, derivative + 1):
