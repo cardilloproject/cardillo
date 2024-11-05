@@ -16,8 +16,8 @@ from ._cross_section import CrossSectionInertias
 from .discretization.lagrange import LagrangeKnotVector
 from .discretization.mesh1D import Mesh1D
 
-I3 = np.eye(3, dtype=float)
-I4 = np.eye(4, dtype=float)
+eye3 = np.eye(3, dtype=float)
+eye4 = np.eye(4, dtype=float)
 
 
 class CosseratRod(RodExportBase, ABC):
@@ -697,7 +697,7 @@ class CosseratRod(RodExportBase, ABC):
             Ji = self.J_dyn[el, i]
 
             # delta_r A_rho0 r_ddot part
-            M_el_r_r = I3 * self.cross_section_inertias.A_rho0 * Ji * qwi
+            M_el_r_r = eye3 * self.cross_section_inertias.A_rho0 * Ji * qwi
             for node_a in range(self.nnodes_element_r):
                 nodalDOF_a = self.nodalDOF_element_r[node_a]
                 for node_b in range(self.nnodes_element_r):
@@ -774,16 +774,16 @@ class CosseratRod(RodExportBase, ABC):
             ############################
             # virtual work contributions
             ############################
-            n = A_IB @ B_n * qwi
+            n_qwi = A_IB @ B_n * qwi
             for node in range(self.nnodes_element_r):
                 f_int_el[self.nodalDOF_element_r_u[node]] -= (
-                    self.N_r_xi[el, i, node] * n
+                    self.N_r_xi[el, i, node] * n_qwi
                 )
-            m = B_m * qwi
+            m_qwi = B_m * qwi
             cross = (cross3(B_Gamma_bar, B_n) + cross3(B_Kappa_bar, B_m)) * qwi
             for node in range(self.nnodes_element_p):
                 f_int_el[self.nodalDOF_element_p_u[node]] += (
-                    -self.N_p_xi[el, i, node] * m + self.N_p[el, i, node] * cross
+                    -self.N_p_xi[el, i, node] * m_qwi + self.N_p[el, i, node] * cross
                 )
 
         return f_int_el
@@ -842,23 +842,23 @@ class CosseratRod(RodExportBase, ABC):
             ############################
             # virtual work contributions
             ############################
-            n_qe = qwi * (np.einsum("ikj,k->ij", A_IB_qe, B_n) + A_IB @ B_n_qe)
+            n_qe_qwi = qwi * (np.einsum("ikj,k->ij", A_IB_qe, B_n) + A_IB @ B_n_qe)
             for node in range(self.nnodes_element_r):
                 f_int_el_qe[self.nodalDOF_element_r[node], :] -= (
-                    self.N_r_xi[el, i, node] * n_qe
+                    self.N_r_xi[el, i, node] * n_qe_qwi
                 )
-            B_Gamma_bar_B_n_qe = qwi * (
+            B_Gamma_bar_B_n_qe_qwi = qwi * (
                 ax2skew(B_Gamma_bar) @ B_n_qe - ax2skew(B_n) @ B_Gamma_bar_qe
             )
-            qwi_B_m_qe = qwi * B_m_qe
-            B_Kappa_bar_B_m_qe = qwi * (
+            B_m_qe_qwi = qwi * B_m_qe
+            B_Kappa_bar_B_m_qe_qwi = qwi * (
                 ax2skew(B_Kappa_bar) @ B_m_qe - ax2skew(B_m) @ B_Kappa_bar_qe
             )
             for node in range(self.nnodes_element_p):
                 f_int_el_qe[self.nodalDOF_element_p_u[node], :] += (
-                    self.N_p[el, i, node] * B_Gamma_bar_B_n_qe
-                    - self.N_p_xi[el, i, node] * qwi_B_m_qe
-                    + self.N_p[el, i, node] * B_Kappa_bar_B_m_qe
+                    self.N_p[el, i, node] * B_Gamma_bar_B_n_qe_qwi
+                    - self.N_p_xi[el, i, node] * B_m_qe_qwi
+                    + self.N_p[el, i, node] * B_Kappa_bar_B_m_qe_qwi
                 )
 
         return f_int_el_qe
@@ -928,11 +928,8 @@ class CosseratRod(RodExportBase, ABC):
     # unit-quaternion condition
     ###########################
     def g_S(self, t, q):
-        g_S = np.zeros(self.nla_S, dtype=q.dtype)
-        for node in range(self.nnodes_p):
-            p = q[self.nodalDOF_p[node]]
-            g_S[self.nodalDOF_la_S[node]] = np.array([p @ p - 1])
-        return g_S
+        P = np.array([q[self.nodalDOF_p[node]] for node in range(self.nnodes_p)])
+        return np.sum(P**2, axis=1) - 1
 
     def g_S_q(self, t, q):
         coo = CooMatrix((self.nla_S, self.nq))
@@ -947,8 +944,7 @@ class CosseratRod(RodExportBase, ABC):
         coo = CooMatrix((self.nq, self.nq))
         for node in range(self.nnodes_p):
             nodalDOF = self.nodalDOF_p[node]
-            # nodalDOF_S = self.nodalDOF_la_S[node]
-            coo[nodalDOF, nodalDOF] = 2 * mu[node] * I4
+            coo[nodalDOF, nodalDOF] = 2 * mu[node] * eye4
         return coo
 
     ####################################################
@@ -1041,7 +1037,7 @@ class CosseratRod(RodExportBase, ABC):
         # interpolate centerline and axis angle contributions
         J_P = np.zeros((3, self.nu_element), dtype=qe.dtype)
         for node in range(self.nnodes_element_r):
-            J_P[:, self.nodalDOF_element_r[node]] += N[node] * I3
+            J_P[:, self.nodalDOF_element_r[node]] += N[node] * eye3
         r_CP_tilde = A_IB @ B_r_CP_tilde
         for node in range(self.nnodes_element_p):
             J_P[:, self.nodalDOF_element_p_u[node]] -= N[node] * r_CP_tilde
@@ -1125,7 +1121,7 @@ class CosseratRod(RodExportBase, ABC):
         N_p, _ = self.basis_functions_p(xi)
         B_J_R = np.zeros((3, self.nu_element), dtype=float)
         for node in range(self.nnodes_element_p):
-            B_J_R[:, self.nodalDOF_element_p_u[node]] += N_p[node] * I3
+            B_J_R[:, self.nodalDOF_element_p_u[node]] += N_p[node] * eye3
         return B_J_R
 
     def B_J_R_q(self, t, qe, xi):

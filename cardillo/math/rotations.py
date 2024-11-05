@@ -1,12 +1,12 @@
 import numpy as np
-from cardillo.math import norm, cross3, ax2skew, ax2skew_a, LeviCivita3
+from cardillo.math import norm, cross3, ax2skew, ax2skew_a, LeviCivita3, ax2skew_squared
 
 # for small angles we use first order approximations of the equations since
 # most of the SO(3) and SE(3) equations get singular for psi -> 0.
 # angle_singular = 1.0e-6
 angle_singular = 0.0
 
-I3 = np.eye(3, dtype=float)
+eye3 = np.eye(3, dtype=float)
 
 
 def Exp_SO3(psi: np.ndarray) -> np.ndarray:
@@ -25,11 +25,10 @@ def Exp_SO3(psi: np.ndarray) -> np.ndarray:
         ca = np.cos(angle)
         alpha = sa / angle
         beta2 = (1.0 - ca) / (angle * angle)
-        psi_tilde = ax2skew(psi)
-        return I3 + alpha * psi_tilde + beta2 * psi_tilde @ psi_tilde
+        return eye3 + alpha * ax2skew(psi) + beta2 * ax2skew_squared(psi)
     else:
         # first order approximation
-        return I3 + ax2skew(psi)
+        return eye3 + ax2skew(psi)
 
 
 def Exp_SO3_psi(psi: np.ndarray) -> np.ndarray:
@@ -54,7 +53,7 @@ def Exp_SO3_psi(psi: np.ndarray) -> np.ndarray:
         beta2_psik = (alpha - beta) / angle2
 
         psi_tilde = ax2skew(psi)
-        psi_tilde2 = psi_tilde @ psi_tilde
+        psi_tilde2 = ax2skew_squared(psi)
 
         ############################
         # alpha * psi_tilde (part I)
@@ -161,10 +160,12 @@ def T_SO3(psi: np.ndarray) -> np.ndarray:
         psi_tilde = ax2skew(psi)
         alpha = sa / angle
         beta2 = (1.0 - ca) / angle2
-        return I3 - beta2 * psi_tilde + ((1.0 - alpha) / angle2) * psi_tilde @ psi_tilde
+        return (
+            eye3 - beta2 * psi_tilde + ((1.0 - alpha) / angle2) * ax2skew_squared(psi)
+        )
     else:
         # first order approximation
-        return I3 - 0.5 * ax2skew(psi)
+        return eye3 - 0.5 * ax2skew(psi)
 
 
 def T_SO3_psi(psi: np.ndarray) -> np.ndarray:
@@ -183,7 +184,7 @@ def T_SO3_psi(psi: np.ndarray) -> np.ndarray:
         c_psik = (3.0 * alpha - 2.0 - ca) / angle4
 
         psi_tilde = ax2skew(psi)
-        psi_tilde2 = psi_tilde @ psi_tilde
+        psi_tilde2 = ax2skew_squared(psi)
 
         ####################
         # -beta2 * psi_tilde
@@ -241,7 +242,7 @@ def T_SO3_dot(psi: np.ndarray, psi_dot: np.ndarray) -> np.ndarray:
             + c2 * np.outer(cross3(psi, psi_dot), psi)
             + c3 * (psi @ psi_dot) * np.outer(psi, psi)
             - c4 * ax2skew(psi_dot)
-            + c5 * (psi @ psi_dot) * I3
+            + c5 * (psi @ psi_dot) * eye3
             + c5 * np.outer(psi, psi_dot)
         ).T  #  transpose of Ibrahimbegović1995 (71)
     else:
@@ -255,10 +256,10 @@ def T_SO3_inv(psi: np.ndarray) -> np.ndarray:
     if angle > angle_singular:
         # Park2005 (19), actually its the transposed!
         gamma = 0.5 * angle / (np.tan(0.5 * angle))
-        return I3 + 0.5 * psi_tilde + ((1.0 - gamma) / angle2) * psi_tilde @ psi_tilde
+        return eye3 + 0.5 * psi_tilde + ((1.0 - gamma) / angle2) * ax2skew_squared(psi)
     else:
         # first order approximation
-        return I3 + 0.5 * psi_tilde
+        return eye3 + 0.5 * psi_tilde
 
 
 def T_SO3_inv_psi(psi: np.ndarray) -> np.ndarray:
@@ -273,7 +274,7 @@ def T_SO3_inv_psi(psi: np.ndarray) -> np.ndarray:
     angle = norm(psi)
     if angle > angle_singular:
         psi_tilde = ax2skew(psi)
-        psi_tilde2 = psi_tilde @ psi_tilde
+        psi_tilde2 = ax2skew_squared(psi)
         cot = 1.0 / np.tan(0.5 * angle)
         gamma = 0.5 * angle * cot
         angle2 = angle * angle
@@ -533,7 +534,7 @@ def smallest_rotation(
     # if denom > 0:
     if denom > 1e-6:
         e = cross3(J_a, J_b)
-        return cos_psi * I3 + ax2skew(e) + np.outer(e, e) / denom
+        return cos_psi * eye3 + ax2skew(e) + np.outer(e, e) / denom
     else:
         M = np.vstack((J_a, J_b))
         _, _, Vh = np.linalg.svd(M)
@@ -556,9 +557,9 @@ def Exp_SO3_quat(P, normalize=True):
     p_tilde = ax2skew(p)
     if normalize:
         P2 = P @ P
-        return I3 + (2 / P2) * (p0 * p_tilde + p_tilde @ p_tilde)
+        return eye3 + (2 / P2) * (p0 * p_tilde + p_tilde @ p_tilde)
     else:
-        return I3 + 2 * (p0 * p_tilde + p_tilde @ p_tilde)
+        return eye3 + 2 * (p0 * p_tilde + p_tilde @ p_tilde)
 
 
 def Exp_SO3_quat_p(P, normalize=True):
@@ -660,9 +661,9 @@ def T_SO3_quat(P, normalize=True):
     """
     p0, p = np.array_split(P, [1])
     if normalize:
-        return (2 / (P @ P)) * np.hstack((-p[:, None], p0 * I3 - ax2skew(p)))
+        return (2 / (P @ P)) * np.hstack((-p[:, None], p0 * eye3 - ax2skew(p)))
     else:
-        return 2 * np.hstack((-p[:, None], p0 * I3 - ax2skew(p)))
+        return 2 * np.hstack((-p[:, None], p0 * eye3 - ax2skew(p)))
 
 
 def T_SO3_inv_quat(P, normalize=True):
@@ -676,9 +677,9 @@ def T_SO3_inv_quat(P, normalize=True):
     """
     p0, p = np.array_split(P, [1])
     if normalize:
-        return (0.5 / (P @ P)) * np.vstack((-p.T, p0 * I3 + ax2skew(p)))
+        return (0.5 / (P @ P)) * np.vstack((-p.T, p0 * eye3 + ax2skew(p)))
     else:
-        return 0.5 * np.vstack((-p.T, p0 * I3 + ax2skew(p)))
+        return 0.5 * np.vstack((-p.T, p0 * eye3 + ax2skew(p)))
 
 
 def T_SO3_quat_P(P, normalize=True):
@@ -687,17 +688,17 @@ def T_SO3_quat_P(P, normalize=True):
         P2 = P @ P
         T_P = np.einsum(
             "ij,k->ijk",
-            np.hstack((-p[:, None], p0 * I3 - ax2skew(p))),
+            np.hstack((-p[:, None], p0 * eye3 - ax2skew(p))),
             -4 * P / (P2 * P2),
         )
         P22 = 2 / P2
-        T_P[:, 0, 1:] -= P22 * I3
-        T_P[:, 1:, 0] += P22 * I3
+        T_P[:, 0, 1:] -= P22 * eye3
+        T_P[:, 1:, 0] += P22 * eye3
         T_P[:, 1:, 1:] -= P22 * ax2skew_a()
     else:
         T_P = np.zeros((3, 4, 4), dtype=float)
-        T_P[:, 0, 1:] -= 2 * I3
-        T_P[:, 1:, 0] += 2 * I3
+        T_P[:, 0, 1:] -= 2 * eye3
+        T_P[:, 1:, 0] += 2 * eye3
         T_P[:, 1:, 1:] -= 2 * ax2skew_a()
 
     return T_P
@@ -717,17 +718,17 @@ def T_SO3_inv_quat_P(P, normalize=True):
         s = P @ P
         T_inv_P = np.einsum(
             "ij,k->ijk",
-            np.vstack((-p.T, p0 * I3 + ax2skew(p))),
+            np.vstack((-p.T, p0 * eye3 + ax2skew(p))),
             -P / (s * s),
         )
         s2 = 0.5 / s
-        T_inv_P[0, :, 1:] -= s2 * I3
-        T_inv_P[1:, :, 0] += s2 * I3
+        T_inv_P[0, :, 1:] -= s2 * eye3
+        T_inv_P[1:, :, 0] += s2 * eye3
         T_inv_P[1:, :, 1:] += s2 * ax2skew_a()
     else:
         T_inv_P = np.zeros((4, 3, 4), dtype=float)
-        T_inv_P[0, :, 1:] = -0.5 * I3
-        T_inv_P[1:, :, 0] = 0.5 * I3
+        T_inv_P[0, :, 1:] = -0.5 * eye3
+        T_inv_P[1:, :, 0] = 0.5 * eye3
         T_inv_P[1:, :, 1:] = 0.5 * ax2skew_a()
     return T_inv_P
 
