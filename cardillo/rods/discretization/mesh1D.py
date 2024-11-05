@@ -1,9 +1,7 @@
 import numpy as np
-from scipy.sparse.linalg import spsolve
-
-from cardillo.utility.coo_matrix import CooMatrix
-
-from .lagrange import lagrange_basis1D
+from cachetools import cachedmethod, LRUCache
+from cachetools.keys import hashkey
+from .lagrange import LagrangeBasis
 from .gauss import gauss, lobatto
 
 
@@ -33,6 +31,9 @@ class Mesh1D:
             raise NotImplementedError(
                 f"Quadrature method '{quadrature}' is not implemented!"
             )
+
+        self.lagrangebasis = LagrangeBasis(self.degree)
+        self._eval_basis_cache = LRUCache(self.nelement * self.degree + 1)
 
         # we might have different meshes for q and u, e.g. quaternions for
         # describing spatial rotations
@@ -137,31 +138,42 @@ class Mesh1D:
 
     def basis1D(self, xis):
         if self.basis == "Lagrange":
-            return lagrange_basis1D(
-                self.degree,
+            return self.lagrange_basis1D(
                 xis,
-                self.derivative_order,
-                self.knot_vector,
                 squeeze=False,
             )
         elif self.basis == "Lagrange_Disc":
-            return lagrange_basis1D(
-                self.degree,
+            return self.lagrange_basis1D(
                 xis,
-                self.derivative_order,
-                self.knot_vector,
                 squeeze=False,
             )
 
+    def lagrange_basis1D(self, xis, squeeze=True):
+        xis = np.atleast_1d(xis)
+        nxis = len(xis)
+        N = np.zeros((self.derivative_order + 1, nxis, self.degree + 1))
+        for i, xi in enumerate(xis):
+            el = self.knot_vector.element_number(xi)[0]
+            interval = self.knot_vector.element_interval(el)
+            self.lagrangebasis.set_interval(interval)
+            N[0, i] = self.lagrangebasis(xi)
+            if self.derivative_order:
+                for j in range(1, self.derivative_order + 1):
+                    N[j, i] = self.lagrangebasis.deriv(xi, n=j)
+        if squeeze:
+            return N.squeeze()
+        else:
+            return N
+
+    @cachedmethod(
+        lambda self: self._eval_basis_cache,
+        key=lambda self, xi: hashkey(xi),
+    )
     def eval_basis(self, xi):
         if self.basis == "Lagrange":
-            return lagrange_basis1D(
-                self.degree, xi, self.derivative_order, self.knot_vector, squeeze=True
-            )
+            return self.lagrange_basis1D(xi, squeeze=True)
         elif self.basis == "Lagrange_Disc":
-            return lagrange_basis1D(
-                self.degree, xi, self.derivative_order, self.knot_vector, squeeze=False
-            )
+            return self.lagrange_basis1D(xi, squeeze=False)
 
     def quadrature_points(self):
         self.qp = np.zeros((self.nelement, self.nquadrature))
