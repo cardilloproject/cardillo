@@ -681,14 +681,6 @@ class System:
             coo[contr.la_SDOF, contr.qDOF] = contr.g_S_q(t, q[contr.qDOF])
         return coo.asformat(format)
 
-    def g_S_q_T_mu_q(self, t, q, mu, format="coo"):
-        coo = CooMatrix((self.nq, self.nq))
-        for contr in self.__g_S_contr:
-            coo[contr.qDOF, contr.qDOF] = contr.g_S_q_T_mu_q(
-                t, q[contr.qDOF], mu[contr.la_SDOF]
-            )
-        return coo.asformat(format)
-
     #################
     # normal contacts
     #################
