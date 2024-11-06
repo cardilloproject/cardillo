@@ -7,7 +7,6 @@ from cardillo.solver import Solution, SolverSummary
 
 
 # TODO:
-# - export more fields if dense output is ready for yp
 # - review events if implementation accepts signature `events(t, y, yp)`
 # - Add Jacobian of GGl term if convergence problems occur
 class ScipyDAE:
@@ -256,16 +255,18 @@ class ScipyDAE:
         # unpack solution
         t = sol.t
         q, u, _, _, _, _ = np.array_split(sol.y, self.split)
-        # q_dot, u_dot, mu_g, la_g, la_gamma, la_c = np.array_split(sol.yp, self.split)
+        q_dot, u_dot, mu_g, la_g, la_gamma, la_c = np.array_split(sol.yp, self.split)
 
         return Solution(
             system=self.system,
             t=t,
             q=q.T,
             u=u.T,
-            # u_dot=u_dot.T,
-            # la_g=la_g.T,
-            # la_gamma=la_gamma.T,
-            # la_c=la_c.T,
+            q_dot=q_dot.T,
+            u_dot=u_dot.T,
+            mu_g=mu_g.T,
+            la_g=la_g.T,
+            la_gamma=la_gamma.T,
+            la_c=la_c.T,
             solver_summary=solver_summary,
         )
