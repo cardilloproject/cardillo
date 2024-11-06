@@ -554,12 +554,11 @@ def Exp_SO3_quat(P, normalize=True):
     Nuetzi2016: https://www.research-collection.ethz.ch/handle/20.500.11850/117165
     """
     p0, p = np.array_split(P, [1])
-    p_tilde = ax2skew(p)
     if normalize:
         P2 = P @ P
-        return eye3 + (2 / P2) * (p0 * p_tilde + p_tilde @ p_tilde)
+        return eye3 + (2 / P2) * (p0 * ax2skew(p) + ax2skew_squared(p))
     else:
-        return eye3 + 2 * (p0 * p_tilde + p_tilde @ p_tilde)
+        return eye3 + 2 * (p0 * ax2skew(p) + ax2skew_squared(p))
 
 
 def Exp_SO3_quat_p(P, normalize=True):
@@ -571,7 +570,7 @@ def Exp_SO3_quat_p(P, normalize=True):
     if normalize:
         P2 = P @ P
         A_P = np.einsum(
-            "ij,k->ijk", p0 * p_tilde + p_tilde @ p_tilde, -(4 / (P2 * P2)) * P
+            "ij,k->ijk", p0 * p_tilde + ax2skew_squared(p), -(4 / (P2 * P2)) * P
         )
         s2 = 2 / P2
         A_P[:, :, 0] += s2 * p_tilde
