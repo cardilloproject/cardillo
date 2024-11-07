@@ -928,16 +928,14 @@ class CosseratRod(RodExportBase, ABC):
     # unit-quaternion condition
     ###########################
     def g_S(self, t, q):
-        P = np.array([q[self.nodalDOF_p[node]] for node in range(self.nnodes_p)])
-        return np.sum(P**2, axis=1) - 1
+        P = q[self.nq_r:].reshape(4, -1)
+        return np.sum(P**2, axis=0) - 1
 
     def g_S_q(self, t, q):
         coo = CooMatrix((self.nla_S, self.nq))
-        for node in range(self.nnodes_p):
-            nodalDOF = self.nodalDOF_p[node]
-            nodalDOF_S = self.nodalDOF_la_S[node]
-            p = q[nodalDOF]
-            coo[nodalDOF_S, nodalDOF] = 2 * p.reshape(1, -1)
+        coo.data = 2 * q[self.nq_r:]
+        coo.row = np.tile(np.arange(self.nla_S), 4)
+        coo.col = np.arange(self.nq_r, self.nq)
         return coo
 
     ####################################################
