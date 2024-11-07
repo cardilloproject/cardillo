@@ -928,12 +928,12 @@ class CosseratRod(RodExportBase, ABC):
     # unit-quaternion condition
     ###########################
     def g_S(self, t, q):
-        P = q[self.nq_r:].reshape(4, -1)
+        P = q[self.nq_r :].reshape(4, -1)
         return np.sum(P**2, axis=0) - 1
 
     def g_S_q(self, t, q):
         coo = CooMatrix((self.nla_S, self.nq))
-        coo.data = 2 * q[self.nq_r:]
+        coo.data = 2 * q[self.nq_r :]
         coo.row = np.tile(np.arange(self.nla_S), 4)
         coo.col = np.arange(self.nq_r, self.nq)
         return coo
