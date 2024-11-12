@@ -246,7 +246,7 @@ class RodExportBase(ABC):
                     )
 
         elif self._export_dict["level"] == "None" or self._export_dict["level"] == None:
-            self._export_dict["cells"] = []
+            self._export_dict["level"] = None
 
         # set flag value to True
         self.preprocessed_export = True
@@ -254,8 +254,14 @@ class RodExportBase(ABC):
     def export(self, sol_i, **kwargs):
         q = sol_i.q
 
+        # do the preprocess
+        # TODO: maybe call the preprocess already when the export is triggered by the system
         if not self.preprocessed_export:
             self.preprocess_export()
+
+        # export nothing
+        if self._export_dict["level"] == None:
+            return None, None, None, None
 
         # get values that very computed in preprocess into local scope
         ncells = self._export_dict["ncells"]
@@ -279,7 +285,7 @@ class RodExportBase(ABC):
                 "d3": d3s.T,
             }
             # TODO: add stresses here?
-            # here is a bit more work to do, as the points allo for now only C0 continuity in stresses!
+            # here is a bit more work to do, as the points allow for now only C0 continuity in stresses!
             cell_data = {}
 
             return vtk_points, self._export_dict["cells"], point_data, cell_data
@@ -293,9 +299,17 @@ class RodExportBase(ABC):
             r_OP_segments = L2_projection_Bezier_curve(
                 r_OPs.T, ncells, case=continuity
             )[2]
-            d1_segments = L2_projection_Bezier_curve(d1s.T, ncells, case=continuity)[2]
             d2_segments = L2_projection_Bezier_curve(d2s.T, ncells, case=continuity)[2]
             d3_segments = L2_projection_Bezier_curve(d3s.T, ncells, case=continuity)[2]
+            requires_d1 = (
+                self._export_dict["volume_directors"]
+                or self._export_dict["surface_normals"]
+            )
+
+            if requires_d1:
+                d1_segments = L2_projection_Bezier_curve(
+                    d1s.T, ncells, case=continuity
+                )[2]
 
             # get characteristic points from the cross-section
             compute_points = self.cross_section.vtk_compute_points(
@@ -458,10 +472,4 @@ class RodExportBase(ABC):
             cell_data = {
                 "HigherOrderDegrees": self._export_dict["higher_order_degrees"],
             }
-
-        elif level == "None" or level == None:
-            vtk_points = []
-            point_data = {}
-            cell_data = {}
-
         return vtk_points, self._export_dict["cells"], point_data, cell_data
