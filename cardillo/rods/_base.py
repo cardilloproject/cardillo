@@ -948,14 +948,6 @@ class CosseratRod(RodExportBase, ABC):
             coo[nodalDOF_S, nodalDOF] = 2 * p.reshape(1, -1)
         return coo
 
-    def g_S_q_T_mu_q(self, t, q, mu):
-        coo = CooMatrix((self.nq, self.nq))
-        for node in range(self.nnodes_p):
-            nodalDOF = self.nodalDOF_p[node]
-            nodalDOF_S = self.nodalDOF_la_S[node]
-            coo[nodalDOF, nodalDOF] = 2 * mu[node] * np.eye(4)
-        return coo
-
     ####################################################
     # interactions with other bodies and the environment
     ####################################################

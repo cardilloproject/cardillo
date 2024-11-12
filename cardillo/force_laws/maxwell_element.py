@@ -58,10 +58,6 @@ class MaxwellElement:
     def q_dot_u(self, t, q):
         return np.zeros(self._nu)
 
-    def q_ddot(self, t, q, u, u_dot):
-        l_d_dot = self.q_dot(t, q, u)
-        return (self.k / self.eta) * (self.subsystem.l_dot(t, q[1:], u) - l_d_dot)
-
     def E_pot(self, t, q):
         l_d = q[0]
         return 0.5 * self.k * (self.subsystem.l(t, q[1:]) - l_d - self.l_ref) ** 2

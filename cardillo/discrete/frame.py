@@ -55,9 +55,6 @@ class Frame:
     def q_dot(self, t, q, u):
         return np.array([])
 
-    def q_ddot(self, t, q, u, u_dot):
-        return np.array([])
-
     #####################
     # auxiliary functions
     #####################
