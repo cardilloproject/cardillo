@@ -145,11 +145,6 @@ class RigidBody:
         g_S_q[0, 3:] = 2.0 * P
         return g_S_q
 
-    def g_S_q_T_mu_q(self, t, q, mu):
-        g_S_q_T_mu_q = np.zeros((7, 7), dtype=q.dtype)
-        g_S_q_T_mu_q[3:, 3:] = 2.0 * mu[0] * np.eye(4, 4, dtype=float)
-        return g_S_q_T_mu_q
-
     #####################
     # auxiliary functions
     #####################
