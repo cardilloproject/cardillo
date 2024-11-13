@@ -3,11 +3,12 @@
 # Cardillo
 [![License](https://img.shields.io/badge/License-BSD_3--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause) [![License](https://img.shields.io/badge/code%20standard-PEP8-black)](https://www.python.org/dev/peps/pep-0008/)
 
+Cardillo is an open-source simulation framework for flexible multi-body systems with frictional contacts and impacts. The software is developed by teams from the University of Stuttgart, the Eindhoven University of Technology (TU/e) and the Friedrich-Alexander-Universität Erlangen-Nuremberg (FAU).
 Cardillo is an open-source simulation framework for flexible multi-body systems with frictional contacts and impacts. Teams from the University of Stuttgart, the Eindhoven University of Technology (TU/e), and the Friedrich-Alexander-Universität Erlangen-Nuremberg (FAU) developed the software. It has been used to solve real-world problems involving basic motions such as bouncing balls, double pendulums, and friction belts. Cardillo is a Python framework that applies the fundamental principle of modularity to multi-body dynamics problems.
 
 -Maybe some information about the reason behind Cardillo, if needed-
 
-Enjoy how our Cardillo can be implemented in real-life scenarios by taking a look at the following examples.
+Enjoy how our Cardillo can be implemented in real-life scenarios by looking at the following examples.
 
 ## Examples 
 |Two-mass Oscillator|Spinning Top| Multiple Balls|
@@ -15,6 +16,7 @@ Enjoy how our Cardillo can be implemented in real-life scenarios by taking a loo
 |![Two_mass_oscillator](https://github.com/user-attachments/assets/0e3911d0-b689-4f38-85cc-8c14513fbe8c)  | ![Spinning_top](https://github.com/user-attachments/assets/88a9b65d-272f-432b-ae7b-925e3b00ae0f) |![multiple_balls](https://github.com/user-attachments/assets/899bd885-e3d0-460b-a133-174357e2f841) |
 
 
+## Requirements
 
 ## Tutorials
 
@@ -37,44 +39,18 @@ Enjoy how our Cardillo can be implemented in real-life scenarios by taking a loo
   This also makes it easier to install future updates from our side, improving performance through package and program updates.
 * Please follow the steps to create a virtual environment or please visit "https://docs.python.org/3/library/venv.html"
 
-### Installation
+## Installation
 To install the package, clone or download the current repository, open a console, navigate to the root folder of the project and run `pip install .`.
+### Installation
+To install the package, clone or download the current repository, open a console, navigate to the project's root folder, and run `pip install .`
 
 ```bash
 git clone https://github.com/cardilloproject/cardillo.git
 cd cardillo
 pip install .
 ```
-* It is also recommended to have an OpenGL library, if not already installed, follow the steps mentioned below (Linux)
-* For Ubuntu or Debian-based systems, run:
-
-```bash
-Copy code
-sudo apt-get update
-sudo apt-get install libgl1-mesa-glx
-```
-* Verify installation:
-Once the package is installed, try running the the script of our very first example that simulates a ball bouncing on a flat surface
-
-```bash
-Copy code
-python examples/bouncing_ball/bouncing_ball.py
-```
-If you´re using linux make sure there is a GUI-compatible Matplotlib, (Usually you´ll encounter an error message like "UserWarning: FigureCanvasAgg is non-interactive, and thus cannot be shown
-  plt.show()") if not please install one by following the steps below
-``` bash
-sudo apt update
-sudo apt install python3-tk
-```
-Run once, as it will install an equivalent "library" similar to plt.show(). Then, you can run the code below to set the matplotlib backend to TkAgg from the terminal without modifying the code. You can use the MPLBACKEND environment variable.
-```
-MPLBACKEND=TkAgg python3 /home/vrv13/cardillo/examples/bouncing_ball/bouncing_ball.py
-```
-
-
-### Virtual environment considerations:
-
-* Please ensure your virtual environment is active when installing system-wide dependencies like OpenGL. Virtual environments typically rely on system libraries for dependencies like libGL.so.1.
+## For Students and Developers 
+To know a bit more about Project Workflow, and some installation steps please refer: https://github.com/cardilloproject/project_template
 
 # Team
 Team Member list, if needed
