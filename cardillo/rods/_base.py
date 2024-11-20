@@ -456,9 +456,7 @@ class CosseratRod(RodExportBase, ABC):
         q_dot = np.zeros_like(q, dtype=np.common_type(q, u))
 
         # centerline time derivative from centerline velocities
-        for node in range(self.nnodes_r):
-            nodalDOF_r = self.nodalDOF_r[node]
-            q_dot[nodalDOF_r] = u[nodalDOF_r]
+        q_dot[self.nodalDOF_r] = u[self.nodalDOF_r]
 
         # quaternion time derivative from angular velocities
         for node in range(self.nnodes_p):
@@ -480,10 +478,8 @@ class CosseratRod(RodExportBase, ABC):
             p = q[nodalDOF_p]
             B_omega_IK = u[nodalDOF_p_u]
 
-            coo[nodalDOF_p, nodalDOF_p] = np.einsum(
-                "ijk,j->ik",
-                T_SO3_inv_quat_P(p, normalize=False),
-                B_omega_IK,
+            coo[nodalDOF_p, nodalDOF_p] = B_omega_IK @ T_SO3_inv_quat_P(
+                p, normalize=False
             )
 
         return coo
@@ -573,15 +569,9 @@ class CosseratRod(RodExportBase, ABC):
             qwi = self.qw_dyn[el, i]
             Ji = self.J_dyn[el, i]
 
-            v_P = np.zeros(3, dtype=float)
-            for node in range(self.nnodes_element_r):
-                v_P += self.N_r_dyn[el, i, node] * ue[self.nodalDOF_element_r_u[node]]
+            v_P = self.N_r_dyn[el, i] @ ue[self.nodalDOF_element_r_u]
 
-            B_omega_IK = np.zeros(3, dtype=float)
-            for node in range(self.nnodes_element_p):
-                B_omega_IK += (
-                    self.N_p_dyn[el, i, node] * ue[self.nodalDOF_element_p_u[node]]
-                )
+            B_omega_IK = self.N_p_dyn[el, i] @ ue[self.nodalDOF_element_p_u]
 
             # delta_r A_rho0 r_ddot part
             E_kin_el += (
@@ -618,9 +608,7 @@ class CosseratRod(RodExportBase, ABC):
             qwi = self.qw_dyn[el, i]
             Ji = self.J_dyn[el, i]
 
-            v_P = np.zeros(3, dtype=float)
-            for node in range(self.nnodes_element_r):
-                v_P += self.N_r_dyn[el, i, node] * ue[self.nodalDOF_element_r[node]]
+            v_P = self.N_r_dyn[el, i] @ ue[self.nodalDOF_element_r]
 
             linear_momentum_el += v_P * self.cross_section_inertias.A_rho0 * Ji * qwi
 
@@ -647,17 +635,10 @@ class CosseratRod(RodExportBase, ABC):
             qwi = self.qw_dyn[el, i]
             Ji = self.J_dyn[el, i]
 
-            r_OP = np.zeros(3, dtype=float)
-            v_P = np.zeros(3, dtype=float)
-            for node in range(self.nnodes_element_r):
-                r_OP += self.N_r_dyn[el, i, node] * qe[self.nodalDOF_element_r[node]]
-                v_P += self.N_r_dyn[el, i, node] * ue[self.nodalDOF_element_r_u[node]]
+            r_OP = self.N_r_dyn[el, i] @ qe[self.nodalDOF_element_r]
+            v_P = self.N_r_dyn[el, i] @ ue[self.nodalDOF_element_r_u]
 
-            B_omega_IK = np.zeros(3, dtype=float)
-            for node in range(self.nnodes_element_p):
-                B_omega_IK += (
-                    self.N_p_dyn[el, i, node] * ue[self.nodalDOF_element_p_u[node]]
-                )
+            B_omega_IK = self.N_p_dyn[el, i] @ ue[self.nodalDOF_element_p_u]
 
             A_IB = self.A_IB(t, qe, (qpi,))
 
@@ -774,17 +755,15 @@ class CosseratRod(RodExportBase, ABC):
             ############################
             # virtual work contributions
             ############################
-            n_qwi = A_IB @ B_n * qwi
-            for node in range(self.nnodes_element_r):
-                f_int_el[self.nodalDOF_element_r_u[node]] -= (
-                    self.N_r_xi[el, i, node] * n_qwi
-                )
-            m_qwi = B_m * qwi
-            cross = (cross3(B_Gamma_bar, B_n) + cross3(B_Kappa_bar, B_m)) * qwi
-            for node in range(self.nnodes_element_p):
-                f_int_el[self.nodalDOF_element_p_u[node]] += (
-                    -self.N_p_xi[el, i, node] * m_qwi + self.N_p[el, i, node] * cross
-                )
+            f_int_el[self.nodalDOF_element_r_u] -= np.outer(
+                self.N_r_xi[el, i], A_IB @ B_n * qwi
+            )
+            f_int_el[self.nodalDOF_element_p_u] += np.outer(
+                -self.N_p_xi[el, i], B_m * qwi
+            ) + np.outer(
+                self.N_p[el, i],
+                (cross3(B_Gamma_bar, B_n) + cross3(B_Kappa_bar, B_m)) * qwi,
+            )
 
         return f_int_el
 
@@ -842,52 +821,36 @@ class CosseratRod(RodExportBase, ABC):
             ############################
             # virtual work contributions
             ############################
-            n_qe_qwi = qwi * (np.einsum("ikj,k->ij", A_IB_qe, B_n) + A_IB @ B_n_qe)
-            for node in range(self.nnodes_element_r):
-                f_int_el_qe[self.nodalDOF_element_r[node], :] -= (
-                    self.N_r_xi[el, i, node] * n_qe_qwi
-                )
-            B_Gamma_bar_B_n_qe_qwi = qwi * (
-                ax2skew(B_Gamma_bar) @ B_n_qe - ax2skew(B_n) @ B_Gamma_bar_qe
+            f_int_el_qe[self.nodalDOF_element_r] -= (
+                self.N_r_xi[el, i][..., None, None]
+                * qwi
+                * (B_n @ A_IB_qe + A_IB @ B_n_qe)
             )
-            B_m_qe_qwi = qwi * B_m_qe
-            B_Kappa_bar_B_m_qe_qwi = qwi * (
-                ax2skew(B_Kappa_bar) @ B_m_qe - ax2skew(B_m) @ B_Kappa_bar_qe
+            f_int_el_qe[self.nodalDOF_element_p_u] += (
+                self.N_p[el, i][..., None, None]
+                * qwi
+                * (ax2skew(B_Gamma_bar) @ B_n_qe - ax2skew(B_n) @ B_Gamma_bar_qe)
+                - self.N_p_xi[el, i][..., None, None] * qwi * B_m_qe
+                + self.N_p[el, i][..., None, None]
+                * qwi
+                * (ax2skew(B_Kappa_bar) @ B_m_qe - ax2skew(B_m) @ B_Kappa_bar_qe)
             )
-            for node in range(self.nnodes_element_p):
-                f_int_el_qe[self.nodalDOF_element_p_u[node], :] += (
-                    self.N_p[el, i, node] * B_Gamma_bar_B_n_qe_qwi
-                    - self.N_p_xi[el, i, node] * B_m_qe_qwi
-                    + self.N_p[el, i, node] * B_Kappa_bar_B_m_qe_qwi
-                )
-
         return f_int_el_qe
 
     def f_gyr_el(self, t, qe, ue, el):
         common_type = np.common_type(qe, ue)
         f_gyr_el = np.zeros(self.nu_element, dtype=common_type)
-
-        for i in range(self.nquadrature_dyn):
-            # interpoalte angular velocity
-            B_Omega = np.zeros(3, dtype=common_type)
-            for node in range(self.nnodes_element_p):
-                B_Omega += (
-                    self.N_p_dyn[el, i, node] * ue[self.nodalDOF_element_p_u[node]]
-                )
-
-            # vector of gyroscopic forces
-            f_gyr_el_p = (
-                cross3(B_Omega, self.cross_section_inertias.B_I_rho0 @ B_Omega)
-                * self.J_dyn[el, i]
-                * self.qw_dyn[el, i]
-            )
-
-            # multiply vector of gyroscopic forces with nodal virtual rotations
-            for node in range(self.nnodes_element_p):
-                f_gyr_el[self.nodalDOF_element_p_u[node]] += (
-                    self.N_p_dyn[el, i, node] * f_gyr_el_p
-                )
-
+        # interpoalte angular velocity
+        B_Omegas = self.N_p_dyn[el] @ ue[self.nodalDOF_element_p_u]
+        # gyroscopic forces
+        f_gyr_el_ps = (
+            np.cross(B_Omegas, (B_Omegas @ self.cross_section_inertias.B_I_rho0.T))
+            * (self.J_dyn[el] * self.qw_dyn[el])[:, None]
+        )
+        # multiply vector of gyroscopic forces with nodal virtual rotations
+        f_gyr_el[self.nodalDOF_element_p_u] = np.sum(
+            (self.N_p_dyn[el][..., None] * f_gyr_el_ps[:, None, :]), axis=0
+        )
         return f_gyr_el
 
     def f_gyr_el_ue(self, t, qe, ue, el):
@@ -895,11 +858,7 @@ class CosseratRod(RodExportBase, ABC):
 
         for i in range(self.nquadrature_dyn):
             # interpoalte angular velocity
-            B_Omega = np.zeros(3, dtype=float)
-            for node in range(self.nnodes_element_p):
-                B_Omega += (
-                    self.N_p_dyn[el, i, node] * ue[self.nodalDOF_element_p_u[node]]
-                )
+            B_Omega = self.N_p_dyn[el, i] @ ue[self.nodalDOF_element_p_u]
 
             # derivative of vector of gyroscopic forces
             f_gyr_u_el_p = (
@@ -980,21 +939,17 @@ class CosseratRod(RodExportBase, ABC):
             _,
         ) = self._deval(qe, xi, N, N_xi)
 
-        return r_OC_q + np.einsum("ijk,j->ik", A_IB_q, B_r_CP)
+        return r_OC_q + B_r_CP @ A_IB_q
 
     def v_P(self, t, qe, ue, xi, B_r_CP=np.zeros(3, dtype=float)):
         N, _ = self.basis_functions_r(xi)
 
         # interpolate A_IB and angular velocity in K-frame
         A_IB = self.A_IB(t, qe, xi)
-        B_Omega = np.zeros(3, dtype=np.common_type(qe, ue))
-        for node in range(self.nnodes_element_p):
-            B_Omega += N[node] * ue[self.nodalDOF_element_p_u[node]]
+        B_Omega = N @ ue[self.nodalDOF_element_p_u]
 
         # centerline velocity
-        v_C = np.zeros(3, dtype=np.common_type(qe, ue))
-        for node in range(self.nnodes_element_r):
-            v_C += N[node] * ue[self.nodalDOF_element_r[node]]
+        v_C = N @ ue[self.nodalDOF_element_r]
 
         return v_C + A_IB @ cross3(B_Omega, B_r_CP)
 
@@ -1004,15 +959,9 @@ class CosseratRod(RodExportBase, ABC):
 
         # interpolate derivative of A_IB and angular velocity in K-frame
         A_IB_q = self.A_IB_q(t, qe, xi)
-        B_Omega = np.zeros(3, dtype=np.common_type(qe, ue))
-        for node in range(self.nnodes_element_p):
-            B_Omega += N[node] * ue[self.nodalDOF_element_p_u[node]]
+        B_Omega = N @ ue[self.nodalDOF_element_p_u]
 
-        v_P_q = np.einsum(
-            "ijk,j->ik",
-            A_IB_q,
-            cross3(B_Omega, B_r_CP),
-        )
+        v_P_q = cross3(B_Omega, B_r_CP) @ A_IB_q
         return v_P_q
 
     def J_P(self, t, qe, xi, B_r_CP=np.zeros(3, dtype=float)):
@@ -1027,11 +976,9 @@ class CosseratRod(RodExportBase, ABC):
 
         # interpolate centerline and axis angle contributions
         J_P = np.zeros((3, self.nu_element), dtype=qe.dtype)
-        for node in range(self.nnodes_element_r):
-            J_P[:, self.nodalDOF_element_r[node]] += N[node] * eye3
+        J_P[:, self.nodalDOF_element_r.T] += N * eye3[..., None]
         r_CP_tilde = A_IB @ B_r_CP_tilde
-        for node in range(self.nnodes_element_p):
-            J_P[:, self.nodalDOF_element_p_u[node]] -= N[node] * r_CP_tilde
+        J_P[:, self.nodalDOF_element_p_u.T] -= N * r_CP_tilde[..., None]
 
         return J_P
 
@@ -1041,15 +988,12 @@ class CosseratRod(RodExportBase, ABC):
 
         B_r_CP_tilde = ax2skew(B_r_CP)
         A_IB_q = self.A_IB_q(t, qe, xi)
-        prod = np.einsum("ijl,jk", A_IB_q, B_r_CP_tilde)
+        prod = B_r_CP_tilde.T @ A_IB_q
 
         # interpolate axis angle contributions since centerline contributon is
         # zero
         J_P_q = np.zeros((3, self.nu_element, self.nq_element), dtype=float)
-        for node in range(self.nnodes_element_p):
-            nodalDOF_p_u = self.nodalDOF_element_p_u[node]
-            J_P_q[:, nodalDOF_p_u] -= N[node] * prod
-
+        J_P_q[:, self.nodalDOF_element_p_u] = -N[..., None, None] * prod[:, None, ...]
         return J_P_q
 
     def a_P(self, t, qe, ue, ue_dot, xi, B_r_CP=np.zeros(3, dtype=float)):
@@ -1059,9 +1003,7 @@ class CosseratRod(RodExportBase, ABC):
         A_IB = self.A_IB(t, qe, xi)
 
         # centerline acceleration
-        a_C = np.zeros(3, dtype=np.common_type(qe, ue, ue_dot))
-        for node in range(self.nnodes_element_r):
-            a_C += N[node] * ue_dot[self.nodalDOF_element_r[node]]
+        a_C = N @ ue_dot[self.nodalDOF_element_r]
 
         # angular velocity and acceleration in K-frame
         B_Omega = self.B_Omega(t, qe, ue, xi)
@@ -1075,11 +1017,9 @@ class CosseratRod(RodExportBase, ABC):
     def a_P_q(self, t, qe, ue, ue_dot, xi, B_r_CP=None):
         B_Omega = self.B_Omega(t, qe, ue, xi)
         B_Psi = self.B_Psi(t, qe, ue, ue_dot, xi)
-        a_P_q = np.einsum(
-            "ijk,j->ik",
-            self.A_IB_q(t, qe, xi),
-            cross3(B_Psi, B_r_CP) + cross3(B_Omega, cross3(B_Omega, B_r_CP)),
-        )
+        a_P_q = (
+            cross3(B_Psi, B_r_CP) + cross3(B_Omega, cross3(B_Omega, B_r_CP))
+        ) @ self.A_IB_q(t, qe, xi)
         return a_P_q
 
     def a_P_u(self, t, qe, ue, ue_dot, xi, B_r_CP=None):
@@ -1090,8 +1030,7 @@ class CosseratRod(RodExportBase, ABC):
 
         N, _ = self.basis_functions_r(xi)
         a_P_u = np.zeros((3, self.nu_element), dtype=float)
-        for node in range(self.nnodes_element_r):
-            a_P_u[:, self.nodalDOF_element_p_u[node]] += N[node] * local
+        a_P_u[:, self.nodalDOF_element_p_u.T] = N * local[..., None]
 
         return a_P_u
 
@@ -1100,9 +1039,7 @@ class CosseratRod(RodExportBase, ABC):
         angular velocities in the K-frame.
         """
         N_p, _ = self.basis_functions_p(xi)
-        B_Omega = np.zeros(3, dtype=np.common_type(qe, ue))
-        for node in range(self.nnodes_element_p):
-            B_Omega += N_p[node] * ue[self.nodalDOF_element_p_u[node]]
+        B_Omega = N_p @ ue[self.nodalDOF_element_p_u]
         return B_Omega
 
     def B_Omega_q(self, t, qe, ue, xi):
@@ -1111,8 +1048,7 @@ class CosseratRod(RodExportBase, ABC):
     def B_J_R(self, t, qe, xi):
         N_p, _ = self.basis_functions_p(xi)
         B_J_R = np.zeros((3, self.nu_element), dtype=float)
-        for node in range(self.nnodes_element_p):
-            B_J_R[:, self.nodalDOF_element_p_u[node]] += N_p[node] * eye3
+        B_J_R[:, self.nodalDOF_element_p_u.T] = N_p * eye3[..., None]
         return B_J_R
 
     def B_J_R_q(self, t, qe, xi):
@@ -1123,9 +1059,7 @@ class CosseratRod(RodExportBase, ABC):
         time derivative of the angular velocities in the K-frame.
         """
         N, _ = self.basis_functions_p(xi)
-        B_Psi = np.zeros(3, dtype=np.common_type(qe, ue, ue_dot))
-        for node in range(self.nnodes_element_p):
-            B_Psi += N[node] * ue_dot[self.nodalDOF_element_p_u[node]]
+        B_Psi = N @ ue_dot[self.nodalDOF_element_p_u]
         return B_Psi
 
     def B_Psi_q(self, t, qe, ue, ue_dot, xi):
