@@ -553,7 +553,7 @@ def Exp_SO3_quat(P, normalize=True):
     Egenland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf \\
     Nuetzi2016: https://www.research-collection.ethz.ch/handle/20.500.11850/117165
     """
-    p0, p = np.array_split(P, [1])
+    p0, p = P[0, None], P[1:]
     if normalize:
         P2 = P @ P
         return eye3 + (2 / P2) * (p0 * ax2skew(p) + ax2skew_squared(p))
@@ -563,29 +563,27 @@ def Exp_SO3_quat(P, normalize=True):
 
 def Exp_SO3_quat_p(P, normalize=True):
     """Derivative of Exp_SO3_quat with respect to P."""
-    p0, p = np.array_split(P, [1])
+    p0, p = P[0, None], P[1:]
     p_tilde = ax2skew(p)
     p_tilde_p = ax2skew_a()
 
     if normalize:
         P2 = P @ P
-        A_P = np.einsum(
-            "ij,k->ijk", p0 * p_tilde + ax2skew_squared(p), -(4 / (P2 * P2)) * P
-        )
+        A_P = (p0 * p_tilde + ax2skew_squared(p))[..., None] * (-(4 / (P2 * P2)) * P)
         s2 = 2 / P2
         A_P[:, :, 0] += s2 * p_tilde
         A_P[:, :, 1:] += (
             s2 * p0 * p_tilde_p
-            + np.einsum("ijl,jk->ikl", p_tilde_p, s2 * p_tilde)
-            + np.einsum("ij,jkl->ikl", s2 * p_tilde, p_tilde_p)
+            + (s2 * p_tilde.T) @ p_tilde_p
+            + (p_tilde_p.T @ (-s2 * p_tilde)).T
         )
     else:
         A_P = np.zeros((3, 3, 4), dtype=P.dtype)
         A_P[:, :, 0] = 2 * p_tilde
         A_P[:, :, 1:] = (
             2 * p0 * p_tilde_p
-            + np.einsum("ijl,jk->ikl", p_tilde_p, 2 * p_tilde)
-            + np.einsum("ij,jkl->ikl", 2 * p_tilde, p_tilde_p)
+            + (s2 * p_tilde.T) @ p_tilde_p
+            + (p_tilde_p.T @ (-2 * p_tilde)).T
         )
 
     return A_P
@@ -658,7 +656,7 @@ def T_SO3_quat(P, normalize=True):
     -----------
     Egenland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf
     """
-    p0, p = np.array_split(P, [1])
+    p0, p = P[0, None], P[1:]
     if normalize:
         return (2 / (P @ P)) * np.hstack((-p[:, None], p0 * eye3 - ax2skew(p)))
     else:
@@ -674,7 +672,7 @@ def T_SO3_inv_quat(P, normalize=True):
     Egenland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf \\
     Nuetzi2016: https://www.research-collection.ethz.ch/handle/20.500.11850/117165
     """
-    p0, p = np.array_split(P, [1])
+    p0, p = P[0, None], P[1:]
     if normalize:
         return (0.5 / (P @ P)) * np.vstack((-p.T, p0 * eye3 + ax2skew(p)))
     else:
@@ -683,12 +681,10 @@ def T_SO3_inv_quat(P, normalize=True):
 
 def T_SO3_quat_P(P, normalize=True):
     if normalize:
-        p0, p = np.array_split(P, [1])
+        p0, p = P[0, None], P[1:]
         P2 = P @ P
-        T_P = np.einsum(
-            "ij,k->ijk",
-            np.hstack((-p[:, None], p0 * eye3 - ax2skew(p))),
-            -4 * P / (P2 * P2),
+        T_P = np.hstack((-p[:, None], p0 * eye3 - ax2skew(p)))[..., None] * (
+            -4 * P / (P2 * P2)
         )
         P22 = 2 / P2
         T_P[:, 0, 1:] -= P22 * eye3
@@ -713,13 +709,9 @@ def T_SO3_quat_P(P, normalize=True):
 
 def T_SO3_inv_quat_P(P, normalize=True):
     if normalize:
-        p0, p = np.array_split(P, [1])
+        p0, p = P[0, None], P[1:]
         s = P @ P
-        T_inv_P = np.einsum(
-            "ij,k->ijk",
-            np.vstack((-p.T, p0 * eye3 + ax2skew(p))),
-            -P / (s * s),
-        )
+        T_inv_P = np.vstack((-p.T, p0 * eye3 + ax2skew(p)))[..., None] * (-P / (s * s))
         s2 = 0.5 / s
         T_inv_P[0, :, 1:] -= s2 * eye3
         T_inv_P[1:, :, 0] += s2 * eye3
@@ -746,7 +738,7 @@ def quatprod(P, Q):
     -----------
     Egenland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf
     """
-    p0, p = np.array_split(P, [1])
+    p0, p = P[0, None], P[1:]
     q0, q = np.array_split(Q, [1])
     z0 = p0 * q0 - p @ q
     z = p0 * q + q0 * p + cross3(p, q)
