@@ -51,13 +51,6 @@ class Newton:
             )
         )
 
-        self.mask_f = (
-            np.hstack([self.split_f, len(x)]) - np.hstack([0, self.split_f])
-        ) > 0
-        self.mask_x = (
-            np.hstack([self.split_x, len(x)]) - np.hstack([0, self.split_x])
-        ) > 0
-
         # initial conditions
         x0 = np.concatenate((system.q0, system.la_g0, system.la_c0, system.la_N0))
         nx = len(x0)
@@ -66,6 +59,10 @@ class Newton:
         # memory allocation
         self.x = np.zeros((self.nt, nx), dtype=float)
         self.x[0] = x0
+
+        # mask for jac
+        self.mask_f = (np.hstack([self.split_f, nx]) - np.hstack([0, self.split_f])) > 0
+        self.mask_x = (np.hstack([self.split_x, nx]) - np.hstack([0, self.split_x])) > 0
 
     def fun(self, x, t):
         # unpack unknowns
