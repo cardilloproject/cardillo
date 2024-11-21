@@ -91,7 +91,8 @@ class Newton:
         # unpack unknowns
         q, la_g, la_c, la_N = np.array_split(x, self.split_x)
 
-        mask = (np.hstack([self.split_x, len(x)]) - np.hstack([0, self.split_x])) > 0
+        mask_f = (np.hstack([self.split_f, len(x)]) - np.hstack([0, self.split_f])) > 0
+        mask_x = (np.hstack([self.split_x, len(x)]) - np.hstack([0, self.split_x])) > 0
         # evaluate additionally required quantites for computing the jacobian
         # coo is used for efficient bmat
         K = (
@@ -101,14 +102,14 @@ class Newton:
             + self.system.Wla_N_q(t, q, la_N)
         )
 
-        g_q = self.system.g_q(t, q) if mask[1] else None
-        g_S_q = self.system.g_S_q(t, q)
-        c_q = self.system.c_q(t, q, self.u0, la_c) if mask[2] else None
-        c_la_c = self.system.c_la_c() if mask[2] else None
+        g_q = self.system.g_q(t, q) if mask_f[1] else None
+        g_S_q = self.system.g_S_q(t, q) if mask_f[3] else None
+        c_q = self.system.c_q(t, q, self.u0, la_c) if mask_f[2] else None
+        c_la_c = self.system.c_la_c() if mask_f[2] else None
 
         # note: csr_matrix is best for row slicing, see
         # https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csr_array.html#scipy.sparse.csr_array
-        if mask[3]:
+        if mask_f[4]:
             g_N_q = self.system.g_N_q(t, q, format="csr")
 
             Rla_N_q = lil_array((self.nla_N, self.nq), dtype=float)
@@ -131,7 +132,7 @@ class Newton:
                 [  g_S_q,     None,     None,       None],
                 [Rla_N_q,     None,     None, Rla_N_la_N]
             ]
-        )[np.insert(mask, 3, True)][:, mask]
+        )[mask_f][:, mask_x]
         return bmat(_jac, format="csc")
         # fmt: on
 
