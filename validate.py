@@ -34,9 +34,9 @@ def double_pendulum_urdf():
         initial_config=initial_config,
         initial_vel=initial_vel,
         base_link_is_floating=False,
-        gravitational_acceleration=np.array([0, 0, -1]),
+        gravitational_acceleration=np.array([0, 0, -10]),
     )
-    show_system(system, 0, system.q0)
+    
 
     dt = 1.0e-2
     sol = BackwardEuler(system, 5, dt).solve()
@@ -246,7 +246,7 @@ if __name__ == "__main__":
     phi1, phi2, phi1_dot, phi2_dot, t = double_pendulum_nonurdf()
         # Combined plot for angles and angular velocities
     
-    #the red line is URDF and the blue is hardcoded.
+    
     fig, ax = plt.subplots(nrows=4, ncols=1, figsize=(10, 8))
     ax[0].plot(t1, phi1_urdf, "-r", label="$\\varphi_1$")
     ax[0].plot(t1, phi1, "-g", label="$\\varphi_1$")
