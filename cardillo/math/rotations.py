@@ -550,7 +550,7 @@ def Exp_SO3_quat(P, normalize=True):
 
     References:
     -----------
-    Egenland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf \\
+    Egeland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf \\
     Nuetzi2016: https://www.research-collection.ethz.ch/handle/20.500.11850/117165
     """
     p0, p = np.array_split(P, [1])
@@ -656,7 +656,7 @@ def T_SO3_quat(P, normalize=True):
 
     References:
     -----------
-    Egenland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf
+    Egeland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf
     """
     p0, p = np.array_split(P, [1])
     if normalize:
@@ -671,7 +671,7 @@ def T_SO3_inv_quat(P, normalize=True):
 
     References:
     -----------
-    Egenland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf \\
+    Egeland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf \\
     Nuetzi2016: https://www.research-collection.ethz.ch/handle/20.500.11850/117165
     """
     p0, p = np.array_split(P, [1])
@@ -744,7 +744,7 @@ def quatprod(P, Q):
 
     References:
     -----------
-    Egenland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf
+    Egeland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf
     """
     p0, p = np.array_split(P, [1])
     q0, q = np.array_split(Q, [1])
