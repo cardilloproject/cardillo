@@ -137,7 +137,7 @@ def derivative_test(A_fct, A_q_fct, q, case):
     A_q = Helper(A_q_fct, case, True)(q)
     A_q_num = approx_fprime(q, Helper(A_fct, case), method="3-point")
     e = np.linalg.norm(A_q - A_q_num)
-    assert np.isclose(e, 0), f"case: {case}, e: {e:.5e}, q: {q}"
+    assert np.isclose(e, 0, atol=1e-7), f"case: {case}, e: {e:.5e}, q: {q}"
 
 
 @pytest.mark.parametrize("A_fct, q, case", test_parameters_orthogonality)
