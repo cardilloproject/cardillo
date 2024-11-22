@@ -30,11 +30,16 @@ from cardillo.math.rotations import (
 #   4: True, but q gets normalized bevore passed to the actual function
 #   5: False, but q gets normalized bevore passed to the actual function
 
-q3 = np.random.rand(3)
-q4 = np.random.rand(4)
+# test rotation vectors with magnitude <= pi
+q3 = 2 / np.sqrt(3) * np.pi * (np.random.rand(3) - 0.5)
+# test quaternions with magnitude <= 2
+q4 = 4 * (np.random.rand(4) - 0.5)
+
+# A is used to test Log_SO3
+A = Exp_SO3(q3)
 
 # should work for all
-# TODO: implement version that works for case=2
+# TODO: implement version that works with no normalize and non-unit quaternions (case=2)
 test_parameters_orthogonality = [
     [Exp_SO3, q3, 0],
     *[[Exp_SO3_quat, q4, i] for i in [0, 1, 3, 4, 5]],
@@ -47,7 +52,7 @@ test_parameters_normality = [
 ]
 
 # all derivatives should work
-test_parameters_Exp_SO3_derivative = [
+test_parameters_Exp_SO3_q = [
     [Exp_SO3, Exp_SO3_psi, q3, 0],
     *[[Exp_SO3_quat, Exp_SO3_quat_p, q4, i] for i in [0, 1, 2, 3, 4, 5]],
 ]
@@ -66,6 +71,29 @@ test_parameters_T_SO3_inv = [
     *[[T_SO3_quat, T_SO3_inv_quat, q4, i] for i in [3, 4, 5]],
 ]
 
+# all T_SO3_q should work
+test_parameters_T_SO3_q = [
+    [T_SO3, T_SO3_psi, q3, 0],
+    *[[T_SO3_quat, T_SO3_quat_P, q4, i] for i in [0, 1, 2, 3, 4, 5]],
+]
+
+# all T_SO3_inv_q should work
+test_parameters_T_SO3_inv_q = [
+    [T_SO3_inv, T_SO3_inv_psi, q3, 0],
+    *[[T_SO3_inv_quat, T_SO3_inv_quat_P, q4, i] for i in [0, 1, 2, 3, 4, 5]],
+]
+
+# all Log_SO3 should work
+test_parameters_Log_SO3 = [
+    [Exp_SO3, Log_SO3, q3, 0],
+    *[[Exp_SO3_quat, Log_SO3_quat, q3, i] for i in [0, 1, 2, 3, 4, 5]],
+]
+
+# no implementation of Log_SO3_A
+test_parameters_Log_SO3_A = [
+    [Log_SO3, Log_SO3_A, q3, 0],
+]
+
 
 class Helper:
     def __init__(self, fct, case, isDerivative=False):
@@ -79,32 +107,37 @@ class Helper:
         return 1 / np.sqrt(q2) * (np.eye(len(q), dtype=q.dtype) - np.outer(q, q) / q2)
 
     def __call__(self, q):
-        if self.isDerivative and self.case >= 3:
-            if self.case == 3:
-                fct = self.fct(q / np.linalg.norm(q))
-                P = self.P(q)
-                return np.einsum("ijk,kl->ijl", fct, P)
-            elif self.case == 4:
-                fct = self.fct(q / np.linalg.norm(q), True)
-                P = self.P(q)
-                return np.einsum("ijk,kl->ijl", fct, P)
-            elif self.case == 5:
-                fct = self.fct(q / np.linalg.norm(q), False)
-                P = self.P(q)
-                return np.einsum("ijk,kl->ijl", fct, P)
-
+        # direct function call
         if self.case == 0:
             return self.fct(q)
         elif self.case == 1:
             return self.fct(q, True)
         elif self.case == 2:
             return self.fct(q, False)
-        elif self.case == 3:
-            return self.fct(q / np.linalg.norm(q))
+
+        # function call, with normalized q
+        q_normalized = q / np.linalg.norm(q)
+        if self.case == 3:
+            fct = self.fct(q_normalized)
         elif self.case == 4:
-            return self.fct(q / np.linalg.norm(q), True)
+            fct = self.fct(q_normalized, True)
         elif self.case == 5:
-            return self.fct(q / np.linalg.norm(q), False)
+            fct = self.fct(q_normalized, False)
+
+        # if it is the derivate, we need also the inner derivative,
+        # i.e., d/dq (q / norm(q)) = P(q)
+        if self.isDerivative:
+            P = self.P(q)
+            return np.einsum("ijk,kl->ijl", fct, P)
+        else:
+            return fct
+
+
+def derivative_test(A_fct, A_q_fct, q, case):
+    A_q = Helper(A_q_fct, case, True)(q)
+    A_q_num = approx_fprime(q, Helper(A_fct, case), method="3-point")
+    e = np.linalg.norm(A_q - A_q_num)
+    assert np.isclose(e, 0), f"case: {case}, e: {e}, q: {q}"
 
 
 @pytest.mark.parametrize("A_fct, q, case", test_parameters_orthogonality)
@@ -123,22 +156,13 @@ def test_normality(A_fct, q, case):
     assert np.isclose(ez @ ez, 1), f"case: {case}, e: {ez @ ez}, q: {q}"
 
 
-@pytest.mark.skip(reason="Helper function for derivative.")
-def test_derivative(A_fct, A_q_fct, q, case):
-    A_q = Helper(A_q_fct, case, True)(q)
-    A_q_num = approx_fprime(q, Helper(A_fct, case), method="3-point")
-    e = np.linalg.norm(A_q - A_q_num)
-    assert np.isclose(e, 0), f"case: {case}, e: {e}, q: {q}"
-
-
 @pytest.mark.filterwarnings("ignore: 'approx_fprime' is used")
-@pytest.mark.parametrize("A_fct, A_q_fct, q, case", test_parameters_Exp_SO3_derivative)
-def test_Exp_derivative(A_fct, A_q_fct, q, case):
-    test_derivative(A_fct, A_q_fct, q, case)
+@pytest.mark.parametrize("Exp_fct, Exp_q_fct, q, case", test_parameters_Exp_SO3_q)
+def test_Exp_SO3_q(Exp_fct, Exp_q_fct, q, case):
+    derivative_test(Exp_fct, Exp_q_fct, q, case)
 
 
 @pytest.mark.parametrize("A_fct, A_q_fct, T_fct, q, case", test_parameters_T_SO3)
-# @pytest.mark.skip(reason="no way of currently testing this")
 def test_T_SO3(A_fct, A_q_fct, T_fct, q, case):
     # v = B_delta_phi_IB or B_omega_IB or B_kappa_IB
     # dq = delta_q or q_dot or q_xi
@@ -146,7 +170,8 @@ def test_T_SO3(A_fct, A_q_fct, T_fct, q, case):
     # v = T_SO3(q) @ dq
     # ax2skew(v) = A.T @ dA
     dq = np.random.rand(len(q))
-    v = Helper(T_fct, case)(q) @ dq
+    T = Helper(T_fct, case)(q)
+    v = T @ dq
 
     A = Helper(A_fct, case)(q)
     A_q = Helper(A_q_fct, case)(q)
@@ -186,115 +211,50 @@ def test_T_SO3_inv(T_fct, T_inv_fct, q, case):
         assert np.isclose(e1, 0), f"case: {case}, e: {e1}, q: {q}"
 
 
-# TODO: is there a clever way to reuse the test_derivative function from above?
-@pytest.mark.parametrize("A_fct, A_q_fct, q, case", test_parameters_Exp_SO3_derivative)
 @pytest.mark.filterwarnings("ignore: 'approx_fprime' is used")
-def test_T_derivative(A_fct, A_q_fct, q, case):
-    A_q = Helper(A_q_fct, case, True)(q)
-    A_q_num = approx_fprime(q, Helper(A_fct, case), method="3-point")
-    e = np.linalg.norm(A_q - A_q_num)
-    assert np.isclose(e, 0), f"case: {case}, e: {e}, q: {q}"
+@pytest.mark.parametrize("T_fct, T_q_fct, q, case", test_parameters_T_SO3_q)
+def test_T_SO3_q(T_fct, T_q_fct, q, case):
+    derivative_test(T_fct, T_q_fct, q, case)
 
 
-@pytest.mark.skip(reason="no way of currently testing this")
-def test_Log_SO3(Exp_fct, Log_fct, q):
-    # generate transformation
-    A = Exp_fct(q)
-    # extract coordinates (they can be different from q)
-    q_ = Log_fct(A)
+@pytest.mark.filterwarnings("ignore: 'approx_fprime' is used")
+@pytest.mark.parametrize("T_inv_fct, T_inv_q_fct, q, case", test_parameters_T_SO3_inv_q)
+def test_T_inv_q(T_inv_fct, T_inv_q_fct, q, case):
+    derivative_test(T_inv_fct, T_inv_q_fct, q, case)
+
+
+@pytest.mark.parametrize("Exp_fct, Log_fct, psi, case", test_parameters_Log_SO3)
+def test_Log_SO3(Exp_fct, Log_fct, psi, case):
+    # generate transformation always from rotation vector
+    A = Exp_SO3(psi)
+
+    # extract coordinates
+    # Log function always takes just a matrix -> no need for Helper and case
+    q = Log_fct(A)
+    if len(q) == len(psi):
+        # rotation vector should be equal
+        # no complement needed, as 0 <= norm(psi) < 3 < pi (each random component is in [0, 1))
+        e0 = np.linalg.norm(q - psi)
+    else:
+        e0 = np.linalg.norm(q) - 1
+
+    # assert same rotation vector or a unit quaternion
+    assert np.isclose(e0, 0), f"case: {case}, e: {e0}, psi: {psi}"
+
     # generate matrix with extracted coordinates
-    A_ = Exp_fct(q_)
+    A_ = Helper(Exp_fct, case)(q)
 
-    assert np.isclose(np.linalg.norm(A_ - A), 0)
+    # assert the same matrix
+    e1 = np.linalg.norm(A_ - A)
+    assert np.isclose(e1, 0), f"case: {case}, e: {e1}, q: {q}"
+
+
+@pytest.mark.filterwarnings("ignore: 'approx_fprime' is used")
+@pytest.mark.parametrize("Log_fct, Log_fct_q, psi, case", test_parameters_Log_SO3_A)
+def test_Log_SO3_A(Log_fct, Log_fct_q, psi, case):
+    A = Exp_SO3(psi)
+    derivative_test(Log_fct, Log_fct_q, A, case)
 
 
 if __name__ == "__main__":
-    Parametrization = namedtuple(
-        "Parametrization",
-        [
-            "name",
-            # regular functions
-            "Exp_SO3",
-            "Log_SO3",
-            "T_SO3",
-            "T_SO3_inv",
-            # derivatives
-            "Exp_SO3_q",
-            "Log_SO3_A",
-            "T_SO3_q",
-            "T_SO3_inv_q",
-            # dimensions of the parametrization
-            "dimension",
-        ],
-    )
-    AxisAngle = Parametrization(
-        "AxisAngle",
-        Exp_SO3,
-        Log_SO3,
-        T_SO3,
-        T_SO3_inv,
-        Exp_SO3_psi,
-        Log_SO3_A,
-        T_SO3_psi,
-        T_SO3_inv_psi,
-        3,
-    )
-    parametrizations = [AxisAngle]
-
-    def make_Quaternion_parametrization(normalize):
-        if normalize == None:
-            myargs = lambda q: [q]
-            name = f"Quaternion w/o arguments"
-        else:
-            myargs = lambda q: [q, normalize]
-            name = f"Quaternion normalize={str(normalize)}"
-
-        p = Parametrization(
-            name,
-            lambda q: Exp_SO3_quat(*myargs(q)),
-            Log_SO3_quat,  # Log returns always a normalized quaternion
-            lambda q: T_SO3_quat(*myargs(q)),
-            lambda q: T_SO3_inv_quat(*myargs(q)),
-            lambda q: Exp_SO3_quat_p(*myargs(q)),
-            None,  # no implementation of Log_SO3_A_quat
-            lambda q: T_SO3_quat_P(*myargs(q)),
-            lambda q: T_SO3_inv_quat_P(*myargs(q)),
-            4,
-        )
-        return p
-
-    parametrizations.extend(
-        [make_Quaternion_parametrization(n) for n in [None, True, False]]
-    )
-
-    for p in parametrizations:
-        q = np.random.rand(p.dimension)
-        q = np.arange(1, p.dimension + 1, dtype=float)
-        q = q / np.linalg.norm(q)
-
-        # # check if A is orthonormal
-        # if p.name != "Quaternion normalize=False" or True:
-        #     test_orthogonality(p.Exp_SO3, q)
-        #     test_normality(p.Exp_SO3, q)
-
-        # # check if A_q is correct
-        # test_derivative(p.Exp_SO3, p.Exp_SO3_q, q)
-
-        # # check if T_SO3 is correct
-        # test_T_SO3(p.Exp_SO3, p.Exp_SO3_q, p.T_SO3, q)
-
-        # # check if T_SO3_inv is correct
-        # test_inverse(p.T_SO3, p.T_SO3_inv, q)
-
-        # # check derivative of T_SO3
-        # test_derivative(p.T_SO3, p.T_SO3_q, q)
-
-        # # check derivative of T_SO3_inv
-        # test_derivative(p.T_SO3_inv, p.T_SO3_inv_q, q)
-
-        # # check matrix logarithm
-        # test_Log_SO3(p.Exp_SO3, p.Log_SO3, q)
-        # if p.Log_SO3_A is not None:
-        #     test_derivative(p.Log_SO3, p.Log_SO3_A, np.eye(3))
-
-        print(f"Success of {p.name}!")
+    pass
