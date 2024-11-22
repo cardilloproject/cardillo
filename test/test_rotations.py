@@ -38,11 +38,10 @@ q4 = 4 * (np.random.rand(4) - 0.5)
 # A is used to test Log_SO3
 A = Exp_SO3(q3)
 
-# should work for all
-# TODO: implement version that works with no normalize and non-unit quaternions (case=2)
+# all matrices should be orthogonal
 test_parameters_orthogonality = [
     [Exp_SO3, q3, 0],
-    *[[Exp_SO3_quat, q4, i] for i in [0, 1, 3, 4, 5]],
+    *[[Exp_SO3_quat, q4, i] for i in [0, 1, 2, 3, 4, 5]],
 ]
 
 # is not supposed to work with no normalize and non-unit quaternions (case=2)
@@ -58,17 +57,15 @@ test_parameters_Exp_SO3_q = [
 ]
 
 # all T_SO3 should work
-# TODO: implementation seems wrong for no normalize (case = [2, 5])
 test_parameters_T_SO3 = [
     [Exp_SO3, Exp_SO3_psi, T_SO3, q3, 0],
-    *[[Exp_SO3_quat, Exp_SO3_quat_p, T_SO3_quat, q4, i] for i in [0, 1, 3, 4]],
+    *[[Exp_SO3_quat, Exp_SO3_quat_p, T_SO3_quat, q4, i] for i in [0, 1, 2, 3, 4, 5]],
 ]
 
 # all T_SO3_inv should work
-# TODO: the implementation is wrong for all kind of non-unit quaternions (cas = [0, 1, 2])
 test_parameters_T_SO3_inv = [
     [T_SO3, T_SO3_inv, q3, 0],
-    *[[T_SO3_quat, T_SO3_inv_quat, q4, i] for i in [3, 4, 5]],
+    *[[T_SO3_quat, T_SO3_inv_quat, q4, i] for i in [0, 1, 2, 3, 4, 5]],
 ]
 
 # all T_SO3_q should work

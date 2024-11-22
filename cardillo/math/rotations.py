@@ -546,7 +546,7 @@ def smallest_rotation(
 
 def Exp_SO3_quat(P, normalize=True):
     """Exponential mapping defined by (unit) quaternion, see 
-    Egeland2002 (6.199) and Nuetzi2016 (3.31).
+    Egeland2002 (6.163) and Nuetzi2016 (3.31).
 
     References:
     -----------
@@ -558,7 +558,8 @@ def Exp_SO3_quat(P, normalize=True):
         P2 = P @ P
         return eye3 + (2 / P2) * (p0 * ax2skew(p) + ax2skew_squared(p))
     else:
-        return eye3 + 2 * (p0 * ax2skew(p) + ax2skew_squared(p))
+        # returns always an orthogonal matrix, but not necessary normalized
+        return (p0**2 - p @ p) * eye3 + 2 * (np.outer(p, p) + p0 * ax2skew(p))
 
 
 def Exp_SO3_quat_p(P, normalize=True):
@@ -581,12 +582,14 @@ def Exp_SO3_quat_p(P, normalize=True):
         )
     else:
         A_P = np.zeros((3, 3, 4), dtype=P.dtype)
-        A_P[:, :, 0] = 2 * p_tilde
-        A_P[:, :, 1:] = (
-            2 * p0 * p_tilde_p
-            + np.einsum("ijl,jk->ikl", p_tilde_p, 2 * p_tilde)
-            + np.einsum("ij,jkl->ikl", 2 * p_tilde, p_tilde_p)
-        )
+        A_P[:, :, 0] = 2 * p0 * eye3 + 2 * ax2skew(p)
+        A_P[:, :, 1:] = -np.multiply.outer(eye3, 2 * p) + 2 * p0 * ax2skew_a()
+        A_P[0, :, 1:] += 2 * p[0] * eye3
+        A_P[1, :, 1:] += 2 * p[1] * eye3
+        A_P[2, :, 1:] += 2 * p[2] * eye3
+        A_P[0, :, 1] += 2 * p
+        A_P[1, :, 2] += 2 * p
+        A_P[2, :, 3] += 2 * p
 
     return A_P
 
@@ -662,7 +665,7 @@ def T_SO3_quat(P, normalize=True):
     if normalize:
         return (2 / (P @ P)) * np.hstack((-p[:, None], p0 * eye3 - ax2skew(p)))
     else:
-        return 2 * np.hstack((-p[:, None], p0 * eye3 - ax2skew(p)))
+        return 2 * (P @ P) * np.hstack((-p[:, None], p0 * eye3 - ax2skew(p)))
 
 
 def T_SO3_inv_quat(P, normalize=True):
@@ -676,9 +679,9 @@ def T_SO3_inv_quat(P, normalize=True):
     """
     p0, p = np.array_split(P, [1])
     if normalize:
-        return (0.5 / (P @ P)) * np.vstack((-p.T, p0 * eye3 + ax2skew(p)))
-    else:
         return 0.5 * np.vstack((-p.T, p0 * eye3 + ax2skew(p)))
+    else:
+        return 1 / (2 * (P @ P) ** 2) * np.vstack((-p.T, p0 * eye3 + ax2skew(p)))
 
 
 def T_SO3_quat_P(P, normalize=True):
@@ -695,10 +698,14 @@ def T_SO3_quat_P(P, normalize=True):
         T_P[:, 1:, 0] += P22 * eye3
         T_P[:, 1:, 1:] -= P22 * ax2skew_a()
     else:
+        p0, p = np.array_split(P, [1])
+        factor = 2 * P @ P
+        matrix = np.hstack((-p[:, None], p0 * eye3 - ax2skew(p)))
         T_P = np.zeros((3, 4, 4), dtype=float)
-        T_P[:, 0, 1:] -= 2 * eye3
-        T_P[:, 1:, 0] += 2 * eye3
-        T_P[:, 1:, 1:] -= 2 * ax2skew_a()
+        T_P[:, 0, 1:] -= factor * eye3
+        T_P[:, 1:, 0] += factor * eye3
+        T_P[:, 1:, 1:] -= factor * ax2skew_a()
+        T_P += np.multiply.outer(matrix, 4 * P)
 
     return T_P
 
@@ -713,22 +720,21 @@ def T_SO3_quat_P(P, normalize=True):
 
 def T_SO3_inv_quat_P(P, normalize=True):
     if normalize:
-        p0, p = np.array_split(P, [1])
-        s = P @ P
-        T_inv_P = np.einsum(
-            "ij,k->ijk",
-            np.vstack((-p.T, p0 * eye3 + ax2skew(p))),
-            -P / (s * s),
-        )
-        s2 = 0.5 / s
-        T_inv_P[0, :, 1:] -= s2 * eye3
-        T_inv_P[1:, :, 0] += s2 * eye3
-        T_inv_P[1:, :, 1:] += s2 * ax2skew_a()
-    else:
         T_inv_P = np.zeros((4, 3, 4), dtype=float)
         T_inv_P[0, :, 1:] = -0.5 * eye3
         T_inv_P[1:, :, 0] = 0.5 * eye3
         T_inv_P[1:, :, 1:] = 0.5 * ax2skew_a()
+    else:
+        p0, p = np.array_split(P, [1])
+        P2 = P @ P
+        factor = 1 / (2 * P2**2)
+        matrix = np.vstack((-p.T, p0 * eye3 + ax2skew(p)))
+        T_inv_P = np.zeros((4, 3, 4), dtype=float)
+        T_inv_P[0, :, 1:] -= factor * eye3
+        T_inv_P[1:, :, 0] += factor * eye3
+        T_inv_P[1:, :, 1:] += factor * ax2skew_a()
+        T_inv_P += np.multiply.outer(matrix, -2 / (P2**3) * P)
+
     return T_inv_P
 
     # from cardillo.math import approx_fprime
