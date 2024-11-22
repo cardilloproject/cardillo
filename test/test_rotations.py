@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 
 from cardillo.math.approx_fprime import approx_fprime
-from cardillo.math import ax2skew
+from cardillo.math import skew2ax
 from cardillo.math.rotations import (
     Exp_SO3,
     Exp_SO3_psi,
@@ -176,7 +176,7 @@ def test_T_SO3(A_fct, A_q_fct, T_fct, q, case):
     A = Helper(A_fct, case)(q)
     A_q = Helper(A_q_fct, case)(q)
     dA = np.einsum("ijk, k -> ij", A_q, dq)
-    e = np.linalg.norm(ax2skew(v) - A.T @ dA)
+    e = np.linalg.norm(v - skew2ax(A.T @ dA))
     assert np.isclose(e, 0), f"case: {case}, e: {e:.5e}, q: {q}"
 
 
@@ -206,7 +206,7 @@ def test_T_SO3_q(T_fct, T_q_fct, q, case):
 
 @pytest.mark.filterwarnings("ignore: 'approx_fprime' is used")
 @pytest.mark.parametrize("T_inv_fct, T_inv_q_fct, q, case", test_parameters_T_SO3_inv_q)
-def test_T_inv_q(T_inv_fct, T_inv_q_fct, q, case):
+def test_T_SO3_inv_q(T_inv_fct, T_inv_q_fct, q, case):
     derivative_test(T_inv_fct, T_inv_q_fct, q, case)
 
 
