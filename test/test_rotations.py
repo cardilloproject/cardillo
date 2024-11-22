@@ -125,7 +125,7 @@ class Helper:
         # i.e., d/dq (q / norm(q)) = P(q)
         if self.isDerivative:
             P = self.P(q)
-            return np.einsum("ijk,kl->ijl", fct, P)
+            return fct @ P
         else:
             return fct
 
@@ -172,7 +172,7 @@ def test_T_SO3(A_fct, A_q_fct, T_fct, q, case):
 
     A = Helper(A_fct, case)(q)
     A_q = Helper(A_q_fct, case)(q)
-    dA = np.einsum("ijk, k -> ij", A_q, dq)
+    dA = A_q @ dq
     e = np.linalg.norm(v - skew2ax(A.T @ dA))
     assert np.isclose(e, 0), f"case: {case}, e: {e:.5e}, q: {q}"
 

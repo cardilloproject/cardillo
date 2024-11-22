@@ -685,27 +685,20 @@ def T_SO3_inv_quat(P, normalize=True):
 
 
 def T_SO3_quat_P(P, normalize=True):
+    p0, p = np.array_split(P, [1])
+    P2 = P @ P
+    matrix = np.hstack((-p[:, None], p0 * eye3 - ax2skew(p)))
     if normalize:
-        p0, p = np.array_split(P, [1])
-        P2 = P @ P
-        T_P = np.einsum(
-            "ij,k->ijk",
-            np.hstack((-p[:, None], p0 * eye3 - ax2skew(p))),
-            -4 * P / (P2 * P2),
-        )
-        P22 = 2 / P2
-        T_P[:, 0, 1:] -= P22 * eye3
-        T_P[:, 1:, 0] += P22 * eye3
-        T_P[:, 1:, 1:] -= P22 * ax2skew_a()
+        factor = 2 / P2
+        factor_P = -4 * P / P2**2
     else:
-        p0, p = np.array_split(P, [1])
-        factor = 2 * P @ P
-        matrix = np.hstack((-p[:, None], p0 * eye3 - ax2skew(p)))
-        T_P = np.zeros((3, 4, 4), dtype=float)
-        T_P[:, 0, 1:] -= factor * eye3
-        T_P[:, 1:, 0] += factor * eye3
-        T_P[:, 1:, 1:] -= factor * ax2skew_a()
-        T_P += np.multiply.outer(matrix, 4 * P)
+        factor = 2 * P2
+        factor_P = 4 * P
+
+    T_P = np.multiply.outer(matrix, factor_P)
+    T_P[:, 0, 1:] -= factor * eye3
+    T_P[:, 1:, 0] += factor * eye3
+    T_P[:, 1:, 1:] -= factor * ax2skew_a()
 
     return T_P
 
@@ -728,12 +721,13 @@ def T_SO3_inv_quat_P(P, normalize=True):
         p0, p = np.array_split(P, [1])
         P2 = P @ P
         factor = 1 / (2 * P2**2)
+        factor_P = -2 / (P2**3) * P
         matrix = np.vstack((-p.T, p0 * eye3 + ax2skew(p)))
-        T_inv_P = np.zeros((4, 3, 4), dtype=float)
+
+        T_inv_P = np.multiply.outer(matrix, factor_P)
         T_inv_P[0, :, 1:] -= factor * eye3
         T_inv_P[1:, :, 0] += factor * eye3
         T_inv_P[1:, :, 1:] += factor * ax2skew_a()
-        T_inv_P += np.multiply.outer(matrix, -2 / (P2**3) * P)
 
     return T_inv_P
 
