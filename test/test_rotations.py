@@ -137,23 +137,23 @@ def derivative_test(A_fct, A_q_fct, q, case):
     A_q = Helper(A_q_fct, case, True)(q)
     A_q_num = approx_fprime(q, Helper(A_fct, case), method="3-point")
     e = np.linalg.norm(A_q - A_q_num)
-    assert np.isclose(e, 0), f"case: {case}, e: {e}, q: {q}"
+    assert np.isclose(e, 0), f"case: {case}, e: {e:.5e}, q: {q}"
 
 
 @pytest.mark.parametrize("A_fct, q, case", test_parameters_orthogonality)
 def test_orthogonality(A_fct, q, case):
     ex, ey, ez = Helper(A_fct, case)(q).T
-    assert np.isclose(ex @ ey, 0), f"case: {case}, e: {ex @ ey}, q: {q}"
-    assert np.isclose(ey @ ez, 0), f"case: {case}, e: {ey @ ez}, q: {q}"
-    assert np.isclose(ez @ ex, 0), f"case: {case}, e: {ez @ ex}, q: {q}"
+    assert np.isclose(ex @ ey, 0), f"case: {case}, e: {ex @ ey:.5e}, q: {q}"
+    assert np.isclose(ey @ ez, 0), f"case: {case}, e: {ey @ ez:.5e}, q: {q}"
+    assert np.isclose(ez @ ex, 0), f"case: {case}, e: {ez @ ex:.5e}, q: {q}"
 
 
 @pytest.mark.parametrize("A_fct, q, case", test_parameters_normality)
 def test_normality(A_fct, q, case):
     ex, ey, ez = Helper(A_fct, case)(q).T
-    assert np.isclose(ex @ ex, 1), f"case: {case}, e: {ex @ ex}, q: {q}"
-    assert np.isclose(ey @ ey, 1), f"case: {case}, e: {ey @ ey}, q: {q}"
-    assert np.isclose(ez @ ez, 1), f"case: {case}, e: {ez @ ez}, q: {q}"
+    assert np.isclose(ex @ ex, 1), f"case: {case}, e: {ex @ ex - 1:.5e}, q: {q}"
+    assert np.isclose(ey @ ey, 1), f"case: {case}, e: {ey @ ey - 1:.5e}, q: {q}"
+    assert np.isclose(ez @ ez, 1), f"case: {case}, e: {ez @ ez - 1:.5e}, q: {q}"
 
 
 @pytest.mark.filterwarnings("ignore: 'approx_fprime' is used")
@@ -177,38 +177,25 @@ def test_T_SO3(A_fct, A_q_fct, T_fct, q, case):
     A_q = Helper(A_q_fct, case)(q)
     dA = np.einsum("ijk, k -> ij", A_q, dq)
     e = np.linalg.norm(ax2skew(v) - A.T @ dA)
-    assert np.isclose(e, 0), f"case: {case}, e: {e}, q: {q}"
+    assert np.isclose(e, 0), f"case: {case}, e: {e:.5e}, q: {q}"
 
 
 @pytest.mark.parametrize("T_fct, T_inv_fct, q, case", test_parameters_T_SO3_inv)
 def test_T_SO3_inv(T_fct, T_inv_fct, q, case):
-    A = Helper(T_fct, case)(q)
-    A_inv = Helper(T_inv_fct, case)(q)
+    T = Helper(T_fct, case)(q)
+    T_inv = Helper(T_inv_fct, case)(q)
 
-    A_shape = A.shape
-    A_inv_shape = A_inv.shape
+    T_shape = T.shape
+    T_inv_shape = T_inv.shape
 
-    assert A_shape[0] == 3
-    assert A_shape[0] == A_inv_shape[1]
-    assert A_shape[1] == A_inv_shape[0]
+    assert T_shape[0] == 3
+    assert T_shape[0] == T_inv_shape[1]
+    assert T_shape[1] == T_inv_shape[0]
 
-    forward = A @ A_inv
-    backward = A_inv @ A
-    # A = T_SO3:
-    #   omega = T_SO3(q) @ q_dot = T_SO3(q) @ T_SO3_inv(q) @ omega
-    #                              \________eye(3)_______/
-    # as omega is a minimal velocity, this must always be true
-    # the other directrion only True if omega.shape == q.shape == 3 (AxisAngle, Euler-Angles, ...), else there are different q_dot leading to the same omega...
-    # TODO: but than it has to be symmetrical smh
-    e0 = np.linalg.norm(forward - np.eye(A_shape[0]))
-    assert np.isclose(e0, 0), f"case: {case}, e: {e0}, q: {q}"
-    if A_shape[1] == 3:
-        e1 = np.linalg.norm(backward - np.eye(A_shape[1]))
-        assert np.isclose(e1, 0), f"case: {case}, e: {e1}, q: {q}"
-    else:
-        # TODO: what's the motivation behind this?
-        e1 = np.linalg.norm(backward - backward.T)
-        assert np.isclose(e1, 0), f"case: {case}, e: {e1}, q: {q}"
+    # take the (pseudo-inverse)
+    T_pinv = np.linalg.pinv(T)
+    e = np.linalg.norm(T_pinv - T_inv)
+    assert np.isclose(e, 0), f"case: {case}, e: {e:.5e}, q: {q}"
 
 
 @pytest.mark.filterwarnings("ignore: 'approx_fprime' is used")
@@ -239,14 +226,14 @@ def test_Log_SO3(Exp_fct, Log_fct, psi, case):
         e0 = np.linalg.norm(q) - 1
 
     # assert same rotation vector or a unit quaternion
-    assert np.isclose(e0, 0), f"case: {case}, e: {e0}, psi: {psi}"
+    assert np.isclose(e0, 0), f"case: {case}, e: {e0:.5e}, psi: {psi}"
 
     # generate matrix with extracted coordinates
     A_ = Helper(Exp_fct, case)(q)
 
     # assert the same matrix
     e1 = np.linalg.norm(A_ - A)
-    assert np.isclose(e1, 0), f"case: {case}, e: {e1}, q: {q}"
+    assert np.isclose(e1, 0), f"case: {case}, e: {e1:.5e}, q: {q}"
 
 
 @pytest.mark.filterwarnings("ignore: 'approx_fprime' is used")
