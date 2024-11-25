@@ -554,7 +554,7 @@ def Exp_SO3_quat(P, normalize=True):
     Nuetzi2016: https://www.research-collection.ethz.ch/handle/20.500.11850/117165 \\
     Rucker2018: https://ieeexplore.ieee.org/document/8392463
     """
-    p0, p = np.array_split(P, [1])
+    p0, p = P[0, None], P[1:]
     if normalize:
         # Nuetzi2016 (3.31) and Rucker2018 (13)
         P2 = P @ P
@@ -567,7 +567,7 @@ def Exp_SO3_quat(P, normalize=True):
 
 def Exp_SO3_quat_p(P, normalize=True):
     """Derivative of Exp_SO3_quat with respect to P."""
-    p0, p = np.array_split(P, [1])
+    p0, p = P[0, None], P[1:]
     p_tilde = ax2skew(p)
     p_tilde_p = ax2skew_a()
 
@@ -607,7 +607,7 @@ def T_SO3_quat(P, normalize=True):
     -----------
     Egeland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf
     """
-    p0, p = np.array_split(P, [1])
+    p0, p = P[0, None], P[1:]
     if normalize:
         return (2 / (P @ P)) * np.hstack((-p[:, None], p0 * eye3 - ax2skew(p)))
     else:
@@ -625,7 +625,7 @@ def T_SO3_inv_quat(P, normalize=True):
     Nuetzi2016: https://www.research-collection.ethz.ch/handle/20.500.11850/117165 \\
     Rucker2018: https://ieeexplore.ieee.org/document/8392463
     """
-    p0, p = np.array_split(P, [1])
+    p0, p = P[0, None], P[1:]
     if normalize:
         return 0.5 * np.vstack((-p.T, p0 * eye3 + ax2skew(p)))
     else:
@@ -633,7 +633,7 @@ def T_SO3_inv_quat(P, normalize=True):
 
 
 def T_SO3_quat_P(P, normalize=True):
-    p0, p = np.array_split(P, [1])
+    p0, p = P[0, None], P[1:]
     P2 = P @ P
     matrix = np.hstack((-p[:, None], p0 * eye3 - ax2skew(p)))
     if normalize:
@@ -658,7 +658,7 @@ def T_SO3_inv_quat_P(P, normalize=True):
         T_inv_P[1:, :, 0] = 0.5 * eye3
         T_inv_P[1:, :, 1:] = 0.5 * ax2skew_a()
     else:
-        p0, p = np.array_split(P, [1])
+        p0, p = P[0, None], P[1:]
         P2 = P @ P
         factor = 1 / (2 * P2**2)
         factor_P = -2 / (P2**3) * P
@@ -679,8 +679,8 @@ def quatprod(P, Q):
     -----------
     Egeland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf
     """
-    p0, p = np.array_split(P, [1])
-    q0, q = np.array_split(Q, [1])
+    p0, p = P[0, None], P[1:]
+    q0, q = Q[0, None], Q[1:]
     z0 = p0 * q0 - p @ q
     z = p0 * q + q0 * p + cross3(p, q)
     return np.array([z0, *z])
