@@ -1,5 +1,5 @@
-from collections import namedtuple
 import numpy as np
+from itertools import product
 import pytest
 
 from cardillo.math.approx_fprime import approx_fprime
@@ -26,9 +26,23 @@ from cardillo.math.rotations import (
 #   0: no argument
 #   1: True
 #   2: False
-#   3: no argument, but q gets normalized bevore passed to the actual function
-#   4: True, but q gets normalized bevore passed to the actual function
-#   5: False, but q gets normalized bevore passed to the actual function
+#   3: no argument, but q gets normalized before passed to the actual function
+#   4: True, but q gets normalized before passed to the actual function
+#   5: False, but q gets normalized before passed to the actual function
+
+arguments = [
+    {},
+    {"normalize": True},
+    {"normalize": False},
+]
+
+functions = [
+    lambda x: x,
+    lambda x: x / np.linalg.norm(x),
+]
+
+# TODO: Make these tests more verbose using something like this:
+cases = product(arguments, functions)
 
 # test rotation vectors with magnitude <= pi
 q3 = 2 / np.sqrt(3) * np.pi * (np.random.rand(3) - 0.5)
@@ -44,7 +58,7 @@ test_parameters_orthogonality = [
     *[[Exp_SO3_quat, q4, i] for i in [0, 1, 2, 3, 4, 5]],
 ]
 
-# is not supposed to work with no normalize and non-unit quaternions (case=2)
+# is not supposed to work with non-normalized and non-unit quaternions (case=2)
 test_parameters_normality = [
     [Exp_SO3, q3, 0],
     *[[Exp_SO3_quat, q4, i] for i in [0, 1, 3, 4, 5]],
@@ -93,9 +107,9 @@ test_parameters_Log_SO3_A = [
 
 
 class Helper:
-    def __init__(self, fct, case, isDerivative=False):
-        assert case >= 0 and case <= 5
-        self.fct = fct
+    def __init__(self, f, case, isDerivative=False):
+        assert 0 <= case <= 5
+        self.f = f
         self.case = case
         self.isDerivative = isDerivative
 
@@ -106,20 +120,20 @@ class Helper:
     def __call__(self, q):
         # direct function call
         if self.case == 0:
-            return self.fct(q)
+            return self.f(q)
         elif self.case == 1:
-            return self.fct(q, True)
+            return self.f(q, True)
         elif self.case == 2:
-            return self.fct(q, False)
+            return self.f(q, False)
 
         # function call, with normalized q
         q_normalized = q / np.linalg.norm(q)
         if self.case == 3:
-            fct = self.fct(q_normalized)
+            fct = self.f(q_normalized)
         elif self.case == 4:
-            fct = self.fct(q_normalized, True)
+            fct = self.f(q_normalized, True)
         elif self.case == 5:
-            fct = self.fct(q_normalized, False)
+            fct = self.f(q_normalized, False)
 
         # if it is the derivate, we need also the inner derivative,
         # i.e., d/dq (q / norm(q)) = P(q)
@@ -238,7 +252,3 @@ def test_Log_SO3(Exp_fct, Log_fct, psi, case):
 def test_Log_SO3_A(Log_fct, Log_fct_q, psi, case):
     A = Exp_SO3(psi)
     derivative_test(Log_fct, Log_fct_q, A, case)
-
-
-if __name__ == "__main__":
-    pass

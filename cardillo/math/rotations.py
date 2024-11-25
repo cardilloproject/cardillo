@@ -546,20 +546,23 @@ def smallest_rotation(
 
 def Exp_SO3_quat(P, normalize=True):
     """Exponential mapping defined by (unit) quaternion, see 
-    Egeland2002 (6.163) and Nuetzi2016 (3.31).
+    Egeland2002 (6.163), Nuetzi2016 (3.31) and Rucker2018 (13).
 
     References:
     -----------
     Egeland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf \\
-    Nuetzi2016: https://www.research-collection.ethz.ch/handle/20.500.11850/117165
+    Nuetzi2016: https://www.research-collection.ethz.ch/handle/20.500.11850/117165 \\
+    Rucker2018: https://ieeexplore.ieee.org/document/8392463
     """
     p0, p = np.array_split(P, [1])
     if normalize:
+        # Nuetzi2016 (3.31) and Rucker2018 (13)
         P2 = P @ P
         return eye3 + (2 / P2) * (p0 * ax2skew(p) + ax2skew_squared(p))
     else:
-        # returns always an orthogonal matrix, but not necessary normalized
-        return (p0**2 - p @ p) * eye3 + 2 * (np.outer(p, p) + p0 * ax2skew(p))
+        # returns always an orthogonal matrix, but not necessary normalized,
+        # see Egeland2002 (6.163)
+        return (p0**2 - p @ p) * eye3 + np.outer(p, 2 * p) + 2 * p0 * ax2skew(p)
 
 
 def Exp_SO3_quat_p(P, normalize=True):
@@ -593,65 +596,8 @@ def Exp_SO3_quat_p(P, normalize=True):
 
     return A_P
 
-    # from cardillo.math import approx_fprime
-    # A_P_num = approx_fprime(P, Exp_SO3_quat, method="3-point", eps=1e-6)
-    # diff = A_P - A_P_num
-    # error = np.linalg.norm(diff)
-    # # if error > 1e-7:
-    # print(f"error Exp_SO3_quat_psi: {error}")
-    # return A_P_num
-
 
 Log_SO3_quat = Spurrier
-# def Log_SO3_quat(A):
-#     # from scipy.spatial.transform import Rotation
-#     # return Rotation.from_matrix(A).as_quat()
-#     psi = Log_SO3(A)
-#     angle = norm(psi)
-#     if angle > 0:
-#         axis = psi / angle
-#     else:
-#         axis = np.array([1, 0, 0])
-#     return axis_angle2quat(axis, angle)
-
-# def Log_SO3_quat(A):
-#     """Unit quaternion from rotation matrix, see scipy and Markley2012
-
-#     References:
-#     -----------
-#     Markley2012: https://doi.org/10.2514/1.31730 \\
-#     scipy: https://github.com/scipy/scipy/blob/main/scipy/spatial/transform/_rotation.pyx#L848-L995
-#     """
-#     decision = np.zeros(4, dtype=float)
-#     decision[:3] = np.diag(A)
-#     decision[3] = np.trace(A)
-#     choice = np.argmax(decision)
-
-#     quat = np.zeros(4, dtype=float)
-#     if choice != 3:
-#         i = choice
-#         j = (i + 1) % 3
-#         k = (j + 1) % 3
-
-#         quat[i] = 1 + 2 * A[i, i] - decision[3]
-#         quat[j] = A[j, i] - A[i, j]
-#         quat[k] = A[k, i] - A[i, k]
-#         quat[3] = A[k, j] - A[j, k]
-#     #     quat[i] = 0.5 * np.sqrt(1 + 2 * A[i, i] - decision[3])
-#     #     quat[j] = 0.5 * (A[j, i] - A[i, j]) / (4 * quat[i])
-#     #     quat[k] = 0.5 * (A[k, i] - A[i, k]) / (4 * quat[i])
-#     #     quat[3] = 0.5 * (A[k, j] - A[j, k]) / (4 * quat[i])
-#     else:
-#         quat[0] = A[2, 1] - A[1, 2]
-#         quat[1] = A[0, 2] - A[2, 0]
-#         quat[2] = A[1, 0] - A[0, 1]
-#         quat[3] = 1 + decision[3]
-#         # quat[3] = 0.5 * np.sqrt(1 + decision[3])
-#         # quat[0] = (A[2, 1] - A[1, 2]) / (4 * quat[3])
-#         # quat[1] = (A[0, 2] - A[2, 0]) / (4 * quat[3])
-#         # quat[2] = (A[1, 0] - A[0, 1]) / (4 * quat[3])
-
-#     return quat / norm(quat)
 
 
 def T_SO3_quat(P, normalize=True):
@@ -670,12 +616,14 @@ def T_SO3_quat(P, normalize=True):
 
 def T_SO3_inv_quat(P, normalize=True):
     """Inverse tangent map for unit quaternion. See Egeland2002 (6.329) and
-    (6.330) as well as Nuetzi2016 (3.11), (3.12) and (4.19).
+    (6.330), Nuetzi2016 (3.11) and (4.19) as well as Rucker2018 (21) 
+    and (22).
 
     References:
     -----------
     Egeland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf \\
-    Nuetzi2016: https://www.research-collection.ethz.ch/handle/20.500.11850/117165
+    Nuetzi2016: https://www.research-collection.ethz.ch/handle/20.500.11850/117165 \\
+    Rucker2018: https://ieeexplore.ieee.org/document/8392463
     """
     p0, p = np.array_split(P, [1])
     if normalize:
@@ -702,14 +650,6 @@ def T_SO3_quat_P(P, normalize=True):
 
     return T_P
 
-    # from cardillo.math import approx_fprime
-
-    # T_P_num = approx_fprime(P, T_SO3_quat, method="3-point", eps=1e-6)
-    # diff = T_P - T_P_num
-    # error = np.linalg.norm(diff)
-    # print(f"error T_P: {error}")
-    # return T_P_num
-
 
 def T_SO3_inv_quat_P(P, normalize=True):
     if normalize:
@@ -730,13 +670,6 @@ def T_SO3_inv_quat_P(P, normalize=True):
         T_inv_P[1:, :, 1:] += factor * ax2skew_a()
 
     return T_inv_P
-
-    # from cardillo.math import approx_fprime
-    # T_inv_P_num = approx_fprime(P, T_SO3_inv_quat, method="3-point", eps=1e-6)
-    # diff = T_inv_P - T_inv_P_num
-    # error = np.linalg.norm(diff)
-    # print(f"error T_inv_P: {error}")
-    # return T_inv_P_num
 
 
 def quatprod(P, Q):
