@@ -48,7 +48,7 @@ class RigidBody:
         ----------
         Nuetzi2016: https://www.research-collection.ethz.ch/handle/20.500.11850/117165 \\
         Schweizer2015: https://www.research-collection.ethz.ch/handle/20.500.11850/101867 \\
-        Egenland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf
+        Egeland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf
 
         """
 
