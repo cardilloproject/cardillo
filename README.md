@@ -3,8 +3,7 @@
 # Cardillo
 [![License](https://img.shields.io/badge/License-BSD_3--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause) [![License](https://img.shields.io/badge/code%20standard-PEP8-black)](https://www.python.org/dev/peps/pep-0008/)
 
-Cardillo is an open-source simulation framework for flexible multi-body systems with frictional contacts and impacts. The software is developed by teams from the University of Stuttgart, the Eindhoven University of Technology (TU/e) and the Friedrich-Alexander-Universität Erlangen-Nuremberg (FAU).
-Cardillo is an open-source simulation framework for flexible multi-body systems with frictional contacts and impacts. Teams from the University of Stuttgart, the Eindhoven University of Technology (TU/e), and the Friedrich-Alexander-Universität Erlangen-Nuremberg (FAU) developed the software. It has been used to solve real-world problems involving basic motions such as bouncing balls, double pendulums, and friction belts. Cardillo is a Python framework that applies the fundamental principle of modularity to multi-body dynamics problems.
+Cardillo is an open-source simulation framework for flexible multi-body systems with frictional contacts and impacts developed by teams from the University of Stuttgart, the Eindhoven University of Technology (TU/e), and the Friedrich-Alexander-Universität Erlangen-Nuremberg (FAU). Thanks to its modular structure, Cardillo is ideal for developing and testing new algorithms and models, and can be used for the simulation of real-world systems.
 
 -Maybe some information about the reason behind Cardillo, if needed-
 
