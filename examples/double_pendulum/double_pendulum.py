@@ -8,6 +8,8 @@ from cardillo.discrete import RigidBody, Frame, Meshed
 from cardillo.forces import Force
 from cardillo.math import A_IB_basic, cross3
 from cardillo.solver import ScipyIVP, ScipyDAE
+from cardillo.visualization import Renderer
+
 
 if __name__ == "__main__":
     ############
@@ -93,7 +95,7 @@ if __name__ == "__main__":
     #########
 
     joint1 = Revolute(
-        base_link, link1, axis=0, r_OJ0=r_OJ1, angle0=phi10, name="joint1"
+        base_link, link1, axis=0, r_OB0=r_OJ1, angle0=phi10, name="joint1"
     )
     system.add(joint1)
 
@@ -145,7 +147,7 @@ if __name__ == "__main__":
     # joint 2
     #########
 
-    joint2 = Revolute(link1, link2, axis=0, r_OJ0=r_OJ2, angle0=phi20, name="joint2")
+    joint2 = Revolute(link1, link2, axis=0, r_OB0=r_OJ2, angle0=phi20, name="joint2")
     system.add(joint2)
 
     # assemble system
@@ -157,7 +159,9 @@ if __name__ == "__main__":
     dt = 1.0e-2  # time step
     # solver = ScipyIVP(system, t1, dt)  # create solver
     solver = ScipyDAE(system, t1, dt)  # create solver
-    sol = solver.solve()  # simulate system
+    render = Renderer(system, [base_link, link1, link2, system.origin])
+    sol = solver.solve()
+    render.render_solution(sol, repeat=True)
 
     # read solution
     t = sol.t

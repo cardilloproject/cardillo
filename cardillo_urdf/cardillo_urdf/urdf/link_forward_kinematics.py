@@ -11,10 +11,10 @@ def link_forward_kinematics(
     urdfpy_sys,
     cfg=None,
     vel=None,
-    r_OS0=np.zeros(3),
-    A_IS0=np.eye(3),
-    v_S0=np.zeros(3),
-    S0_Omega_0=np.zeros(0),
+    r_OC0=np.zeros(3),
+    A_IC0=np.eye(3),
+    v_C0=np.zeros(3),
+    C0_Omega_0=np.zeros(0),
 ):
     """Computes the poses and velocities of the URDF's links via forward kinematics. Code based on a copy of 'link_fk' form urdfpy:0.0.22.
 
@@ -33,17 +33,17 @@ def link_forward_kinematics(
         each joint, or a list containing a value for each actuated joint
         in sorted order from the base link.
         If not specified, all joints are assumed to be at rest.
-    r_OS0 : (3,) float
-        Position of center of mass (S) of base link
+    r_OC0 : (3,) float
+        Position of center of mass (C) of base link
         at configuration described by 'cfg'.
-    A_IS0 : (3,3) float
-        Transformation between (S) frame of base link and inertial frame
+    A_IC0 : (3,3) float
+        Transformation between (C) frame of base link and inertial frame
         at configuration described by 'cfg'.
-    v_S0 : (3,) float
-        Velocity of center of mass (S) of base link
+    v_C0 : (3,) float
+        Velocity of center of mass (C) of base link
         at state described by 'cfg' and 'vel'.
-    S0_Omega_0 : (3,) float
-        Angular velocity of base link represented in base link frame (S)
+    C0_Omega_0 : (3,) float
+        Angular velocity of base link represented in base link frame (C)
         at state described by 'cfg' and 'vel'.
 
 
@@ -55,8 +55,8 @@ def link_forward_kinematics(
     ui :  dict or (6,) float
             A map from links to 6-dim array 'u' containing the
             velocity of the center of mass and the angular velocity
-            of the link represented with respect to the frame (S), i.e.,
-            u =[L0_v_S, K_Omega]
+            of the link represented with respect to the frame (C), i.e.,
+            u =[L0_v_C, B_Omega]
     """
     # Process configuration and velocity value
     joint_cfg = urdfpy_sys._process_cfg(cfg)
@@ -66,37 +66,37 @@ def link_forward_kinematics(
     link_set = urdfpy_sys.links
 
     # Process relative motion of base link to origin
-    H_IS0 = np.eye(4)
-    H_IS0[:3, :3] = A_IS0
-    H_IS0[:3, 3] = r_OS0
+    H_IC0 = np.eye(4)
+    H_IC0[:3, :3] = A_IC0
+    H_IC0[:3, 3] = r_OC0
 
-    H_L0S0 = urdfpy_sys.base_link.inertial.origin
-    H_IL0 = H_IS0 @ SE3inv(H_L0S0)
+    H_L0C0 = urdfpy_sys.base_link.inertial.origin
+    H_IL0 = H_IC0 @ SE3inv(H_L0C0)
 
     # Compute forward kinematics in reverse topological order
     H_L0L = OrderedDict()
     H_IL = OrderedDict()
     H_IJ = OrderedDict()
-    H_IS = OrderedDict()
-    H_SV = OrderedDict()
-    v_S = OrderedDict()
-    S_Omega = OrderedDict()
+    H_IC = OrderedDict()
+    H_CV = OrderedDict()
+    v_C = OrderedDict()
+    C_Omega = OrderedDict()
     for child in urdfpy_sys._reverse_topo:
         if child == urdfpy_sys.base_link:
             H_L0L[child] = np.eye(4)
-            H_IS[child] = H_IS0
+            H_IC[child] = H_IC0
             H_IL[child] = H_IL0
             if len(child.visuals) != 0:
                 # TODO: How do we deal with multiple visuals?
                 H_LcVc = child.visuals[0].origin
-                H_LcSc = child.inertial.origin
-                H_ScVc = SE3inv(H_LcSc) @ H_LcVc
+                H_LcCc = child.inertial.origin
+                H_CcVc = SE3inv(H_LcCc) @ H_LcVc
             else:
-                H_ScVc = np.eye(4)
-            H_SV[child] = H_ScVc
+                H_CcVc = np.eye(4)
+            H_CV[child] = H_CcVc
 
-            v_S[child] = v_S0
-            S_Omega[child] = S0_Omega_0
+            v_C[child] = v_C0
+            C_Omega[child] = C0_Omega_0
 
         else:
             path = urdfpy_sys._paths_to_base[child]
@@ -125,60 +125,60 @@ def link_forward_kinematics(
 
             H_LpJ = joint.origin
             H_LpLc = H_LpJ @ H_JLc
-            H_LpSp = parent.inertial.origin
-            H_LcSc = child.inertial.origin
-            H_SpSc = SE3inv(H_LpSp) @ H_LpLc @ H_LcSc
-            H_JSc = SE3inv(H_LpJ) @ H_LpLc @ H_LcSc
-            H_SpJ = SE3inv(H_LpSp) @ H_LpJ
+            H_LpCp = parent.inertial.origin
+            H_LcCc = child.inertial.origin
+            H_CpCc = SE3inv(H_LpCp) @ H_LpLc @ H_LcCc
+            H_JCc = SE3inv(H_LpJ) @ H_LpLc @ H_LcCc
+            H_CpJ = SE3inv(H_LpCp) @ H_LpJ
             H_L0Lc = H_L0L[parent].dot(H_LpLc)
             H_IJ[joint] = H_IL[parent] @ H_LpJ
 
-            A_SpSc = H_SpSc[:3, :3]
-            A_JSc = H_JSc[:3, :3]
-            A_ISp = H_IS[parent][:3, :3]
-            A_LcSc = H_LcSc[:3, :3]
+            A_CpCc = H_CpCc[:3, :3]
+            A_JCc = H_JCc[:3, :3]
+            A_ICp = H_IC[parent][:3, :3]
+            A_LcCc = H_LcCc[:3, :3]
             A_IJ = H_IJ[joint][:3, :3]
-            A_SpJ = H_SpJ[:3, :3]
+            A_CpJ = H_CpJ[:3, :3]
 
-            Sp_r_SpJ = H_SpJ[:3, 3]
+            Cp_r_CpJ = H_CpJ[:3, 3]
             J_r_JLc = H_JLc[:3, 3]
-            Sc_r_LcSc = A_LcSc.T @ H_LcSc[:3, 3]
+            Cc_r_LcCc = A_LcCc.T @ H_LcCc[:3, 3]
 
-            Sp_Omega_p = S_Omega[parent]
-            Sc_Omega_p = A_SpSc.T @ Sp_Omega_p
+            Cp_Omega_p = C_Omega[parent]
+            Cc_Omega_p = A_CpCc.T @ Cp_Omega_p
 
-            v_Sp = v_S[parent]
+            v_Cp = v_C[parent]
 
             H_L0L[child] = H_L0Lc
             H_ILc = H_IL0 @ H_L0Lc
             H_IL[child] = H_ILc
 
-            H_ISc = H_ILc @ H_LcSc
-            H_IS[child] = H_ISc
-            A_ISc = H_ISc[:3, :3]
+            H_ICc = H_ILc @ H_LcCc
+            H_IC[child] = H_ICc
+            A_ICc = H_ICc[:3, :3]
 
             if len(child.visuals) != 0:
                 # TODO: How do we deal with multiple visuals?
                 H_LcVc = child.visuals[0].origin
-                H_ScVc = SE3inv(H_LcSc) @ H_LcVc
+                H_CcVc = SE3inv(H_LcCc) @ H_LcVc
             else:
-                H_ScVc = np.eye(4)
-            H_SV[child] = H_ScVc
+                H_CcVc = np.eye(4)
+            H_CV[child] = H_CcVc
 
-            Sc_Omega_c = Sc_Omega_p + A_JSc.T @ J_omega_JLc  # + J_omega_LpJ (=0)
-            S_Omega[child] = Sc_Omega_c
+            Cc_Omega_c = Cc_Omega_p + A_JCc.T @ J_omega_JLc  # + J_omega_LpJ (=0)
+            C_Omega[child] = Cc_Omega_c
 
-            v_J = v_Sp + A_ISp @ cross3(Sp_Omega_p, Sp_r_SpJ)
+            v_J = v_Cp + A_ICp @ cross3(Cp_Omega_p, Cp_r_CpJ)
 
-            J_omega_IJ = A_SpJ.T @ Sp_Omega_p  # J_omega_ISp + J_omega_SpJ(=0)
+            J_omega_IJ = A_CpJ.T @ Cp_Omega_p  # J_omega_ICp + J_omega_CpJ(=0)
 
-            v_S[child] = (
+            v_C[child] = (
                 v_J
                 + A_IJ @ (J_r_JLc_dot + cross3(J_omega_IJ, J_r_JLc))
-                + A_ISc @ cross3(Sc_Omega_c, Sc_r_LcSc)
+                + A_ICc @ cross3(Cc_Omega_c, Cc_r_LcCc)
             )
 
-    return H_IS, H_IL, H_IJ, H_SV, v_S, S_Omega
+    return H_IC, H_IL, H_IJ, H_CV, v_C, C_Omega
 
 
 def get_child_state(joint, cfg=None, vel=None):
@@ -210,7 +210,7 @@ def get_child_state(joint, cfg=None, vel=None):
         - ``revolute`` - a rotation vel. about the axis in radians per second.
         - ``continuous`` - a rotation vel. about the axis in radians per second.
         - ``planar`` - the x and y translational vel. values in the plane.
-        - ``floating`` - the v_S followed by the K_Omega values.
+        - ``floating`` - the v_C followed by the B_Omega values.
 
         If ``vel`` is ``None``, the joint velocity is assumed to be zero.
 
