@@ -16,8 +16,8 @@ if __name__ == "__main__":
 
     # Method 1
     initial_config = {}
-    initial_config["joint1"] = 0 # np.pi / 2
-    initial_config["joint2"] = 0 #np.pi / 2
+    initial_config["joint1"] = np.pi / 1000
+    initial_config["joint2"] = np.pi / 100
 
     initial_vel = {}
     initial_vel["joint1"] = 0
@@ -45,7 +45,7 @@ if __name__ == "__main__":
         
 
 
-        gravitational_acceleration=np.array([0, -1, 0]),
+        gravitational_acceleration=np.array([0, 0, -10]),
     )
     show_system(system, 0, system.q0)
     kp = 2
@@ -59,8 +59,8 @@ if __name__ == "__main__":
     system.contributions_map["PD_joint2"].tau = lambda t: np.array([np.pi/4, 0])
     system.assemble()
 
-    render = Renderer(system, system.contributions)
     sol = BackwardEuler(system, 5, 1e-2).solve()
+    render = Renderer(system, system.contributions)
     render.render_solution(sol, repeat=True)
     # show_system(system, sol.t[5], sol.q[5])
     # animate_system(system, sol.t, sol.q, t_factor=1)
