@@ -158,9 +158,8 @@ if __name__ == "__main__":
     ############
     dt = 1.0e-2  # time step
     # solver = ScipyIVP(system, t1, dt)  # create solver
-    solver = ScipyDAE(system, t1, dt)  # create solver
-    render = Renderer(system, [base_link, link1, link2, system.origin])
-    sol = solver.solve()
+    sol = ScipyDAE(system, t1, dt).solve()  # create solver
+    render = Renderer(system, system.contributions)
     render.render_solution(sol, repeat=True)
 
     # read solution

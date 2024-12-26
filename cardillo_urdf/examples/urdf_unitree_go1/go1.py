@@ -8,7 +8,7 @@ from cardillo.solver import Rattle, Moreau, BackwardEuler
 from cardillo.discrete import Box, Frame
 from cardillo.contacts import Sphere2Plane
 from cardillo.actuators import PDcontroller, Motor
-from cardillo.visualization import Export
+from cardillo.visualization import Export, Renderer
 from cardillo.visualization.trimesh import animate_system
 
 from cardillo.actuators._base import BaseActuator
@@ -111,9 +111,13 @@ if __name__ == "__main__":
     system.add(plane)
     system.assemble()
     # sol = Rattle(system, 0.5, 1e-2).solve()
-    sol = Moreau(system, 0.25, 1e-3).solve()
+    # sol = Moreau(system, 0.25, 1e-3).solve()
     # from cardillo.solver import SolverOptions
     # sol = BackwardEuler(system, 1.5, 1e-2, options=SolverOptions(reuse_lu_decomposition=True)).solve()
+
+    sol = Moreau(system, 0.25, 1e-3).solve()
+    render = Renderer(system, system.contributions)
+    render.render_solution(sol, repeat=True)
 
     # animate_system(system, sol.t, sol.q)
     if True:
