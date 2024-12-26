@@ -2,7 +2,7 @@ import numpy as np
 from cardillo_urdf.urdf import load_urdf
 
 from cardillo import System
-from cardillo.math import A_IK_basic
+from cardillo.math import A_IB_basic
 from pathlib import Path
 from cardillo.solver import Rattle, Moreau, BackwardEuler
 from cardillo.discrete import Box, Frame
@@ -154,7 +154,7 @@ if __name__ == "__main__":
             "go1.urdf",
         ),
         r_OS0=np.array([0, 0, 0.3]),
-        A_IS0=A_IK_basic(0).y(),
+        A_IS0=A_IB_basic(0).y,
         v_S0=np.array([0, 0, 0]),
         S0_Omega_0=np.array([0, 0, 0]),
         initial_config=initial_config,
