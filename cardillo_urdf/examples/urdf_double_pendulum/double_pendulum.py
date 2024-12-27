@@ -1,5 +1,6 @@
 import numpy as np
 from cardillo_urdf.urdf import load_urdf
+from matplotlib import pyplot as plt
 
 from cardillo.math import A_IB_basic
 from pathlib import Path
@@ -16,8 +17,8 @@ if __name__ == "__main__":
 
     # Method 1
     initial_config = {}
-    initial_config["joint1"] = np.pi / 1000
-    initial_config["joint2"] = np.pi / 100
+    initial_config["joint1"] = np.pi / 3
+    initial_config["joint2"] = np.pi / 4
 
     initial_vel = {}
     initial_vel["joint1"] = 0
@@ -42,9 +43,6 @@ if __name__ == "__main__":
         C0_Omega_0=np.array([0, 0, 0]),
         initial_config=initial_config,
         initial_vel=initial_vel,
-        
-
-
         gravitational_acceleration=np.array([0, 0, -10]),
     )
     show_system(system, 0, system.q0)
@@ -60,6 +58,9 @@ if __name__ == "__main__":
     system.assemble()
 
     sol = BackwardEuler(system, 5, 1e-2).solve()
+    t = sol.t
+    q = sol.q
+    u = sol.u
     render = Renderer(system, system.contributions)
     render.render_solution(sol, repeat=True)
     # show_system(system, sol.t[5], sol.q[5])
@@ -72,6 +73,45 @@ if __name__ == "__main__":
         fps=30,
         solution=sol,
     )
+
+    # Plotting #
+    phi1 = [system.contributions_map["joint1"].angle(ti, qi[system.contributions_map["joint1"].qDOF])
+        for ti, qi in zip(t, q)]
+    phi2 = [system.contributions_map["joint2"].angle(ti, qi[system.contributions_map["joint2"].qDOF])
+        for ti, qi in zip(t, q)]
+
+    
+    fig, ax = plt.subplots(nrows=2, ncols=1, figsize=(8, 6))
+    ax[0].plot(t, phi1, "-r", label="$\\varphi_1$")
+    ax[0].plot(t, phi2, "-g", label="$\\varphi_2$")
+    ax[0].set_xlabel("t")
+    ax[0].set_ylabel("angle")
+    ax[0].legend()
+    ax[0].grid()
+    
+    phi1_dot = [
+    system.contributions_map["joint1"].angle_dot(ti, qi[system.contributions_map["joint1"].qDOF], 
+                                                 ui[system.contributions_map["joint1"].uDOF])
+    for ti, qi, ui in zip(t, q, u)
+    ]
+    phi2_dot = [
+        system.contributions_map["joint2"].angle_dot(ti, qi[system.contributions_map["joint2"].qDOF], 
+                                                    ui[system.contributions_map["joint2"].uDOF])
+        for ti, qi, ui in zip(t, q, u)
+    ]
+    
+    print(system.contributions_map.keys())
+    print(system.contributions_map["joint1"].qDOF)
+    print(system.contributions_map["joint1"].uDOF)
+    
+    ax[1].plot(t, phi1_dot, "-r", label="$\\dot{\\varphi}_1$")
+    ax[1].plot(t, phi2_dot, "-g", label="$\\dot{\\varphi}_2$")
+    ax[1].set_xlabel("t")
+    ax[1].set_ylabel("angular velocity")
+    ax[1].legend()
+    ax[1].grid()
+
+    plt.show()
 
     for b in system.contributions:
         if hasattr(b, "export"):

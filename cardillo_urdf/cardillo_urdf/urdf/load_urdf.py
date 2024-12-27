@@ -92,7 +92,6 @@ def add_joints(system, joints, H_IL, urdf_system, initial_config):
                 A_B_child_J = np.array([e1, e2, e3]).T
                 A_IJ = A_IB_child @ A_B_child_J
                 if joint.joint_type == "revolute":
-                    # For revolute joint, keep the existing implementation
                     c_joint = Revolute(
                         parent_link,
                         child_link,
@@ -109,12 +108,11 @@ def add_joints(system, joints, H_IL, urdf_system, initial_config):
                     )
 
                 elif joint.joint_type == "prismatic":
-                    # For prismatic joint, create an instance of the Prismatic class
                     c_joint = Prismatic(
                         parent_link,
                         child_link,
                         axis = axis,
-                        r_OB0=r_OB_child,
+                        r_OJ0=r_OB_child,
                         A_IJ0=A_IJ,
                         
                     )

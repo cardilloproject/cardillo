@@ -64,7 +64,6 @@ if __name__ == "__main__":
         initial_vel=initial_vel,
         base_link_is_floating=False,
         gravitational_acceleration=np.array([0, 0, -10]),
-        redundant_coordinates=False,
     )
     # show_system(system, 0, system.q0)
 
@@ -78,12 +77,12 @@ if __name__ == "__main__":
             system.add(motor)
     
 
-    system.assemble() 
-    render = Renderer(system, [system.contributions_map.values, system.origin])
-    solver = Rattle(system, 0.5, 1e-2).solve()
+    system.assemble()
+    solver = Rattle(system, 0.5, 1e-2).solve() 
     #sol = Moreau(system, 2, 1e-2).solve()
     # from cardillo.solver import SolverOptions
     # sol = BackwardEuler(system, 1.5, 1e-2, options=SolverOptions(reuse_lu_decomposition=True)).solve()
+    render = Renderer(system, [system.contributions_map.values, system.origin])
     render.render_solution(solver, repeat=True)
 
     # animate_system(system, sol.t, sol.q)
@@ -94,7 +93,7 @@ if __name__ == "__main__":
             folder_name=path.stem,
             overwrite=True,
             fps=30,
-            solution=sol,
+            solution=solver,
         )
 
         for b in system.contributions:
