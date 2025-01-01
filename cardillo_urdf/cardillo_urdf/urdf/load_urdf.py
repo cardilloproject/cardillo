@@ -2,10 +2,10 @@ from cardillo import System
 from urchin import URDF
 import trimesh
 from cardillo_urdf.urdf import link_forward_kinematics
-from cardillo_urdf.discrete import RigidBodyRelKinematics
 from cardillo_urdf.joints import RevoluteJoint, FloatingJoint, RigidJoint
 import numpy as np
-from cardillo.discrete import Meshed, Frame, RigidBody
+
+from cardillo.discrete import Meshed, Frame, RigidBody, RigidlyAttachedRigidBody
 from cardillo.constraints import Revolute, RigidConnection, Prismatic
 from cardillo.forces import Force
 from cardillo.math import Spurrier

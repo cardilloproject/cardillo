@@ -11,6 +11,8 @@ class RigidlyAttachedRigidBody:
         xi=np.zeros(3),
         r_OC0=np.zeros(3),
         A_IB0=np.eye(3),
+        name="rigidlyattachedrigidbody",
+        **kwargs,
     ):
         self.mass = mass
         self.B_Theta_C = B_Theta_C
@@ -19,6 +21,7 @@ class RigidlyAttachedRigidBody:
 
         self.parent = body
         self.xip = xi
+        self.name = name
 
     def assembler_callback(self):
 
