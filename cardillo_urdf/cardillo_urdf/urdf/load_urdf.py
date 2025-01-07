@@ -124,7 +124,13 @@ def add_joints(system, joints, H_IL, urdf_system, initial_config):
                     )
                 
             elif joint.joint_type == "fixed":
-                c_joint = RigidConnection(parent_link, child_link)
+                c_joint = RigidlyAttachedRigidBody(
+                    mass = parent_link.inertial.mass,
+                    B_Theta_C = parent_link.inertial.inertia,
+                    body = parent_link,
+                    r_OC0 = r_OB_child,
+                    A_IB0 = A_IB_child
+                )
                 c_joint.name = joint.name
                 system.add(c_joint)
 
