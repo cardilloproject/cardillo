@@ -19,8 +19,8 @@ def double_pendulum_urdf():
     dir_name = Path(__file__).parent
 
     initial_config = {}
-    initial_config["joint1"] = np.pi/3
-    initial_config["joint2"] = np.pi/2
+    initial_config["joint1"] = np.pi/1000
+    initial_config["joint2"] = np.pi/10
     initial_vel = {}
     initial_vel["joint1"] = 0
     initial_vel["joint2"] = 0
@@ -94,8 +94,8 @@ def double_pendulum_nonurdf():
     g = np.array([0, 0, -10])
 
     # initial conditions
-    phi10 = np.pi/3
-    phi20 = np.pi/2
+    phi10 = np.pi/1000
+    phi20 = np.pi/10
     phi1_dot0 = 0
     phi2_dot0 = 0
 
