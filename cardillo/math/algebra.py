@@ -61,6 +61,19 @@ def ax2skew(a: np.ndarray) -> np.ndarray:
     # fmt: on
 
 
+def ax2skew_squared(a: np.ndarray) -> np.ndarray:
+    """Computes the product of a skew-symmetric matrix with itself from a given axial vector."""
+    assert a.size == 3
+    a1, a2, a3 = a
+    # fmt: off
+    return np.array([
+        [-a2**2 - a3**2,              a1 * a2,              a1 * a3],
+        [             a2 * a1, -a1**2 - a3**2,              a2 * a3],
+        [             a3 * a1,              a3 * a2, -a1**2 - a2**2],
+    ], dtype=a.dtype)
+    # fmt: on
+
+
 def skew2ax(A: np.ndarray) -> np.ndarray:
     """Computes the axial vector from a skew symmetric 3x3 matrix."""
     assert A.shape == (3, 3)
