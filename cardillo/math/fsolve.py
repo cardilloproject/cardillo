@@ -241,6 +241,9 @@ def fsolve(
     Delta_x = np.zeros_like(x0)
     x = x0 + Delta_x
 
+    # create list for all x-iterates
+    all_x = [x]
+
     # initial function value
     f = np.atleast_1d(fun(x, *fun_args))
 
@@ -248,8 +251,7 @@ def fsolve(
     scale = options.newton_atol + np.abs(f) * options.newton_rtol
 
     # error of initial guess
-    error = np.linalg.norm(f / scale) / scale.size**0.5
-    converged = error < 1
+    converged, error = options.converged(x, f, fun_args, scale)
 
     # Newton loop
     if not converged:
@@ -259,10 +261,11 @@ def fsolve(
             Delta_x -= dx
             x = x0 + Delta_x
 
+            all_x.append(x)
+
             # new function value, error and convergence check
             f = np.atleast_1d(fun(x, *fun_args))
-            error = np.linalg.norm(f / scale) / scale.size**0.5
-            converged = error < 1
+            converged, error = options.converged(x, f, fun_args, scale)
             if converged:
                 break
 
@@ -279,4 +282,5 @@ def fsolve(
         nit=nit,
         nfev=nfev,
         njev=njev,
+        all_x=np.array(all_x),
     )

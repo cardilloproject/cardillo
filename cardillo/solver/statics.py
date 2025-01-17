@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.sparse import lil_array, bmat
+from scipy.sparse.linalg import spsolve
 from tqdm import tqdm
 
 from cardillo.math.fsolve import fsolve
@@ -23,6 +24,7 @@ class Newton:
         n_load_steps=1,
         verbose=True,
         options=SolverOptions(),
+        termination_redundant_elimination=False,
     ):
         self.system = system
         self.options = options
@@ -32,6 +34,11 @@ class Newton:
 
         self.len_t = len(str(self.nt))
         self.len_maxIter = len(str(self.options.newton_max_iter))
+
+        if termination_redundant_elimination:
+            self.options.terminationcriteria = (
+                lambda *args, **kwargs: self.termination_criteria(*args, **kwargs)
+            )
 
         # other dimensions
         self.nq = system.nq
@@ -59,6 +66,48 @@ class Newton:
         # memory allocation
         self.x = np.zeros((self.nt, nx), dtype=float)
         self.x[0] = x0
+
+    def termination_criteria(self, x, f, fun_args, scale, options):
+        # get time as only function argument
+        t, *_ = fun_args
+
+        # unpack unknowns
+        q, la_g, la_c, la_N = np.array_split(x, self.split_x)
+
+        # get redundante quantities
+        c_la_c = self.system.c_la_c()
+        c = self.system.c(t, q, self.u0, np.zeros_like(la_c))
+        la_c = -spsolve(c_la_c, c)
+
+        # evaluate quantites that are required for computing the residual and
+        # the jacobian
+        # csr is used for efficient matrix vector multiplication, see
+        # https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csr_array.html#scipy.sparse.csr_array
+        self.W_g = self.system.W_g(t, q, format="csr")
+        self.W_c = self.system.W_c(t, q, format="csr")
+        self.W_N = self.system.W_N(t, q, format="csr")
+        self.g_N = self.system.g_N(t, q)
+
+        # static equilibrium
+        F = np.zeros_like(x)
+        F[: self.split_f[0]] = (
+            self.system.h(t, q, self.u0)
+            + self.W_g @ la_g
+            + self.W_c @ la_c
+            + self.W_N @ la_N
+        )
+        F[self.split_f[0] : self.split_f[1]] = self.system.g(t, q)
+        F[self.split_f[1] : self.split_f[2]] = self.system.c(t, q, self.u0, la_c)
+        F[self.split_f[2] : self.split_f[3]] = self.system.g_S(t, q)
+        F[self.split_f[3] :] = np.minimum(la_N, self.g_N)
+
+        # self.system.c should be zero, maybe we can keep it
+        # TODO: do more precomputations to avoid recomputing the same values
+        F_ = np.concatenate([F[: self.split_f[1]], F[self.split_f[2] :]])
+
+        error = np.linalg.norm(F_ / options.newton_atol) / len(F_) ** 0.5
+        converged = error < 1
+        return converged, error
 
     def fun(self, x, t):
         # unpack unknowns
