@@ -97,8 +97,8 @@ def add_joints(system, joints, H_IL, urdf_system, initial_config):
                         child_link,
                         axis=axis,
                         angle0=initial_config[joint],
-                        r_OB0=r_OB_child,
-                        A_IB0=A_IJ,
+                        r_OJ0=r_OB_child,
+                        A_IJ0=A_IJ,
                     )
                     c_joint.name = joint.name
                     system.add(c_joint)

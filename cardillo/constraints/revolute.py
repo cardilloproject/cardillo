@@ -18,9 +18,9 @@ class Revolute(PositionOrientationBase):
         2 : e_z^B-direction.
     angle0 : float
         Value of the joint angle in initial configuration q0.
-    r_OB0 : np.ndarray (3,)
+    r_OJ0 : np.ndarray (3,)
         Initial position vector of joint.
-    A_IB0 : np.ndarray (3, 3)
+    A_IJ0 : np.ndarray (3, 3)
         Initial orientation of joint basis. Defines axis of rotation together with 'axis'.
     xi1 : #TODO
     xi2 : #TODO
@@ -34,8 +34,8 @@ class Revolute(PositionOrientationBase):
         subsystem2,
         axis,
         angle0=0.0,
-        r_OB0=None,
-        A_IB0=None,
+        r_OJ0=None,
+        A_IJ0=None,
         xi1=None,
         xi2=None,
         name="revolute_joint",
@@ -57,8 +57,8 @@ class Revolute(PositionOrientationBase):
             subsystem1,
             subsystem2,
             projection_pairs_rotation=projection_pairs_rotation,
-            r_OB0=r_OB0,
-            A_IB0=A_IB0,
+            r_OJ0=r_OJ0,
+            A_IJ0=A_IJ0,
             xi1=xi1,
             xi2=xi2,
         )

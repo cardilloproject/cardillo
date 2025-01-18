@@ -20,7 +20,7 @@ def double_pendulum_urdf():
 
     initial_config = {}
     initial_config["joint1"] = np.pi/1000
-    initial_config["joint2"] = np.pi/10
+    initial_config["joint2"] = np.pi/100
     initial_vel = {}
     initial_vel["joint1"] = 0
     initial_vel["joint2"] = 0
@@ -49,7 +49,9 @@ def double_pendulum_urdf():
 
 
     dt = 1.0e-2
+    ren = Renderer(system, system.contributions)
     sol = BackwardEuler(system, 5, dt).solve()
+    ren.render_solution(sol, repeat=True)
     t1 = sol.t
     q = sol.q
     u = sol.u
@@ -95,7 +97,7 @@ def double_pendulum_nonurdf():
 
     # initial conditions
     phi10 = np.pi/1000
-    phi20 = np.pi/10
+    phi20 = np.pi/100
     phi1_dot0 = 0
     phi2_dot0 = 0
 
@@ -160,7 +162,7 @@ def double_pendulum_nonurdf():
     #########
 
     joint1 = Revolute(
-        base_link, link1, axis=0, r_OB0=r_OJ1, angle0=phi10, name="joint1"
+        base_link, link1, axis=0, r_OJ0=r_OJ1, angle0=phi10, name="joint1"
     )
     system.add(joint1)
 
@@ -212,7 +214,7 @@ def double_pendulum_nonurdf():
     # joint 2
     #########
 
-    joint2 = Revolute(link1, link2, axis=0, r_OB0=r_OJ2, angle0=phi20, name="joint2")
+    joint2 = Revolute(link1, link2, axis=0, r_OJ0=r_OJ2, angle0=phi20, name="joint2")
     system.add(joint2)
 
     # assemble system
@@ -223,8 +225,11 @@ def double_pendulum_nonurdf():
     ############
     dt = 1.0e-2  # time step
     # solver = ScipyIVP(system, t1, dt)  # create solver
+    ren = Renderer(system, system.contributions)
     solver = BackwardEuler(system, 5, dt)  # create solver
     sol = solver.solve()  # simulate system
+    ren.render_solution(sol, repeat=True)
+
 
     # read solution
     t = sol.t

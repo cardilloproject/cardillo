@@ -95,7 +95,7 @@ if __name__ == "__main__":
     #########
 
     joint1 = Revolute(
-        base_link, link1, axis=0, r_OB0=r_OJ1, angle0=phi10, name="joint1"
+        base_link, link1, axis=0, r_OJ0=r_OJ1, angle0=phi10, name="joint1"
     )
     system.add(joint1)
 
@@ -147,7 +147,7 @@ if __name__ == "__main__":
     # joint 2
     #########
 
-    joint2 = Revolute(link1, link2, axis=0, r_OB0=r_OJ2, angle0=phi20, name="joint2")
+    joint2 = Revolute(link1, link2, axis=0, r_OJ0=r_OJ2, angle0=phi20, name="joint2")
     system.add(joint2)
 
     # assemble system
@@ -158,8 +158,9 @@ if __name__ == "__main__":
     ############
     dt = 1.0e-2  # time step
     # solver = ScipyIVP(system, t1, dt)  # create solver
-    sol = ScipyDAE(system, t1, dt).solve()  # create solver
     render = Renderer(system, system.contributions)
+
+    sol = ScipyDAE(system, t1, dt).solve()  # create solver
     render.render_solution(sol, repeat=True)
 
     # read solution
