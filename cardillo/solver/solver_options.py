@@ -32,8 +32,9 @@ class SolverOptions:
         assert self.fixed_point_atol > 0
         assert self.fixed_point_rtol > 0
         assert self.fixed_point_max_iter > 0
-        assert self.newton_atol > 0
-        assert self.newton_rtol > 0
+        assert self.newton_atol >= 0
+        assert self.newton_rtol >= 0
+        assert self.newton_atol + self.newton_rtol > 0
         assert self.newton_max_iter > 0
         assert self.prox_scaling > 0
         assert self.numerical_jacobian_method in [False, "2-point", "3-point", "cs"]
