@@ -4,8 +4,7 @@ from scipy.sparse.linalg import spsolve
 from tqdm import tqdm
 
 from cardillo.math.fsolve import fsolve
-from cardillo.solver.solver_options import SolverOptions
-from cardillo.solver.solution import Solution
+from cardillo.solver import Solution, SolverOptions, SolverSummary
 
 
 class Newton:
@@ -66,6 +65,9 @@ class Newton:
         # memory allocation
         self.x = np.zeros((self.nt, nx), dtype=float)
         self.x[0] = x0
+
+        self.all_x = np.zeros([len(self.x[:, 0])], dtype=object)
+        self.all_x[0] = np.array([self.x[0]])
 
     def termination_criteria(self, x, f, fun_args, scale, options):
         # get time as only function argument
@@ -181,6 +183,7 @@ class Newton:
         )
 
     def solve(self):
+        self.solver_summary = SolverSummary("Newton")
         pbar = range(0, self.nt)
         if self.verbose:
             pbar = tqdm(pbar, leave=True)
@@ -194,8 +197,10 @@ class Newton:
                 options=self.options,
             )
             self.x[i] = sol.x
+            self.all_x[i] = sol.all_x
             if self.verbose:
                 pbar.set_description(self.__pbar_text(i, sol.nit, sol.error))
+            self.solver_summary.add_newton(sol.nit, sol.error)
 
             if not sol.success and not self.options.continue_with_unconverged:
                 # return solution up to this iteration
@@ -213,6 +218,8 @@ class Newton:
                     la_g=self.x[: i + 1, self.split_x[0] : self.split_x[1]],
                     la_c=self.x[: i + 1, self.split_x[1] : self.split_x[2]],
                     la_N=self.x[: i + 1, self.split_x[2] :],
+                    all_x=self.all_x[: i + 1],
+                    solver_summary=self.solver_summary,
                 )
 
             # solver step callback
@@ -235,6 +242,8 @@ class Newton:
             la_g=self.x[: i + 1, self.split_x[0] : self.split_x[1]],
             la_c=self.x[: i + 1, self.split_x[1] : self.split_x[2]],
             la_N=self.x[: i + 1, self.split_x[2] :],
+            all_x=self.all_x[: i + 1],
+            solver_summary=self.solver_summary,
         )
 
 
