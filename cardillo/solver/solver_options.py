@@ -1,6 +1,13 @@
 from dataclasses import dataclass
-from numpy import max, abs
+import numpy as np
 from scipy.sparse.linalg import spsolve
+
+
+def terminationcriteria_cardillo(x, f, fun_args, scale, options):
+    # error
+    error = np.linalg.norm(f / scale) / scale.size**0.5
+    converged = error < 1
+    return converged, error
 
 
 @dataclass
@@ -19,6 +26,7 @@ class SolverOptions:
     numerical_jacobian_method: bool | str = False
     numerical_jacobian_eps: float = 1e-6
     compute_consistent_initial_conditions: bool = True
+    terminationcriteria: callable = terminationcriteria_cardillo
 
     def __post_init__(self):
         assert self.fixed_point_atol > 0
@@ -29,3 +37,6 @@ class SolverOptions:
         assert self.newton_max_iter > 0
         assert self.prox_scaling > 0
         assert self.numerical_jacobian_method in [False, "2-point", "3-point", "cs"]
+
+    def converged(self, x, f, fun_args, scale):
+        return self.terminationcriteria(x, f, fun_args, scale, self)
