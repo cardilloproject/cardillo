@@ -6,6 +6,7 @@ class SolverSummary:
         self.fixed_point_abs_errors = []
         self.newton_n_iter_list = []
         self.newton_abs_errors = []
+        self.newton_final_quadratic_rate = []
         self.n_lu = 0
 
     def clear(self):
@@ -13,6 +14,7 @@ class SolverSummary:
         self.fixed_point_abs_errors = []
         self.newton_n_iter_list = []
         self.newton_abs_errors = []
+        self.newton_final_quadratic_rate = []
         self.n_lu = 0
 
     def print(self):
@@ -41,9 +43,10 @@ class SolverSummary:
         self.fixed_point_n_iter_list.append(n_iterations)
         self.fixed_point_abs_errors.append(abs_error)
 
-    def add_newton(self, n_iterations, abs_error):
+    def add_newton(self, n_iterations, abs_error, final_quadratic_rate):
         self.newton_n_iter_list.append(n_iterations)
         self.newton_abs_errors.append(abs_error)
+        self.newton_final_quadratic_rate.append(final_quadratic_rate)
 
     def add_lu(self, n):
         self.n_lu += n

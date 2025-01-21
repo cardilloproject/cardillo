@@ -200,7 +200,7 @@ class Newton:
             self.all_x[i] = sol.all_x
             if self.verbose:
                 pbar.set_description(self.__pbar_text(i, sol.nit, sol.error))
-            self.solver_summary.add_newton(sol.nit, sol.error)
+            self.solver_summary.add_newton(sol.nit, sol.error, sol.final_quadratic_rate)
 
             if not sol.success and not self.options.continue_with_unconverged:
                 # return solution up to this iteration
