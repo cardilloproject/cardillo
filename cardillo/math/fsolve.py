@@ -274,6 +274,17 @@ def fsolve(
 
         nit = i + 1
 
+    # compute final quadratic rate of convergence
+    if not converged:
+        final_rate = np.inf
+    else:
+        if nit > 2:
+            epsilon_m1 = np.linalg.norm(all_x[-2] - all_x[-1])
+            epsilon_m2 = np.linalg.norm(all_x[-3] - all_x[-1])
+            final_rate = epsilon_m1 / epsilon_m2**2
+        else:
+            final_rate = np.nan
+
     return OptimizeResult(
         x=x,
         success=converged,
@@ -283,4 +294,5 @@ def fsolve(
         nfev=nfev,
         njev=njev,
         all_x=np.array(all_x),
+        final_quadratic_rate=final_rate,
     )
