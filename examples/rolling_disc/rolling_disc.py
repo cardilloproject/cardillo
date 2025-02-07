@@ -154,6 +154,7 @@ def disc_boundary(disc, t, q, n=100):
     B_r_CP = disc.radius * np.vstack([np.sin(phi), np.zeros(n), np.cos(phi)])
     return np.repeat(disc.r_OP(t, q), n).reshape(3, n) + disc.A_IB(t, q) @ B_r_CP
 
+
 if __name__ == "__main__":
     """Analytical analysis of the rolling motion of a disc, see Lesaux2005
     Section 5 and 6.
@@ -179,16 +180,16 @@ if __name__ == "__main__":
     ####################
     # initial conditions
     ####################
-    case = 'circular'
+    case = "circular"
     # case = 'spinning'
     # case = 'rolling'
 
-    if case == 'circular': 
+    if case == "circular":
         # radius of of the circular motion
         R = 10 * r  # used for GAMM
 
         # initial inclination angle (0 < beta0 < pi/2)
-        beta0 = 5 * np.pi / 180  
+        beta0 = 5 * np.pi / 180
         beta_dot0 = 0  # Lesaux2005 before (5.10)
 
         # ratio between disc radius and radius of rolling
@@ -205,10 +206,10 @@ if __name__ == "__main__":
         alpha_dot0 = -rho * gamma_dot0  # Lesaux2005 (5.11)
 
         # simulation time
-        t1 = 2 * np.pi / np.abs(alpha_dot0)  
+        t1 = 2 * np.pi / np.abs(alpha_dot0)
 
-    elif case == 'spinning':
-        # inclination angle is 0 
+    elif case == "spinning":
+        # inclination angle is 0
         beta0 = 0
         beta_dot0 = 0
 
@@ -222,10 +223,9 @@ if __name__ == "__main__":
 
         # simulation time
         t1 = 2 * np.pi / np.abs(alpha_dot0)
-        
 
-    elif case == 'rolling':
-        # inclination angle is 0 
+    elif case == "rolling":
+        # inclination angle is 0
         beta0 = 0
         beta_dot0 = 0
 
@@ -239,9 +239,11 @@ if __name__ == "__main__":
 
         # simulation time
         t1 = 2.5  # simulation time
-        
+
     else:
-        raise ValueError(f"Invalid initial condition case: '{case}'. Valid cases are 'spinning', 'rolling', 'circular'.")
+        raise ValueError(
+            f"Invalid initial condition case: '{case}'. Valid cases are 'spinning', 'rolling', 'circular'."
+        )
 
     # center of mass
     x0 = 0
@@ -254,7 +256,9 @@ if __name__ == "__main__":
     )
 
     # center of mass velocity
-    v_C0 = np.array([r * gamma_dot0 + r * alpha_dot0 * np.sin(beta0), -r*beta_dot0, 0])
+    v_C0 = np.array(
+        [r * gamma_dot0 + r * alpha_dot0 * np.sin(beta0), -r * beta_dot0, 0]
+    )
 
     # initial conditions
     t0 = 0
