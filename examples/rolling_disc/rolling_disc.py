@@ -154,9 +154,8 @@ def disc_boundary(disc, t, q, n=100):
     B_r_CP = disc.radius * np.vstack([np.sin(phi), np.zeros(n), np.cos(phi)])
     return np.repeat(disc.r_OP(t, q), n).reshape(3, n) + disc.A_IB(t, q) @ B_r_CP
 
-
 if __name__ == "__main__":
-    """Analytical analysis of the roolling motion of a disc, see Lesaux2005
+    """Analytical analysis of the rolling motion of a disc, see Lesaux2005
     Section 5 and 6.
 
     References
@@ -173,36 +172,81 @@ if __name__ == "__main__":
     # disc radius
     r = 0.05
 
-    # radius of of the circular motion
-    R = 10 * r  # used for GAMM
-
     # inertia of the disc, Lesaux2005 before (5.3)
     A = B = 0.25 * m * r**2
     C = 0.5 * m * r**2
 
-    # ratio between disc radius and radius of rolling
-    rho = r / R  # Lesaux2005 (5.10)
-
     ####################
     # initial conditions
     ####################
-    beta0 = 5 * np.pi / 180  # initial inlination angle (0 < beta0 < pi/2)
+    case = 'circular'
+    # case = 'spinning'
+    # case = 'rolling'
+
+    if case == 'circular': 
+        # radius of of the circular motion
+        R = 10 * r  # used for GAMM
+
+        # initial inclination angle (0 < beta0 < pi/2)
+        beta0 = 5 * np.pi / 180  
+        beta_dot0 = 0  # Lesaux2005 before (5.10)
+
+        # ratio between disc radius and radius of rolling
+        rho = r / R  # Lesaux2005 (5.10)
+
+        # initial rolling and spinning velocities
+        gamma_dot0_pow2 = (
+            4
+            * (gravity / r)
+            * np.sin(beta0)
+            / ((6 - 5 * rho * np.sin(beta0)) * rho * np.cos(beta0))
+        )
+        gamma_dot0 = np.sqrt(gamma_dot0_pow2)  # Lesaux2005 (5.12)
+        alpha_dot0 = -rho * gamma_dot0  # Lesaux2005 (5.11)
+
+        # simulation time
+        t1 = 2 * np.pi / np.abs(alpha_dot0)  
+
+    elif case == 'spinning':
+        # inclination angle is 0 
+        beta0 = 0
+        beta_dot0 = 0
+
+        # radius of of the circular motion
+        R = 0
+
+        # initial rolling velocity
+        gamma_dot0 = 0
+        # initial spinning velocity
+        alpha_dot0 = 1
+
+        # simulation time
+        t1 = 2 * np.pi / np.abs(alpha_dot0)
+        
+
+    elif case == 'rolling':
+        # inclination angle is 0 
+        beta0 = 0
+        beta_dot0 = 0
+
+        # radius of of the circular motion
+        R = 0
+
+        # initial rolling velocity
+        gamma_dot0 = 1
+        # initial spinning velocity
+        alpha_dot0 = 0
+
+        # simulation time
+        t1 = 2.5  # simulation time
+        
+    else:
+        raise ValueError(f"Invalid initial condition case: '{case}'. Valid cases are 'spinning', 'rolling', 'circular'.")
 
     # center of mass
     x0 = 0
     y0 = R - r * np.sin(beta0)
     z0 = r * np.cos(beta0)
-
-    # initial angles
-    beta_dot0 = 0  # Lesaux1005 before (5.10)
-    gamma_dot0_pow2 = (
-        4
-        * (gravity / r)
-        * np.sin(beta0)
-        / ((6 - 5 * rho * np.sin(beta0)) * rho * np.cos(beta0))
-    )
-    gamma_dot0 = np.sqrt(gamma_dot0_pow2)  # Lesaux2005 (5.12)
-    alpha_dot0 = -rho * gamma_dot0  # Lesaux2005 (5.11)
 
     # angular velocity
     B_Omega0 = np.array(
@@ -210,7 +254,7 @@ if __name__ == "__main__":
     )
 
     # center of mass velocity
-    v_C0 = np.array([-R * alpha_dot0 + r * alpha_dot0 * np.sin(beta0), 0, 0])
+    v_C0 = np.array([r * gamma_dot0 + r * alpha_dot0 * np.sin(beta0), -r*beta_dot0, 0])
 
     # initial conditions
     t0 = 0
@@ -244,7 +288,6 @@ if __name__ == "__main__":
     ############
     # simulation
     ############
-    t1 = 2 * np.pi / np.abs(alpha_dot0)  # simulation time
     dt = 2.0e-2  # time step
 
     # sol = ScipyIVP(system, t1, dt).solve()
@@ -269,26 +312,26 @@ if __name__ == "__main__":
     fig.suptitle("Evolution of constraint quantities")
     # g
     ax[0].plot(t, g)
-    ax[0].set_xlabel("t")
-    ax[0].set_ylabel("g")
+    ax[0].set_xlabel("$t$")
+    ax[0].set_ylabel("$g$")
     ax[0].grid()
 
     # g_dot
     ax[1].plot(t, g_dot)
-    ax[1].set_xlabel("t")
-    ax[1].set_ylabel("$\dot{g}$")
+    ax[1].set_xlabel("$t$")
+    ax[1].set_ylabel("$\\dot{g}$")
     ax[1].grid()
 
     # gamma_x
     ax[2].plot(t, gamma[:, 0])
-    ax[2].set_xlabel("t")
-    ax[2].set_ylabel("$\gamma_x$")
+    ax[2].set_xlabel("$t$")
+    ax[2].set_ylabel("$\\gamma_x$")
     ax[2].grid()
 
     # gamma_y
     ax[3].plot(t, gamma[:, 1])
-    ax[3].set_xlabel("t")
-    ax[3].set_ylabel("$\gamma_y$")
+    ax[3].set_xlabel("$t$")
+    ax[3].set_ylabel("$\\gamma_y$")
     ax[3].grid()
 
     plt.tight_layout()
