@@ -28,7 +28,7 @@ setup(
         "dill>=0.3.7",
         "cachetools>=5.3.3",
         "trimesh>=4.0.5",
-        "vtk==9.3.0",
+        "vtk>=9.3.0",
         "scipy_dae @ git+https://github.com/JonasBreuling/scipy_dae.git",
     ],
     packages=find_packages(),
