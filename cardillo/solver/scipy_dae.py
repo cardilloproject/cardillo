@@ -7,7 +7,6 @@ from cardillo.solver import Solution, SolverSummary
 
 
 # TODO:
-# - review events if implementation accepts signature `events(t, y, yp)`
 # - Add Jacobian of GGl term if convergence problems occur
 class ScipyDAE:
     """Wrapper around Radau IIA and BDF methods implementted in `scipy_dae`. 
@@ -87,7 +86,7 @@ class ScipyDAE:
         self.pbar = tqdm(total=100, leave=True)
         self.i = 0
 
-    def event(self, t, y):
+    def event(self, t, y, yp):
         q, u = np.array_split(y, self.split)[:2]
         q, u = self.system.step_callback(t, q, u)
         return 1
@@ -182,7 +181,7 @@ class ScipyDAE:
         Jy[: self.split[0], : self.split[0]] = -q_dot_q
         Jy[: self.split[0], self.split[0] : self.split[1]] = -q_dot_u
         # note: Here we ignore the derivative d((dg/dq)^T mu) / dq since
-        # `solve_dae` does performs an inexact Newton.
+        # `solve_dae` already performs an inexact Newton method.
         # Jy[:self.split[0], self.split[1]:self.split[2]] = g_q_T_mu_q
 
         Jy[self.split[0] : self.split[1], : self.split[0]] = (
