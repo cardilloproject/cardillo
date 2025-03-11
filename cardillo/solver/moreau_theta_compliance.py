@@ -1,7 +1,8 @@
 import warnings
 
 import numpy as np
-from scipy.sparse import bmat, coo_array, csc_array, eye
+from scipy.linalg import lu_factor, lu_solve
+from scipy.sparse import bmat, block_diag, coo_array, csc_array, eye
 from scipy.sparse.linalg import splu
 from tqdm import tqdm
 
@@ -64,11 +65,22 @@ class MoreauThetaCompliance:
         self.nla_g = system.nla_g
         self.nla_gamma = system.nla_gamma
         self.nla_c = system.nla_c
+        self.nla = self.nla_g + self.nla_gamma + self.nla_c
         self.nla_N = system.nla_N
         self.nla_F = system.nla_F
 
         # self.nx = self.nu + self.nla_g + self.nla_gamma + self.nla_c
         # self.ny = self.nla_N + self.nla_F
+        self.split_la = np.cumsum(
+            np.array(
+                [
+                    self.nla_g,
+                    self.nla_gamma,
+                    self.nla_c,
+                ],
+                dtype=int,
+            )
+        )[:-1]
         self.split_x = np.cumsum(
             np.array(
                 [
@@ -314,7 +326,7 @@ class MoreauThetaCompliance:
             )
 
         return sol
-    
+
     def _make_solution(self):
         return Solution(
             system=self.system,
@@ -388,9 +400,7 @@ class MoreauThetaCompliance:
 
         if not sol.success:
             if self.options.continue_with_unconverged:
-                warnings.warn(
-                    "Newton is not converged but integration is continued"
-                )
+                warnings.warn("Newton is not converged but integration is continued")
             else:
                 warnings.warn(
                     f"Newton is not converged. Returning solution up to t={self.tn}."
@@ -453,6 +463,245 @@ class MoreauThetaCompliance:
                 )
                 return self._make_solution()
 
+        self.solver_summary.add_fixed_point(i_fixed_point, error)
+        self.solver_summary.add_newton(sol.nit, sol.error)
+
+        # update progress bar
+        tn1 = self.tn + self.dt
+        self.pbar.set_description(
+            f"t: {tn1:0.2e}s < {self.t1:0.2e}s; |y1 - y0|_rel: {error:0.2e}; fixed-point: {i_fixed_point}/{self.options.fixed_point_max_iter}; |dx|_rel: {sol.error:0.2e}; newton: {sol.nit}/{self.options.newton_max_iter}"
+        )
+
+        # compute state
+        (
+            dun1,
+            dP_gn1,
+            dP_gamman1,
+            dP_cn1,
+        ) = np.array_split(xn1, self.split_x)
+        (
+            dP_Nn1,
+            dP_Fn1,
+        ) = np.array_split(y0, self.split_y)
+        un1 = self.un_theta + dun1
+        qn1 = self.qn_theta + dt * self.theta * self.system.q_dot(
+            self.tn_theta, self.qn_theta, un1
+        )
+
+        # modify converged quantities
+        qn1, un1 = self.system.step_callback(tn1, qn1, un1)
+
+        # store solution fields
+        self.sol_t.append(tn1)
+        self.sol_q.append(qn1)
+        self.sol_u.append(un1)
+        self.sol_u_dot.append(dun1 / self.dt)
+        self.sol_la_c.append(dP_cn1 / self.dt)
+        self.sol_P_g.append(dP_gn1)
+        self.sol_P_gamma.append(dP_gamman1)
+        self.sol_P_N.append(dP_Nn1)
+        self.sol_P_F.append(dP_Fn1)
+
+        # update local variables for accepted time step
+        self.xn = xn1.copy()
+        self.yn = y0.copy()
+        self.tn = tn1
+        self.qn = qn1
+        self.un = un1
+
+    def c(self, t, q, u, la):
+        """Combine all constraint forces in order to simplify the solver."""
+        la_g, la_gamma, la_c = np.array_split(la, self.split_la)
+
+        c = np.zeros(self.nla)
+        c[: self.split_la[0]] = self.system.g(t, q)
+        c[self.split_la[0] : self.split_la[1]] = self.system.gamma(t, q, u)
+        c[self.split_la[1] :] = self.system.c(t, q, u, la_c)
+
+        return c
+
+    def c_q(self, t, q, u, la, format="coo"):
+        la_g, la_gamma, la_c = np.array_split(la, self.split_la)
+
+        g_q = self.system.g_q(t, q)
+        gamma_q = self.system.gamma_q(t, q, u)
+        c_q = self.system.c_q(t, q, u, la_c)
+
+        return bmat([[g_q], [gamma_q], [c_q]], format=format)
+
+    def c_u(self, t, q, u, la, format="coo"):
+        la_g, la_gamma, la_c = np.array_split(la, self.split_la)
+
+        g_u = np.zeros((self.nla_g, self.nu))
+        gamma_u = self.system.gamma_u(t, q)
+        c_u = self.system.c_u(t, q, u, la_c)
+
+        return bmat([[g_u], [gamma_u], [c_u]], format=format)
+
+    def c_la(self, format="coo"):
+        g_la_g = np.zeros((self.nla_g, self.nla_g))
+        gamma_la_gamma = np.zeros((self.nla_gamma, self.nla_gamma))
+        c_la_c = self.system.c_la_c()
+
+        return block_diag([g_la_g, gamma_la_gamma, c_la_c], format=format)
+
+    def W(self, t, q, format="coo"):
+        W_g = self.system.W_g(t, q)
+        W_gamma = self.system.W_gamma(t, q)
+        W_c = self.system.W_c(t, q)
+
+        return bmat(
+            [
+                [W_g, W_gamma, W_c],
+            ],
+            format=format,
+        )
+
+    def _step_schur(self):
+        # theta step (part 1)
+        dt = self.dt
+        theta = self.theta
+        tn_theta = self.tn + dt * (1 - theta)
+        qn_theta = self.qn + dt * (1 - theta) * self.system.q_dot(
+            self.tn, self.qn, self.un
+        )
+
+        M = self.system.M(tn_theta, qn_theta, format="csc")
+        M_inv = splu(M)
+        self.solver_summary.add_lu(1)
+
+        # explicit h-vector and control forces
+        h_Wla_tau = self.system.h(tn_theta, qn_theta, self.un)
+        h_Wla_tau += self.system.W_tau(
+            tn_theta, qn_theta, format="csr"
+        ) @ self.system.la_tau(tn_theta, qn_theta, self.un)
+
+        # theta step (part 2): free velocity (without constraints and contacts)
+        un_theta = self.un + dt * M_inv.solve(h_Wla_tau)
+
+        # evaluate all other quantities that are kept fixed during the
+        # simplified Newton iterations
+        q_dot_u = self.system.q_dot_u(tn_theta, qn_theta)
+        beta = self.system.q_dot(tn_theta, qn_theta, np.zeros_like(self.un))
+        W = self.W(tn_theta, qn_theta)
+        c_q = self.c_q(tn_theta, qn_theta, un_theta, self.la_cn)
+        c_u = self.c_u(tn_theta, qn_theta, un_theta, self.la_cn)
+        c_la = self.c_la()
+        self.solver_summary.add_lu(1)
+
+        # compute iteration matrices
+        A = dt * theta * c_q @ q_dot_u + c_u
+        # TODO: This seems to be very bas since W might be very sparse!
+        M_inv_W = M_inv.solve(W.toarray())
+        D = A @ M_inv_W + c_la / dt
+
+        # for a moderate number of constraints D is small and dense,
+        # hence we use a dense factorization
+        D_fac = lu_factor(D)
+        self.solver_summary.add_lu(1)
+        # def D_inv(rhs):
+        #     return lu_solve(D_fac, rhs)
+        # class D_inv:
+        #     def solve(rhs):
+        #         return lu_solve(D_fac, rhs)
+        D_inv = type("LU", (), {"solve": lambda self, rhs: lu_solve(D_fac, rhs)})()
+
+        # - only compute optimized prox-parameters once per time step
+        # - generalized force directions for constraint forces are only
+        #   required if we have contacts
+        if self.nla_N + self.nla_F > 0:
+            W_N = self.system.W_N(tn_theta, qn_theta)
+            W_F = self.system.W_F(tn_theta, qn_theta)
+            self.prox_r_N, self.prox_r_F = np.array_split(
+                estimate_prox_parameter(
+                    self.options.prox_scaling, bmat([[W_N, W_F]]), M_inv
+                ),
+                [self.nla_N],
+            )
+
+        # TODO: Add outer fixed point loop for contacts
+
+        ###################
+        # newton iterations
+        ###################
+        if self.nla > 0:
+            # compute initial positions velocities and percussions
+            tn1 = self.tn + dt
+            un1 = un_theta
+            qn1 = qn_theta + dt * theta * (q_dot_u @ un1 + beta)
+            Pin1 = dt * np.concatenate([self.la_gn, self.la_gamman, self.la_cn])
+            # Pin1 *= 0
+
+            # evaluate residuals
+            R1 = M @ (un1 - un_theta) - W @ Pin1
+            R2 = self.c(tn1, qn1, un1, Pin1 / dt)
+            R = np.concatenate((R1, R2))
+
+            # newton scaling
+            scale1 = self.options.newton_atol + np.abs(R1) * self.options.newton_rtol
+            scale2 = self.options.newton_atol + np.abs(R2) * self.options.newton_rtol
+            scale = np.concatenate((scale1, scale2))
+
+            # error of initial guess
+            error = np.linalg.norm(R / scale) / scale.size**0.5
+            converged = error < 1
+            # print(f"i: {-1}; error: {error}; converged: {converged}")
+
+            # Newton loop
+            if not converged:
+                for i in range(self.options.newton_max_iter):
+                    # Newton updates
+                    Delta_Pin1 = D_inv.solve(A @ R1 - R2)
+                    Delta_Un1 = M_inv_W @ Delta_Pin1 - R1
+
+                    # update dependent variables
+                    un1 += Delta_Un1
+                    Pin1 += Delta_Pin1
+                    qn1 = qn_theta + dt * theta * (q_dot_u @ un1 + beta)
+
+                    # evaluate residuals
+                    R1 = M @ (un1 - un_theta) - W @ Pin1
+                    R2 = self.c(tn1, qn1, un1, Pin1 / dt)
+                    R = np.concatenate((R1, R2))
+
+                    # error and convergence check
+                    error = np.linalg.norm(R / scale) / scale.size**0.5
+                    converged = error < 1
+                    # print(f"i: {i}; error: {error}; converged: {converged}")
+                    if converged:
+                        break
+
+                if not converged:
+                    warnings.warn(
+                        f"Newton method is not converged after {i} iterations with error {error:.2e}"
+                    )
+
+                nit = i + 1
+
+        # modify converged quantities
+        qn1, un1 = self.system.step_callback(tn1, qn1, un1)
+
+        # unpack percussion
+        Pi_gn1, Pi_gamman1, Pi_cn1 = np.array_split(Pin1, self.split_la)
+
+        # store solution fields
+        self.sol_t.append(tn1)
+        self.sol_q.append(qn1)
+        self.sol_u.append(un1)
+        self.sol_la_c.append(Pi_cn1 / self.dt)
+        self.sol_P_g.append(Pi_gn1)
+        self.sol_P_gamma.append(Pi_gamman1)
+        # self.sol_P_N.append(dP_Nn1)
+        # self.sol_P_F.append(dP_Fn1)
+
+        # update local variables for accepted time step
+        self.tn = tn1
+        self.qn = qn1
+        self.un = un1
+        self.la_gn = Pi_gn1 / dt
+        self.la_gamman = Pi_gamman1 / dt
+        self.la_cn = Pi_cn1 / dt
+
     def solve(self):
         self.solver_summary = SolverSummary("MoreauThetaCompliance")
 
@@ -467,56 +716,12 @@ class MoreauThetaCompliance:
         self.sol_P_N = [self.dt * self.la_Nn]
         self.sol_P_F = [self.dt * self.la_Fn]
 
-        pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
-        for _ in pbar:
-
-            self.solver_summary.add_fixed_point(i_fixed_point, error)
-            self.solver_summary.add_newton(sol.nit, sol.error)
-
-            # update progress bar
-            tn1 = self.tn + self.dt
-            pbar.set_description(
-                f"t: {tn1:0.2e}s < {self.t1:0.2e}s; |y1 - y0|_rel: {error:0.2e}; fixed-point: {i_fixed_point}/{self.options.fixed_point_max_iter}; |dx|_rel: {sol.error:0.2e}; newton: {sol.nit}/{self.options.newton_max_iter}"
-            )
-
-            # compute state
-            (
-                dun1,
-                dP_gn1,
-                dP_gamman1,
-                dP_cn1,
-            ) = np.array_split(xn1, self.split_x)
-            (
-                dP_Nn1,
-                dP_Fn1,
-            ) = np.array_split(y0, self.split_y)
-            un1 = self.un_theta + dun1
-            qn1 = self.qn_theta + dt * self.theta * self.system.q_dot(
-                self.tn_theta, self.qn_theta, un1
-            )
-
-            # modify converged quantities
-            qn1, un1 = self.system.step_callback(tn1, qn1, un1)
-
-            # store solution fields
-            self.sol_t.append(tn1)
-            self.sol_q.append(qn1)
-            self.sol_u.append(un1)
-            self.sol_u_dot.append(dun1 / self.dt)
-            self.sol_la_c.append(dP_cn1 / self.dt)
-            self.sol_P_g.append(dP_gn1)
-            self.sol_P_gamma.append(dP_gamman1)
-            self.sol_P_N.append(dP_Nn1)
-            self.sol_P_F.append(dP_Fn1)
-
-            # update local variables for accepted time step
-            self.xn = xn1.copy()
-            self.yn = y0.copy()
-            self.tn = tn1
-            self.qn = qn1
-            self.un = un1
+        self.pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
+        for _ in self.pbar:
+            # self._step_naive()
+            self._step_schur()
 
         self.solver_summary.print()
 
         # write solution
-        return make_solution()
+        return self._make_solution()
