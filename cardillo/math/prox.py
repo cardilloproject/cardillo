@@ -141,14 +141,13 @@ def estimate_prox_parameter(alpha, W, M):
     Schweizer2015: https://doi.org/10.3929/ethz-a-010464319
     """
     cols = W.shape[1]
+    W = csc_array(W)
     if cols > 0:
-        return (
-            alpha
-            / csc_array(
-                (csc_array(W).T @ spsolve(csc_array(M), csc_array(W))).reshape(
-                    (cols, cols)
-                )
-            ).diagonal()
-        )
+        try:
+            M_inv_W = M.solve(W.toarray())
+        except:
+            M_inv_W = spsolve(csc_array(M), W)
+        WT_M_inv_W = csc_array((W.T @ M_inv_W).reshape((cols, cols)))
+        return alpha / WT_M_inv_W.diagonal()
     else:
         return np.full(cols, alpha, dtype=W.dtype)

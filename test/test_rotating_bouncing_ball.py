@@ -11,6 +11,7 @@ from cardillo.solver import (
     BackwardEuler,
     SolverOptions,
     Rattle,
+    MoreauThetaCompliance,
 )
 
 
@@ -199,7 +200,11 @@ def run(case):
     P_N1 = sol1.P_N
     P_F1 = sol1.P_F
 
-    solver2, label2 = BackwardEuler(system, t_final, dt), "BackwardEuler"
+    # solver2, label2 = BackwardEuler(system, t_final, dt), "BackwardEuler"
+    solver2, label2 = (
+        MoreauThetaCompliance(system, t_final, dt),
+        "MoreauThetaCompliance",
+    )
     sol2 = solver2.solve()
     t2 = sol2.t
     q2 = sol2.q
@@ -207,6 +212,7 @@ def run(case):
     P_N2 = sol2.P_N
     P_F2 = sol2.P_F
 
+    # solver3, label3 = solver2, label2
     solver3, label3 = Rattle(system, t_final, dt), "Rattle"
     sol3 = solver3.solve()
     t3 = sol3.t

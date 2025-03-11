@@ -87,7 +87,7 @@ class ScipyDAE:
         self.pbar = tqdm(total=100, leave=True)
         self.i = 0
 
-    def event(self, t, y):
+    def event(self, t, y, yp):
         q, u = np.array_split(y, self.split)[:2]
         q, u = self.system.step_callback(t, q, u)
         return 1
