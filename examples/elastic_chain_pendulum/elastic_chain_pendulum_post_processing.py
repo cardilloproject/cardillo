@@ -19,7 +19,7 @@ if __name__ == "__main__":
     ############
     # VTK export
     ############
-    system.export(path.parent, "vtk", sol)
+    # system.export(path.parent, "vtk", sol)
 
     ###########################
     # animation with matplotlib

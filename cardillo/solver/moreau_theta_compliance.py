@@ -2,8 +2,8 @@ import warnings
 
 import numpy as np
 from scipy.linalg import lu_factor, lu_solve
-from scipy.sparse import bmat, block_diag, coo_array, csc_array, eye
-from scipy.sparse.linalg import splu
+from scipy.sparse import bmat, block_diag, coo_array, csc_array, eye, diags_array
+from scipy.sparse.linalg import splu, gmres, cg
 from tqdm import tqdm
 
 from cardillo.math.approx_fprime import approx_fprime
@@ -24,7 +24,7 @@ class MoreauThetaCompliance:
         options=SolverOptions(),
     ):
         self.theta = theta
-        assert 0 <= theta <= 1
+        assert 0 < theta <= 1
         self.velocity_level_contact = velocity_level_contact
         if not velocity_level_contact:
             # otherwise an arbitrary impact law is realized
@@ -33,7 +33,8 @@ class MoreauThetaCompliance:
         self.system = system
 
         # simplified Newton iterations
-        options.reuse_lu_decomposition = True
+        # options.reuse_lu_decomposition = True
+        options.reuse_lu_decomposition = False
         self.options = options
 
         if options.numerical_jacobian_method:
@@ -151,27 +152,136 @@ class MoreauThetaCompliance:
             dP_Fn1,
         ) = np.array_split(yn1, self.split_y)
 
-        # integration
-        tn1 = self.tn + self.dt
-        un1 = self.un_theta + dun1
-        qn1 = self.qn_theta + self.dt * self.theta * self.system.q_dot(
-            self.tn_theta, self.qn_theta, un1
-        )
-
         # initialize residual
         R_x = np.empty_like(xn1)
 
-        #####################
-        # equations of motion
-        #####################
-        R_x[: self.split_x[0]] = (
-            self.M @ dun1
-            - self.W_g @ dP_gn1
-            - self.W_gamma @ dP_gamman1
-            - self.W_c @ dP_cn1
-            - self.W_N @ dP_Nn1
-            - self.W_F @ dP_Fn1
+        ######################################
+        # v0:
+        # strange method that is very accurate
+        ######################################
+
+        # TODO: Why is this method so accurate?
+
+        # integration
+        tn1 = self.tn + self.dt
+        un1 = self.un + dun1
+        self.tn_theta = self.tn + self.dt * (1 - self.theta)
+        self.qn_theta = self.qn + self.dt * (1 - self.theta) * self.system.q_dot(
+            self.tn, self.qn, self.un
         )
+        # TODO: Here we have to evaluate self.system.q_dot(tn1, qn1, un1) for a correct theta-method
+        qn1 = self.qn_theta + self.dt * self.theta * self.system.q_dot(
+            tn1, self.qn_theta, un1
+        )
+
+        # equations of motion (v1)
+        R_x[: self.split_x[0]] = (
+            self.system.M(self.tn_theta, self.qn_theta) @ dun1
+            - self.dt * self.system.h(self.tn_theta, self.qn_theta, self.un)
+            # - self.dt * self.system.W_tau(self.tn_theta, self.qn_theta, format="csr") @ self.system.la_tau(self.tn_theta, self.qn_theta, self.un)
+            - self.system.W_g(self.tn_theta, self.qn_theta, format="csr") @ dP_gn1
+            - self.system.W_gamma(self.tn_theta, self.qn_theta, format="csr")
+            @ dP_gamman1
+            - self.system.W_c(self.tn_theta, self.qn_theta, format="csr") @ dP_cn1
+            - self.system.W_N(self.tn_theta, self.qn_theta, format="csr") @ dP_Nn1
+            - self.system.W_F(self.tn_theta, self.qn_theta, format="csr") @ dP_Fn1
+        )
+
+        ########################
+        # v1:
+        # theta-method for q's
+        # implicit Euler for u's
+        ########################
+
+        # # integration
+        # tn1 = self.tn + self.dt
+        # un1 = self.un + dun1
+        # self.tn_theta = self.tn + self.dt * (1 - self.theta)
+        # self.qn_theta = self.qn + self.dt * (1 - self.theta) * self.system.q_dot(self.tn, self.qn, self.un)
+        # # TODO: Here we have to evaluate self.system.q_dot(tn1, qn1, un1) for a correct theta-method
+        # qn1 = self.qn_theta + self.dt * self.theta * self.system.q_dot(tn1, self.qn_theta, un1)
+
+        # # equations of motion (v1)
+        # R_x[: self.split_x[0]] = (
+        #     # # why this method is so accurate?
+        #     # self.system.M(self.tn_theta, self.qn_theta) @ dun1
+        #     # - self.dt * self.system.h(self.tn_theta, self.qn_theta, self.un)
+        #     # - self.dt * self.system.W_tau(self.tn_theta, self.qn_theta, format="csr") @ self.system.la_tau(self.tn_theta, self.qn_theta, self.un)
+        #     # - self.system.W_g(self.tn_theta, self.qn_theta, format="csr") @ dP_gn1
+        #     # - self.system.W_gamma(self.tn_theta, self.qn_theta, format="csr") @ dP_gamman1
+        #     # - self.system.W_c(self.tn_theta, self.qn_theta, format="csr") @ dP_cn1
+        #     # - self.system.W_N(self.tn_theta, self.qn_theta, format="csr") @ dP_Nn1
+        #     # - self.system.W_F(self.tn_theta, self.qn_theta, format="csr") @ dP_Fn1
+        #     #
+        #     # TODO: Theta method is also required here for global damping in elastic_chain_pendulum
+        #     self.system.M(tn1, qn1) @ dun1
+        #     - self.dt * self.system.h(tn1, qn1, un1)
+        #     # - self.dt * self.system.W_tau(tn1, qn1, format="csr") @ self.system.la_tau(tn1, qn1, un1)
+        #     - self.system.W_g(tn1, qn1, format="csr") @ dP_gn1
+        #     - self.system.W_gamma(tn1, qn1, format="csr") @ dP_gamman1
+        #     - self.system.W_c(tn1, qn1, format="csr") @ dP_cn1
+        #     - self.system.W_N(tn1, qn1, format="csr") @ dP_Nn1
+        #     - self.system.W_F(tn1, qn1, format="csr") @ dP_Fn1
+        # )
+
+        ########################
+        # v2:
+        # Heun's method for q's
+        # implicit Euler for u's
+        ########################
+
+        # # integration
+        # tn1 = self.tn + self.dt
+        # un1 = self.un + dun1
+        # Q_dot1 = self.system.q_dot(self.tn, self.qn, self.un)
+        # # # Original Heun's method
+        # # T2 = tn1
+        # # Q2 = self.qn + self.dt * Q_dot1
+        # # qn1 = self.qn + 0.5 * self.dt * (Q_dot1 + self.system.q_dot(T2, Q2, un1))
+        # # # TODO: Why is this so good?
+        # # T2 = self.tn + 0.5 * self.dt
+        # # Q2 = self.qn + 0.5 * self.dt * Q_dot1
+        # # qn1 = self.qn + 0.5 * self.dt * (Q_dot1 + self.system.q_dot(T2, Q2, un1))
+        # # generic second-order method
+        # alpha = 0.5 # works for knife edge
+        # # alpha = 1
+        # # alpha = 2 / 3
+        # b2 = 1 / (2 * alpha)
+        # b1 = 1 - b2
+        # T2 = self.tn + alpha * self.dt
+        # Q2 = self.qn + alpha * self.dt * Q_dot1
+        # qn1 = self.qn + self.dt * (b1 * Q_dot1 + b2 * self.system.q_dot(T2, Q2, un1))
+        # # qn1 = self.qn + 0.5 * self.dt * (Q_dot1 + self.system.q_dot(T2, Q2, un1))
+
+        # # # "strange" theta-method
+        # # # theta = self.theta
+        # # theta = 0.5
+        # # # theta = 0.75
+        # # # theta = 1
+        # # T2 = self.tn + (1 - theta) * self.dt
+        # # Q2 = self.qn + self.dt * (1 - theta) * Q_dot1
+        # # qn1 = self.qn + self.dt * ((1 - theta) * Q_dot1 + theta * self.system.q_dot(T2, Q2, un1))
+
+        # # # true theta-method
+        # # # solve for qn1 which gives the true theta method
+        # # f = lambda qn1: qn1 - self.qn - self.dt * ((1 - theta) * Q_dot1 + theta * self.system.q_dot(tn1, qn1, un1))
+        # # sol = fsolve(f, qn1)
+        # # qn1 = sol.x
+        # # Q2 = qn1
+
+        # # equations of motion (v1)
+        # R_x[: self.split_x[0]] = (
+        #     self.system.M(T2, Q2) @ dun1
+        #     - self.dt * self.system.h(T2, Q2, un1)
+        #     - self.dt
+        #     * self.system.W_tau(T2, Q2, format="csr")
+        #     @ self.system.la_tau(T2, Q2, un1)
+        #     - self.system.W_g(T2, Q2, format="csr") @ dP_gn1
+        #     - self.system.W_gamma(T2, Q2, format="csr") @ dP_gamman1
+        #     - self.system.W_c(T2, Q2, format="csr") @ dP_cn1
+        #     - self.system.W_N(T2, Q2, format="csr") @ dP_Nn1
+        #     - self.system.W_F(T2, Q2, format="csr") @ dP_Fn1
+        # )
 
         #######################
         # bilateral constraints
@@ -184,60 +294,65 @@ class MoreauThetaCompliance:
         ############
         R_x[self.split_x[2] :] = self.system.c(tn1, qn1, un1, dP_cn1 / self.dt)
 
+        self.qn1 = qn1.copy()
+        self.un1 = un1.copy()
+
         return R_x
 
     def _J_x(self, xn1, yn1):
-        (
-            dun1,
-            dP_gn1,
-            dP_gamman1,
-            dP_cn1,
-        ) = np.array_split(xn1, self.split_x)
-        (
-            dP_Nn1,
-            dP_Fn1,
-        ) = np.array_split(yn1, self.split_y)
+        # (
+        #     dun1,
+        #     dP_gn1,
+        #     dP_gamman1,
+        #     dP_cn1,
+        # ) = np.array_split(xn1, self.split_x)
+        # (
+        #     dP_Nn1,
+        #     dP_Fn1,
+        # ) = np.array_split(yn1, self.split_y)
 
-        # integration
-        dt_th = self.dt * self.theta
-        tn1 = self.tn + self.dt
-        un1 = self.un_theta + dun1
-        qn1 = self.qn_theta + self.dt * self.theta * self.system.q_dot(
-            self.tn_theta, self.qn_theta, un1
-        )
-        q_dot_u = self.system.q_dot_u(self.tn_theta, self.qn_theta)
+        # # integration
+        # dt_th = self.dt * self.theta
+        # tn1 = self.tn + self.dt
+        # # un1 = self.un_theta + dun1
+        # un1 = self.un + dun1
+        # qn1 = self.qn_theta + self.dt * self.theta * self.system.q_dot(
+        #     self.tn_theta, self.qn_theta, un1
+        # )
+        # q_dot_u = self.system.q_dot_u(self.tn_theta, self.qn_theta)
 
-        #######################
-        # bilateral constraints
-        #######################
-        g_q = self.system.g_q(tn1, qn1)
-        gamma_q = self.system.gamma_q(tn1, qn1, un1)
-        gamma_u = self.system.gamma_u(tn1, qn1)
+        # #######################
+        # # bilateral constraints
+        # #######################
+        # g_q = self.system.g_q(tn1, qn1)
+        # gamma_q = self.system.gamma_q(tn1, qn1, un1)
+        # gamma_u = self.system.gamma_u(tn1, qn1)
 
-        ############
-        # compliance
-        ############
-        c_q = self.system.c_q(tn1, qn1, un1, dP_cn1 / self.dt)
-        c_u = self.system.c_u(tn1, qn1, un1, dP_cn1 / self.dt)
-        c_la_c = self.system.c_la_c() / self.dt
+        # ############
+        # # compliance
+        # ############
+        # c_q = self.system.c_q(tn1, qn1, un1, dP_cn1 / self.dt)
+        # c_u = self.system.c_u(tn1, qn1, un1, dP_cn1 / self.dt)
+        # c_la_c = self.system.c_la_c() / self.dt
 
-        # fmt: off
-        J = bmat(
-            [
-                [                             self.M, -self.W_g, -self.W_gamma,        -self.W_c],
-                [              g_q @ q_dot_u * dt_th,      None,          None,             None],
-                [gamma_q @ q_dot_u * dt_th + gamma_u,      None,          None,             None],
-                [        c_q @ q_dot_u * dt_th + c_u,      None,          None, c_la_c / self.dt],
-            ],
-            format="csc",
-        )
-        # fmt: on
-        return J
+        # # note: This is a simplified Jacobian and does not coincide with the exact one!
+        # # fmt: off
+        # J = bmat(
+        #     [
+        #         [                             self.M, -self.W_g, -self.W_gamma,        -self.W_c],
+        #         [              g_q @ q_dot_u * dt_th,      None,          None,             None],
+        #         [gamma_q @ q_dot_u * dt_th + gamma_u,      None,          None,             None],
+        #         [        c_q @ q_dot_u * dt_th + c_u,      None,          None, c_la_c / self.dt],
+        #     ],
+        #     format="csc",
+        # )
+        # # fmt: on
+        # return J
 
-        J_num = approx_fprime(xn1, lambda x: self.R_x(x, yn1))
-        diff = J_num - J
-        error = np.linalg.norm(diff)
-        print(f"error J: {error}")
+        J_num = approx_fprime(xn1, lambda x: self.R_x(x, yn1), method="2-point")
+        # diff = J_num - J
+        # error = np.linalg.norm(diff)
+        # print(f"error J: {error}")
         return J_num
 
     def prox(self, x1, y0):
@@ -254,7 +369,13 @@ class MoreauThetaCompliance:
 
         tn, dt, qn, un = self.tn, self.dt, self.qn, self.un
         tn1 = tn + dt
-        un1 = self.un_theta + dun1
+        un1 = self.un + dun1
+
+        # theta-method
+        self.tn_theta = self.tn + self.dt * (1 - self.theta)
+        self.qn_theta = self.qn + self.dt * (1 - self.theta) * self.system.q_dot(
+            self.tn, self.qn, self.un
+        )
         qn1 = self.qn_theta + self.dt * self.theta * self.system.q_dot(
             self.tn_theta, self.qn_theta, un1
         )
@@ -333,7 +454,6 @@ class MoreauThetaCompliance:
             t=np.array(self.sol_t),
             q=np.array(self.sol_q),
             u=np.array(self.sol_u),
-            u_dot=np.array(self.sol_u_dot),
             la_c=np.array(self.sol_la_c),
             P_g=np.array(self.sol_P_g),
             P_gamma=np.array(self.sol_P_gamma),
@@ -344,41 +464,41 @@ class MoreauThetaCompliance:
 
     def _step_naive(self):
         # theta step
-        dt = self.dt
-        self.tn_theta = self.tn + dt * (1 - self.theta)
-        self.qn_theta = self.qn + dt * (1 - self.theta) * self.system.q_dot(
-            self.tn, self.qn, self.un
-        )
+        # dt = self.dt
+        # self.tn_theta = self.tn + dt * (1 - self.theta)
+        # self.qn_theta = self.qn + dt * (1 - self.theta) * self.system.q_dot(
+        #     self.tn, self.qn, self.un
+        # )
 
-        self.M = self.system.M(self.tn_theta, self.qn_theta, format="csc")
-        # TODO: What to do with control forces?
-        h_Wla_tau = self.system.h(
-            self.tn_theta, self.qn_theta, self.un
-        ) + self.system.W_tau(
-            self.tn_theta, self.qn_theta, format="csr"
-        ) @ self.system.la_tau(
-            self.tn_theta, self.qn_theta, self.un
-        )
-        M_inv = splu(self.M)  # TODO: Use this for prox parameter estimation
-        self.un_theta = self.un + dt * M_inv.solve(h_Wla_tau)
+        # self.M = self.system.M(self.tn_theta, self.qn_theta, format="csc")
+        # # # # TODO: What to do with control forces?
+        # # # h_Wla_tau = self.system.h(
+        # # #     self.tn_theta, self.qn_theta, self.un
+        # # # ) + self.system.W_tau(
+        # # #     self.tn_theta, self.qn_theta, format="csr"
+        # # # ) @ self.system.la_tau(
+        # # #     self.tn_theta, self.qn_theta, self.un
+        # # # )
+        # M_inv = splu(self.M)  # TODO: Use this for prox parameter estimation
+        # # self.un_theta = self.un + dt * M_inv.solve(h_Wla_tau)
 
-        # evaluate quantities that are kept fixed during the simplified Newton iterations
-        self.W_g = self.system.W_g(self.tn_theta, self.qn_theta)
-        self.W_gamma = self.system.W_gamma(self.tn_theta, self.qn_theta)
-        self.W_N = self.system.W_N(self.tn_theta, self.qn_theta)
-        self.W_F = self.system.W_F(self.tn_theta, self.qn_theta)
-        self.W_c = self.system.W_c(self.tn_theta, self.qn_theta)
-        # self.c_q = self.system.c_q(self.tn_theta, self.qn_theta, self.la_cn)
-        # self.c_la_c = self.system.c_la_c(self.tn_theta, self.qn_theta, self.la_cn)
+        # # # evaluate quantities that are kept fixed during the simplified Newton iterations
+        # # self.W_g = self.system.W_g(self.tn_theta, self.qn_theta)
+        # # self.W_gamma = self.system.W_gamma(self.tn_theta, self.qn_theta)
+        # self.W_N = self.system.W_N(self.tn_theta, self.qn_theta)
+        # self.W_F = self.system.W_F(self.tn_theta, self.qn_theta)
+        # # self.W_c = self.system.W_c(self.tn_theta, self.qn_theta)
+        # # # self.c_q = self.system.c_q(self.tn_theta, self.qn_theta, self.la_cn)
+        # # # self.c_la_c = self.system.c_la_c(self.tn_theta, self.qn_theta, self.la_cn)
 
-        # only compute optimized prox-parameters once per time step
-        if self.nla_N + self.nla_F > 0:
-            self.prox_r_N, self.prox_r_F = np.array_split(
-                estimate_prox_parameter(
-                    self.options.prox_scaling, bmat([[self.W_N, self.W_F]]), M_inv
-                ),
-                [self.nla_N],
-            )
+        # # only compute optimized prox-parameters once per time step
+        # if self.nla_N + self.nla_F > 0:
+        #     self.prox_r_N, self.prox_r_F = np.array_split(
+        #         estimate_prox_parameter(
+        #             self.options.prox_scaling, bmat([[self.W_N, self.W_F]]), M_inv
+        #         ),
+        #         [self.nla_N],
+        #     )
 
         ########################
         # fixed-point iterations
@@ -392,6 +512,8 @@ class MoreauThetaCompliance:
             J_x = self.J_x(x0, y0)
             lu = splu(J_x)
             self.solver_summary.add_lu(1)
+        else:
+            lu = None
 
         # solve nonlinear system
         sol = self._solve_nonlinear_system(x0, y0, lu)
@@ -483,19 +605,14 @@ class MoreauThetaCompliance:
             dP_Nn1,
             dP_Fn1,
         ) = np.array_split(y0, self.split_y)
-        un1 = self.un_theta + dun1
-        qn1 = self.qn_theta + dt * self.theta * self.system.q_dot(
-            self.tn_theta, self.qn_theta, un1
-        )
 
         # modify converged quantities
-        qn1, un1 = self.system.step_callback(tn1, qn1, un1)
+        qn1, un1 = self.system.step_callback(tn1, self.qn1, self.un1)
 
         # store solution fields
         self.sol_t.append(tn1)
         self.sol_q.append(qn1)
         self.sol_u.append(un1)
-        self.sol_u_dot.append(dun1 / self.dt)
         self.sol_la_c.append(dP_cn1 / self.dt)
         self.sol_P_g.append(dP_gn1)
         self.sol_P_gamma.append(dP_gamman1)
@@ -506,8 +623,8 @@ class MoreauThetaCompliance:
         self.xn = xn1.copy()
         self.yn = y0.copy()
         self.tn = tn1
-        self.qn = qn1
-        self.un = un1
+        self.qn = qn1.copy()
+        self.un = un1.copy()
 
     def c(self, t, q, u, la):
         """Combine all constraint forces in order to simplify the solver."""
@@ -567,10 +684,24 @@ class MoreauThetaCompliance:
         )
 
         M = self.system.M(tn_theta, qn_theta, format="csc")
+        # TODO: Since M is block diagonal, we can implement M_inv @ B on a
+        # subsystem level or assemble M_inv directly which improves efficiency
+        # alot. Morover, most system have a constant mass matrix so it gets
+        # very cheap.
         M_inv = splu(M)
         self.solver_summary.add_lu(1)
+        # TODO: Investigate if it is sufficient to use a diagonal apporximation
+        # or a row sum lumped matrix approximation to the mass matrix. For this
+        # case the Delassus matrix gets diagonal and we get rid of another
+        # LU-decomposition.
+        # M_diag_inv = diags_array(1 / M.diagonal())
+        # M_inv = type("LU", (), {"solve": lambda self, rhs: M_diag_inv @ rhs})()
+        # M_lumped_inv = diags_array(1 / M.sum(axis=1))
+        # M_inv = type("LU", (), {"solve": lambda self, rhs: M_lumped_inv @ rhs})()
 
         # explicit h-vector and control forces
+        # note: This is the only step where we do not apply the correct
+        # theta-method (maybe I'm wrong).
         h_Wla_tau = self.system.h(tn_theta, qn_theta, self.un)
         h_Wla_tau += self.system.W_tau(
             tn_theta, qn_theta, format="csr"
@@ -587,24 +718,31 @@ class MoreauThetaCompliance:
         c_q = self.c_q(tn_theta, qn_theta, un_theta, self.la_cn)
         c_u = self.c_u(tn_theta, qn_theta, un_theta, self.la_cn)
         c_la = self.c_la()
-        self.solver_summary.add_lu(1)
 
         # compute iteration matrices
         A = dt * theta * c_q @ q_dot_u + c_u
-        # TODO: This seems to be very bas since W might be very sparse!
+        # TODO: This feels very bad since W might be sparse!
         M_inv_W = M_inv.solve(W.toarray())
         D = A @ M_inv_W + c_la / dt
 
         # for a moderate number of constraints D is small and dense,
         # hence we use a dense factorization
-        D_fac = lu_factor(D)
-        self.solver_summary.add_lu(1)
-        # def D_inv(rhs):
-        #     return lu_solve(D_fac, rhs)
-        # class D_inv:
-        #     def solve(rhs):
-        #         return lu_solve(D_fac, rhs)
-        D_inv = type("LU", (), {"solve": lambda self, rhs: lu_solve(D_fac, rhs)})()
+        # D_fac = lu_factor(D)
+        # self.solver_summary.add_lu(1)
+        # D_inv = type("LU", (), {"solve": lambda self, rhs: lu_solve(D_fac, rhs)})()
+        # TODO: Investigate the performance of iterative methods for real applications
+        D_inv = type("CG", (), {})()
+
+        def solve(rhs):
+            x, info = cg(D, rhs)
+            # x, info = gmres(D, rhs)
+            if info > 0:
+                raise RuntimeError(
+                    f"Iterative solver is not converged with 'info': {info}"
+                )
+            return x
+
+        D_inv.solve = solve
 
         # - only compute optimized prox-parameters once per time step
         # - generalized force directions for constraint forces are only
@@ -627,13 +765,18 @@ class MoreauThetaCompliance:
         if self.nla > 0:
             # compute initial positions velocities and percussions
             tn1 = self.tn + dt
-            un1 = un_theta
+            un1 = un_theta.copy()
             qn1 = qn_theta + dt * theta * (q_dot_u @ un1 + beta)
-            Pin1 = dt * np.concatenate([self.la_gn, self.la_gamman, self.la_cn])
-            # Pin1 *= 0
+            # # TODO: Is this a good initial guess?
+            # Pin1 = dt * np.concatenate([self.la_gn.copy(), self.la_gamman.copy(), self.la_cn.copy()])
+            # TODO: Why is this guess much better?
+            Pin1 = np.zeros(self.nla)
 
             # evaluate residuals
-            R1 = M @ (un1 - un_theta) - W @ Pin1
+            # R1 = M @ (un1 - un_theta) - W @ Pin1
+            # TODO: Implicit evaluation is required here for global damping in
+            # elastic_chain_pendulum.
+            R1 = M @ (un1 - un_theta) - self.W(tn1, qn1) @ Pin1
             R2 = self.c(tn1, qn1, un1, Pin1 / dt)
             R = np.concatenate((R1, R2))
 
@@ -645,7 +788,7 @@ class MoreauThetaCompliance:
             # error of initial guess
             error = np.linalg.norm(R / scale) / scale.size**0.5
             converged = error < 1
-            # print(f"i: {-1}; error: {error}; converged: {converged}")
+            print(f"i: {-1}; error: {error}; converged: {converged}")
 
             # Newton loop
             if not converged:
@@ -657,17 +800,20 @@ class MoreauThetaCompliance:
                     # update dependent variables
                     un1 += Delta_Un1
                     Pin1 += Delta_Pin1
+                    # TODO: Implicit evaluation is required here for global damping in
+                    # elastic_chain_pendulum.
                     qn1 = qn_theta + dt * theta * (q_dot_u @ un1 + beta)
 
                     # evaluate residuals
-                    R1 = M @ (un1 - un_theta) - W @ Pin1
+                    # R1 = M @ (un1 - un_theta) - W @ Pin1
+                    R1 = M @ (un1 - un_theta) - self.W(tn1, qn1) @ Pin1
                     R2 = self.c(tn1, qn1, un1, Pin1 / dt)
                     R = np.concatenate((R1, R2))
 
                     # error and convergence check
                     error = np.linalg.norm(R / scale) / scale.size**0.5
                     converged = error < 1
-                    # print(f"i: {i}; error: {error}; converged: {converged}")
+                    print(f"i: {i}; error: {error}; converged: {converged}")
                     if converged:
                         break
 
@@ -676,7 +822,8 @@ class MoreauThetaCompliance:
                         f"Newton method is not converged after {i} iterations with error {error:.2e}"
                     )
 
-                nit = i + 1
+                # TODO: Only used when continue_with_unconverged is implemented
+                # nit = i + 1
 
         # modify converged quantities
         qn1, un1 = self.system.step_callback(tn1, qn1, un1)
@@ -696,11 +843,11 @@ class MoreauThetaCompliance:
 
         # update local variables for accepted time step
         self.tn = tn1
-        self.qn = qn1
-        self.un = un1
-        self.la_gn = Pi_gn1 / dt
-        self.la_gamman = Pi_gamman1 / dt
-        self.la_cn = Pi_cn1 / dt
+        self.qn = qn1.copy()
+        self.un = un1.copy()
+        self.la_gn = Pi_gn1.copy() / dt
+        self.la_gamman = Pi_gamman1.copy() / dt
+        self.la_cn = Pi_cn1.copy() / dt
 
     def solve(self):
         self.solver_summary = SolverSummary("MoreauThetaCompliance")
@@ -709,7 +856,6 @@ class MoreauThetaCompliance:
         self.sol_t = [self.tn]
         self.sol_q = [self.qn]
         self.sol_u = [self.un]
-        self.sol_u_dot = [self.u_dotn]
         self.sol_la_c = [self.la_cn]
         self.sol_P_g = [self.dt * self.la_gn]
         self.sol_P_gamma = [self.dt * self.la_gamman]
@@ -718,8 +864,8 @@ class MoreauThetaCompliance:
 
         self.pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
         for _ in self.pbar:
-            # self._step_naive()
-            self._step_schur()
+            self._step_naive()
+            # self._step_schur()
 
         self.solver_summary.print()
 

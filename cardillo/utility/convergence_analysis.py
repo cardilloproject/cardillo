@@ -175,9 +175,9 @@ def convergence_analysis(
         ax[0].loglog(dts, dts, "-k", label="dt")
         ax[0].loglog(dts, dts**2, "--k", label="dt^2")
         ax[0].loglog(dts, dts**3, "-.k", label="dt^3")
-        ax[0].loglog(dts, dts**4, ":k", label="dt^4")
-        ax[0].loglog(dts, dts**5, "-ok", label="dt^5")
-        ax[0].loglog(dts, dts**6, "-sk", label="dt^6")
+        # ax[0].loglog(dts, dts**4, ":k", label="dt^4")
+        # ax[0].loglog(dts, dts**5, "-ok", label="dt^5")
+        # ax[0].loglog(dts, dts**6, "-sk", label="dt^6")
         for field in states:
             ax[0].loglog(dts, errors[field]["global"], label=field, marker="x")
         ax[0].grid()
