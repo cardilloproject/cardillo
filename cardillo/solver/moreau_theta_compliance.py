@@ -37,6 +37,7 @@ class MoreauThetaCompliance:
         options.reuse_lu_decomposition = False
         self.options = options
 
+        options.numerical_jacobian_method = "2-point"
         if options.numerical_jacobian_method:
             self.J_x = lambda x, y: csc_array(
                 approx_fprime(
@@ -46,8 +47,17 @@ class MoreauThetaCompliance:
                     eps=options.numerical_jacobian_eps,
                 )
             )
+            self.J_z = lambda z: csc_array(
+                approx_fprime(
+                    z,
+                    lambda z: self.R_z(z),
+                    method=options.numerical_jacobian_method,
+                    eps=options.numerical_jacobian_eps,
+                )
+            )
         else:
             self.J_x = self._J_x
+            self.J_z = self._J_z
 
         #######################################################################
         # integration time
@@ -102,6 +112,21 @@ class MoreauThetaCompliance:
                 dtype=int,
             )
         )[:-1]
+        self.split_z = np.cumsum(
+            np.array(
+                [
+                    self.nq,
+                    self.nla_N,
+                    self.nu,
+                    self.nla_g,
+                    self.nla_gamma,
+                    self.nla_c,
+                    self.nla_N,
+                    self.nla_F,
+                ],
+                dtype=int,
+            )
+        )[:-1]
 
         #######################################################################
         # initial conditions
@@ -134,11 +159,147 @@ class MoreauThetaCompliance:
                 self.la_Fn,
             )
         )
+        self.zn = self.dt * np.concatenate(
+            (
+                self.q_dotn,
+                0 * self.la_Nn,
+                self.u_dotn,
+                self.la_gn,
+                self.la_gamman,
+                self.la_cn,
+                self.la_Nn,
+                self.la_Fn,
+            )
+        )
 
         # # initial mass matrix and force directions for prox-parameter estimation
         # self.M = system.M(self.tn, self.qn)
         # self.W_N = system.W_N(self.tn, self.qn)
         # self.W_F = system.W_F(self.tn, self.qn)
+    
+    def R_z(self, zn1):
+        (
+            dqn1,
+            dmu_Nn1,
+            dun1,
+            dP_gn1,
+            dP_gamman1,
+            dP_cn1,
+            dP_Nn1,
+            dP_Fn1,
+        ) = np.array_split(zn1, self.split_z)
+
+        # initialize residual
+        R = np.empty_like(zn1)
+
+        #############
+        # integration
+        #############
+        theta = self.theta
+        dt = self.dt
+        tn = self.tn
+        qn = self.qn
+        un = self.un
+
+        # - first stage
+        tm = tn + (1 - theta) * dt
+        # qm = qn + (1 - theta) * dt * self.system.q_dot(tn, qn, un)
+        qm = qn + (1 - theta) * dqn1
+
+        # - second (final) stage
+        tn1 = tn + dt
+        # qn1 = qn + dqn1
+        un1 = un + dun1
+        qn1 = qm + theta * dt * self.system.q_dot(tm, qm, un1)
+
+        ####################
+        # kinematic equation
+        ####################
+        R[: self.split_z[0]] = dqn1 - dt * self.system.q_dot(tm, qm, un)
+
+        ##########################
+        # unilateral stabilization
+        ##########################
+        if self.nla_N + self.nla_F > 0:
+            g_N = self.system.g_N(tm, qm)
+            # # I_N = np.where(g_N <= 0)[0]
+            # # I_N = self.prox_r_N / dt * g_N - dmu_Nn1 <= 0
+            # g_N_q = self.system.g_N_q(tm, qm)
+            # R[: self.split_z[0]] -= g_N_q.T @ dmu_Nn1
+            # R[self.split_z[0] : self.split_z[1]] = dmu_Nn1 + NegativeOrthant.prox(self.prox_r_N / dt * g_N - dmu_Nn1)
+            R[self.split_z[0] : self.split_z[1]] = dmu_Nn1
+
+        #####################
+        # equations of motion
+        #####################
+        R[self.split_z[1] : self.split_z[2]] = (
+            self.system.M(tm, qm) @ dun1
+            - 0.5 * self.dt * (
+                self.system.h(tm, qm, un) + self.system.h(tm, qm, un1)
+            )
+            - self.system.W_g(tm, qm, format="csr") @ dP_gn1
+            - self.system.W_gamma(tm, qm, format="csr") @ dP_gamman1
+            - self.system.W_c(tm, qm, format="csr") @ dP_cn1
+            - self.system.W_N(tm, qm, format="csr") @ dP_Nn1
+            - self.system.W_F(tm, qm, format="csr") @ dP_Fn1
+        )
+
+        #######################
+        # bilateral constraints
+        #######################
+        R[self.split_z[2] : self.split_z[3]] = self.system.g(tn1, qn1)
+        R[self.split_z[3] : self.split_z[4]] = self.system.gamma(tn1, qn1, un1)
+
+        ############
+        # compliance
+        ############
+        R[self.split_z[4] : self.split_z[5]] = self.system.c(tn1, qn1, un1, dP_cn1 / self.dt)
+
+        ################
+        # normal contact
+        ################
+        if self.nla_N + self.nla_F > 0:
+            xi_N = self.system.xi_N(tm, tm, qm, qm, un, un1)
+            # dP_Nn1 = np.where(
+            #     g_N <= 0,
+            #     -NegativeOrthant.prox(self.prox_r_N * xi_N - dP_Nn1),
+            #     np.zeros_like(dP_Nn1),
+            # )
+            R[self.split_z[5] : self.split_z[6]] = np.where(
+                g_N <= 0,
+                # I_N,
+                # dmu_Nn1 > 0,
+                dP_Nn1 + NegativeOrthant.prox(self.prox_r_N * xi_N - dP_Nn1),
+                dP_Nn1,
+                # dP_Nn1 + dmu_Nn1 + NegativeOrthant.prox(self.prox_r_N * xi_N - dP_Nn1 - dmu_Nn1),
+                # dP_Nn1 + dmu_Nn1,
+            )
+
+        ##########
+        # friction
+        ##########
+        if self.nla_N + self.nla_F > 0:
+            xi_F = self.system.xi_F(tn, tn1, qn, qn1, un, un1)
+            for contr in self.system.get_contribution_list("gamma_F"):
+                la_FDOF = contr.la_FDOF
+                gamma_F_contr = xi_F[la_FDOF]
+                dP_Fn1_contr = dP_Fn1[la_FDOF]
+                prox_r_F_contr = self.prox_r_F[la_FDOF]
+                for i_N, i_F, force_recervoir in contr.friction_laws:
+                    if len(i_N) > 0:
+                        dP_Nn1i = dP_Nn1[contr.la_NDOF[i_N]]
+                    else:
+                        dP_Nn1i = self.dt
+
+                    R[self.split_z[6] + la_FDOF[i_F]] = dP_Fn1_contr[i_F] + force_recervoir.prox(
+                        prox_r_F_contr[i_F] * gamma_F_contr[i_F] - dP_Fn1_contr[i_F],
+                        dP_Nn1i,
+                    )
+
+        self.qn1 = qn1.copy()
+        self.un1 = un1.copy()
+
+        return R
 
     def R_x(self, xn1, yn1):
         (
@@ -704,6 +865,81 @@ class MoreauThetaCompliance:
         self.qn = qn1.copy()
         self.un = un1.copy()
 
+    def _step_naive_GGL(self):
+        M = self.system.M(self.tn, self.qn, format="csc")
+        W_N = self.system.W_N(self.tn, self.qn)
+        W_F = self.system.W_F(self.tn, self.qn)
+
+        # only compute optimized prox-parameters once per time step
+        if self.nla_N + self.nla_F > 0:
+            self.prox_r_N, self.prox_r_F = np.array_split(
+                estimate_prox_parameter(
+                    self.options.prox_scaling, bmat([[W_N, W_F]]), M
+                ),
+                [self.nla_N],
+            )
+
+        ########################
+        # fixed-point iterations
+        ########################
+        # solve nonlinear system
+        sol = fsolve(
+            lambda z: self.R_z(z),
+            # self.zn.copy(),
+            self.zn,
+            jac="2-point",
+            options=self.options,
+        )
+        zn1 = sol.x
+        self.solver_summary.add_lu(sol.njev)
+        self.solver_summary.add_newton(sol.nit, sol.error)
+
+        if not sol.success:
+            if self.options.continue_with_unconverged:
+                warnings.warn("Newton is not converged but integration is continued")
+            else:
+                warnings.warn(
+                    f"Newton is not converged. Returning solution up to t={self.tn}."
+                )
+                return self._make_solution()
+
+        # update progress bar
+        tn1 = self.tn + self.dt
+        self.pbar.set_description(
+            f"t: {tn1:0.2e}s < {self.t1:0.2e}s; |dz|_rel: {sol.error:0.2e}; newton: {sol.nit}/{self.options.newton_max_iter}"
+        )
+
+        # modify converged quantities
+        qn1, un1 = self.system.step_callback(tn1, self.qn1, self.un1)
+
+        # unpack other solution fields
+        (
+            dqn1,
+            dmu_Nn1,
+            dun1,
+            dP_gn1,
+            dP_gamman1,
+            dP_cn1,
+            dP_Nn1,
+            dP_Fn1,
+        ) = np.array_split(zn1, self.split_z)
+
+        # store solution fields
+        self.sol_t.append(tn1)
+        self.sol_q.append(qn1)
+        self.sol_u.append(un1)
+        self.sol_la_c.append(dP_cn1 / self.dt)
+        self.sol_P_g.append(dP_gn1)
+        self.sol_P_gamma.append(dP_gamman1)
+        self.sol_P_N.append(dP_Nn1)
+        self.sol_P_F.append(dP_Fn1)
+
+        # update local variables for accepted time step
+        self.zn = zn1.copy()
+        self.tn = tn1
+        self.qn = qn1.copy()
+        self.un = un1.copy()
+
     def c(self, t, q, u, la):
         """Combine all constraint forces in order to simplify the solver."""
         la_g, la_gamma, la_c = np.array_split(la, self.split_la)
@@ -942,8 +1178,9 @@ class MoreauThetaCompliance:
 
         self.pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
         for _ in self.pbar:
-            self._step_naive()
+            # self._step_naive()
             # self._step_schur()
+            self._step_naive_GGL()
 
         self.solver_summary.print()
 

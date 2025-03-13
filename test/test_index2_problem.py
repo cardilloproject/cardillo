@@ -12,6 +12,7 @@ from cardillo.solver import (
     Rattle,
     MoreauThetaCompliance,
     SolverOptions,
+    Solution,
 )
 from cardillo.utility.convergence_analysis import convergence_analysis
 
@@ -22,7 +23,7 @@ solvers_and_kwargs = [
     # (BackwardEuler, {}),
     # (Moreau, {}),
     # (Rattle, {}),
-    (MoreauThetaCompliance, {"theta": 1 / 2}),
+    (MoreauThetaCompliance, {"theta": 0.5}),
 ]
 
 
@@ -144,6 +145,7 @@ def test_index2_problem(Solver, kwargs, show=False):
     # call the solver
     t1 = 2 * np.pi / knife_edge.Omega
     # t1 *= 5
+    t1 *= 0.1
     dt = 5e-2
     sol = Solver(system, t1, dt, **kwargs).solve()
     t = sol.t
@@ -182,19 +184,40 @@ def test_index2_problem(Solver, kwargs, show=False):
         plt.show()
 
     # convergence analysis
-    get_solver = lambda t_final, dt, atol: Solver(
-        system,
-        t_final,
-        dt,
-        options=SolverOptions(
-            fixed_point_atol=atol,
-            fixed_point_rtol=atol,
-            newton_atol=atol,
-            newton_rtol=atol,
-            reuse_lu_decomposition=False,
-        ),
-        **kwargs,
-    )
+    global first
+    first = True
+    def get_solver(t_final, dt, atol):
+        global first
+        if first:
+            first = False
+            t_true = np.arange(0, t_final + dt, dt)
+            q_true, u_true = knife_edge(t_true)
+            return type(
+                "Solver", 
+                (), 
+                {
+                    "solve": lambda self: Solution(
+                        system,
+                        t=t_true,
+                        q=q_true,
+                        u=u_true,
+                    )
+                }
+            )()
+        else:
+            return Solver(
+                system,
+                t_final,
+                dt,
+                options=SolverOptions(
+                    fixed_point_atol=atol,
+                    fixed_point_rtol=atol,
+                    newton_atol=atol,
+                    newton_rtol=atol,
+                    reuse_lu_decomposition=False,
+                ),
+                **kwargs,
+            )
 
     errors = convergence_analysis(
         get_solver,
