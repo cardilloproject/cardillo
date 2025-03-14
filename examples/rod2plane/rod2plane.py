@@ -61,6 +61,8 @@ if __name__ == "__main__":
         cross_section_inertias=cross_section_inertias,
     )
 
+    rod.u0 = np.random.rand(len(rod.u0)) * 1e1
+
     # gravity
     gravity = Force_line_distributed(np.array([0, 0, -g * A_rho0]), rod)
 

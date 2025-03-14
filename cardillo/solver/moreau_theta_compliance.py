@@ -1,9 +1,9 @@
 import warnings
 
 import numpy as np
-from scipy.linalg import lu_factor, lu_solve
+from scipy.linalg import lu_factor, lu_solve, cho_factor, cho_solve
 from scipy.sparse import bmat, block_diag, coo_array, csc_array, eye, diags_array
-from scipy.sparse.linalg import splu, gmres, cg
+from scipy.sparse.linalg import splu, gmres, cg, LinearOperator
 from tqdm import tqdm
 
 from cardillo.math.approx_fprime import approx_fprime
@@ -12,16 +12,18 @@ from cardillo.math.prox import NegativeOrthant, estimate_prox_parameter
 from cardillo.solver import Solution, SolverOptions, SolverSummary
 
 
-def fixed_point_iteration(f, q0, atol=1e-6, rtol=1e-6, max_iter=100, omega=1.0):
+def fixed_point_iteration(f, q0, atol=1e-6, rtol=1e-6, max_iter=100):
     q = q0.copy()
     scale = atol + np.abs(q0) * rtol
     for k in range(max_iter):
-        q_new = (1 - omega) * q + omega * f(q)  # Relaxed fixed-point iteration
+        q_new = f(q)
         error = np.linalg.norm((q_new - q) / scale) / len(scale) ** 0.5
         if error < 1:
-            return q_new, k + 1  # Converged
+            return q_new, k + 1, error
         q = q_new
-    raise ValueError("Fixed-point iteration did not converge")
+    raise ValueError(
+        f"Fixed-point iteration did not converge after {k + 1} iterations with error: {error}"
+    )
 
 
 class MoreauThetaCompliance:
@@ -260,7 +262,7 @@ class MoreauThetaCompliance:
         R[self.split_z[1] : self.split_z[2]] = (
             self.system.M(tm, qm) @ dun1
             # - 0.5 * self.dt * (self.system.h(tm, qm, un) + self.system.h(tm, qm, un1))
-            # note: this variant is way better since only a single evaluation 
+            # note: this variant is way better since only a single evaluation
             #       of h is required!
             - self.dt * self.system.h(tm, qm, 0.5 * (un + un1))
             - self.system.W_g(tm, qm, format="csr") @ dP_gn1
@@ -733,7 +735,7 @@ class MoreauThetaCompliance:
             solver_summary=self.solver_summary,
         )
 
-    def _step_naive(self):
+    def _step_naive_old(self):
         # theta step
         dt = self.dt
         self.tn_theta = self.tn + dt * (1 - self.theta)
@@ -897,7 +899,7 @@ class MoreauThetaCompliance:
         self.qn = qn1.copy()
         self.un = un1.copy()
 
-    def _step_naive_GGL(self):
+    def _step_naive(self):
         M = self.system.M(self.tn, self.qn, format="csc")
         W_N = self.system.W_N(self.tn, self.qn)
         W_F = self.system.W_F(self.tn, self.qn)
@@ -1020,7 +1022,7 @@ class MoreauThetaCompliance:
             format=format,
         )
 
-    def _step_schur(self):
+    def _step_schur_old(self):
         # theta step (part 1)
         dt = self.dt
         theta = self.theta
@@ -1195,6 +1197,196 @@ class MoreauThetaCompliance:
         self.la_gamman = Pi_gamman1.copy() / dt
         self.la_cn = Pi_cn1.copy() / dt
 
+    def _step_schur(self):
+        theta = self.theta
+        dt = self.dt
+        tn = self.tn
+        qn = self.qn
+        un = self.un
+
+        ######################################################################
+        # 1. implicit mid-point step solved with simple fixed-point iterations
+        ######################################################################
+        tm = tn + (1 - theta) * dt
+        # qm = qn.copy() # naive initial guess
+        qm = qn + (1 - theta) * dt * self.system.q_dot(tn, qn, un)
+        qm, niter, error = fixed_point_iteration(
+            lambda qm: qn + (1 - theta) * dt * self.system.q_dot(tm, qm, un),
+            qm,
+        )
+        print(f"Fixed-point:")
+        print(f"i: {niter}; error: {error}")
+
+        #########################################
+        # evaluate all quantities at the midpoint
+        #########################################
+        M = self.system.M(tm, qm, format="csc")
+        # TODO: Since M is block diagonal, we can implement M_inv @ B on a
+        # subsystem level or assemble M_inv directly which improves efficiency
+        # alot. Morover, most system have a constant mass matrix so it gets
+        # very cheap.
+        M_inv = splu(M)
+        self.solver_summary.add_lu(1)
+
+        q_dot_u = self.system.q_dot_u(tm, qm)
+        beta = self.system.q_dot(tm, qm, np.zeros_like(self.un))
+        W = self.W(tm, qm)
+        c_q = self.c_q(tm, qm, un, self.la_cn)
+        c_u = self.c_u(tm, qm, un, self.la_cn)
+        C = self.c_la()
+
+        ############################
+        # compute iteration matrices
+        ############################
+        A = 0.5 * dt * c_q @ q_dot_u + c_u
+        # TODO: This feels very bad since W might be sparse!
+        M_inv_W = M_inv.solve(W.toarray())
+        D = C / dt + A @ M_inv_W
+
+        # for a moderate number of constraints D is small and dense,
+        # hence we use a dense factorization
+        # # - LU-decomposition
+        # D_fac = lu_factor(D)
+        # self.solver_summary.add_lu(1)
+        # D_inv = type("LU", (), {"solve": lambda self, rhs: lu_solve(D_fac, rhs)})()
+
+        # # - Cholesky-decomposition
+        # D_fac = cho_factor(D)
+        # self.solver_summary.add_lu(1)
+        # D_inv = type("Cholesky", (), {"solve": lambda self, rhs: cho_solve(D_fac, rhs)})()
+
+        # Krylov subspace methods for symetric positive definite D
+        # - conjugate gradient (CG) with jacobi preconditioner
+        D_inv = type("CG", (), {})()
+        DD_inv = 1 / np.diag(D)
+        preconditioner = LinearOperator(D.shape, lambda x: DD_inv * x)
+
+        def solve(rhs):
+            x, info = cg(D, rhs, M=preconditioner)
+            # global cg_iter
+            # cg_iter = 0
+            # def callback(x):
+            #     global cg_iter
+            #     print(f"cg iteration: {cg_iter}")
+            #     cg_iter += 1
+            # x, info = cg(D, rhs, M=preconditioner, callback=callback)
+            # x, info = cg(D, rhs, callback=callback)
+            # x, info = gmres(D, rhs)
+            if info > 0:
+                raise RuntimeError(
+                    f"Iterative solver is not converged with 'info': {info}"
+                )
+            return x
+
+        D_inv.solve = solve
+
+        # - only compute optimized prox-parameters once per time step
+        # - generalized force directions for constraint forces are only
+        #   required if we have contacts
+        if self.nla_N + self.nla_F > 0:
+            W_N = self.system.W_N(tm, qm)
+            W_F = self.system.W_F(tm, qm)
+            self.prox_r_N, self.prox_r_F = np.array_split(
+                estimate_prox_parameter(
+                    self.options.prox_scaling, bmat([[W_N, W_F]]), M_inv
+                ),
+                [self.nla_N],
+            )
+
+        # TODO: Add outer fixed point loop for contacts
+
+        ###################
+        # newton iterations
+        ###################
+        print(f"Newton:")
+        # compute initial positions velocities and percussions
+        tn1 = self.tn + dt
+        un1 = un.copy()
+        qn1 = qm + 0.5 * dt * (q_dot_u @ un1 + beta)
+        # # TODO: Is this a good initial guess?
+        # Pin1 = dt * np.concatenate([self.la_gn.copy(), self.la_gamman.copy(), self.la_cn.copy()])
+        # TODO: Why is this guess much better?
+        Pin1 = np.zeros(self.nla)
+
+        # evaluate residuals
+        R1 = M @ (un1 - un) - dt * self.system.h(tm, qm, 0.5 * (un + un1)) - W @ Pin1
+        R2 = self.c(tn1, qn1, un1, Pin1 / dt)
+        R = np.concatenate((R1, R2))
+
+        # newton scaling
+        scale1 = self.options.newton_atol + np.abs(R1) * self.options.newton_rtol
+        scale2 = self.options.newton_atol + np.abs(R2) * self.options.newton_rtol
+        scale = np.concatenate((scale1, scale2))
+
+        # error of initial guess
+        error = np.linalg.norm(R / scale) / scale.size**0.5
+        converged = error < 1
+        print(f"i: {-1}; error: {error}; converged: {converged}")
+
+        # Newton loop
+        if not converged:
+            for i in range(self.options.newton_max_iter):
+                # Newton updates
+                M_inv_R1 = M_inv.solve(R1)
+                Delta_Pin1 = D_inv.solve(A @ M_inv_R1 - R2)
+                Delta_Un1 = M_inv_W @ Delta_Pin1 - M_inv_R1
+
+                # update dependent variables
+                un1 += Delta_Un1
+                Pin1 += Delta_Pin1
+                qn1 = qm + 0.5 * dt * (q_dot_u @ un1 + beta)
+
+                # evaluate residuals
+                R1 = (
+                    M @ (un1 - un)
+                    - dt * self.system.h(tm, qm, 0.5 * (un + un1))
+                    - W @ Pin1
+                )
+                R2 = self.c(tn1, qn1, un1, Pin1 / dt)
+                R = np.concatenate((R1, R2))
+
+                # error and convergence check
+                error = np.linalg.norm(R / scale) / scale.size**0.5
+                converged = error < 1
+                print(f"i: {i}; error: {error}; converged: {converged}")
+                if converged:
+                    break
+
+            if not converged:
+                warnings.warn(
+                    f"Newton method is not converged after {i} iterations with error {error:.2e}"
+                )
+
+            # TODO: Only used when continue_with_unconverged is implemented
+            # nit = i + 1
+
+        # modify converged quantities
+        qn1, un1 = self.system.step_callback(tn1, qn1, un1)
+
+        # unpack percussion
+        Pi_gn1, Pi_gamman1, Pi_cn1 = np.array_split(Pin1, self.split_la)
+
+        # store solution fields
+        self.sol_t.append(tn1)
+        self.sol_q.append(qn1)
+        self.sol_u.append(un1)
+        self.sol_la_c.append(Pi_cn1 / self.dt)
+        self.sol_P_g.append(Pi_gn1)
+        self.sol_P_gamma.append(Pi_gamman1)
+        # self.sol_P_N.append(dP_Nn1)
+        # self.sol_P_F.append(dP_Fn1)
+        self.sol_P_N.append(0 * self.la_Nn)
+        self.sol_P_F.append(0 * self.la_Fn)
+
+        # update local variables for accepted time step
+        self.tn = tn1
+        self.qn = qn1.copy()
+        self.un = un1.copy()
+        # not used and seems to be a bad initial guess for the next iteration
+        # self.la_gn = Pi_gn1.copy() / dt
+        # self.la_gamman = Pi_gamman1.copy() / dt
+        # self.la_cn = Pi_cn1.copy() / dt
+
     def solve(self):
         self.solver_summary = SolverSummary("MoreauThetaCompliance")
 
@@ -1210,9 +1402,9 @@ class MoreauThetaCompliance:
 
         self.pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
         for _ in self.pbar:
+            # self._step_naive_old()
             # self._step_naive()
-            # self._step_schur()
-            self._step_naive_GGL()
+            self._step_schur()
 
         self.solver_summary.print()
 
