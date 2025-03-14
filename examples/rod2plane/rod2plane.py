@@ -9,17 +9,19 @@ from cardillo.rods import (
 from cardillo.rods.cosseratRod import make_CosseratRod
 from cardillo.rods.force_line_distributed import Force_line_distributed
 from cardillo.contacts import Sphere2Plane
-from cardillo.solver import SolverOptions, Moreau, MoreauThetaCompliance
+from cardillo.solver import SolverOptions, Moreau, DualStörmerVerlet
 
 
 nelements = 3
 polynomial_degree = 2
 length = 2 * np.pi
-slenderness = 1.0e2
+# slenderness = 1.0e2
+slenderness = 1.0e3
+# slenderness = 1.0e4
 reduced_integration = True
 g = 9.81
 
-r_OP0 = np.array([0, 0, 0.1], dtype=float)
+r_OP0 = np.array([0, 0, 0.5], dtype=float)
 
 # Rod = make_CosseratRod(interpolation="Quaternion", mixed=False)
 Rod = make_CosseratRod(interpolation="Quaternion", mixed=True)
@@ -61,7 +63,7 @@ if __name__ == "__main__":
         cross_section_inertias=cross_section_inertias,
     )
 
-    rod.u0 = np.random.rand(len(rod.u0)) * 1e1
+    # rod.u0 = np.random.rand(len(rod.u0)) * 1e1
 
     # gravity
     gravity = Force_line_distributed(np.array([0, 0, -g * A_rho0]), rod)
@@ -83,11 +85,12 @@ if __name__ == "__main__":
 
     # solver
     t1 = 2
-    dt = 1e-3
+    # dt = 1e-5
+    # solver = Moreau(system, t1, dt, options=SolverOptions(prox_scaling=0.5))
     dt = 1e-2
-    # solver = Moreau(system, t1, dt)
-    solver = MoreauThetaCompliance(
-        system, t1, dt, theta=0.5, options=SolverOptions(prox_scaling=0.5)
+    solver = DualStörmerVerlet(
+        # system, t1, dt, theta=0.5, options=SolverOptions(prox_scaling=0.05, newton_atol=1e-8, newton_rtol=1e-8)
+        system, t1, dt, theta=0.5, options=SolverOptions(prox_scaling=0.5, newton_atol=1e-6, newton_rtol=1e-6)
     )
     sol = solver.solve()
     t = sol.t

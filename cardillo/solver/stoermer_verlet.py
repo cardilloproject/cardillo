@@ -26,7 +26,7 @@ def fixed_point_iteration(f, q0, atol=1e-6, rtol=1e-6, max_iter=100):
     )
 
 
-class MoreauThetaCompliance:
+class DualStörmerVerlet:
     def __init__(
         self,
         system,
@@ -1248,8 +1248,8 @@ class MoreauThetaCompliance:
         M_inv_W = M_inv.solve(W.toarray())
         D = C / dt + A @ M_inv_W
 
-        # for a moderate number of constraints D is small and dense,
-        # hence we use a dense factorization
+        # # for a moderate number of constraints D is small and dense,
+        # # hence we use a dense factorization
         # # - LU-decomposition
         # D_fac = lu_factor(D)
         # self.solver_summary.add_lu(1)
@@ -1307,14 +1307,14 @@ class MoreauThetaCompliance:
         tn1 = self.tn + dt
         un1 = un.copy()
         qn1 = qm + 0.5 * dt * (q_dot_u @ un1 + beta)
-        # # TODO: Is this a good initial guess?
+        # TODO: Is this a good initial guess?
         # Pin1 = dt * np.concatenate([self.la_gn.copy(), self.la_gamman.copy(), self.la_cn.copy()])
-        # TODO: Why is this guess much better?
+        # TODO: Why is this guess much better? Seems the be not important.
         Pin1 = np.zeros(self.nla)
-        if self.nla_N + self.nla_F > 0:
-            # warm start often reduces the number of iterations
-            Pi_Nn1 = self.Pi_Nn
-            Pi_Fn1 = self.Pi_Fn
+        # if self.nla_N + self.nla_F > 0:
+        # warm start often reduces the number of iterations
+        Pi_Nn1 = self.Pi_Nn
+        Pi_Fn1 = self.Pi_Fn
 
         def prox(Pi_Nn1, Pi_Fn1):
             # normal contact
@@ -1433,7 +1433,6 @@ class MoreauThetaCompliance:
         self.tn = tn1
         self.qn = qn1.copy()
         self.un = un1.copy()
-        # not used and seems to be a bad initial guess for the next iteration
         # self.la_gn = Pi_gn1.copy() / dt
         # self.la_gamman = Pi_gamman1.copy() / dt
         # self.la_cn = Pi_cn1.copy() / dt

@@ -7,7 +7,7 @@ from cardillo.forces import Force
 from cardillo.force_laws import KelvinVoigtElement as SpringDamper
 from cardillo.interactions import TwoPointInteraction
 from cardillo.solver import BackwardEuler, SolverOptions, save_solution
-from cardillo.solver import ScipyDAE, MoreauThetaCompliance
+from cardillo.solver import ScipyDAE, DualStörmerVerlet
 
 if __name__ == "__main__":
     ###################
@@ -84,7 +84,7 @@ if __name__ == "__main__":
     #     system, t1, dt, options=SolverOptions(newton_max_iter=50)
     # )  # create solver
     # solver = ScipyDAE(system, t1, dt, atol=1e-3, rtol=1e-3)
-    solver = MoreauThetaCompliance(system, t1, dt, theta=0.51)
+    solver = DualStörmerVerlet(system, t1, dt, theta=0.51)
     sol = solver.solve()  # simulate system
 
     ###############

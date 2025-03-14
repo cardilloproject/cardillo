@@ -11,7 +11,7 @@ from cardillo.solver import (
     BackwardEuler,
     SolverOptions,
     Rattle,
-    MoreauThetaCompliance,
+    DualStörmerVerlet,
 )
 
 
@@ -202,7 +202,7 @@ def run(case):
 
     # solver2, label2 = BackwardEuler(system, t_final, dt), "BackwardEuler"
     solver2, label2 = (
-        MoreauThetaCompliance(system, t_final, dt),
+        DualStörmerVerlet(system, t_final, dt),
         "MoreauThetaCompliance",
     )
     sol2 = solver2.solve()

@@ -10,7 +10,7 @@ from cardillo.solver import (
     BackwardEuler,
     Moreau,
     Rattle,
-    MoreauThetaCompliance,
+    DualStörmerVerlet,
     SolverOptions,
     Solution,
 )
@@ -23,7 +23,7 @@ solvers_and_kwargs = [
     # (BackwardEuler, {}),
     # (Moreau, {}),
     # (Rattle, {}),
-    (MoreauThetaCompliance, {"theta": 0.5}),
+    (DualStörmerVerlet, {"theta": 0.5}),
 ]
 
 
