@@ -186,6 +186,7 @@ def test_index2_problem(Solver, kwargs, show=False):
     # convergence analysis
     global first
     first = True
+
     def get_solver(t_final, dt, atol):
         global first
         if first:
@@ -193,8 +194,8 @@ def test_index2_problem(Solver, kwargs, show=False):
             t_true = np.arange(0, t_final + dt, dt)
             q_true, u_true = knife_edge(t_true)
             return type(
-                "Solver", 
-                (), 
+                "Solver",
+                (),
                 {
                     "solve": lambda self: Solution(
                         system,
@@ -202,7 +203,7 @@ def test_index2_problem(Solver, kwargs, show=False):
                         q=q_true,
                         u=u_true,
                     )
-                }
+                },
             )()
         else:
             return Solver(

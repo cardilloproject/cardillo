@@ -12,6 +12,18 @@ from cardillo.math.prox import NegativeOrthant, estimate_prox_parameter
 from cardillo.solver import Solution, SolverOptions, SolverSummary
 
 
+def fixed_point_iteration(f, q0, atol=1e-6, rtol=1e-6, max_iter=100, omega=1.0):
+    q = q0.copy()
+    scale = atol + np.abs(q0) * rtol
+    for k in range(max_iter):
+        q_new = (1 - omega) * q + omega * f(q)  # Relaxed fixed-point iteration
+        error = np.linalg.norm((q_new - q) / scale) / len(scale) ** 0.5
+        if error < 1:
+            return q_new, k + 1  # Converged
+        q = q_new
+    raise ValueError("Fixed-point iteration did not converge")
+
+
 class MoreauThetaCompliance:
     def __init__(
         self,
@@ -176,7 +188,7 @@ class MoreauThetaCompliance:
         # self.M = system.M(self.tn, self.qn)
         # self.W_N = system.W_N(self.tn, self.qn)
         # self.W_F = system.W_F(self.tn, self.qn)
-    
+
     def R_z(self, zn1):
         (
             dqn1,
@@ -203,19 +215,32 @@ class MoreauThetaCompliance:
 
         # - first stage
         tm = tn + (1 - theta) * dt
-        # qm = qn + (1 - theta) * dt * self.system.q_dot(tn, qn, un)
-        qm = qn + (1 - theta) * dqn1
+        qm = qn + (1 - theta) * dt * self.system.q_dot(tn, qn, un)
+        # qm = qn + (1 - theta) * dqn1
+        # solve for qm with fixed-point iterations
+        qm, niter = fixed_point_iteration(
+            lambda qm: qn + (1 - theta) * dt * self.system.q_dot(tm, qm, un),
+            # qn, # naive initial guess
+            qn
+            + (1 - theta)
+            * dt
+            * self.system.q_dot(tn, qn, un),  # improved initial guess
+        )
+        # print(f"niter fixed-point: {niter}")
 
         # - second (final) stage
         tn1 = tn + dt
         # qn1 = qn + dqn1
         un1 = un + dun1
         qn1 = qm + theta * dt * self.system.q_dot(tm, qm, un1)
+        # qn1 = qm + dqn1
 
         ####################
         # kinematic equation
         ####################
-        R[: self.split_z[0]] = dqn1 - dt * self.system.q_dot(tm, qm, un)
+        # R[: self.split_z[0]] = dqn1 - dt * self.system.q_dot(tm, qm, un)
+        # R[: self.split_z[0]] = dqn1 - theta * dt * self.system.q_dot(tn1, qn1, un1)
+        R[: self.split_z[0]] = dqn1
 
         ##########################
         # unilateral stabilization
@@ -234,9 +259,10 @@ class MoreauThetaCompliance:
         #####################
         R[self.split_z[1] : self.split_z[2]] = (
             self.system.M(tm, qm) @ dun1
-            - 0.5 * self.dt * (
-                self.system.h(tm, qm, un) + self.system.h(tm, qm, un1)
-            )
+            # - 0.5 * self.dt * (self.system.h(tm, qm, un) + self.system.h(tm, qm, un1))
+            # note: this variant is way better since only a single evaluation 
+            #       of h is required!
+            - self.dt * self.system.h(tm, qm, 0.5 * (un + un1))
             - self.system.W_g(tm, qm, format="csr") @ dP_gn1
             - self.system.W_gamma(tm, qm, format="csr") @ dP_gamman1
             - self.system.W_c(tm, qm, format="csr") @ dP_cn1
@@ -253,7 +279,9 @@ class MoreauThetaCompliance:
         ############
         # compliance
         ############
-        R[self.split_z[4] : self.split_z[5]] = self.system.c(tn1, qn1, un1, dP_cn1 / self.dt)
+        R[self.split_z[4] : self.split_z[5]] = self.system.c(
+            tn1, qn1, un1, dP_cn1 / self.dt
+        )
 
         ################
         # normal contact
@@ -291,7 +319,9 @@ class MoreauThetaCompliance:
                     else:
                         dP_Nn1i = self.dt
 
-                    R[self.split_z[6] + la_FDOF[i_F]] = dP_Fn1_contr[i_F] + force_recervoir.prox(
+                    R[self.split_z[6] + la_FDOF[i_F]] = dP_Fn1_contr[
+                        i_F
+                    ] + force_recervoir.prox(
                         prox_r_F_contr[i_F] * gamma_F_contr[i_F] - dP_Fn1_contr[i_F],
                         dP_Nn1i,
                     )
@@ -322,9 +352,9 @@ class MoreauThetaCompliance:
         # ######################################
 
         # # TODO: Why is this method so accurate?
-        # # - the method satisfies condition (2.3b) for symplectic PRK schemes, 
-        # #   see https://www.jstor.org/stable/2158439?seq=1. For separable 
-        # #   Hamiltonians H(q, p) = T(p) + U(q), the condition b_i = b^_i can 
+        # # - the method satisfies condition (2.3b) for symplectic PRK schemes,
+        # #   see https://www.jstor.org/stable/2158439?seq=1. For separable
+        # #   Hamiltonians H(q, p) = T(p) + U(q), the condition b_i = b^_i can
         # #   be ommited.
         # # - the method is discussed in Example 3.2 of https://www.emis.de/journals/ETNA/vol.2.1994/pp194-204.dir/pp194-204.pdf
         # #   for seperable partitioned systems.
@@ -470,7 +500,6 @@ class MoreauThetaCompliance:
         #     - self.system.W_F(T2, Q2, format="csr") @ dP_Fn1
         # )
 
-
         ########################
         # v3:
         # Störmer-Verlet (B)
@@ -500,8 +529,11 @@ class MoreauThetaCompliance:
         # equations of motion
         R_x[: self.split_x[0]] = (
             self.system.M(tm, qm) @ dun1
-            - 0.5 * self.dt * (
-                2 * self.system.h(tm, qm, self.un)
+            - 0.5
+            * self.dt
+            * (
+                2
+                * self.system.h(tm, qm, self.un)
                 # self.system.h(tm, qm, self.un) + self.system.h(tm, qm, un1)
             )
             # - self.dt * self.system.W_tau(self.tn_theta, self.qn_theta, format="csr") @ self.system.la_tau(self.tn_theta, self.qn_theta, self.un)

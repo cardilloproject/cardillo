@@ -51,80 +51,40 @@ def phi_pp(t):
 def sol_true(t):
     x = np.cos(phi(t))
     y = np.sin(phi(t))
-    u = -np.sin(phi(t)) * phi_p(t)
-    v = np.cos(phi(t)) * phi_p(t)
-    la = -phi_p(t) ** 2 / 2
+    omega = phi_p(t)
 
-    vq = np.array((x, y)).T
-    vu = np.array((u, v)).T
-    vla = np.array([la]).T
+    vq = np.array([x, y]).T
+    vu = np.array([omega]).T
 
-    return vq, vu, vla
+    return vq, vu
 
 
 class ParticleOnCircularTrack:
     def __init__(self):
         self.nq = 2
-        self.nu = 2
-        self.nla_g = 1
-        self.q0, self.u0, self.la_g0 = sol_true(0)
+        self.nu = 1
+        self.q0, self.u0 = sol_true(0)
+        # self.u0 = np.array([omega])
 
     def q_dot(self, t, q, u):
-        return u
+        x, y = q
+        omega = u[0]
+        return np.array([-y, x]) * omega
 
     def q_dot_u(self, t, q):
-        return np.eye(self.nq)
+        x, y = q
+        return np.array([[-y], [x]])
 
     def M(self, t, q):
-        return np.eye(2)
+        return np.eye(1)
 
     def h(self, t, q, u):
-        x, y = q
         force = phi_pp(t)
-        return np.array([-y * force, x * force])
-
-    def g(self, t, vq):
-        x, y = vq
-        return np.array([x * x + y * y - 1])
-
-    def g_dot(self, t, vq, vu):
-        x, y = vq
-        u, v = vu
-        return 2 * np.array([x * u + y * v])
-
-    def g_dot_u(self, t, vq):
-        return self.W_g(t, vq).T
-
-    def gamma_dot(self, t, vq, vu, vu_dot):
-        x, y = vq
-        u, v = vu
-        u_dot, v_dot = vu_dot
-        return 2 * np.array([u**2 + x * u_dot + v**2 + y * v_dot])
-
-    def g_q(self, t, vq):
-        x, y = vq
-        return np.array(
-            [
-                [2 * x, 2 * y],
-            ]
-        )
-
-    def W_g(self, t, q):
-        x, y = q
-        return np.array(
-            [
-                [2 * x],
-                [2 * y],
-            ]
-        )
-
-    def Wla_g_q(self, t, q, la_g):
-        x, y = q
-        return 2 * la_g[0] * np.eye(2)
+        return np.array([force])
 
 
 @pytest.mark.parametrize("Solver, kwargs", solvers_and_kwargs)
-def test_index3_problem(Solver, kwargs, show=False):
+def test_index0_problem(Solver, kwargs, show=False):
     # create the system
     system = System()
     particle = ParticleOnCircularTrack()
@@ -141,7 +101,7 @@ def test_index3_problem(Solver, kwargs, show=False):
     u = sol.u
 
     # compare with exact solution
-    q_true, u_true, la_true = sol_true(t)
+    q_true, u_true = sol_true(t)
     error_q = compute_error(q, q_true, rtol=1e-6, atol=1e-3)
     error_u = compute_error(u, u_true, rtol=1e-6, atol=1e-3)
     print(f"error q: {error_q}")
@@ -158,14 +118,14 @@ def test_index3_problem(Solver, kwargs, show=False):
         ax[0].grid()
         ax[0].legend()
 
-        ax[1].plot(t, u[:, 0], "-r", label="u")
-        ax[1].plot(t, u_true[:, 0], "rx", label="u_true")
-        ax[1].plot(t, u[:, 1], "-g", label="v")
-        ax[1].plot(t, u_true[:, 1], "gx", label="v_true")
+        ax[1].plot(t, u[:, 0], "-r", label="omega")
+        ax[1].plot(t, u_true[:, 0], "rx", label="omega_true")
         ax[1].grid()
         ax[1].legend()
 
         plt.show()
+
+    # exit()
 
     # convergence analysis
     global first
@@ -176,7 +136,7 @@ def test_index3_problem(Solver, kwargs, show=False):
         if first:
             first = False
             t_true = np.arange(0, t_final + dt, dt)
-            q_true, u_true, la_true = sol_true(t_true)
+            q_true, u_true = sol_true(t_true)
             return type(
                 "Solver",
                 (),
@@ -186,7 +146,6 @@ def test_index3_problem(Solver, kwargs, show=False):
                         t=t_true,
                         q=q_true,
                         u=u_true,
-                        P_g=dt * la_true,
                     )
                 },
             )()
@@ -223,11 +182,9 @@ def test_index3_problem(Solver, kwargs, show=False):
         dt_ref=2e-4,
         final_power=10,
         power_span=(1, 8),
-        #
+        # P_g
         #############
-        # other setup
-        #############
-        states=["q", "u", "P_g"],
+        states=["q", "u"],
         measure="lp",
         visualize=show,
         export=True,
@@ -238,4 +195,4 @@ def test_index3_problem(Solver, kwargs, show=False):
 
 if __name__ == "__main__":
     for p in solvers_and_kwargs:
-        test_index3_problem(*p, show=True)
+        test_index0_problem(*p, show=True)
