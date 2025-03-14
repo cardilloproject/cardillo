@@ -36,7 +36,9 @@ class MoreauThetaCompliance:
         velocity_level_contact=True,
         theta=0.5,
         options=SolverOptions(),
+        debug=False,
     ):
+        self.debug = debug
         self.theta = theta
         assert 0 < theta <= 1
         self.velocity_level_contact = velocity_level_contact
@@ -155,6 +157,8 @@ class MoreauThetaCompliance:
         self.la_cn = system.la_c0
         self.la_Nn = system.la_N0
         self.la_Fn = system.la_F0
+        self.Pi_Nn = dt * system.la_N0
+        self.Pi_Fn = dt * system.la_F0
 
         #######################################################################
         # initial values
@@ -1214,8 +1218,9 @@ class MoreauThetaCompliance:
             lambda qm: qn + (1 - theta) * dt * self.system.q_dot(tm, qm, un),
             qm,
         )
-        print(f"Fixed-point:")
-        print(f"i: {niter}; error: {error}")
+        if self.debug:
+            print(f"Fixed-point:")
+            print(f"i: {niter}; error: {error}")
 
         #########################################
         # evaluate all quantities at the midpoint
@@ -1293,12 +1298,11 @@ class MoreauThetaCompliance:
                 [self.nla_N],
             )
 
-        # TODO: Add outer fixed point loop for contacts
-
         ###################
         # newton iterations
         ###################
-        print(f"Newton:")
+        if self.debug:
+            print(f"Newton:")
         # compute initial positions velocities and percussions
         tn1 = self.tn + dt
         un1 = un.copy()
@@ -1307,9 +1311,48 @@ class MoreauThetaCompliance:
         # Pin1 = dt * np.concatenate([self.la_gn.copy(), self.la_gamman.copy(), self.la_cn.copy()])
         # TODO: Why is this guess much better?
         Pin1 = np.zeros(self.nla)
+        if self.nla_N + self.nla_F > 0:
+            # warm start often reduces the number of iterations
+            Pi_Nn1 = self.Pi_Nn
+            Pi_Fn1 = self.Pi_Fn
+
+        def prox(Pi_Nn1, Pi_Fn1):
+            # normal contact
+            g_Nm = self.system.g_N(tm, qm)
+            xi_N = self.system.xi_N(tm, tm, qm, qm, un, un1)
+            Pi_Nn1 = np.where(
+                g_Nm <= 0,
+                -NegativeOrthant.prox(self.prox_r_N * xi_N - Pi_Nn1),
+                np.zeros_like(Pi_Nn1),
+            )
+
+            # friction
+            if self.nla_N + self.nla_F > 0:
+                xi_F = self.system.xi_F(tn, tn1, qn, qn1, un, un1)
+                for contr in self.system.get_contribution_list("gamma_F"):
+                    la_FDOF = contr.la_FDOF
+                    gamma_F_contr = xi_F[la_FDOF]
+                    Pi_Nn1_contr = Pi_Fn1[la_FDOF]
+                    prox_r_F_contr = self.prox_r_F[la_FDOF]
+                    for i_N, i_F, force_recervoir in contr.friction_laws:
+                        if len(i_N) > 0:
+                            dP_Nn1i = Pi_Nn1[contr.la_NDOF[i_N]]
+                        else:
+                            dP_Nn1i = self.dt
+
+                        Pi_Fn1[la_FDOF[i_F]] = -force_recervoir.prox(
+                            prox_r_F_contr[i_F] * gamma_F_contr[i_F]
+                            - Pi_Nn1_contr[i_F],
+                            dP_Nn1i,
+                        )
+
+            return Pi_Nn1, Pi_Fn1
 
         # evaluate residuals
         R1 = M @ (un1 - un) - dt * self.system.h(tm, qm, 0.5 * (un + un1)) - W @ Pin1
+        if self.nla_N + self.nla_F > 0:
+            Pi_Nn1, Pi_Fn1 = prox(Pi_Nn1, Pi_Fn1)
+            R1 -= W_N @ Pi_Nn1 + W_F @ Pi_Fn1
         R2 = self.c(tn1, qn1, un1, Pin1 / dt)
         R = np.concatenate((R1, R2))
 
@@ -1321,9 +1364,11 @@ class MoreauThetaCompliance:
         # error of initial guess
         error = np.linalg.norm(R / scale) / scale.size**0.5
         converged = error < 1
-        print(f"i: {-1}; error: {error}; converged: {converged}")
+        if self.debug:
+            print(f"i: {-1}; error: {error}; converged: {converged}")
 
         # Newton loop
+        i = 0
         if not converged:
             for i in range(self.options.newton_max_iter):
                 # Newton updates
@@ -1337,18 +1382,27 @@ class MoreauThetaCompliance:
                 qn1 = qm + 0.5 * dt * (q_dot_u @ un1 + beta)
 
                 # evaluate residuals
+                # R1 = (
+                #     M @ (un1 - un)
+                #     - dt * self.system.h(tm, qm, 0.5 * (un + un1))
+                #     - W @ Pin1
+                # )
                 R1 = (
                     M @ (un1 - un)
                     - dt * self.system.h(tm, qm, 0.5 * (un + un1))
                     - W @ Pin1
                 )
+                if self.nla_N + self.nla_F > 0:
+                    Pi_Nn1, Pi_Fn1 = prox(Pi_Nn1, Pi_Fn1)
+                    R1 -= W_N @ Pi_Nn1 + W_F @ Pi_Fn1
                 R2 = self.c(tn1, qn1, un1, Pin1 / dt)
                 R = np.concatenate((R1, R2))
 
                 # error and convergence check
                 error = np.linalg.norm(R / scale) / scale.size**0.5
                 converged = error < 1
-                print(f"i: {i}; error: {error}; converged: {converged}")
+                if self.debug:
+                    print(f"i: {i}; error: {error}; converged: {converged}")
                 if converged:
                     break
 
@@ -1357,8 +1411,7 @@ class MoreauThetaCompliance:
                     f"Newton method is not converged after {i} iterations with error {error:.2e}"
                 )
 
-            # TODO: Only used when continue_with_unconverged is implemented
-            # nit = i + 1
+        self.solver_summary.add_newton(i + 1, np.max(np.abs(R)))
 
         # modify converged quantities
         qn1, un1 = self.system.step_callback(tn1, qn1, un1)
@@ -1373,10 +1426,8 @@ class MoreauThetaCompliance:
         self.sol_la_c.append(Pi_cn1 / self.dt)
         self.sol_P_g.append(Pi_gn1)
         self.sol_P_gamma.append(Pi_gamman1)
-        # self.sol_P_N.append(dP_Nn1)
-        # self.sol_P_F.append(dP_Fn1)
-        self.sol_P_N.append(0 * self.la_Nn)
-        self.sol_P_F.append(0 * self.la_Fn)
+        self.sol_P_N.append(Pi_Nn1)
+        self.sol_P_F.append(Pi_Fn1)
 
         # update local variables for accepted time step
         self.tn = tn1
@@ -1386,6 +1437,8 @@ class MoreauThetaCompliance:
         # self.la_gn = Pi_gn1.copy() / dt
         # self.la_gamman = Pi_gamman1.copy() / dt
         # self.la_cn = Pi_cn1.copy() / dt
+        self.Pi_Nn = Pi_Nn1
+        self.Pi_Fn = Pi_Fn1
 
     def solve(self):
         self.solver_summary = SolverSummary("MoreauThetaCompliance")
