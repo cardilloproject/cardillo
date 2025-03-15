@@ -1,10 +1,9 @@
 import warnings
-
+from tqdm import tqdm
 import numpy as np
 from scipy.linalg import lu_factor, lu_solve, cho_factor, cho_solve
-from scipy.sparse import bmat, block_diag, coo_array, csc_array, eye, diags_array
-from scipy.sparse.linalg import splu, gmres, cg, LinearOperator
-from tqdm import tqdm
+from scipy.sparse import bmat, block_diag, csc_array
+from scipy.sparse.linalg import splu, LinearOperator, cg
 
 from cardillo.math.approx_fprime import approx_fprime
 from cardillo.math.fsolve import fsolve
@@ -32,37 +31,22 @@ class DualStörmerVerlet:
         system,
         t1,
         dt,
-        # velocity_level_contact=False,
-        velocity_level_contact=True,
-        theta=0.5,
         options=SolverOptions(),
         debug=False,
+        linear_solver="CG",
     ):
         self.debug = debug
-        self.theta = theta
-        assert 0 < theta <= 1
-        self.velocity_level_contact = velocity_level_contact
-        if not velocity_level_contact:
-            # otherwise an arbitrary impact law is realized
-            assert np.isclose(theta, 1.0)
-
         self.system = system
 
+        assert linear_solver in ["CG", "LU", "Cholesky"]
+        self.linear_solver = linear_solver
+
         # simplified Newton iterations
-        # options.reuse_lu_decomposition = True
         options.reuse_lu_decomposition = False
         self.options = options
 
         options.numerical_jacobian_method = "2-point"
         if options.numerical_jacobian_method:
-            self.J_x = lambda x, y: csc_array(
-                approx_fprime(
-                    x,
-                    lambda x: self.R_x(x, y),
-                    method=options.numerical_jacobian_method,
-                    eps=options.numerical_jacobian_eps,
-                )
-            )
             self.J_z = lambda z: csc_array(
                 approx_fprime(
                     z,
@@ -72,7 +56,6 @@ class DualStörmerVerlet:
                 )
             )
         else:
-            self.J_x = self._J_x
             self.J_z = self._J_z
 
         #######################################################################
@@ -96,34 +79,12 @@ class DualStörmerVerlet:
         self.nla_N = system.nla_N
         self.nla_F = system.nla_F
 
-        # self.nx = self.nu + self.nla_g + self.nla_gamma + self.nla_c
-        # self.ny = self.nla_N + self.nla_F
         self.split_la = np.cumsum(
             np.array(
                 [
                     self.nla_g,
                     self.nla_gamma,
                     self.nla_c,
-                ],
-                dtype=int,
-            )
-        )[:-1]
-        self.split_x = np.cumsum(
-            np.array(
-                [
-                    self.nu,
-                    self.nla_g,
-                    self.nla_gamma,
-                    self.nla_c,
-                ],
-                dtype=int,
-            )
-        )[:-1]
-        self.split_y = np.cumsum(
-            np.array(
-                [
-                    self.nla_N,
-                    self.nla_F,
                 ],
                 dtype=int,
             )
@@ -163,20 +124,6 @@ class DualStörmerVerlet:
         #######################################################################
         # initial values
         #######################################################################
-        self.xn = self.dt * np.concatenate(
-            (
-                self.u_dotn,
-                self.la_gn,
-                self.la_gamman,
-                self.la_cn,
-            )
-        )
-        self.yn = self.dt * np.concatenate(
-            (
-                self.la_Nn,
-                self.la_Fn,
-            )
-        )
         self.zn = self.dt * np.concatenate(
             (
                 self.q_dotn,
@@ -189,11 +136,6 @@ class DualStörmerVerlet:
                 self.la_Fn,
             )
         )
-
-        # # initial mass matrix and force directions for prox-parameter estimation
-        # self.M = system.M(self.tn, self.qn)
-        # self.W_N = system.W_N(self.tn, self.qn)
-        # self.W_F = system.W_F(self.tn, self.qn)
 
     def R_z(self, zn1):
         (
@@ -224,7 +166,7 @@ class DualStörmerVerlet:
         qm = qn + (1 - theta) * dt * self.system.q_dot(tn, qn, un)
         # qm = qn + (1 - theta) * dqn1
         # solve for qm with fixed-point iterations
-        qm, niter = fixed_point_iteration(
+        qm, niter, error = fixed_point_iteration(
             lambda qm: qn + (1 - theta) * dt * self.system.q_dot(tm, qm, un),
             # qn, # naive initial guess
             qn
@@ -337,394 +279,6 @@ class DualStörmerVerlet:
 
         return R
 
-    def R_x(self, xn1, yn1):
-        (
-            dun1,
-            dP_gn1,
-            dP_gamman1,
-            dP_cn1,
-        ) = np.array_split(xn1, self.split_x)
-        (
-            dP_Nn1,
-            dP_Fn1,
-        ) = np.array_split(yn1, self.split_y)
-
-        # initialize residual
-        R_x = np.empty_like(xn1)
-
-        # ######################################
-        # # v0:
-        # # strange method that is very accurate
-        # ######################################
-
-        # # TODO: Why is this method so accurate?
-        # # - the method satisfies condition (2.3b) for symplectic PRK schemes,
-        # #   see https://www.jstor.org/stable/2158439?seq=1. For separable
-        # #   Hamiltonians H(q, p) = T(p) + U(q), the condition b_i = b^_i can
-        # #   be ommited.
-        # # - the method is discussed in Example 3.2 of https://www.emis.de/journals/ETNA/vol.2.1994/pp194-204.dir/pp194-204.pdf
-        # #   for seperable partitioned systems.
-        # # - In the end of the paper from above:
-        # #   Further, a (s1,s2)–stage partitioned Runge–Kutta method with M(1,2) = 0 has
-        # #   order two if Cˆ(1) and Bˆ(2) hold, order three if Cˆ(1) and Bˆ(3) hold, and order four
-        # #   if it is order three and the symmetry condition in the usual sense is satisfied. Order
-        # #   conditions of s–stage partitioned Runge–Kutta methods with M(1,2) = 0 are known
-        # #   (see Sanz–Serna and Calvo [10, Chap. 7]). These conditions are easily modified for
-        # #   (s1,s2)–stage methods.
-
-        # # integration
-        # tn1 = self.tn + self.dt
-        # un1 = self.un + dun1
-        # self.tn_theta = self.tn + self.dt * (1 - self.theta)
-        # self.qn_theta = self.qn + self.dt * (1 - self.theta) * self.system.q_dot(
-        #     self.tn, self.qn, self.un
-        # )
-        # # # TODO: Here we have to evaluate self.system.q_dot(tn1, qn1, un1) for a correct theta-method
-        # # qn1 = self.qn_theta + self.dt * self.theta * self.system.q_dot(
-        # #     tn1, self.qn_theta, un1
-        # # )
-
-        # # TODO: Symmetric methid with q = B(q) u
-        # qn1 = self.qn + (1 - self.theta) * self.dt * self.system.q_dot(
-        #     self.tn, self.qn, self.un
-        # ) + self.theta * self.dt * self.system.q_dot(
-        #     self.tn, self.qn, un1
-        # )
-
-        # # equations of motion (v1)
-        # R_x[: self.split_x[0]] = (
-        #     self.system.M(self.tn_theta, self.qn_theta) @ dun1
-        #     - self.dt * self.system.h(self.tn_theta, self.qn_theta, self.un)
-        #     # - self.dt * self.system.W_tau(self.tn_theta, self.qn_theta, format="csr") @ self.system.la_tau(self.tn_theta, self.qn_theta, self.un)
-        #     - self.system.W_g(self.tn_theta, self.qn_theta, format="csr") @ dP_gn1
-        #     - self.system.W_gamma(self.tn_theta, self.qn_theta, format="csr")
-        #     @ dP_gamman1
-        #     - self.system.W_c(self.tn_theta, self.qn_theta, format="csr") @ dP_cn1
-        #     - self.system.W_N(self.tn_theta, self.qn_theta, format="csr") @ dP_Nn1
-        #     - self.system.W_F(self.tn_theta, self.qn_theta, format="csr") @ dP_Fn1
-        # )
-
-        # ########################
-        # # v1:
-        # # theta-method for q's
-        # # implicit Euler for u's
-        # ########################
-
-        # # integration
-        # tn1 = self.tn + self.dt
-        # un1 = self.un + dun1
-        # self.tn_theta = self.tn + self.dt * (1 - self.theta)
-        # self.qn_theta = self.qn + self.dt * (1 - self.theta) * self.system.q_dot(self.tn, self.qn, self.un)
-        # # TODO: Here we have to evaluate self.system.q_dot(tn1, qn1, un1) for a correct theta-method
-        # qn1 = self.qn_theta + self.dt * self.theta * self.system.q_dot(tn1, self.qn_theta, un1)
-
-        # # true theta-method
-        # # solve for qn1 which gives the true theta method
-        # f = lambda qn1: qn1 - self.qn_theta - self.dt * self.theta * self.system.q_dot(tn1, qn1, un1)
-        # sol = fsolve(f, qn1)
-        # qn1 = sol.x
-
-        # # equations of motion (v1)
-        # R_x[: self.split_x[0]] = (
-        #     # # why this method is so accurate?
-        #     self.system.M(self.tn_theta, self.qn_theta) @ dun1
-        #     - self.dt * self.system.h(self.tn_theta, self.qn_theta, self.un)
-        #     # - self.dt * self.system.W_tau(self.tn_theta, self.qn_theta, format="csr") @ self.system.la_tau(self.tn_theta, self.qn_theta, self.un)
-        #     - self.system.W_g(self.tn_theta, self.qn_theta, format="csr") @ dP_gn1
-        #     - self.system.W_gamma(self.tn_theta, self.qn_theta, format="csr") @ dP_gamman1
-        #     - self.system.W_c(self.tn_theta, self.qn_theta, format="csr") @ dP_cn1
-        #     - self.system.W_N(self.tn_theta, self.qn_theta, format="csr") @ dP_Nn1
-        #     - self.system.W_F(self.tn_theta, self.qn_theta, format="csr") @ dP_Fn1
-        #     #
-        #     # # TODO: Theta method is also required here for global damping in elastic_chain_pendulum
-        #     # self.system.M(tn1, qn1) @ dun1
-        #     # - self.dt * self.system.h(tn1, qn1, un1)
-        #     # # - self.dt * self.system.W_tau(tn1, qn1, format="csr") @ self.system.la_tau(tn1, qn1, un1)
-        #     # - self.system.W_g(tn1, qn1, format="csr") @ dP_gn1
-        #     # - self.system.W_gamma(tn1, qn1, format="csr") @ dP_gamman1
-        #     # - self.system.W_c(tn1, qn1, format="csr") @ dP_cn1
-        #     # - self.system.W_N(tn1, qn1, format="csr") @ dP_Nn1
-        #     # - self.system.W_F(tn1, qn1, format="csr") @ dP_Fn1
-        # )
-
-        ########################
-        # v2:
-        # Heun's method for q's
-        # implicit Euler for u's
-        ########################
-
-        # # integration
-        # tn1 = self.tn + self.dt
-        # un1 = self.un + dun1
-        # Q_dot1 = self.system.q_dot(self.tn, self.qn, self.un)
-        # # # Original Heun's method
-        # # T2 = tn1
-        # # Q2 = self.qn + self.dt * Q_dot1
-        # # qn1 = self.qn + 0.5 * self.dt * (Q_dot1 + self.system.q_dot(T2, Q2, un1))
-        # # # TODO: Why is this so good?
-        # # T2 = self.tn + 0.5 * self.dt
-        # # Q2 = self.qn + 0.5 * self.dt * Q_dot1
-        # # qn1 = self.qn + 0.5 * self.dt * (Q_dot1 + self.system.q_dot(T2, Q2, un1))
-        # # generic second-order method
-        # alpha = 0.5 # works for knife edge
-        # # alpha = 1
-        # # alpha = 2 / 3
-        # b2 = 1 / (2 * alpha)
-        # b1 = 1 - b2
-        # T2 = self.tn + alpha * self.dt
-        # Q2 = self.qn + alpha * self.dt * Q_dot1
-        # qn1 = self.qn + self.dt * (b1 * Q_dot1 + b2 * self.system.q_dot(T2, Q2, un1))
-        # # qn1 = self.qn + 0.5 * self.dt * (Q_dot1 + self.system.q_dot(T2, Q2, un1))
-
-        # # # "strange" theta-method
-        # # # theta = self.theta
-        # # theta = 0.5
-        # # # theta = 0.75
-        # # # theta = 1
-        # # T2 = self.tn + (1 - theta) * self.dt
-        # # Q2 = self.qn + self.dt * (1 - theta) * Q_dot1
-        # # qn1 = self.qn + self.dt * ((1 - theta) * Q_dot1 + theta * self.system.q_dot(T2, Q2, un1))
-
-        # # # true theta-method
-        # # # solve for qn1 which gives the true theta method
-        # # f = lambda qn1: qn1 - self.qn - self.dt * ((1 - theta) * Q_dot1 + theta * self.system.q_dot(tn1, qn1, un1))
-        # # sol = fsolve(f, qn1)
-        # # qn1 = sol.x
-        # # Q2 = qn1
-
-        # # equations of motion (v1)
-        # R_x[: self.split_x[0]] = (
-        #     self.system.M(T2, Q2) @ dun1
-        #     - self.dt * self.system.h(T2, Q2, un1)
-        #     - self.dt
-        #     * self.system.W_tau(T2, Q2, format="csr")
-        #     @ self.system.la_tau(T2, Q2, un1)
-        #     - self.system.W_g(T2, Q2, format="csr") @ dP_gn1
-        #     - self.system.W_gamma(T2, Q2, format="csr") @ dP_gamman1
-        #     - self.system.W_c(T2, Q2, format="csr") @ dP_cn1
-        #     - self.system.W_N(T2, Q2, format="csr") @ dP_Nn1
-        #     - self.system.W_F(T2, Q2, format="csr") @ dP_Fn1
-        # )
-
-        ########################
-        # v3:
-        # Störmer-Verlet (B)
-        # see https://www.math.kit.edu/ianm3/lehre/geonumint2009s/media/gni_by_stoermer-verlet.pdf
-        ########################
-
-        # integration
-        tn1 = self.tn + self.dt
-        un1 = self.un + dun1
-        tm = self.tn + 0.5 * self.dt
-
-        # implicit mid-point positions
-        # f_qm = lambda qm: qm - self.qn - 0.5 * self.dt * self.system.q_dot(tm, qm, self.un)
-        # sol = fsolve(f_qm, self.qn, options=SolverOptions(numerical_jacobian_method="2-point"))
-        # qm = sol.x
-        # explicit mid-point position (symmetric for q_dot = u)
-        qm = self.qn + 0.5 * self.dt * self.system.q_dot(tm, self.qn, self.un)
-        qn1 = qm + 0.5 * self.dt * self.system.q_dot(tm, qm, un1)
-
-        # # trapezoidal method
-        # qm = self.qn + 0.5 * self.dt * self.system.q_dot(self.tn, self.qn, self.un)
-        # qn1 = qm + 0.5 * self.dt * self.system.q_dot(tn1, qm, un1)
-        # # f_qn1 = lambda qn1: qn1 - qm - 0.5 * self.dt * self.system.q_dot(tn1, qn1, un1)
-        # # sol = fsolve(f_qn1, self.qn, options=SolverOptions(numerical_jacobian_method="2-point"))
-        # # qn1 = sol.x
-
-        # equations of motion
-        R_x[: self.split_x[0]] = (
-            self.system.M(tm, qm) @ dun1
-            - 0.5
-            * self.dt
-            * (
-                2
-                * self.system.h(tm, qm, self.un)
-                # self.system.h(tm, qm, self.un) + self.system.h(tm, qm, un1)
-            )
-            # - self.dt * self.system.W_tau(self.tn_theta, self.qn_theta, format="csr") @ self.system.la_tau(self.tn_theta, self.qn_theta, self.un)
-            - self.system.W_g(tm, qm, format="csr") @ dP_gn1
-            - self.system.W_gamma(tm, qm, format="csr") @ dP_gamman1
-            - self.system.W_c(tm, qm, format="csr") @ dP_cn1
-            - self.system.W_N(tm, qm, format="csr") @ dP_Nn1
-            - self.system.W_F(tm, qm, format="csr") @ dP_Fn1
-            #
-            # # TODO: Theta method is also required here for global damping in elastic_chain_pendulum
-            # self.system.M(tn1, qn1) @ dun1
-            # - self.dt * self.system.h(tn1, qn1, un1)
-            # # - self.dt * self.system.W_tau(tn1, qn1, format="csr") @ self.system.la_tau(tn1, qn1, un1)
-            # - self.system.W_g(tn1, qn1, format="csr") @ dP_gn1
-            # - self.system.W_gamma(tn1, qn1, format="csr") @ dP_gamman1
-            # - self.system.W_c(tn1, qn1, format="csr") @ dP_cn1
-            # - self.system.W_N(tn1, qn1, format="csr") @ dP_Nn1
-            # - self.system.W_F(tn1, qn1, format="csr") @ dP_Fn1
-        )
-
-        #######################
-        # bilateral constraints
-        #######################
-        R_x[self.split_x[0] : self.split_x[1]] = self.system.g(tn1, qn1)
-        R_x[self.split_x[1] : self.split_x[2]] = self.system.gamma(tn1, qn1, un1)
-
-        ############
-        # compliance
-        ############
-        R_x[self.split_x[2] :] = self.system.c(tn1, qn1, un1, dP_cn1 / self.dt)
-
-        self.qn1 = qn1.copy()
-        self.un1 = un1.copy()
-
-        return R_x
-
-    def _J_x(self, xn1, yn1):
-        # (
-        #     dun1,
-        #     dP_gn1,
-        #     dP_gamman1,
-        #     dP_cn1,
-        # ) = np.array_split(xn1, self.split_x)
-        # (
-        #     dP_Nn1,
-        #     dP_Fn1,
-        # ) = np.array_split(yn1, self.split_y)
-
-        # # integration
-        # dt_th = self.dt * self.theta
-        # tn1 = self.tn + self.dt
-        # # un1 = self.un_theta + dun1
-        # un1 = self.un + dun1
-        # qn1 = self.qn_theta + self.dt * self.theta * self.system.q_dot(
-        #     self.tn_theta, self.qn_theta, un1
-        # )
-        # q_dot_u = self.system.q_dot_u(self.tn_theta, self.qn_theta)
-
-        # #######################
-        # # bilateral constraints
-        # #######################
-        # g_q = self.system.g_q(tn1, qn1)
-        # gamma_q = self.system.gamma_q(tn1, qn1, un1)
-        # gamma_u = self.system.gamma_u(tn1, qn1)
-
-        # ############
-        # # compliance
-        # ############
-        # c_q = self.system.c_q(tn1, qn1, un1, dP_cn1 / self.dt)
-        # c_u = self.system.c_u(tn1, qn1, un1, dP_cn1 / self.dt)
-        # c_la_c = self.system.c_la_c() / self.dt
-
-        # # note: This is a simplified Jacobian and does not coincide with the exact one!
-        # # fmt: off
-        # J = bmat(
-        #     [
-        #         [                             self.M, -self.W_g, -self.W_gamma,        -self.W_c],
-        #         [              g_q @ q_dot_u * dt_th,      None,          None,             None],
-        #         [gamma_q @ q_dot_u * dt_th + gamma_u,      None,          None,             None],
-        #         [        c_q @ q_dot_u * dt_th + c_u,      None,          None, c_la_c / self.dt],
-        #     ],
-        #     format="csc",
-        # )
-        # # fmt: on
-        # return J
-
-        J_num = approx_fprime(xn1, lambda x: self.R_x(x, yn1), method="2-point")
-        # diff = J_num - J
-        # error = np.linalg.norm(diff)
-        # print(f"error J: {error}")
-        return J_num
-
-    def prox(self, x1, y0):
-        (
-            dun1,
-            _,
-            _,
-            _,
-        ) = np.array_split(x1, self.split_x)
-        (
-            dP_Nn1,
-            dP_Fn1,
-        ) = np.array_split(y0, self.split_y)
-
-        tn, dt, qn, un = self.tn, self.dt, self.qn, self.un
-        tn1 = tn + dt
-        un1 = self.un + dun1
-
-        # theta-method
-        self.tn_theta = self.tn + self.dt * (1 - self.theta)
-        self.qn_theta = self.qn + self.dt * (1 - self.theta) * self.system.q_dot(
-            self.tn, self.qn, self.un
-        )
-        qn1 = self.qn_theta + self.dt * self.theta * self.system.q_dot(
-            self.tn_theta, self.qn_theta, un1
-        )
-
-        prox_r_N = self.prox_r_N
-        prox_r_F = self.prox_r_F
-
-        y1 = np.zeros_like(y0)
-
-        ##############################
-        # fixed-point update Signorini
-        ##############################
-        if self.velocity_level_contact:
-            # explicit gap evaluation
-            g_N = self.system.g_N(self.tn_theta, self.qn_theta)
-            xi_N = self.system.xi_N(tn, tn1, qn, qn1, un, un1)
-            dP_Nn1 = np.where(
-                g_N <= 0,
-                -NegativeOrthant.prox(prox_r_N * xi_N - dP_Nn1),
-                np.zeros_like(dP_Nn1),
-            )
-        else:
-            g_N = self.system.g_N(tn1, qn1)
-            dP_Nn1 = -NegativeOrthant.prox((prox_r_N / self.dt) * g_N - dP_Nn1)
-        y1[: self.split_y[0]] = dP_Nn1
-
-        #############################
-        # fixed-point update friction
-        #############################
-        if self.velocity_level_contact:
-            gamma_F = self.system.xi_F(tn, tn1, qn, qn1, un, un1)
-        else:
-            gamma_F = self.system.gamma_F(tn1, qn1, un1)
-        for contr in self.system.get_contribution_list("gamma_F"):
-            la_FDOF = contr.la_FDOF
-            gamma_F_contr = gamma_F[la_FDOF]
-            dP_Fn1_contr = dP_Fn1[la_FDOF]
-            prox_r_F_contr = prox_r_F[la_FDOF]
-            for i_N, i_F, force_recervoir in contr.friction_laws:
-                if len(i_N) > 0:
-                    dP_Nn1i = dP_Nn1[contr.la_NDOF[i_N]]
-                else:
-                    dP_Nn1i = self.dt
-
-                y1[self.split_y[0] + la_FDOF[i_F]] = -force_recervoir.prox(
-                    prox_r_F_contr[i_F] * gamma_F_contr[i_F] - dP_Fn1_contr[i_F],
-                    dP_Nn1i,
-                )
-
-        return y1
-
-    def _solve_nonlinear_system(self, x0, y, lu):
-        if self.options.reuse_lu_decomposition:
-            sol = fsolve(
-                lambda x, y, *args: self.R_x(x, y, *args),
-                x0,
-                jac=lu,
-                fun_args=(y,),
-                options=self.options,
-            )
-        else:
-            sol = fsolve(
-                lambda x, y, *args: self.R_x(x, y, *args),
-                x0,
-                jac=lambda x, y, *args: self.J_x(x, y, *args),
-                fun_args=(y,),
-                jac_args=(y,),
-                options=self.options,
-            )
-
-        return sol
-
     def _make_solution(self):
         return Solution(
             system=self.system,
@@ -739,171 +293,10 @@ class DualStörmerVerlet:
             solver_summary=self.solver_summary,
         )
 
-    def _step_naive_old(self):
-        # theta step
-        dt = self.dt
-        self.tn_theta = self.tn + dt * (1 - self.theta)
-        self.qn_theta = self.qn + dt * (1 - self.theta) * self.system.q_dot(
-            self.tn, self.qn, self.un
-        )
+    def _step_naive(self, theta=0.5):
+        self.theta = theta
+        warnings.warn("This is very experimental and should only be used for testing!")
 
-        self.M = self.system.M(self.tn_theta, self.qn_theta, format="csc")
-        # # # TODO: What to do with control forces?
-        # # h_Wla_tau = self.system.h(
-        # #     self.tn_theta, self.qn_theta, self.un
-        # # ) + self.system.W_tau(
-        # #     self.tn_theta, self.qn_theta, format="csr"
-        # # ) @ self.system.la_tau(
-        # #     self.tn_theta, self.qn_theta, self.un
-        # # )
-        M_inv = splu(self.M)  # TODO: Use this for prox parameter estimation
-        # self.un_theta = self.un + dt * M_inv.solve(h_Wla_tau)
-
-        # # evaluate quantities that are kept fixed during the simplified Newton iterations
-        # self.W_g = self.system.W_g(self.tn_theta, self.qn_theta)
-        # self.W_gamma = self.system.W_gamma(self.tn_theta, self.qn_theta)
-        self.W_N = self.system.W_N(self.tn_theta, self.qn_theta)
-        self.W_F = self.system.W_F(self.tn_theta, self.qn_theta)
-        # self.W_c = self.system.W_c(self.tn_theta, self.qn_theta)
-        # # self.c_q = self.system.c_q(self.tn_theta, self.qn_theta, self.la_cn)
-        # # self.c_la_c = self.system.c_la_c(self.tn_theta, self.qn_theta, self.la_cn)
-
-        # only compute optimized prox-parameters once per time step
-        if self.nla_N + self.nla_F > 0:
-            self.prox_r_N, self.prox_r_F = np.array_split(
-                estimate_prox_parameter(
-                    self.options.prox_scaling, bmat([[self.W_N, self.W_F]]), M_inv
-                ),
-                [self.nla_N],
-            )
-
-        ########################
-        # fixed-point iterations
-        ########################
-        # store old values
-        x0 = self.xn.copy()
-        y0 = self.yn.copy()
-
-        # Jacobian and lu-decompositon
-        if self.options.reuse_lu_decomposition:
-            J_x = self.J_x(x0, y0)
-            lu = splu(J_x)
-            self.solver_summary.add_lu(1)
-        else:
-            lu = None
-
-        # solve nonlinear system
-        sol = self._solve_nonlinear_system(x0, y0, lu)
-        xn1 = sol.x
-        self.solver_summary.add_lu(sol.njev)
-
-        if not sol.success:
-            if self.options.continue_with_unconverged:
-                warnings.warn("Newton is not converged but integration is continued")
-            else:
-                warnings.warn(
-                    f"Newton is not converged. Returning solution up to t={self.tn}."
-                )
-                return self._make_solution()
-
-        # fixed-point loop
-        converged = False
-        if self.nla_N + self.nla_F > 0:
-            for i_fixed_point in range(self.options.fixed_point_max_iter):
-                # find proximal point
-                yn1 = self.prox(xn1, y0)
-
-                # error measure, see Hairer1993, Section II.4
-                diff = yn1 - y0
-                sc = (
-                    self.options.fixed_point_atol
-                    + np.maximum(np.abs(yn1), np.abs(y0))
-                    * self.options.fixed_point_rtol
-                )
-                error = np.linalg.norm(diff / sc) / sc.size**0.5
-                converged = error < 1.0
-
-                if converged:
-                    break
-                else:
-                    # update values
-                    x0 = xn1.copy()
-                    y0 = yn1.copy()
-
-                    # solve nonlinear system
-                    sol = self._solve_nonlinear_system(x0, y0, lu)
-                    xn1 = sol.x
-                    self.solver_summary.add_lu(sol.njev)
-
-                    if not sol.success:
-                        if self.options.continue_with_unconverged:
-                            warnings.warn(
-                                "Newton is not converged but integration is continued"
-                            )
-                        else:
-                            RuntimeWarning(
-                                "Newton is not converged. Returning solution up to t={self.tn}."
-                            )
-                            return self._make_solution()
-
-        else:
-            converged = True
-            i_fixed_point = 0
-            error = 0
-
-        if not converged:
-            if self.options.continue_with_unconverged:
-                warnings.warn(
-                    "fixed-point iteration is not converged but integration is continued"
-                )
-            else:
-                warnings.warn(
-                    f"fixed-point iteration is not converged. Returning solution up to t={self.tn}."
-                )
-                return self._make_solution()
-
-        self.solver_summary.add_fixed_point(i_fixed_point, error)
-        self.solver_summary.add_newton(sol.nit, sol.error)
-
-        # update progress bar
-        tn1 = self.tn + self.dt
-        self.pbar.set_description(
-            f"t: {tn1:0.2e}s < {self.t1:0.2e}s; |y1 - y0|_rel: {error:0.2e}; fixed-point: {i_fixed_point}/{self.options.fixed_point_max_iter}; |dx|_rel: {sol.error:0.2e}; newton: {sol.nit}/{self.options.newton_max_iter}"
-        )
-
-        # compute state
-        (
-            dun1,
-            dP_gn1,
-            dP_gamman1,
-            dP_cn1,
-        ) = np.array_split(xn1, self.split_x)
-        (
-            dP_Nn1,
-            dP_Fn1,
-        ) = np.array_split(y0, self.split_y)
-
-        # modify converged quantities
-        qn1, un1 = self.system.step_callback(tn1, self.qn1, self.un1)
-
-        # store solution fields
-        self.sol_t.append(tn1)
-        self.sol_q.append(qn1)
-        self.sol_u.append(un1)
-        self.sol_la_c.append(dP_cn1 / self.dt)
-        self.sol_P_g.append(dP_gn1)
-        self.sol_P_gamma.append(dP_gamman1)
-        self.sol_P_N.append(dP_Nn1)
-        self.sol_P_F.append(dP_Fn1)
-
-        # update local variables for accepted time step
-        self.xn = xn1.copy()
-        self.yn = y0.copy()
-        self.tn = tn1
-        self.qn = qn1.copy()
-        self.un = un1.copy()
-
-    def _step_naive(self):
         M = self.system.M(self.tn, self.qn, format="csc")
         W_N = self.system.W_N(self.tn, self.qn)
         W_F = self.system.W_F(self.tn, self.qn)
@@ -1026,183 +419,7 @@ class DualStörmerVerlet:
             format=format,
         )
 
-    def _step_schur_old(self):
-        # theta step (part 1)
-        dt = self.dt
-        theta = self.theta
-        tn_theta = self.tn + dt * (1 - theta)
-        qn_theta = self.qn + dt * (1 - theta) * self.system.q_dot(
-            self.tn, self.qn, self.un
-        )
-
-        M = self.system.M(tn_theta, qn_theta, format="csc")
-        # TODO: Since M is block diagonal, we can implement M_inv @ B on a
-        # subsystem level or assemble M_inv directly which improves efficiency
-        # alot. Morover, most system have a constant mass matrix so it gets
-        # very cheap.
-        M_inv = splu(M)
-        self.solver_summary.add_lu(1)
-        # TODO: Investigate if it is sufficient to use a diagonal apporximation
-        # or a row sum lumped matrix approximation to the mass matrix. For this
-        # case the Delassus matrix gets diagonal and we get rid of another
-        # LU-decomposition.
-        # M_diag_inv = diags_array(1 / M.diagonal())
-        # M_inv = type("LU", (), {"solve": lambda self, rhs: M_diag_inv @ rhs})()
-        # M_lumped_inv = diags_array(1 / M.sum(axis=1))
-        # M_inv = type("LU", (), {"solve": lambda self, rhs: M_lumped_inv @ rhs})()
-
-        # explicit h-vector and control forces
-        # note: This is the only step where we do not apply the correct
-        # theta-method (maybe I'm wrong).
-        h_Wla_tau = self.system.h(tn_theta, qn_theta, self.un)
-        h_Wla_tau += self.system.W_tau(
-            tn_theta, qn_theta, format="csr"
-        ) @ self.system.la_tau(tn_theta, qn_theta, self.un)
-
-        # theta step (part 2): free velocity (without constraints and contacts)
-        un_theta = self.un + dt * M_inv.solve(h_Wla_tau)
-
-        # evaluate all other quantities that are kept fixed during the
-        # simplified Newton iterations
-        q_dot_u = self.system.q_dot_u(tn_theta, qn_theta)
-        beta = self.system.q_dot(tn_theta, qn_theta, np.zeros_like(self.un))
-        W = self.W(tn_theta, qn_theta)
-        c_q = self.c_q(tn_theta, qn_theta, un_theta, self.la_cn)
-        c_u = self.c_u(tn_theta, qn_theta, un_theta, self.la_cn)
-        c_la = self.c_la()
-
-        # compute iteration matrices
-        A = dt * theta * c_q @ q_dot_u + c_u
-        # TODO: This feels very bad since W might be sparse!
-        M_inv_W = M_inv.solve(W.toarray())
-        D = A @ M_inv_W + c_la / dt
-
-        # for a moderate number of constraints D is small and dense,
-        # hence we use a dense factorization
-        # D_fac = lu_factor(D)
-        # self.solver_summary.add_lu(1)
-        # D_inv = type("LU", (), {"solve": lambda self, rhs: lu_solve(D_fac, rhs)})()
-        # TODO: Investigate the performance of iterative methods for real applications
-        D_inv = type("CG", (), {})()
-
-        def solve(rhs):
-            x, info = cg(D, rhs)
-            # x, info = gmres(D, rhs)
-            if info > 0:
-                raise RuntimeError(
-                    f"Iterative solver is not converged with 'info': {info}"
-                )
-            return x
-
-        D_inv.solve = solve
-
-        # - only compute optimized prox-parameters once per time step
-        # - generalized force directions for constraint forces are only
-        #   required if we have contacts
-        if self.nla_N + self.nla_F > 0:
-            W_N = self.system.W_N(tn_theta, qn_theta)
-            W_F = self.system.W_F(tn_theta, qn_theta)
-            self.prox_r_N, self.prox_r_F = np.array_split(
-                estimate_prox_parameter(
-                    self.options.prox_scaling, bmat([[W_N, W_F]]), M_inv
-                ),
-                [self.nla_N],
-            )
-
-        # TODO: Add outer fixed point loop for contacts
-
-        ###################
-        # newton iterations
-        ###################
-        if self.nla > 0:
-            # compute initial positions velocities and percussions
-            tn1 = self.tn + dt
-            un1 = un_theta.copy()
-            qn1 = qn_theta + dt * theta * (q_dot_u @ un1 + beta)
-            # # TODO: Is this a good initial guess?
-            # Pin1 = dt * np.concatenate([self.la_gn.copy(), self.la_gamman.copy(), self.la_cn.copy()])
-            # TODO: Why is this guess much better?
-            Pin1 = np.zeros(self.nla)
-
-            # evaluate residuals
-            # R1 = M @ (un1 - un_theta) - W @ Pin1
-            # TODO: Implicit evaluation is required here for global damping in
-            # elastic_chain_pendulum.
-            R1 = M @ (un1 - un_theta) - self.W(tn1, qn1) @ Pin1
-            R2 = self.c(tn1, qn1, un1, Pin1 / dt)
-            R = np.concatenate((R1, R2))
-
-            # newton scaling
-            scale1 = self.options.newton_atol + np.abs(R1) * self.options.newton_rtol
-            scale2 = self.options.newton_atol + np.abs(R2) * self.options.newton_rtol
-            scale = np.concatenate((scale1, scale2))
-
-            # error of initial guess
-            error = np.linalg.norm(R / scale) / scale.size**0.5
-            converged = error < 1
-            print(f"i: {-1}; error: {error}; converged: {converged}")
-
-            # Newton loop
-            if not converged:
-                for i in range(self.options.newton_max_iter):
-                    # Newton updates
-                    Delta_Pin1 = D_inv.solve(A @ R1 - R2)
-                    Delta_Un1 = M_inv_W @ Delta_Pin1 - R1
-
-                    # update dependent variables
-                    un1 += Delta_Un1
-                    Pin1 += Delta_Pin1
-                    # TODO: Implicit evaluation is required here for global damping in
-                    # elastic_chain_pendulum.
-                    qn1 = qn_theta + dt * theta * (q_dot_u @ un1 + beta)
-
-                    # evaluate residuals
-                    # R1 = M @ (un1 - un_theta) - W @ Pin1
-                    R1 = M @ (un1 - un_theta) - self.W(tn1, qn1) @ Pin1
-                    R2 = self.c(tn1, qn1, un1, Pin1 / dt)
-                    R = np.concatenate((R1, R2))
-
-                    # error and convergence check
-                    error = np.linalg.norm(R / scale) / scale.size**0.5
-                    converged = error < 1
-                    print(f"i: {i}; error: {error}; converged: {converged}")
-                    if converged:
-                        break
-
-                if not converged:
-                    warnings.warn(
-                        f"Newton method is not converged after {i} iterations with error {error:.2e}"
-                    )
-
-                # TODO: Only used when continue_with_unconverged is implemented
-                # nit = i + 1
-
-        # modify converged quantities
-        qn1, un1 = self.system.step_callback(tn1, qn1, un1)
-
-        # unpack percussion
-        Pi_gn1, Pi_gamman1, Pi_cn1 = np.array_split(Pin1, self.split_la)
-
-        # store solution fields
-        self.sol_t.append(tn1)
-        self.sol_q.append(qn1)
-        self.sol_u.append(un1)
-        self.sol_la_c.append(Pi_cn1 / self.dt)
-        self.sol_P_g.append(Pi_gn1)
-        self.sol_P_gamma.append(Pi_gamman1)
-        # self.sol_P_N.append(dP_Nn1)
-        # self.sol_P_F.append(dP_Fn1)
-
-        # update local variables for accepted time step
-        self.tn = tn1
-        self.qn = qn1.copy()
-        self.un = un1.copy()
-        self.la_gn = Pi_gn1.copy() / dt
-        self.la_gamman = Pi_gamman1.copy() / dt
-        self.la_cn = Pi_cn1.copy() / dt
-
     def _step_schur(self):
-        theta = self.theta
         dt = self.dt
         tn = self.tn
         qn = self.qn
@@ -1211,11 +428,10 @@ class DualStörmerVerlet:
         ######################################################################
         # 1. implicit mid-point step solved with simple fixed-point iterations
         ######################################################################
-        tm = tn + (1 - theta) * dt
-        # qm = qn.copy() # naive initial guess
-        qm = qn + (1 - theta) * dt * self.system.q_dot(tn, qn, un)
+        tm = tn + 0.5 * dt
+        qm = qn + 0.5 * dt * self.system.q_dot(tn, qn, un)
         qm, niter, error = fixed_point_iteration(
-            lambda qm: qn + (1 - theta) * dt * self.system.q_dot(tm, qm, un),
+            lambda qm: qn + 0.5 * dt * self.system.q_dot(tm, qm, un),
             qm,
         )
         if self.debug:
@@ -1245,49 +461,51 @@ class DualStörmerVerlet:
         ############################
         A = 0.5 * dt * c_q @ q_dot_u + c_u
         # TODO: This feels very bad since W might be sparse!
+        # Providing a sparse M_inv function would be great here!
         M_inv_W = M_inv.solve(W.toarray())
         D = C / dt + A @ M_inv_W
 
-        # # for a moderate number of constraints D is small and dense,
-        # # hence we use a dense factorization
-        # # - LU-decomposition
-        # D_fac = lu_factor(D)
-        # self.solver_summary.add_lu(1)
-        # D_inv = type("LU", (), {"solve": lambda self, rhs: lu_solve(D_fac, rhs)})()
+        # For a moderate number of constraints D is small and dense,
+        # hence we use a dense factorization. Otherwise a sparse iterative
+        # method should be used.
+        match self.linear_solver:
+            case "LU":
+                # LU-decomposition
+                D_fac = lu_factor(D)
+                self.solver_summary.add_lu(1)
+                D_inv = type(
+                    "LU", (), {"solve": lambda self, rhs: lu_solve(D_fac, rhs)}
+                )()
 
-        # # - Cholesky-decomposition
-        # D_fac = cho_factor(D)
-        # self.solver_summary.add_lu(1)
-        # D_inv = type("Cholesky", (), {"solve": lambda self, rhs: cho_solve(D_fac, rhs)})()
+            case "Cholesky":
+                # Cholesky-decomposition
+                D_fac = cho_factor(D)
+                self.solver_summary.add_lu(1)
+                D_inv = type(
+                    "Cholesky", (), {"solve": lambda self, rhs: cho_solve(D_fac, rhs)}
+                )()
 
-        # Krylov subspace methods for symetric positive definite D
-        # - conjugate gradient (CG) with jacobi preconditioner
-        D_inv = type("CG", (), {})()
-        DD_inv = 1 / np.diag(D)
-        preconditioner = LinearOperator(D.shape, lambda x: DD_inv * x)
+            case _:
+                # Conjugate gradient (CG) with Jacobi preconditioner
+                D_inv = type("CG", (), {})()
+                DD_inv = 1 / np.diag(D)
+                preconditioner = LinearOperator(D.shape, lambda x: DD_inv * x)
 
-        def solve(rhs):
-            x, info = cg(D, rhs, M=preconditioner)
-            # global cg_iter
-            # cg_iter = 0
-            # def callback(x):
-            #     global cg_iter
-            #     print(f"cg iteration: {cg_iter}")
-            #     cg_iter += 1
-            # x, info = cg(D, rhs, M=preconditioner, callback=callback)
-            # x, info = cg(D, rhs, callback=callback)
-            # x, info = gmres(D, rhs)
-            if info > 0:
-                raise RuntimeError(
-                    f"Iterative solver is not converged with 'info': {info}"
-                )
-            return x
+                def solve(rhs):
+                    x, info = cg(D, rhs, M=preconditioner)
+                    if info > 0:
+                        raise RuntimeError(
+                            f"Iterative solver is not converged with 'info': {info}"
+                        )
+                    return x
 
-        D_inv.solve = solve
+                D_inv.solve = solve
 
         # - only compute optimized prox-parameters once per time step
         # - generalized force directions for constraint forces are only
         #   required if we have contacts
+        # TODO: This function evaluates M_inv @ W_N, M_inv @ W_F, which is
+        # also required below. Hence, this should only be computed once!
         if self.nla_N + self.nla_F > 0:
             W_N = self.system.W_N(tm, qm)
             W_F = self.system.W_F(tm, qm)
@@ -1307,11 +525,9 @@ class DualStörmerVerlet:
         tn1 = self.tn + dt
         un1 = un.copy()
         qn1 = qm + 0.5 * dt * (q_dot_u @ un1 + beta)
-        # TODO: Is this a good initial guess?
+        # note: warmstart seems to be not important at all
         # Pin1 = dt * np.concatenate([self.la_gn.copy(), self.la_gamman.copy(), self.la_cn.copy()])
-        # TODO: Why is this guess much better? Seems the be not important.
         Pin1 = np.zeros(self.nla)
-        # if self.nla_N + self.nla_F > 0:
         # warm start often reduces the number of iterations
         Pi_Nn1 = self.Pi_Nn
         Pi_Fn1 = self.Pi_Fn
@@ -1319,12 +535,20 @@ class DualStörmerVerlet:
         def prox(Pi_Nn1, Pi_Fn1):
             # normal contact
             g_Nm = self.system.g_N(tm, qm)
+            # TODO: This is the desired evaluation
             xi_N = self.system.xi_N(tm, tm, qm, qm, un, un1)
+            # TODO: This leads to second-order convergence for case 1 in the
+            # point mass on slope example
+            # xi_N = self.system.xi_N(tn, tn1, qn, qn1, un, un1)
             Pi_Nn1 = np.where(
                 g_Nm <= 0,
                 -NegativeOrthant.prox(self.prox_r_N * xi_N - Pi_Nn1),
                 np.zeros_like(Pi_Nn1),
             )
+            # g_Nn1 = self.system.g_N(tn1, qn1)
+            # Pi_Nn1 = -NegativeOrthant.prox(self.prox_r_N / dt * g_Nn1 - Pi_Nn1)
+            # g_dot_Nn1 = self.system.g_N_dot(tn1, qn1, un1)
+            # Pi_Nn1 = -NegativeOrthant.prox(self.prox_r_N * g_dot_Nn1 - Pi_Nn1)
 
             # friction
             if self.nla_N + self.nla_F > 0:
@@ -1382,11 +606,6 @@ class DualStörmerVerlet:
                 qn1 = qm + 0.5 * dt * (q_dot_u @ un1 + beta)
 
                 # evaluate residuals
-                # R1 = (
-                #     M @ (un1 - un)
-                #     - dt * self.system.h(tm, qm, 0.5 * (un + un1))
-                #     - W @ Pin1
-                # )
                 R1 = (
                     M @ (un1 - un)
                     - dt * self.system.h(tm, qm, 0.5 * (un + un1))
@@ -1433,14 +652,14 @@ class DualStörmerVerlet:
         self.tn = tn1
         self.qn = qn1.copy()
         self.un = un1.copy()
-        # self.la_gn = Pi_gn1.copy() / dt
-        # self.la_gamman = Pi_gamman1.copy() / dt
-        # self.la_cn = Pi_cn1.copy() / dt
-        self.Pi_Nn = Pi_Nn1
-        self.Pi_Fn = Pi_Fn1
+        self.la_gn = Pi_gn1.copy() / dt
+        self.la_gamman = Pi_gamman1.copy() / dt
+        self.la_cn = Pi_cn1.copy() / dt
+        self.Pi_Nn = Pi_Nn1.copy()
+        self.Pi_Fn = Pi_Fn1.copy()
 
     def solve(self):
-        self.solver_summary = SolverSummary("MoreauThetaCompliance")
+        self.solver_summary = SolverSummary("DualStörmerVerlet")
 
         # lists storing output variables
         self.sol_t = [self.tn]
@@ -1454,7 +673,6 @@ class DualStörmerVerlet:
 
         self.pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
         for _ in self.pbar:
-            # self._step_naive_old()
             # self._step_naive()
             self._step_schur()
 

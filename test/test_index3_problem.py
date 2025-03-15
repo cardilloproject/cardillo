@@ -23,7 +23,7 @@ solvers_and_kwargs = [
     # (BackwardEuler, {}),
     # (Moreau, {}),
     # (Rattle, {}),
-    (DualStörmerVerlet, {"theta": 0.5}),
+    (DualStörmerVerlet, {}),
 ]
 
 # we assume m = 1 and r = 1

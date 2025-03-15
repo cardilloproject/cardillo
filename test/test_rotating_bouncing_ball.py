@@ -203,7 +203,7 @@ def run(case):
     # solver2, label2 = BackwardEuler(system, t_final, dt), "BackwardEuler"
     solver2, label2 = (
         DualStörmerVerlet(system, t_final, dt),
-        "MoreauThetaCompliance",
+        "DualStörmerVerlet",
     )
     sol2 = solver2.solve()
     t2 = sol2.t
