@@ -130,6 +130,7 @@ def test_index3_problem(Solver, kwargs, show=False):
     particle = ParticleOnCircularTrack()
     system.add(particle)
     system.assemble(options=SolverOptions(compute_consistent_initial_conditions=False))
+    system.la_g0 = particle.la_g0
 
     # call the solver
     t1 = 2 * np.pi
@@ -139,6 +140,7 @@ def test_index3_problem(Solver, kwargs, show=False):
     t = sol.t
     q = sol.q
     u = sol.u
+    P_g = sol.P_g
 
     # compare with exact solution
     q_true, u_true, la_true = sol_true(t)
@@ -149,7 +151,7 @@ def test_index3_problem(Solver, kwargs, show=False):
 
     # visualization
     if show:
-        fig, ax = plt.subplots(2, 1)
+        fig, ax = plt.subplots(3, 1)
 
         ax[0].plot(t, q[:, 0], "-r", label="x")
         ax[0].plot(t, q_true[:, 0], "rx", label="x_true")
@@ -164,6 +166,11 @@ def test_index3_problem(Solver, kwargs, show=False):
         ax[1].plot(t, u_true[:, 1], "gx", label="v_true")
         ax[1].grid()
         ax[1].legend()
+
+        ax[2].plot(t, P_g[:, 0] / dt, "-r", label="la_g")
+        ax[2].plot(t, la_true[:, 0], "rx", label="la_g_true")
+        ax[2].grid()
+        ax[2].legend()
 
         plt.show()
 

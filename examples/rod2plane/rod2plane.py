@@ -12,7 +12,8 @@ from cardillo.contacts import Sphere2Plane
 from cardillo.solver import SolverOptions, Moreau, DualStörmerVerlet
 
 
-nelements = 5
+# nelements = 5
+nelements = 3
 polynomial_degree = 2
 length = 2 * np.pi
 slenderness = 1e2

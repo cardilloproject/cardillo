@@ -1,9 +1,9 @@
 import warnings
 from tqdm import tqdm
 import numpy as np
-from scipy.linalg import lu_factor, lu_solve, cho_factor, cho_solve
+from scipy.linalg import cho_factor, cho_solve
 from scipy.sparse import bmat, block_diag, csc_array
-from scipy.sparse.linalg import splu, LinearOperator, cg
+from scipy.sparse.linalg import splu, LinearOperator, cg, inv
 
 from cardillo.math.approx_fprime import approx_fprime
 from cardillo.math.fsolve import fsolve
@@ -34,6 +34,7 @@ class DualStörmerVerlet:
         options=SolverOptions(),
         debug=False,
         linear_solver="CG",
+        constant_mass_matrix=True,
     ):
         self.debug = debug
         self.system = system
@@ -136,6 +137,17 @@ class DualStörmerVerlet:
                 self.la_Fn,
             )
         )
+
+        self.solver_summary = SolverSummary("DualStörmerVerlet")
+
+        # invert constant mass matrix only once
+        self.constant_mass_matrix = constant_mass_matrix
+        if constant_mass_matrix:
+            warnings.warn("DualStörmerVerlet: constant_mass_matrix=True.")
+            self.M = system.M(self.tn, self.qn, format="csc")
+            # TODO: We need to implement M_inv on subsystem level.
+            self.M_inv = csc_array(inv(self.M).reshape((self.nu, self.nu)))
+            self.solver_summary.add_lu(1)
 
     def R_z(self, zn1):
         (
@@ -316,7 +328,6 @@ class DualStörmerVerlet:
         # solve nonlinear system
         sol = fsolve(
             lambda z: self.R_z(z),
-            # self.zn.copy(),
             self.zn,
             jac="2-point",
             options=self.options,
@@ -441,54 +452,47 @@ class DualStörmerVerlet:
         #########################################
         # evaluate all quantities at the midpoint
         #########################################
-        M = self.system.M(tm, qm, format="csc")
-        # TODO: Since M is block diagonal, we can implement M_inv @ B on a
-        # subsystem level or assemble M_inv directly which improves efficiency
-        # alot. Morover, most system have a constant mass matrix so it gets
-        # very cheap.
-        M_inv = splu(M)
-        self.solver_summary.add_lu(1)
+        if self.constant_mass_matrix:
+            M = self.M
+            M_inv = self.M_inv
+        else:
+            M = self.system.M(tm, qm, format="csc")
+            # TODO: We need to implement M_inv on subsystem level.
+            M_inv = csc_array(inv(M).reshape((self.nu, self.nu)))
+            self.solver_summary.add_lu(1)
 
         q_dot_u = self.system.q_dot_u(tm, qm)
         beta = self.system.q_dot(tm, qm, np.zeros_like(self.un))
         W = self.W(tm, qm)
-        c_q = self.c_q(tm, qm, un, self.la_cn)
-        c_u = self.c_u(tm, qm, un, self.la_cn)
-        C = self.c_la()
+        c_q = self.c_q(tm, qm, un, self.la_cn, format="csc")
+        c_u = self.c_u(tm, qm, un, self.la_cn, format="csc")
+        C = self.c_la(format="csc")
 
         ############################
         # compute iteration matrices
         ############################
         A = 0.5 * dt * c_q @ q_dot_u + c_u
-        # TODO: This feels very bad since W might be sparse!
-        # Providing a sparse M_inv function would be great here!
-        M_inv_W = M_inv.solve(W.toarray())
+        M_inv_W = M_inv @ W
         D = C / dt + A @ M_inv_W
 
-        # For a moderate number of constraints D is small and dense,
-        # hence we use a dense factorization. Otherwise a sparse iterative
-        # method should be used.
         match self.linear_solver:
             case "LU":
-                # LU-decomposition
-                D_fac = lu_factor(D)
+                # sparse LU-decomposition
+                D_inv = splu(D)
                 self.solver_summary.add_lu(1)
-                D_inv = type(
-                    "LU", (), {"solve": lambda self, rhs: lu_solve(D_fac, rhs)}
-                )()
 
             case "Cholesky":
-                # Cholesky-decomposition
-                D_fac = cho_factor(D)
+                # dense Cholesky-decomposition
+                D_fac = cho_factor(D.toarray())
                 self.solver_summary.add_lu(1)
                 D_inv = type(
                     "Cholesky", (), {"solve": lambda self, rhs: cho_solve(D_fac, rhs)}
                 )()
 
             case _:
-                # Conjugate gradient (CG) with Jacobi preconditioner
+                # sparse conjugate gradient (CG) with Jacobi preconditioner
                 D_inv = type("CG", (), {})()
-                DD_inv = 1 / np.diag(D)
+                DD_inv = 1 / D.diagonal()
                 preconditioner = LinearOperator(D.shape, lambda x: DD_inv * x)
 
                 def solve(rhs):
@@ -504,17 +508,14 @@ class DualStörmerVerlet:
         # - only compute optimized prox-parameters once per time step
         # - generalized force directions for constraint forces are only
         #   required if we have contacts
-        # TODO: This function evaluates M_inv @ W_N, M_inv @ W_F, which is
-        # also required below. Hence, this should only be computed once!
         if self.nla_N + self.nla_F > 0:
-            W_N = self.system.W_N(tm, qm)
-            W_F = self.system.W_F(tm, qm)
-            self.prox_r_N, self.prox_r_F = np.array_split(
-                estimate_prox_parameter(
-                    self.options.prox_scaling, bmat([[W_N, W_F]]), M_inv
-                ),
-                [self.nla_N],
-            )
+            W_N = self.system.W_N(tm, qm, format="csr")
+            W_F = self.system.W_F(tm, qm, format="csr")
+            M_inv_W_N = M_inv @ W_N
+            M_inv_W_F = M_inv @ W_F
+            alpha = self.options.prox_scaling
+            self.prox_r_N = alpha / (W_N.T @ M_inv_W_N).diagonal()
+            self.prox_r_F = alpha / (W_F.T @ M_inv_W_F).diagonal()
 
         ###################
         # newton iterations
@@ -535,20 +536,16 @@ class DualStörmerVerlet:
         def prox(Pi_Nn1, Pi_Fn1):
             # normal contact
             g_Nm = self.system.g_N(tm, qm)
-            # TODO: This is the desired evaluation
-            xi_N = self.system.xi_N(tm, tm, qm, qm, un, un1)
+            # # TODO: This is the desired evaluation
+            # xi_N = self.system.xi_N(tm, tm, qm, qm, un, un1)
             # TODO: This leads to second-order convergence for case 1 in the
             # point mass on slope example
-            # xi_N = self.system.xi_N(tn, tn1, qn, qn1, un, un1)
+            xi_N = self.system.xi_N(tn, tn1, qn, qn1, un, un1)
             Pi_Nn1 = np.where(
                 g_Nm <= 0,
                 -NegativeOrthant.prox(self.prox_r_N * xi_N - Pi_Nn1),
                 np.zeros_like(Pi_Nn1),
             )
-            # g_Nn1 = self.system.g_N(tn1, qn1)
-            # Pi_Nn1 = -NegativeOrthant.prox(self.prox_r_N / dt * g_Nn1 - Pi_Nn1)
-            # g_dot_Nn1 = self.system.g_N_dot(tn1, qn1, un1)
-            # Pi_Nn1 = -NegativeOrthant.prox(self.prox_r_N * g_dot_Nn1 - Pi_Nn1)
 
             # friction
             if self.nla_N + self.nla_F > 0:
@@ -573,15 +570,23 @@ class DualStörmerVerlet:
             return Pi_Nn1, Pi_Fn1
 
         # evaluate residuals
-        R1 = M @ (un1 - un) - dt * self.system.h(tm, qm, 0.5 * (un + un1)) - W @ Pin1
+        # R1 = M @ (un1 - un) - dt * self.system.h(tm, qm, 0.5 * (un + un1)) - W @ Pin1
+        M_inv_R1 = (
+            (un1 - un)
+            - dt * M_inv @ self.system.h(tm, qm, 0.5 * (un + un1))
+            - M_inv_W @ Pin1
+        )
         if self.nla_N + self.nla_F > 0:
             Pi_Nn1, Pi_Fn1 = prox(Pi_Nn1, Pi_Fn1)
-            R1 -= W_N @ Pi_Nn1 + W_F @ Pi_Fn1
+            # R1 -= W_N @ Pi_Nn1 + W_F @ Pi_Fn1
+            M_inv_R1 -= M_inv_W_N @ Pi_Nn1 + M_inv_W_F @ Pi_Fn1
         R2 = self.c(tn1, qn1, un1, Pin1 / dt)
-        R = np.concatenate((R1, R2))
+        # R = np.concatenate((R1, R2))
+        R = np.concatenate((M_inv_R1, R2))
 
         # newton scaling
-        scale1 = self.options.newton_atol + np.abs(R1) * self.options.newton_rtol
+        # scale1 = self.options.newton_atol + np.abs(R1) * self.options.newton_rtol
+        scale1 = self.options.newton_atol + np.abs(M_inv_R1) * self.options.newton_rtol
         scale2 = self.options.newton_atol + np.abs(R2) * self.options.newton_rtol
         scale = np.concatenate((scale1, scale2))
 
@@ -596,7 +601,7 @@ class DualStörmerVerlet:
         if not converged:
             for i in range(self.options.newton_max_iter):
                 # Newton updates
-                M_inv_R1 = M_inv.solve(R1)
+                # M_inv_R1 = M_inv.solve(R1)
                 Delta_Pin1 = D_inv.solve(A @ M_inv_R1 - R2)
                 Delta_Un1 = M_inv_W @ Delta_Pin1 - M_inv_R1
 
@@ -606,16 +611,23 @@ class DualStörmerVerlet:
                 qn1 = qm + 0.5 * dt * (q_dot_u @ un1 + beta)
 
                 # evaluate residuals
-                R1 = (
-                    M @ (un1 - un)
-                    - dt * self.system.h(tm, qm, 0.5 * (un + un1))
-                    - W @ Pin1
+                # R1 = (
+                #     M @ (un1 - un)
+                #     - dt * self.system.h(tm, qm, 0.5 * (un + un1))
+                #     - W @ Pin1
+                # )
+                M_inv_R1 = (
+                    (un1 - un)
+                    - dt * M_inv @ self.system.h(tm, qm, 0.5 * (un + un1))
+                    - M_inv_W @ Pin1
                 )
                 if self.nla_N + self.nla_F > 0:
                     Pi_Nn1, Pi_Fn1 = prox(Pi_Nn1, Pi_Fn1)
-                    R1 -= W_N @ Pi_Nn1 + W_F @ Pi_Fn1
+                    # R1 -= W_N @ Pi_Nn1 + W_F @ Pi_Fn1
+                    M_inv_R1 -= M_inv_W_N @ Pi_Nn1 + M_inv_W_F @ Pi_Fn1
                 R2 = self.c(tn1, qn1, un1, Pin1 / dt)
-                R = np.concatenate((R1, R2))
+                # R = np.concatenate((R1, R2))
+                R = np.concatenate((M_inv_R1, R2))
 
                 # error and convergence check
                 error = np.linalg.norm(R / scale) / scale.size**0.5
@@ -659,8 +671,6 @@ class DualStörmerVerlet:
         self.Pi_Fn = Pi_Fn1.copy()
 
     def solve(self):
-        self.solver_summary = SolverSummary("DualStörmerVerlet")
-
         # lists storing output variables
         self.sol_t = [self.tn]
         self.sol_q = [self.qn]
