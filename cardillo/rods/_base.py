@@ -1137,7 +1137,7 @@ class CosseratRod(RodExportBase, ABC):
     ##############################
     # stress and strain evaluation
     ##############################
-    def eval_stresses(self, t, q, la_c, la_g, xi, el=None):
+    def _eval_strains_DB(self, t, q, xi, el):
         el = self.element_number(xi) if el is None else el
         Qe = self.Q[self.elDOF[el]]
         qe = q[self.elDOF[el]]
@@ -1153,6 +1153,11 @@ class CosseratRod(RodExportBase, ABC):
 
         B_Gamma = B_Gamma_bar / J
         B_Kappa = B_Kappa_bar / J
+
+        return B_Gamma, B_Kappa, B_Gamma0, B_Kappa0
+
+    def eval_stresses(self, t, q, la_c, la_g, xi, el=None):
+        B_Gamma, B_Kappa, B_Gamma0, B_Kappa0 = self._eval_starins_DB(t, q, xi, el)
 
         B_n = self.material_model.B_n(B_Gamma, B_Gamma0, B_Kappa, B_Kappa0)
         B_m = self.material_model.B_m(B_Gamma, B_Gamma0, B_Kappa, B_Kappa0)
@@ -2065,12 +2070,7 @@ def make_CosseratRodConstrained(mixed, constraints):
             el = self.element_number(xi) if el is None else el
             dtype = np.common_type(q, la_c, la_g)
             B_n = np.zeros(3, dtype=dtype)
-            B_m = np.zeros(3, dtype=float)
-            B_n_impressed, B_m_impressed = super().eval_stresses(
-                t, q, la_c, la_g, xi, el
-            )
-            B_n[self.constraints_gamma] += B_n_impressed[self.constraints_gamma]
-            B_m[self.constraints_kappa] += B_m_impressed[self.constraints_kappa]
+            B_m = np.zeros(3, dtype=dtype)
 
             la_ge = la_g[self.elDOF_la_g[el]]
             # TODO: lets see how to avoid the flatten
@@ -2084,9 +2084,31 @@ def make_CosseratRodConstrained(mixed, constraints):
             B_n_c = self.B_n_la_g_sieve @ la_gg[: self.nconstraints_gamma]
             B_m_c = self.B_m_la_g_sieve @ la_gg[self.nconstraints_gamma :]
 
-            B_n += B_n_c
-            B_m += B_m_c
+            if hasattr(self, "nla_c"):
+                print("TODO: Stresses for constrained mixed rod!")
+            else:
+                print("TODO: Stresses for constrained D-B rod!")
 
-            return B_n, B_m
+
+                B_n_impressed, B_m_impressed = super().eval_stresses(
+                    t, q, la_c, la_g, xi, el
+                )
+                B_n[self.constraints_gamma] += B_n_impressed[self.constraints_gamma]
+                B_m[self.constraints_kappa] += B_m_impressed[self.constraints_kappa]
+
+
+
+                B_n += B_n_c
+                B_m += B_m_c
+
+                return B_n, B_m
+        
+        def eval_strains(self, t, q, la_c, la_g, xi, el=None):
+            if hasattr(self, "nla_c"):
+                print("Strains for constrained mixed rod!")
+            else:
+                print("Strains for constrained D-B rod!")
+
+            return np.zeros(3, dtype=float), np.zeros(3, dtype=float)
 
     return CosseratRodConstrained
