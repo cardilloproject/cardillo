@@ -281,7 +281,7 @@ class CosseratRod(RodExportBase, ABC):
             for i in range(self.nquadrature_dyn):
                 # current quadrature point
                 qpi = self.qp_dyn[el, i]
-                N, N_xi = self.basis_functions_r(qpi)
+                N, N_xi = self.basis_functions_r(qpi, el)
                 # evaluate required quantities
                 _, _, B_Gamma_bar, B_Kappa_bar = self._eval(qe, qpi, N, N_xi)
 
@@ -1137,12 +1137,12 @@ class CosseratRod(RodExportBase, ABC):
     ##############################
     # stress and strain evaluation
     ##############################
-    def eval_stresses(self, t, q, la_c, la_g, xi):
-        el = self.element_number(xi)
+    def eval_stresses(self, t, q, la_c, la_g, xi, el=None):
+        el = self.element_number(xi) if el == None else el
         Qe = self.Q[self.elDOF[el]]
         qe = q[self.elDOF[el]]
 
-        N, N_xi = self.basis_functions_r(xi)
+        N, N_xi = self.basis_functions_r(xi, el)
         _, _, B_Gamma_bar0, B_Kappa_bar0 = self._eval(Qe, xi, N, N_xi)
 
         J = norm(B_Gamma_bar0)
@@ -1159,12 +1159,12 @@ class CosseratRod(RodExportBase, ABC):
 
         return B_n, B_m
 
-    def eval_strains(self, t, q, la_c, la_g, xi):
-        el = self.element_number(xi)
+    def eval_strains(self, t, q, la_c, la_g, xi, el=None):
+        el = self.element_number(xi) if el == None else el
         Qe = self.Q[self.elDOF[el]]
         qe = q[self.elDOF[el]]
 
-        N, N_xi = self.basis_functions_r(xi)
+        N, N_xi = self.basis_functions_r(xi, el)
         _, _, B_Gamma_bar0, B_Kappa_bar0 = self._eval(Qe, xi, N, N_xi)
 
         J = norm(B_Gamma_bar0)
@@ -1639,7 +1639,7 @@ class CosseratRodMixed(CosseratRod):
     ##############################
     # stress and strain evaluation
     ##############################
-    def eval_stresses(self, t, q, la_c, la_g, xi):
+    def eval_stresses(self, t, q, la_c, la_g, xi, el=None):
         el = self.element_number(xi)
         la_ce = la_c[self.elDOF_la_c[el]]
         # TODO: lets see how to avoid the flatten
@@ -1655,12 +1655,13 @@ class CosseratRodMixed(CosseratRod):
 
         return B_n, B_m
 
-    def eval_strains(self, t, q, la_c, la_g, xi):
+    def eval_strains(self, t, q, la_c, la_g, xi, el=None):
+        el = self.element_number(xi) if el == None else el
         B_n, B_m = self.eval_stresses(t, q, la_c, la_g, xi)
         el = self.element_number(xi)
         Qe = self.Q[self.elDOF[el]]
 
-        N, N_xi = self.basis_functions_r(xi)
+        N, N_xi = self.basis_functions_r(xi, el)
         _, _, B_Gamma_bar0, B_Kappa_bar0 = self._eval(Qe, xi, N, N_xi)
 
         J = norm(B_Gamma_bar0)

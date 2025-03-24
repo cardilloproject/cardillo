@@ -70,8 +70,7 @@ class RodExportBase(ABC):
     def surface(self, q, xi, eta, el):
         q_body = q[self.qDOF]
         qp = q_body[self.elDOF[el]]
-        # TODO: get the basis functions based on the element
-        N, N_xi = self.basis_functions_r(xi)
+        N, N_xi = self.basis_functions_r(xi, el)
         eval = self._eval(qp, xi, N, N_xi)
         r_OP = eval[0]
         A_IB = eval[1]
@@ -86,8 +85,7 @@ class RodExportBase(ABC):
     def surface_normal(self, q, xi, eta, el):
         q_body = q[self.qDOF]
         qp = q_body[self.elDOF[el]]
-        # TODO: get the basis functions based on the element
-        N, N_xi = self.basis_functions_r(xi)
+        N, N_xi = self.basis_functions_r(xi, el)
         eval = self._eval(qp, xi, N, N_xi)
         # r_OP = eval[0]
         A_IB = eval[1]
@@ -335,6 +333,7 @@ class RodExportBase(ABC):
             # streses
             if self._export_dict["stresses"]:
                 # TODO: do this on element basis when eval_stresses accepts el as argument
+                # This needs than a general rewriting!
                 num = self._export_dict["num_frames"] - 1
                 xis = np.linspace(0, 1, num=num)
                 B_ns = np.zeros([3, num])
@@ -345,7 +344,7 @@ class RodExportBase(ABC):
                 la_g = sol_i.la_g
                 for j in range(num):
                     B_ns[:, j], B_ms[:, j] = self.eval_stresses(
-                        t, q, la_c, la_g, xis[j]
+                        t, q, la_c, la_g, xis[j], el=None
                     )
 
                 # project contact forces and moments on cubic C1 bezier curve
