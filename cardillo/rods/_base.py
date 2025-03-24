@@ -1138,7 +1138,7 @@ class CosseratRod(RodExportBase, ABC):
     # stress and strain evaluation
     ##############################
     def eval_stresses(self, t, q, la_c, la_g, xi, el=None):
-        el = self.element_number(xi) if el == None else el
+        el = self.element_number(xi) if el is None else el
         Qe = self.Q[self.elDOF[el]]
         qe = q[self.elDOF[el]]
 
@@ -1160,7 +1160,7 @@ class CosseratRod(RodExportBase, ABC):
         return B_n, B_m
 
     def eval_strains(self, t, q, la_c, la_g, xi, el=None):
-        el = self.element_number(xi) if el == None else el
+        el = self.element_number(xi) if el is None else el
         Qe = self.Q[self.elDOF[el]]
         qe = q[self.elDOF[el]]
 
@@ -1640,10 +1640,10 @@ class CosseratRodMixed(CosseratRod):
     # stress and strain evaluation
     ##############################
     def eval_stresses(self, t, q, la_c, la_g, xi, el=None):
-        el = self.element_number(xi)
+        el = self.element_number(xi) if el is None else el
         la_ce = la_c[self.elDOF_la_c[el]]
         # TODO: lets see how to avoid the flatten
-        N_la_ce = self.basis_functions_la_c(xi).flatten()
+        N_la_ce = self.basis_functions_la_c(xi, el).flatten()
         la_cc = np.zeros(len(self.idx_mixed))
 
         for node in range(self.nnodes_element_la_c):
@@ -1656,9 +1656,8 @@ class CosseratRodMixed(CosseratRod):
         return B_n, B_m
 
     def eval_strains(self, t, q, la_c, la_g, xi, el=None):
-        el = self.element_number(xi) if el == None else el
+        el = self.element_number(xi) if el is None else el
         B_n, B_m = self.eval_stresses(t, q, la_c, la_g, xi)
-        el = self.element_number(xi)
         Qe = self.Q[self.elDOF[el]]
 
         N, N_xi = self.basis_functions_r(xi, el)
@@ -2062,17 +2061,20 @@ def make_CosseratRodConstrained(mixed, constraints):
         ##############################
         # stress and strain evaluation
         ##############################
-        def eval_stresses(self, t, q, la_c, la_g, xi):
-            B_n = np.zeros(3)
-            B_m = np.zeros(3)
-            B_n_impressed, B_m_impressed = super().eval_stresses(t, q, la_c, la_g, xi)
+        def eval_stresses(self, t, q, la_c, la_g, xi, el=None):
+            el = self.element_number(xi) if el is None else el
+            dtype = np.common_type(q, la_c, la_g)
+            B_n = np.zeros(3, dtype=dtype)
+            B_m = np.zeros(3, dtype=float)
+            B_n_impressed, B_m_impressed = super().eval_stresses(
+                t, q, la_c, la_g, xi, el
+            )
             B_n[self.constraints_gamma] += B_n_impressed[self.constraints_gamma]
             B_m[self.constraints_kappa] += B_m_impressed[self.constraints_kappa]
 
-            el = self.element_number(xi)
             la_ge = la_g[self.elDOF_la_g[el]]
             # TODO: lets see how to avoid the flatten
-            N_la_ge = self.basis_functions_la_g(xi).flatten()
+            N_la_ge = self.basis_functions_la_g(xi, el).flatten()
             la_gg = np.zeros(self.nconstraints_gamma + self.nconstraints_kappa)
 
             for node in range(self.nnodes_element_la_g):
