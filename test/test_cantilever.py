@@ -37,9 +37,7 @@ It is a test for the static analysis of all different rod formulations in their 
 def cantilever(
     Rod,
     nelements=10,
-    polynomial_degree=2,
     n_load_steps=3,
-    reduced_integration=True,
     constitutive_law=Harsch2021,
     title="set_a_plot_title",
 ):
@@ -61,9 +59,7 @@ def cantilever(
     system = System()
 
     # compute straight initial configuration of cantilever
-    q0 = Rod.straight_configuration(
-        nelements, length, polynomial_degree=polynomial_degree
-    )
+    q0 = Rod.straight_configuration(nelements, length)
     # construct cantilever
     cantilever = Rod(
         cross_section,
@@ -71,8 +67,6 @@ def cantilever(
         nelements,
         Q=q0,
         q0=q0,
-        polynomial_degree=polynomial_degree,
-        reduced_integration=reduced_integration,
     )
 
     clamping_left = RigidConnection(system.origin, cantilever, xi2=(0,))

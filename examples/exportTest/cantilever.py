@@ -28,8 +28,6 @@ def cantilever(
     constitutive_law=Simo1986,  # TODO: add type hint
     *,
     nelements: int = 10,
-    polynomial_degree: int = 2,
-    reduced_integration: bool = True,
     #
     n_load_steps: int = 10,
     load_type: str = "moment",
@@ -67,9 +65,7 @@ def cantilever(
     # rod
     #####
     # compute straight initial configuration of cantilever
-    q0 = Rod.straight_configuration(
-        nelements, length, polynomial_degree=polynomial_degree
-    )
+    q0 = Rod.straight_configuration(nelements, length)
     # construct cantilever
     cantilever = Rod(
         cross_section_rect,
@@ -77,8 +73,6 @@ def cantilever(
         nelements,
         Q=q0,
         q0=q0,
-        polynomial_degree=polynomial_degree,
-        reduced_integration=reduced_integration,
     )
 
     ##########
@@ -162,6 +156,7 @@ def cantilever(
 if __name__ == "__main__":
     cantilever(
         # Rod=make_CosseratRod(interpolation="SE3", mixed=True, constraints=[0, 1, 2]),
+        # Rod=make_CosseratRod(interpolation="R12", mixed=True, constraints=[0, 1, 2]),
         Rod=make_CosseratRod(mixed=True),  # , constraints=[0, 1, 2]),
         # load_type="moment",
         load_type="constant_end_load",
