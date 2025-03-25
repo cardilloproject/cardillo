@@ -18,7 +18,7 @@ eye3 = np.eye(3, dtype=float)
 eye4 = np.eye(4, dtype=float)
 
 
-class CosseratRod(RodExportBase, ABC):
+class CosseratRod_PetrovGalerkin(RodExportBase, ABC):
     def __init__(
         self,
         cross_section,
@@ -27,11 +27,12 @@ class CosseratRod(RodExportBase, ABC):
         polynomial_degree,
         nquadrature,
         Q,
+        *,
         q0=None,
         u0=None,
         nquadrature_dyn=None,
         cross_section_inertias=CrossSectionInertias(),
-        **kwargs,
+        idx_impressed=None,
     ):
         """Base class for Petrov-Galerkin Cosserat rod formulations with
         quaternions for the nodal orientation parametrization.
@@ -73,6 +74,7 @@ class CosseratRod(RodExportBase, ABC):
             Inertia properties of cross-sections: Cross-section mass density and
             Cross-section inertia tensor represented in the cross-section-fixed
             B-Basis.
+        idx_impressed:
 
         """
         # call base class for all export properties
@@ -81,6 +83,7 @@ class CosseratRod(RodExportBase, ABC):
         # rod properties
         self.material_model = material_model
         self.cross_section_inertias = cross_section_inertias
+        self.idx_impressed = np.arange(6) if idx_impressed is None else idx_impressed
 
         # distinguish between inertia quadrature and other parts
         self.nquadrature = nquadrature
@@ -602,24 +605,6 @@ class CosseratRod(RodExportBase, ABC):
 
         return M_el
 
-    def h(self, t, q, u):
-        h = np.zeros(self.nu, dtype=np.common_type(q, u))
-        for el in range(self.nelement):
-            elDOF = self.elDOF[el]
-            elDOF_u = self.elDOF_u[el]
-            h[elDOF_u] += self.f_int_el(q[elDOF], el) - self.f_gyr_el(
-                t, q[elDOF], u[elDOF_u], el
-            )
-        return h
-
-    def h_q(self, t, q, u):
-        coo = CooMatrix((self.nu, self.nq))
-        for el in range(self.nelement):
-            elDOF = self.elDOF[el]
-            elDOF_u = self.elDOF_u[el]
-            coo[elDOF_u, elDOF] = self.f_int_el_qe(q[elDOF], el)
-        return coo
-
     def h_u(self, t, q, u):
         coo = CooMatrix((self.nu, self.nu))
         for el in range(self.nelement):
@@ -627,125 +612,6 @@ class CosseratRod(RodExportBase, ABC):
             elDOF_u = self.elDOF_u[el]
             coo[elDOF_u, elDOF_u] = -self.f_gyr_el_ue(t, q[elDOF], u[elDOF_u], el)
         return coo
-
-    def f_int_el(self, qe, el):
-        f_int_el = np.zeros(self.nu_element, dtype=qe.dtype)
-
-        for i in range(self.nquadrature):
-            # extract reference state variables
-            qpi = self.qp[el, i]
-            qwi = self.qw[el, i]
-            J = self.J[el, i]
-            B_Gamma0 = self.B_Gamma0[el, i]
-            B_Kappa0 = self.B_Kappa0[el, i]
-
-            # evaluate required quantities
-            _, A_IB, B_Gamma_bar, B_Kappa_bar = self._eval(
-                qe, qpi, N=self.N_r[el, i], N_xi=self.N_r_xi[el, i]
-            )
-
-            # axial and shear strains
-            B_Gamma = B_Gamma_bar / J
-
-            # torsional and flexural strains
-            B_Kappa = B_Kappa_bar / J
-
-            # compute contact forces and couples from partial derivatives of
-            # the strain energy function w.r.t. strain measures
-            B_n = self.material_model.B_n(B_Gamma, B_Gamma0, B_Kappa, B_Kappa0)
-            B_m = self.material_model.B_m(B_Gamma, B_Gamma0, B_Kappa, B_Kappa0)
-
-            ############################
-            # virtual work contributions
-            ############################
-            n_qwi = A_IB @ B_n * qwi
-            for node in range(self.nnodes_element_r):
-                f_int_el[self.nodalDOF_element_r_u[node]] -= (
-                    self.N_r_xi[el, i, node] * n_qwi
-                )
-            m_qwi = B_m * qwi
-            cross = (cross3(B_Gamma_bar, B_n) + cross3(B_Kappa_bar, B_m)) * qwi
-            for node in range(self.nnodes_element_p):
-                f_int_el[self.nodalDOF_element_p_u[node]] += (
-                    -self.N_p_xi[el, i, node] * m_qwi + self.N_p[el, i, node] * cross
-                )
-
-        return f_int_el
-
-    def f_int_el_qe(self, qe, el):
-        f_int_el_qe = np.zeros((self.nu_element, self.nq_element), dtype=float)
-
-        for i in range(self.nquadrature):
-            # extract reference state variables
-            qpi = self.qp[el, i]
-            qwi = self.qw[el, i]
-            Ji = self.J[el, i]
-            B_Gamma0 = self.B_Gamma0[el, i]
-            B_Kappa0 = self.B_Kappa0[el, i]
-
-            # evaluate required quantities
-            (
-                r_OP,
-                A_IB,
-                B_Gamma_bar,
-                B_Kappa_bar,
-                r_OP_qe,
-                A_IB_qe,
-                B_Gamma_bar_qe,
-                B_Kappa_bar_qe,
-            ) = self._deval(qe, qpi, N=self.N_r[el, i], N_xi=self.N_r_xi[el, i])
-
-            # axial and shear strains
-            B_Gamma = B_Gamma_bar / Ji
-            B_Gamma_qe = B_Gamma_bar_qe / Ji
-
-            # torsional and flexural strains
-            B_Kappa = B_Kappa_bar / Ji
-            B_Kappa_qe = B_Kappa_bar_qe / Ji
-
-            # compute contact forces and couples from partial derivatives of
-            # the strain energy function w.r.t. strain measures
-            B_n = self.material_model.B_n(B_Gamma, B_Gamma0, B_Kappa, B_Kappa0)
-            B_n_B_Gamma = self.material_model.B_n_B_Gamma(
-                B_Gamma, B_Gamma0, B_Kappa, B_Kappa0
-            )
-            B_n_B_Kappa = self.material_model.B_n_B_Kappa(
-                B_Gamma, B_Gamma0, B_Kappa, B_Kappa0
-            )
-            B_n_qe = B_n_B_Gamma @ B_Gamma_qe + B_n_B_Kappa @ B_Kappa_qe
-
-            B_m = self.material_model.B_m(B_Gamma, B_Gamma0, B_Kappa, B_Kappa0)
-            B_m_B_Gamma = self.material_model.B_m_B_Gamma(
-                B_Gamma, B_Gamma0, B_Kappa, B_Kappa0
-            )
-            B_m_B_Kappa = self.material_model.B_m_B_Kappa(
-                B_Gamma, B_Gamma0, B_Kappa, B_Kappa0
-            )
-            B_m_qe = B_m_B_Gamma @ B_Gamma_qe + B_m_B_Kappa @ B_Kappa_qe
-
-            ############################
-            # virtual work contributions
-            ############################
-            n_qe_qwi = qwi * (np.einsum("ikj,k->ij", A_IB_qe, B_n) + A_IB @ B_n_qe)
-            for node in range(self.nnodes_element_r):
-                f_int_el_qe[self.nodalDOF_element_r[node], :] -= (
-                    self.N_r_xi[el, i, node] * n_qe_qwi
-                )
-            B_Gamma_bar_B_n_qe_qwi = qwi * (
-                ax2skew(B_Gamma_bar) @ B_n_qe - ax2skew(B_n) @ B_Gamma_bar_qe
-            )
-            B_m_qe_qwi = qwi * B_m_qe
-            B_Kappa_bar_B_m_qe_qwi = qwi * (
-                ax2skew(B_Kappa_bar) @ B_m_qe - ax2skew(B_m) @ B_Kappa_bar_qe
-            )
-            for node in range(self.nnodes_element_p):
-                f_int_el_qe[self.nodalDOF_element_p_u[node], :] += (
-                    self.N_p[el, i, node] * B_Gamma_bar_B_n_qe_qwi
-                    - self.N_p_xi[el, i, node] * B_m_qe_qwi
-                    + self.N_p[el, i, node] * B_Kappa_bar_B_m_qe_qwi
-                )
-
-        return f_int_el_qe
 
     def f_gyr_el(self, t, qe, ue, el):
         common_type = np.common_type(qe, ue)
@@ -1018,6 +884,150 @@ class CosseratRod(RodExportBase, ABC):
     def B_Psi_u(self, t, qe, ue, ue_dot, xi):
         return np.zeros((3, self.nu_element), dtype=float)
 
+
+class CosseratRodDisplacementBased(CosseratRod_PetrovGalerkin):
+    #########################################
+    # equations of motion
+    #########################################
+    def h(self, t, q, u):
+        h = np.zeros(self.nu, dtype=np.common_type(q, u))
+        for el in range(self.nelement):
+            elDOF = self.elDOF[el]
+            elDOF_u = self.elDOF_u[el]
+            h[elDOF_u] += self.f_int_el(q[elDOF], el) - self.f_gyr_el(
+                t, q[elDOF], u[elDOF_u], el
+            )
+        return h
+
+    def h_q(self, t, q, u):
+        coo = CooMatrix((self.nu, self.nq))
+        for el in range(self.nelement):
+            elDOF = self.elDOF[el]
+            elDOF_u = self.elDOF_u[el]
+            coo[elDOF_u, elDOF] = self.f_int_el_qe(q[elDOF], el)
+        return coo
+
+    # h_u is implmented in base class.
+
+    def f_int_el(self, qe, el):
+        f_int_el = np.zeros(self.nu_element, dtype=qe.dtype)
+
+        for i in range(self.nquadrature):
+            # extract reference state variables
+            qpi = self.qp[el, i]
+            qwi = self.qw[el, i]
+            J = self.J[el, i]
+            B_Gamma0 = self.B_Gamma0[el, i]
+            B_Kappa0 = self.B_Kappa0[el, i]
+
+            # evaluate required quantities
+            _, A_IB, B_Gamma_bar, B_Kappa_bar = self._eval(
+                qe, qpi, N=self.N_r[el, i], N_xi=self.N_r_xi[el, i]
+            )
+
+            # axial and shear strains
+            B_Gamma = B_Gamma_bar / J
+
+            # torsional and flexural strains
+            B_Kappa = B_Kappa_bar / J
+
+            # compute contact forces and couples from partial derivatives of
+            # the strain energy function w.r.t. strain measures
+            B_n = self.material_model.B_n(B_Gamma, B_Gamma0, B_Kappa, B_Kappa0)
+            B_m = self.material_model.B_m(B_Gamma, B_Gamma0, B_Kappa, B_Kappa0)
+
+            ############################
+            # virtual work contributions
+            ############################
+            n_qwi = A_IB @ B_n * qwi
+            for node in range(self.nnodes_element_r):
+                f_int_el[self.nodalDOF_element_r_u[node]] -= (
+                    self.N_r_xi[el, i, node] * n_qwi
+                )
+            m_qwi = B_m * qwi
+            cross = (cross3(B_Gamma_bar, B_n) + cross3(B_Kappa_bar, B_m)) * qwi
+            for node in range(self.nnodes_element_p):
+                f_int_el[self.nodalDOF_element_p_u[node]] += (
+                    -self.N_p_xi[el, i, node] * m_qwi + self.N_p[el, i, node] * cross
+                )
+
+        return f_int_el
+
+    def f_int_el_qe(self, qe, el):
+        f_int_el_qe = np.zeros((self.nu_element, self.nq_element), dtype=float)
+
+        for i in range(self.nquadrature):
+            # extract reference state variables
+            qpi = self.qp[el, i]
+            qwi = self.qw[el, i]
+            Ji = self.J[el, i]
+            B_Gamma0 = self.B_Gamma0[el, i]
+            B_Kappa0 = self.B_Kappa0[el, i]
+
+            # evaluate required quantities
+            (
+                r_OP,
+                A_IB,
+                B_Gamma_bar,
+                B_Kappa_bar,
+                r_OP_qe,
+                A_IB_qe,
+                B_Gamma_bar_qe,
+                B_Kappa_bar_qe,
+            ) = self._deval(qe, qpi, N=self.N_r[el, i], N_xi=self.N_r_xi[el, i])
+
+            # axial and shear strains
+            B_Gamma = B_Gamma_bar / Ji
+            B_Gamma_qe = B_Gamma_bar_qe / Ji
+
+            # torsional and flexural strains
+            B_Kappa = B_Kappa_bar / Ji
+            B_Kappa_qe = B_Kappa_bar_qe / Ji
+
+            # compute contact forces and couples from partial derivatives of
+            # the strain energy function w.r.t. strain measures
+            B_n = self.material_model.B_n(B_Gamma, B_Gamma0, B_Kappa, B_Kappa0)
+            B_n_B_Gamma = self.material_model.B_n_B_Gamma(
+                B_Gamma, B_Gamma0, B_Kappa, B_Kappa0
+            )
+            B_n_B_Kappa = self.material_model.B_n_B_Kappa(
+                B_Gamma, B_Gamma0, B_Kappa, B_Kappa0
+            )
+            B_n_qe = B_n_B_Gamma @ B_Gamma_qe + B_n_B_Kappa @ B_Kappa_qe
+
+            B_m = self.material_model.B_m(B_Gamma, B_Gamma0, B_Kappa, B_Kappa0)
+            B_m_B_Gamma = self.material_model.B_m_B_Gamma(
+                B_Gamma, B_Gamma0, B_Kappa, B_Kappa0
+            )
+            B_m_B_Kappa = self.material_model.B_m_B_Kappa(
+                B_Gamma, B_Gamma0, B_Kappa, B_Kappa0
+            )
+            B_m_qe = B_m_B_Gamma @ B_Gamma_qe + B_m_B_Kappa @ B_Kappa_qe
+
+            ############################
+            # virtual work contributions
+            ############################
+            n_qe_qwi = qwi * (np.einsum("ikj,k->ij", A_IB_qe, B_n) + A_IB @ B_n_qe)
+            for node in range(self.nnodes_element_r):
+                f_int_el_qe[self.nodalDOF_element_r[node], :] -= (
+                    self.N_r_xi[el, i, node] * n_qe_qwi
+                )
+            B_Gamma_bar_B_n_qe_qwi = qwi * (
+                ax2skew(B_Gamma_bar) @ B_n_qe - ax2skew(B_n) @ B_Gamma_bar_qe
+            )
+            B_m_qe_qwi = qwi * B_m_qe
+            B_Kappa_bar_B_m_qe_qwi = qwi * (
+                ax2skew(B_Kappa_bar) @ B_m_qe - ax2skew(B_m) @ B_Kappa_bar_qe
+            )
+            for node in range(self.nnodes_element_p):
+                f_int_el_qe[self.nodalDOF_element_p_u[node], :] += (
+                    self.N_p[el, i, node] * B_Gamma_bar_B_n_qe_qwi
+                    - self.N_p_xi[el, i, node] * B_m_qe_qwi
+                    + self.N_p[el, i, node] * B_Kappa_bar_B_m_qe_qwi
+                )
+
+        return f_int_el_qe
+
     ##############################
     # stress and strain evaluation
     ##############################
@@ -1054,7 +1064,7 @@ class CosseratRod(RodExportBase, ABC):
         return B_Gamma - B_Gamma0, B_Kappa - B_Kappa0
 
 
-class CosseratRodMixed(CosseratRod):
+class CosseratRodMixed(CosseratRod_PetrovGalerkin):
     def __init__(
         self,
         cross_section,
@@ -1063,11 +1073,12 @@ class CosseratRodMixed(CosseratRod):
         polynomial_degree,
         nquadrature,
         Q,
+        *,
         q0=None,
         u0=None,
         nquadrature_dyn=None,
         cross_section_inertias=CrossSectionInertias(),
-        idx_mixed=np.arange(6),
+        idx_impressed=None,
     ):
         """Base class for mixed Petrov-Galerkin Cosserat rod formulations with
         quaternions for the nodal orientation parametrization.
@@ -1133,12 +1144,13 @@ class CosseratRodMixed(CosseratRod):
             u0=u0,
             nquadrature_dyn=nquadrature_dyn,
             cross_section_inertias=cross_section_inertias,
+            idx_impressed=idx_impressed,
         )
 
         #######################################################
         # discretization parameters internal forces and moments
         #######################################################
-        self.idx_mixed = np.array(idx_mixed)
+        self.idx_mixed = np.array(self.idx_impressed)
         self.nmixed = len(self.idx_mixed)
 
         self.mixed_n = self.idx_mixed[(self.idx_mixed < 3)]
@@ -1198,6 +1210,7 @@ class CosseratRodMixed(CosseratRod):
     # total complementary potential energies
     ########################################
     # TODO: If there is a demand, add it to system.
+    # TODO: shall we also compute the potential energy by the E_pot = eps.T @ la_c - E_comp_pot?
     def E_comp_pot(self, t, la_c):
         E_comp_pot = 0.0
         for el in range(self.nelement):
@@ -1236,18 +1249,12 @@ class CosseratRodMixed(CosseratRod):
     # equations of motion
     #########################################
     def h(self, t, q, u):
-        # h required to overwrite function of base class.
         h = np.zeros(self.nu, dtype=np.common_type(q, u))
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF_u = self.elDOF_u[el]
             h[elDOF_u] -= self.f_gyr_el(t, q[elDOF], u[elDOF_u], el)
         return h
-
-    def h_q(self, t, q, u):
-        # h_q required to overwrite function of base class.
-        coo = CooMatrix((self.nu, self.nq))
-        return coo
 
     # h_u is implmented in base class.
     ############
@@ -1549,13 +1556,12 @@ class CosseratRodMixed(CosseratRod):
 
 def make_CosseratRodConstrained(mixed, constraints):
     idx_constraints = np.array(constraints)
+    idx = np.arange(6)
+    idx_impressed = np.setdiff1d(idx, idx_constraints)
     if mixed == True:
         CosseratRodBase = CosseratRodMixed
-        idx = np.arange(6)
-        idx_mixed = np.setdiff1d(idx, idx_constraints)
     else:
-        CosseratRodBase = CosseratRod
-        idx_mixed = None
+        CosseratRodBase = CosseratRodDisplacementBased
 
     class CosseratRodConstrained(CosseratRodBase):
         def __init__(
@@ -1566,6 +1572,7 @@ def make_CosseratRodConstrained(mixed, constraints):
             polynomial_degree,
             nquadrature,
             Q,
+            *,
             q0=None,
             u0=None,
             nquadrature_dyn=None,
@@ -1624,7 +1631,7 @@ def make_CosseratRodConstrained(mixed, constraints):
                 u0=u0,
                 nquadrature_dyn=nquadrature_dyn,
                 cross_section_inertias=cross_section_inertias,
-                idx_mixed=idx_mixed,
+                idx_impressed=idx_impressed,
             )
 
             ##################################################################

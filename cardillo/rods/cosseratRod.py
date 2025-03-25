@@ -22,7 +22,7 @@ from cardillo.utility.check_time_derivatives import check_time_derivatives
 
 
 from ._base import (
-    CosseratRod,
+    CosseratRodDisplacementBased,
     CosseratRodMixed,
     make_CosseratRodConstrained,
 )
@@ -74,7 +74,7 @@ def make_CosseratRod(
     Returns:
     --------
     out : CosseratRod class
-        Returns CosseratRod_Quat, CosseratRod_SE3 or CosseratRod_R12 class.
+        Returns CosseratRod class.
 
     """
     if constraints is not None:
@@ -100,8 +100,7 @@ def make_CosseratRod(
             "This kind of interpolation function has not been implemented."
         )
 
-    # TODO: rename the class name to CosseratRod. That requires the base class also to be renamed to avoid confusion
-    class CosseratRod__(Basis):
+    class CosseratRod(Basis):
         def __init__(
             self,
             cross_section,
@@ -249,7 +248,7 @@ def make_CosseratRod(
 
             return q0, u0
 
-    return CosseratRod__
+    return CosseratRod
 
 
 def make_CosseratRod_Quat(mixed=True, constraints=None):
@@ -262,7 +261,7 @@ def make_CosseratRod_Quat(mixed=True, constraints=None):
             )
     else:
         if constraints == None:
-            CosseratRodBase = CosseratRod
+            CosseratRodBase = CosseratRodDisplacementBased
         else:
             CosseratRodBase = make_CosseratRodConstrained(
                 mixed=mixed, constraints=constraints
@@ -409,7 +408,7 @@ def make_CosseratRod_SE3(mixed=True, constraints=None):
             )
     else:
         if constraints == None:
-            CosseratRodBase = CosseratRod
+            CosseratRodBase = CosseratRodDisplacementBased
         else:
             CosseratRodBase = make_CosseratRodConstrained(
                 mixed=mixed, constraints=constraints
@@ -601,7 +600,7 @@ def make_CosseratRod_R12(mixed=True, constraints=None):
             )
     else:
         if constraints == None:
-            CosseratRodBase = CosseratRod
+            CosseratRodBase = CosseratRodDisplacementBased
         else:
             CosseratRodBase = make_CosseratRodConstrained(
                 mixed=mixed, constraints=constraints
