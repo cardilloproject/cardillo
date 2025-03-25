@@ -221,7 +221,7 @@ def cantilever(
                 epsilon_Gamma_el[i], epsilon_Kappa_el[i] = rod.eval_strains(
                     t, q, la_c, la_g, xii, el
                 )
-            
+
             xis.append(xi_el)
             epsilon_Gamma.append(epsilon_Gamma_el)
             epsilon_Kappa.append(epsilon_Kappa_el)
@@ -239,27 +239,25 @@ def cantilever(
 
     xis, K_Gamma, K_Kappa, K_n, K_m = stress_strain(cantilever, sol)
 
-    ax[0].set_title("(sigma, epsilon)[0]")
+    ax[0].set_title("K_Gamma - K_Gamma0")
     ax[0].plot(xis, K_Gamma[0], label="Delta K_Gamma0")
-    ax[0].plot(xis, K_n[0] / Ei[0], "--", label="'K_n0'")
-    # ax[0].plot(xis, K_Gamma[1], label="Delta K_Gamma1")
-    # ax[0].plot(xis, K_Gamma[2], label="Delta K_Gamma2")
+    ax[0].plot(xis, K_Gamma[1], label="Delta K_Gamma1")
+    ax[0].plot(xis, K_Gamma[2], label="Delta K_Gamma2")
 
     ax[1].set_title("K_Kappa - K_Kappa0")
-    # ax[1].plot(xis, K_Kappa[0], label="Delta K_Kappa0")
-    # ax[1].plot(xis, K_Kappa[1], label="Delta K_Kappa1")
+    ax[1].plot(xis, K_Kappa[0], label="Delta K_Kappa0")
+    ax[1].plot(xis, K_Kappa[1], label="Delta K_Kappa1")
     ax[1].plot(xis, K_Kappa[2], label="Delta K_Kappa2")
-    ax[1].plot(xis, K_m[2] / Fi[2], "--", label="'K_m2'")
 
-    ax[2].set_title("(sigma, epsilon)[1]")
-    ax[2].plot(xis, K_Gamma[1], label="Delta K_Gamma1")
-    ax[2].plot(xis, K_n[1] / Ei[1], "--", label="'K_n1'")
-    # ax[2].plot(xis, K_n[2], label="K_n2")
+    ax[2].set_title("K_n")
+    ax[2].plot(xis, K_n[0], label="K_n0")
+    ax[2].plot(xis, K_n[1], label="K_n1")
+    ax[2].plot(xis, K_n[2], label="K_n2")
 
     ax[3].set_title("K_m")
-    # ax[3].plot(xis, K_m[0], label="K_m0")
-    # ax[3].plot(xis, K_m[1], label="K_m1")
-    # ax[3].plot(xis, K_m[2], label="K_m2")
+    ax[3].plot(xis, K_m[0], label="K_m0")
+    ax[3].plot(xis, K_m[1], label="K_m1")
+    ax[3].plot(xis, K_m[2], label="K_m2")
 
     for axi in ax.flat:
         axi.grid()
@@ -269,38 +267,30 @@ def cantilever(
 
 
 if __name__ == "__main__":
-    constitutive_law = Harsch2021
-    # constitutive_law = Simo1986
     ############################
     # Quaternion interpolation #
     ############################
     # displacement-based formulation
     cantilever(
         Rod=make_CosseratRod(mixed=False),
-        constitutive_law=constitutive_law,
+        constitutive_law=Harsch2021,
         title="shear-deformable (blue): D-B quaternion interpolation",
     )
 
     cantilever(
         Rod=make_CosseratRod(mixed=False, constraints=[1, 2]),
-        constitutive_law=constitutive_law,
+        constitutive_law=Harsch2021,
         title="shear-rigid (green): constrained D-B quaternion interpolation",
     )
 
     cantilever(
         Rod=make_CosseratRod(mixed=False, constraints=[0, 1, 2]),
-        constitutive_law=constitutive_law,
+        constitutive_law=Harsch2021,
         title="inextensible shear-rigid (red): constrained D-B quaternion interpolation",
     )
 
     # mixed formulation
     # For shear-rigid rods Harsch2021 and Simo1986 coincide.
-    cantilever(
-        Rod=make_CosseratRod(mixed=True),
-        constitutive_law=Simo1986,
-        title="shear-deformable (blue): mixed quaternion interpolation",
-    )
-
     cantilever(
         Rod=make_CosseratRod(mixed=True, constraints=[1, 2]),
         constitutive_law=Simo1986,
