@@ -4,7 +4,8 @@ from cachetools.keys import hashkey
 
 
 from cardillo.math import (
-    ax2skew,
+    norm,
+    cross3,
     SE3,
     SE3inv,
     Exp_SE3,
@@ -15,7 +16,9 @@ from cardillo.math import (
     T_SO3_quat_P,
     Exp_SO3_quat,
     Exp_SO3_quat_p,
+    Log_SO3_quat,
 )
+from cardillo.utility.check_time_derivatives import check_time_derivatives
 
 
 from ._base import (
@@ -26,7 +29,14 @@ from ._base import (
 from ._cross_section import CrossSectionInertias
 
 
-def make_CosseratRod(interpolation="Quaternion", mixed=True, constraints=None):
+def make_CosseratRod(
+    *,
+    interpolation="Quaternion",
+    mixed=True,
+    constraints=None,
+    polynomial_degree=None,
+    reduced_integration=True,
+):
     """Rod factory that returns Petrov-Galerkin Cosserat rod classes.
 
     Parameters
@@ -50,6 +60,16 @@ def make_CosseratRod(interpolation="Quaternion", mixed=True, constraints=None):
         3 : kappa_1 twist.
         4 : kappa_2 flexure around e_y^K-direction.
         5 : kappa_3 flexure around e_z^K-direction.
+    polynomial_degree : int
+        Polynomial degree (p) of the interpolation of the centerline, orientation, virtual displacement and virtual rotation. If mixed or constrained: The polynomial degree for B_n and B_m is (p-1).
+        If not specified, the following values are taken in dependency of the interpolation:
+        Quaternion : p=2
+        SE3 : p=1 (only possible value)
+        R12 : p=2
+    reduced_integration : bool
+        number of integration points (m) for the spatial integration of the internal virtual work.
+        True : m = p
+        False : m = ceil((p+1)**2 / 2)
 
     Returns:
     --------
@@ -64,15 +84,172 @@ def make_CosseratRod(interpolation="Quaternion", mixed=True, constraints=None):
             raise ValueError("constraint values must between 0 and 5")
 
     if interpolation == "Quaternion":
-        return make_CosseratRod_Quat(mixed=mixed, constraints=constraints)
+        Basis = make_CosseratRod_Quat(mixed=mixed, constraints=constraints)
+        polynomial_degree = 2 if polynomial_degree is None else polynomial_degree
     elif interpolation == "SE3":
-        return make_CosseratRod_SE3(mixed=mixed, constraints=constraints)
+        Basis = make_CosseratRod_SE3(mixed=mixed, constraints=constraints)
+        polynomial_degree = 1 if polynomial_degree is None else polynomial_degree
+        assert (
+            polynomial_degree == 1
+        ), f"SE3 interpolation works only with polynomial_degree=1"
     elif interpolation == "R12":
-        return make_CosseratRod_R12(mixed=mixed, constraints=constraints)
+        Basis = make_CosseratRod_R12(mixed=mixed, constraints=constraints)
+        polynomial_degree = 2 if polynomial_degree is None else polynomial_degree
     else:
         raise NotImplementedError(
             "This kind of interpolation function has not been implemented."
         )
+
+    # TODO: rename the class name to CosseratRod. That requires the base class also to be renamed to avoid confusion
+    class CosseratRod__(Basis):
+        def __init__(
+            self,
+            cross_section,
+            material_model,
+            nelement,
+            *,
+            Q,
+            q0=None,
+            u0=None,
+            cross_section_inertias=CrossSectionInertias(),
+        ):
+            nquadrature = polynomial_degree
+            nquadrature_dyn = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
+
+            if not reduced_integration:
+                import warnings
+
+                warnings.warn("Full integration is used!")
+                nquadrature = nquadrature_dyn
+
+            super().__init__(
+                cross_section,
+                material_model,
+                nelement,
+                polynomial_degree=polynomial_degree,
+                nquadrature=nquadrature,
+                Q=Q,
+                q0=q0,
+                u0=u0,
+                nquadrature_dyn=nquadrature_dyn,
+                cross_section_inertias=cross_section_inertias,
+            )
+
+        @staticmethod
+        def straight_configuration(
+            nelement,
+            L,
+            r_OP0=np.zeros(3, dtype=float),
+            A_IB0=np.eye(3, dtype=float),
+        ):
+            """Compute generalized position coordinates for straight configuration."""
+            nnodes = polynomial_degree * nelement + 1
+
+            x0 = np.linspace(0, L, num=nnodes)
+            y0 = np.zeros(nnodes)
+            z0 = np.zeros(nnodes)
+            r_OP = np.vstack((x0, y0, z0))
+            for i in range(nnodes):
+                r_OP[:, i] = r_OP0 + A_IB0 @ r_OP[:, i]
+
+            # reshape generalized coordinates to nodal ordering
+            q_r = r_OP.reshape(-1, order="C")
+
+            # extract quaternion from orientation A_IB0
+            p = Log_SO3_quat(A_IB0)
+            q_p = np.repeat(p, nnodes)
+
+            return np.concatenate([q_r, q_p])
+
+        @staticmethod
+        def deformed_configuration(
+            nelement,
+            r_OP,
+            r_OP_xi,
+            r_OP_xixi,
+            xi1,
+            r_OP0=np.zeros(3, dtype=float),
+            A_IB0=np.eye(3, dtype=float),
+        ):
+            """Compute generalized position coordinates for a pre-curved rod along curve r_OP."""
+            nnodes_r = polynomial_degree * nelement + 1
+
+            r_OP, r_OP_xi, r_OP_xixi = check_time_derivatives(r_OP, r_OP_xi, r_OP_xixi)
+
+            xis = np.linspace(0, xi1, nnodes_r)
+
+            # nodal positions and unit quaternions
+            r0 = np.zeros((3, nnodes_r))
+            p0 = np.zeros((4, nnodes_r))
+
+            for i, xii in enumerate(xis):
+                r0[:, i] = r_OP0 + A_IB0 @ r_OP(xii)
+                A_B0B = np.zeros((3, 3))
+                A_B0B[:, 0] = r_OP_xi(xii) / norm(r_OP_xi(xii))
+                A_B0B[:, 1] = r_OP_xixi(xii) / norm(r_OP_xixi(xii))
+                A_B0B[:, 2] = cross3(A_B0B[:, 0], A_B0B[:, 1])
+                A_IB = A_IB0 @ A_B0B
+                p0[:, i] = Log_SO3_quat(A_IB)
+
+            # check for the right quaternion hemisphere
+            for i in range(nnodes_r - 1):
+                inner = p0[:, i] @ p0[:, i + 1]
+                if inner < 0:
+                    p0[:, i + 1] *= -1
+
+            # reshape generalized position coordinates to nodal ordering
+            q_r = r0.reshape(-1, order="C")
+            q_p = p0.reshape(-1, order="C")
+
+            return np.concatenate([q_r, q_p])
+
+        @staticmethod
+        def straight_initial_configuration(
+            nelement,
+            L,
+            r_OP0=np.zeros(3, dtype=float),
+            A_IB0=np.eye(3, dtype=float),
+            v_P0=np.zeros(3, dtype=float),
+            B_omega_IB0=np.zeros(3, dtype=float),
+        ):
+            """ "Compute initial generalized position and velocity coordinates for straight configuration"""
+            nnodes = polynomial_degree * nelement + 1
+
+            x0 = np.linspace(0, L, num=nnodes)
+            y0 = np.zeros(nnodes)
+            z0 = np.zeros(nnodes)
+
+            r_OP = np.vstack((x0, y0, z0))
+            for i in range(nnodes):
+                r_OP[:, i] = r_OP0 + A_IB0 @ r_OP[:, i]
+
+            # reshape generalized coordinates to nodal ordering
+            q_r = r_OP.reshape(-1, order="C")
+
+            # extract quaternion from orientation A_IB0
+            p = Log_SO3_quat(A_IB0)
+            q_p = np.repeat(p, nnodes)
+
+            ################################
+            # compute generalized velocities
+            ################################
+            # centerline velocities
+            v_P = np.zeros_like(r_OP, dtype=float)
+            for i in range(nnodes):
+                v_P[:, i] = v_P0 + cross3(A_IB0 @ B_omega_IB0, (r_OP[:, i] - r_OP0))
+
+            # reshape generalized velocity coordinates to nodal ordering
+            u_r = v_P.reshape(-1, order="C")
+
+            # all nodes share the same angular velocity
+            u_p = np.repeat(B_omega_IB0, nnodes)
+
+            q0 = np.concatenate([q_r, q_p])
+            u0 = np.concatenate([u_r, u_p])
+
+            return q0, u0
+
+    return CosseratRod__
 
 
 def make_CosseratRod_Quat(mixed=True, constraints=None):
@@ -92,60 +269,6 @@ def make_CosseratRod_Quat(mixed=True, constraints=None):
             )
 
     class CosseratRod_Quat(CosseratRodBase):
-        def __init__(
-            self,
-            cross_section,
-            material_model,
-            nelement,
-            Q,
-            q0=None,
-            u0=None,
-            polynomial_degree=2,
-            reduced_integration=True,
-            cross_section_inertias=CrossSectionInertias(),
-        ):
-            nquadrature = polynomial_degree
-            nquadrature_dyn = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
-
-            if not reduced_integration:
-                import warnings
-
-                warnings.warn("Quaternion interpolation: Full integration is used!")
-                nquadrature = nquadrature_dyn
-
-            super().__init__(
-                cross_section,
-                material_model,
-                nelement,
-                polynomial_degree=polynomial_degree,
-                nquadrature=nquadrature,
-                Q=Q,
-                q0=q0,
-                u0=u0,
-                nquadrature_dyn=nquadrature_dyn,
-                cross_section_inertias=cross_section_inertias,
-            )
-
-        @staticmethod
-        def straight_initial_configuration(
-            nelement,
-            L,
-            polynomial_degree,
-            r_OP0=np.zeros(3, dtype=float),
-            A_IB0=np.eye(3, dtype=float),
-            v_P0=np.zeros(3, dtype=float),
-            B_omega_IB0=np.zeros(3, dtype=float),
-        ):
-            return CosseratRod.straight_initial_configuration(
-                nelement,
-                L,
-                polynomial_degree=polynomial_degree,
-                r_OP0=r_OP0,
-                A_IB0=A_IB0,
-                v_P0=v_P0,
-                B_omega_IB0=B_omega_IB0,
-            )
-
         @cachedmethod(
             lambda self: self._eval_cache,
             key=lambda self, qe, xi, N, N_xi: hashkey(*qe, xi),
@@ -293,83 +416,6 @@ def make_CosseratRod_SE3(mixed=True, constraints=None):
             )
 
     class CosseratRod_SE3(CosseratRodBase):
-        def __init__(
-            self,
-            cross_section,
-            material_model,
-            nelement,
-            Q,
-            q0=None,
-            u0=None,
-            reduced_integration=True,
-            cross_section_inertias=CrossSectionInertias(),
-            **kwargs,
-        ):
-            super().__init__(
-                cross_section,
-                material_model,
-                nelement,
-                polynomial_degree=1,
-                nquadrature=1 if reduced_integration else 2,
-                Q=Q,
-                q0=q0,
-                u0=u0,
-                nquadrature_dyn=2,
-                cross_section_inertias=cross_section_inertias,
-            )
-
-        @staticmethod
-        def straight_configuration(
-            nelement,
-            L,
-            r_OP0=np.zeros(3, dtype=float),
-            A_IB0=np.eye(3, dtype=float),
-            **kwargs,
-        ):
-            return CosseratRod.straight_configuration(nelement, L, 1, r_OP0, A_IB0)
-
-        @staticmethod
-        def deformed_configuration(
-            nelement,
-            curve,
-            dcurve,
-            ddcurve,
-            xi1,
-            polynomial_degree=1,
-            r_OP0=np.zeros(3, dtype=float),
-            A_IB0=np.eye(3, dtype=float),
-        ):
-            return CosseratRod.deformed_configuration(
-                nelement,
-                curve,
-                dcurve,
-                ddcurve,
-                xi1,
-                polynomial_degree=1,
-                r_OP0=r_OP0,
-                A_IB0=A_IB0,
-            )
-
-        @staticmethod
-        def straight_initial_configuration(
-            nelement,
-            L,
-            r_OP0=np.zeros(3, dtype=float),
-            A_IB0=np.eye(3, dtype=float),
-            v_P0=np.zeros(3, dtype=float),
-            B_omega_IB0=np.zeros(3, dtype=float),
-            **kwargs,
-        ):
-            return CosseratRod.straight_initial_configuration(
-                nelement,
-                L,
-                polynomial_degree=1,
-                r_OP0=r_OP0,
-                A_IB0=A_IB0,
-                v_P0=v_P0,
-                B_omega_IB0=B_omega_IB0,
-            )
-
         @cachedmethod(
             lambda self: self._eval_cache,
             key=lambda self, qe, xi, N, N_xi: hashkey(*qe, xi),
@@ -562,40 +608,6 @@ def make_CosseratRod_R12(mixed=True, constraints=None):
             )
 
     class CosseratRod_R12(CosseratRodBase):
-        def __init__(
-            self,
-            cross_section,
-            material_model,
-            nelement,
-            Q,
-            q0=None,
-            u0=None,
-            polynomial_degree=2,
-            reduced_integration=True,
-            cross_section_inertias=CrossSectionInertias(),
-        ):
-            nquadrature = polynomial_degree
-            nquadrature_dyn = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
-
-            if not reduced_integration:
-                import warnings
-
-                warnings.warn("'R12_PetrovGalerkin': Full integration is used!")
-                nquadrature = nquadrature_dyn
-
-            super().__init__(
-                cross_section,
-                material_model,
-                nelement,
-                polynomial_degree=polynomial_degree,
-                nquadrature=nquadrature,
-                Q=Q,
-                q0=q0,
-                u0=u0,
-                nquadrature_dyn=nquadrature_dyn,
-                cross_section_inertias=cross_section_inertias,
-            )
-
         # returns interpolated positions, orientations and strains at xi in [0,1]
         @cachedmethod(
             lambda self: self._eval_cache,

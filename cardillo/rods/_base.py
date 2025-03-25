@@ -3,13 +3,11 @@ from cachetools import cachedmethod, LRUCache
 from cachetools.keys import hashkey
 import numpy as np
 from scipy.sparse.linalg import spsolve
-import warnings
 
 from cardillo.math.algebra import norm, cross3, ax2skew
 from cardillo.math.approx_fprime import approx_fprime
-from cardillo.math.rotations import Log_SO3_quat, T_SO3_inv_quat, T_SO3_inv_quat_P
+from cardillo.math.rotations import T_SO3_inv_quat, T_SO3_inv_quat_P
 from cardillo.utility.coo_matrix import CooMatrix
-from cardillo.utility.check_time_derivatives import check_time_derivatives
 
 from ._base_export import RodExportBase
 from ._cross_section import CrossSectionInertias
@@ -287,123 +285,6 @@ class CosseratRod(RodExportBase, ABC):
 
                 # length of reference tangential vector
                 self.J_dyn[el, i] = norm(B_Gamma_bar)
-
-    @staticmethod
-    def straight_configuration(
-        nelement,
-        L,
-        polynomial_degree=1,
-        r_OP0=np.zeros(3, dtype=float),
-        A_IB0=np.eye(3, dtype=float),
-    ):
-        """Compute generalized position coordinates for straight configuration."""
-        nnodes = polynomial_degree * nelement + 1
-
-        x0 = np.linspace(0, L, num=nnodes)
-        y0 = np.zeros(nnodes)
-        z0 = np.zeros(nnodes)
-        r_OP = np.vstack((x0, y0, z0))
-        for i in range(nnodes):
-            r_OP[:, i] = r_OP0 + A_IB0 @ r_OP[:, i]
-
-        # reshape generalized coordinates to nodal ordering
-        q_r = r_OP.reshape(-1, order="C")
-
-        # extract quaternion from orientation A_IB0
-        p = Log_SO3_quat(A_IB0)
-        q_p = np.repeat(p, nnodes)
-
-        return np.concatenate([q_r, q_p])
-
-    @staticmethod
-    def deformed_configuration(
-        nelement,
-        r_OP,
-        r_OP_xi,
-        r_OP_xixi,
-        xi1,
-        polynomial_degree,
-        r_OP0=np.zeros(3, dtype=float),
-        A_IB0=np.eye(3, dtype=float),
-    ):
-        """Compute generalized position coordinates for a pre-curved rod along curve r_OP."""
-        nnodes_r = polynomial_degree * nelement + 1
-
-        r_OP, r_OP_xi, r_OP_xixi = check_time_derivatives(r_OP, r_OP_xi, r_OP_xixi)
-
-        xis = np.linspace(0, xi1, nnodes_r)
-
-        # nodal positions and unit quaternions
-        r0 = np.zeros((3, nnodes_r))
-        p0 = np.zeros((4, nnodes_r))
-
-        for i, xii in enumerate(xis):
-            r0[:, i] = r_OP0 + A_IB0 @ r_OP(xii)
-            A_B0B = np.zeros((3, 3))
-            A_B0B[:, 0] = r_OP_xi(xii) / norm(r_OP_xi(xii))
-            A_B0B[:, 1] = r_OP_xixi(xii) / norm(r_OP_xixi(xii))
-            A_B0B[:, 2] = cross3(A_B0B[:, 0], A_B0B[:, 1])
-            A_IB = A_IB0 @ A_B0B
-            p0[:, i] = Log_SO3_quat(A_IB)
-
-        # check for the right quaternion hemisphere
-        for i in range(nnodes_r - 1):
-            inner = p0[:, i] @ p0[:, i + 1]
-            if inner < 0:
-                p0[:, i + 1] *= -1
-
-        # reshape generalized position coordinates to nodal ordering
-        q_r = r0.reshape(-1, order="C")
-        q_p = p0.reshape(-1, order="C")
-
-        return np.concatenate([q_r, q_p])
-
-    @staticmethod
-    def straight_initial_configuration(
-        nelement,
-        L,
-        polynomial_degree=1,
-        r_OP0=np.zeros(3, dtype=float),
-        A_IB0=np.eye(3, dtype=float),
-        v_P0=np.zeros(3, dtype=float),
-        B_omega_IB0=np.zeros(3, dtype=float),
-    ):
-        """ "Compute initial generalized position and velocity coordinates for straight configuration"""
-        nnodes = polynomial_degree * nelement + 1
-
-        x0 = np.linspace(0, L, num=nnodes)
-        y0 = np.zeros(nnodes)
-        z0 = np.zeros(nnodes)
-
-        r_OP = np.vstack((x0, y0, z0))
-        for i in range(nnodes):
-            r_OP[:, i] = r_OP0 + A_IB0 @ r_OP[:, i]
-
-        # reshape generalized coordinates to nodal ordering
-        q_r = r_OP.reshape(-1, order="C")
-
-        # extract quaternion from orientation A_IB0
-        p = Log_SO3_quat(A_IB0)
-        q_p = np.repeat(p, nnodes)
-
-        ################################
-        # compute generalized velocities
-        ################################
-        # centerline velocities
-        v_P = np.zeros_like(r_OP, dtype=float)
-        for i in range(nnodes):
-            v_P[:, i] = v_P0 + cross3(A_IB0 @ B_omega_IB0, (r_OP[:, i] - r_OP0))
-
-        # reshape generalized velocity coordinates to nodal ordering
-        u_r = v_P.reshape(-1, order="C")
-
-        # all nodes share the same angular velocity
-        u_p = np.repeat(B_omega_IB0, nnodes)
-
-        q0 = np.concatenate([q_r, q_p])
-        u0 = np.concatenate([u_r, u_p])
-
-        return q0, u0
 
     def element_number(self, xi):
         """Compute element number from given xi."""

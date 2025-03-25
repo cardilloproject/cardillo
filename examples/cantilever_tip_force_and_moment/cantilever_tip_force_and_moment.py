@@ -32,8 +32,6 @@ def cantilever(
     constitutive_law=Harsch2021,
     *,
     nelements: int = 10,
-    polynomial_degree: int = 2,
-    reduced_integration: bool = True,
     #
     n_load_steps: int = 3,
     #
@@ -64,9 +62,7 @@ def cantilever(
     # rod
     #####
     # compute straight initial configuration of cantilever
-    q0 = Rod.straight_configuration(
-        nelements, length, polynomial_degree=polynomial_degree
-    )
+    q0 = Rod.straight_configuration(nelements, length)
     # construct cantilever
     cantilever = Rod(
         cross_section,
@@ -74,8 +70,6 @@ def cantilever(
         nelements,
         Q=q0,
         q0=q0,
-        polynomial_degree=polynomial_degree,
-        reduced_integration=reduced_integration,
     )
 
     ##########
@@ -211,7 +205,7 @@ def cantilever(
         la_g = sol.la_g[-1]
 
         for el in range(rod.nelement):
-            xi_el = np.linspace(*rod.knot_vector_r.element_interval(el), nxi_el)
+            xi_el = np.linspace(*rod.element_interval(el), nxi_el)
             epsilon_Gamma_el = np.zeros([nxi_el, 3])
             epsilon_Kappa_el = np.zeros([nxi_el, 3])
             B_n_el = np.zeros([nxi_el, 3])
