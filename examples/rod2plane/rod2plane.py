@@ -88,7 +88,7 @@ if __name__ == "__main__":
     # solver
     t1 = 10
     # dt = 1e-5
-    # solver = Moreau(system, t1, dt, options=SolverOptions(prox_scaling=0.5))
+    # solver = Moreau(system, t1, dt, options=SolverOptions(prox_scaling=0.05))
     dt = 5e-2
     solver = DualStörmerVerlet(
         # system, t1, dt, options=SolverOptions(prox_scaling=0.05, newton_atol=1e-8, newton_rtol=1e-8)

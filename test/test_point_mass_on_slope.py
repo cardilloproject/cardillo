@@ -245,124 +245,7 @@ class BallOnExp:
 system = System()
 ball = BallOnExp(m, g, mu, x0, x_dot0, q0=q0)
 system.add(ball)
-system.assemble(options=SolverOptions(compute_consistent_initial_conditions=False))
-
-# @pytest.mark.parametrize("Solver, kwargs", solvers_and_kwargs)
-# def test_index3_problem(Solver, kwargs, show=False):
-#     # create the system
-#     system = System()
-#     ball = BallOnExp()
-#     system.add(ball)
-#     system.assemble(options=SolverOptions(compute_consistent_initial_conditions=False))
-
-#     # call the solver
-#     t1 = 2 * np.pi
-#     t1 *= 0.1
-#     dt = 1e-2
-#     sol = Solver(system, t1, dt, **kwargs).solve()
-#     t = sol.t
-#     q = sol.q
-#     u = sol.u
-
-#     # compare with exact solution
-#     q_true, u_true, la_true = sol_true(t)
-#     error_q = compute_error(q, q_true, rtol=1e-6, atol=1e-3)
-#     error_u = compute_error(u, u_true, rtol=1e-6, atol=1e-3)
-#     print(f"error q: {error_q}")
-#     print(f"error u: {error_u}")
-
-#     # visualization
-#     if show:
-#         fig, ax = plt.subplots(2, 1)
-
-#         ax[0].plot(t, q[:, 0], "-r", label="x")
-#         ax[0].plot(t, q_true[:, 0], "rx", label="x_true")
-#         ax[0].plot(t, q[:, 1], "-g", label="y")
-#         ax[0].plot(t, q_true[:, 1], "gx", label="y_true")
-#         ax[0].grid()
-#         ax[0].legend()
-
-#         ax[1].plot(t, u[:, 0], "-r", label="u")
-#         ax[1].plot(t, u_true[:, 0], "rx", label="u_true")
-#         ax[1].plot(t, u[:, 1], "-g", label="v")
-#         ax[1].plot(t, u_true[:, 1], "gx", label="v_true")
-#         ax[1].grid()
-#         ax[1].legend()
-
-#         plt.show()
-
-#     # convergence analysis
-#     global first
-#     first = True
-
-#     def get_solver(t_final, dt, atol):
-#         global first
-#         if first:
-#             first = False
-#             t_true = np.arange(0, t_final + dt, dt)
-#             q_true, u_true, la_true = sol_true(t_true)
-#             return type(
-#                 "Solver",
-#                 (),
-#                 {
-#                     "solve": lambda self: Solution(
-#                         system,
-#                         t=t_true,
-#                         q=q_true,
-#                         u=u_true,
-#                         P_g=dt * la_true,
-#                     )
-#                 },
-#             )()
-#         else:
-#             return Solver(
-#                 system,
-#                 t_final,
-#                 dt,
-#                 options=SolverOptions(
-#                     fixed_point_atol=atol,
-#                     fixed_point_rtol=atol,
-#                     newton_atol=atol,
-#                     newton_rtol=atol,
-#                     reuse_lu_decomposition=False,
-#                 ),
-#                 **kwargs,
-#             )
-
-#     errors = convergence_analysis(
-#         get_solver,
-#         #
-#         # dt_ref=1.6e-3,
-#         # final_power=7,
-#         # power_span=(1, 5),
-#         #
-#         # dt_ref=8e-4,
-#         # final_power=8,
-#         # power_span=(1, 6),
-#         #
-#         # dt_ref=4e-4,
-#         # final_power=9,
-#         # power_span=(1, 7),
-#         #
-#         dt_ref=2e-4,
-#         final_power=10,
-#         power_span=(1, 8),
-#         #
-#         #############
-#         # other setup
-#         #############
-#         states=["q", "u", "P_g"],
-#         measure="lp",
-#         visualize=show,
-#         export=True,
-#         # export_name="Rattle",
-#         kwargs={"p": 1},
-#     )
-
-
-# if __name__ == "__main__":
-#     for p in solvers_and_kwargs:
-#         test_index3_problem(*p, show=True)
+system.assemble(options=SolverOptions(compute_consistent_initial_conditions=True))
 
 
 def plot(sol):
@@ -601,5 +484,5 @@ def convergence():
 
 
 if __name__ == "__main__":
-    # state()
-    convergence()
+    state()
+    # convergence()

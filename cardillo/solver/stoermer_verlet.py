@@ -517,6 +517,17 @@ class DualStörmerVerlet:
             self.prox_r_N = alpha / (W_N.T @ M_inv_W_N).diagonal()
             self.prox_r_F = alpha / (W_F.T @ M_inv_W_F).diagonal()
 
+            # evaluate active contacts
+            g_Nm = self.system.g_N(tm, qm)
+            I_N = g_Nm <= 0
+
+            # # TODO: Do these evaluations only once as in Moreau and introduce
+            # # slicing for active contacts
+            # chi_N = self.system.g_N_dot(tn12, qn12, np.zeros_like(un))[self.I_N]
+            # chi_F = self.system.gamma_F(tn12, qn12, np.zeros_like(un))[self.I_F]
+            # self.xi_N0 = e_N * (self.W_N.T @ un) + (1 + e_N) * chi_N
+            # self.xi_F0 = e_F * (self.W_F.T @ un) + (1 + e_F) * chi_F
+
         ###################
         # newton iterations
         ###################
@@ -535,37 +546,38 @@ class DualStörmerVerlet:
 
         def prox(Pi_Nn1, Pi_Fn1):
             # normal contact
-            g_Nm = self.system.g_N(tm, qm)
             # # TODO: This is the desired evaluation
-            # xi_N = self.system.xi_N(tm, tm, qm, qm, un, un1)
+            # TODO: Decompose evaluation of xi_N = e_N * gamma_Nn + gamma_Nn1
+            xi_N = self.system.xi_N(tm, tm, qm, qm, un, un1)
             # TODO: This leads to second-order convergence for case 1 in the
             # point mass on slope example
-            xi_N = self.system.xi_N(tn, tn1, qn, qn1, un, un1)
+            # TODO: This also introduces a strange chattering in the same example!
+            # xi_N = self.system.xi_N(tn, tn1, qn, qn1, un, un1)
             Pi_Nn1 = np.where(
-                g_Nm <= 0,
+                I_N,
                 -NegativeOrthant.prox(self.prox_r_N * xi_N - Pi_Nn1),
                 np.zeros_like(Pi_Nn1),
             )
 
             # friction
-            if self.nla_N + self.nla_F > 0:
-                xi_F = self.system.xi_F(tn, tn1, qn, qn1, un, un1)
-                for contr in self.system.get_contribution_list("gamma_F"):
-                    la_FDOF = contr.la_FDOF
-                    gamma_F_contr = xi_F[la_FDOF]
-                    Pi_Nn1_contr = Pi_Fn1[la_FDOF]
-                    prox_r_F_contr = self.prox_r_F[la_FDOF]
-                    for i_N, i_F, force_recervoir in contr.friction_laws:
-                        if len(i_N) > 0:
-                            dP_Nn1i = Pi_Nn1[contr.la_NDOF[i_N]]
-                        else:
-                            dP_Nn1i = self.dt
+            # TODO: Decompose evaluation of xi_F = e_F * gamma_Fn + gamma_Fn1
+            # xi_F = self.system.xi_F(tn, tn1, qn, qn1, un, un1)
+            xi_F = self.system.xi_F(tm, tm, qm, qm, un, un1)
+            for contr in self.system.get_contribution_list("gamma_F"):
+                la_FDOF = contr.la_FDOF
+                gamma_F_contr = xi_F[la_FDOF]
+                Pi_Nn1_contr = Pi_Fn1[la_FDOF]
+                prox_r_F_contr = self.prox_r_F[la_FDOF]
+                for i_N, i_F, force_recervoir in contr.friction_laws:
+                    if len(i_N) > 0:
+                        dP_Nn1i = Pi_Nn1[contr.la_NDOF[i_N]]
+                    else:
+                        dP_Nn1i = self.dt
 
-                        Pi_Fn1[la_FDOF[i_F]] = -force_recervoir.prox(
-                            prox_r_F_contr[i_F] * gamma_F_contr[i_F]
-                            - Pi_Nn1_contr[i_F],
-                            dP_Nn1i,
-                        )
+                    Pi_Fn1[la_FDOF[i_F]] = -force_recervoir.prox(
+                        prox_r_F_contr[i_F] * gamma_F_contr[i_F] - Pi_Nn1_contr[i_F],
+                        dP_Nn1i,
+                    )
 
             return Pi_Nn1, Pi_Fn1
 
