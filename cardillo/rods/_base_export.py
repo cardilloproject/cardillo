@@ -262,7 +262,6 @@ class RodExportBase(ABC):
             assert self.polynomial_degree_r == self.polynomial_degree_p
             p = self.polynomial_degree_r
 
-            assert p == 3
             self._export_dict["num_frames"] = p * ncells + 1
 
             # make cells

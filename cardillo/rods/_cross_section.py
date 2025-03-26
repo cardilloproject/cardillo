@@ -55,7 +55,9 @@ class ExportableCrossSection(CrossSection):
     def vtk_rational_weights(self): ...
 
     @abstractmethod
-    def vtk_compute_points(self, r_OP_segments, d2_segments, d3_segments, interpolation=vtk_bezier): ...
+    def vtk_compute_points(
+        self, r_OP_segments, d2_segments, d3_segments, interpolation=vtk_bezier
+    ): ...
 
     @abstractmethod
     def vtk_connectivity(self, p_zeta): ...
@@ -173,8 +175,13 @@ class CircularCrossSection(ExportableCrossSection):
             return 9
 
     def vtk_connectivity(self, p_zeta):
-        assert p_zeta == 3
+
+        nlayers = p_zeta + 1
+        ppl = self.vtk_points_per_layer
+        npoints = nlayers * ppl
+
         if self.circle_as_wedge:
+            assert p_zeta == 3
             vtk_cell_type = vtk_types.Wedge
             # fmt: off
             connectivity_flat = np.array(
@@ -205,36 +212,42 @@ class CircularCrossSection(ExportableCrossSection):
             # fmt: on
         else:
             vtk_cell_type = vtk_types.Hexahedron
-            # fmt: off
-            connectivity_main = np.array(
+            numbered_layers = np.array(
                 [
-                     0,  1,  2,  3, # vertices bottom
-                    27, 28, 29, 30, # vertices top
-                     4,  5,  6,  7, # edges bottom
-                    31, 32, 33, 34, # edges top
-                     9, 18,         # edges middle 0
-                    10, 19,         # edges middle 1
-                    11, 20,         # edges middle 2
-                    12, 21,         # edges middle 3
-                    16, 25,         # faces middle 7
-                    14, 23,         # faces middle 5
-                    13, 22,         # faces middle 4
-                    15, 24,         # faces middle 6
-                     8,             # face bottom    
-                    35,             # face top
-                    17, 26,         # volume middle 8
-                ],
-                dtype=int,
+                    np.arange(ppl * layer, ppl * (layer + 1))
+                    for layer in range(p_zeta + 1)
+                ]
             )
-            connectivity_flat = np.array(
+
+            # fmt: off
+            connectivity_main = np.concatenate(
                 [
-                    27, 28, 29, 30,
-                    36, 37, 38, 39,
-                    31, 32, 33, 34,
-                    40, 41, 42, 43,
-                    35, 44
-                ],
-                dtype=int
+                    numbered_layers[0, :4],     # vertices bottom
+                    numbered_layers[-1, :4],    # vertices top
+                    numbered_layers[0, 4:-1],   # edges bottom
+                    numbered_layers[-1, 4:-1],  # edges top
+                    numbered_layers[1:-1,0],    # edges middle 0
+                    numbered_layers[1:-1,1],    # edges middle 1
+                    numbered_layers[1:-1,2],    # edges middle 2
+                    numbered_layers[1:-1,3],    # edges middle 3
+                    numbered_layers[1:-1,7],    # faces middle 7
+                    numbered_layers[1:-1,5],    # faces middle 5
+                    numbered_layers[1:-1,4],    # faces middle 4
+                    numbered_layers[1:-1,6],    # faces middle 6
+                    [numbered_layers[0,8]],     # face bottom
+                    [numbered_layers[-1,8]],    # face top
+                    numbered_layers[1:-1,8],    # volume middle 8
+                ]
+            )
+            connectivity_flat = np.concatenate(
+                [
+                    numbered_layers[-1, :4],    # vertices top (last)
+                    np.arange(0, 4) + npoints,  # vertices bottom (next)
+                    numbered_layers[-1, 4:-1],  # edges top (last)
+                    np.arange(4, 8) + npoints,  # edges bottom (next)
+                    [npoints],                  # face top (last)
+                    [npoints + ppl - 1]         # face bottom (next)   
+                ]
             )
             # fmt: on
 
@@ -248,7 +261,9 @@ class CircularCrossSection(ExportableCrossSection):
             s22 = np.sqrt(2) / 2
             return np.array([1, 1, 1, 1, s22, s22, s22, s22, 1])
 
-    def vtk_compute_points(self, r_OP_segments, d2_segments, d3_segments, interpolation=vtk_bezier):
+    def vtk_compute_points(
+        self, r_OP_segments, d2_segments, d3_segments, interpolation=vtk_bezier
+    ):
         if self.circle_as_wedge:
 
             # points:
@@ -321,10 +336,10 @@ class CircularCrossSection(ExportableCrossSection):
                     P7 = r_OP - rd2 - rd3
                 elif interpolation == vtk_lagrange:
                     # points on the circle
-                    P4 = r_OP  + (rd2 - rd3) * sqrt2_inv
-                    P5 = r_OP  + (rd2 + rd3) * sqrt2_inv
-                    P6 = r_OP  + (rd3 - rd2) * sqrt2_inv
-                    P7 = r_OP  - (rd2 + rd3) * sqrt2_inv
+                    P4 = r_OP + (rd2 - rd3) * sqrt2_inv
+                    P5 = r_OP + (rd2 + rd3) * sqrt2_inv
+                    P6 = r_OP + (rd3 - rd2) * sqrt2_inv
+                    P7 = r_OP - (rd2 + rd3) * sqrt2_inv
 
                 # center point
                 P8 = r_OP
@@ -420,7 +435,9 @@ class RectangularCrossSection(ExportableCrossSection):
     def vtk_rational_weights(self):
         return np.repeat(1, 4)
 
-    def vtk_compute_points(self, r_OP_segments, d2_segments, d3_segments, interpolation=None):
+    def vtk_compute_points(
+        self, r_OP_segments, d2_segments, d3_segments, interpolation=None
+    ):
         def compute_points(segment, layer):
             r_OP = r_OP_segments[segment, layer]
             d2 = d2_segments[segment, layer]
