@@ -369,7 +369,7 @@ class RodExportBase(ABC):
 
             # get characteristic points from the cross-section
             compute_points = self.cross_section.vtk_compute_points(
-                r_OP_segments, d2_segments, d3_segments
+                r_OP_segments, d2_segments, d3_segments, vtk_bezier
             )
 
             # get some values for shortcuts
@@ -535,7 +535,7 @@ class RodExportBase(ABC):
 
             # get characteristic points from the cross-section
             compute_points = self.cross_section.vtk_compute_points(
-                np.array([r_OPs]), np.array([d2s]), np.array([d3s])
+                np.array([r_OPs]), np.array([d2s]), np.array([d3s]), vtk_lagrange
             )
 
             # get some values for shortcuts

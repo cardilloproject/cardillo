@@ -55,7 +55,7 @@ class ExportableCrossSection(CrossSection):
     def vtk_rational_weights(self): ...
 
     @abstractmethod
-    def vtk_compute_points(self, r_OP_segments, d2_segments, d3_segments): ...
+    def vtk_compute_points(self, r_OP_segments, d2_segments, d3_segments, interpolation=vtk_bezier): ...
 
     @abstractmethod
     def vtk_connectivity(self, p_zeta): ...
@@ -248,7 +248,7 @@ class CircularCrossSection(ExportableCrossSection):
             s22 = np.sqrt(2) / 2
             return np.array([1, 1, 1, 1, s22, s22, s22, s22, 1])
 
-    def vtk_compute_points(self, r_OP_segments, d2_segments, d3_segments):
+    def vtk_compute_points(self, r_OP_segments, d2_segments, d3_segments, interpolation=vtk_bezier):
         if self.circle_as_wedge:
 
             # points:
@@ -268,8 +268,8 @@ class CircularCrossSection(ExportableCrossSection):
 
             # radii
             ri = self.radius
-            ru = 2 * ri
-            a = 2 * np.sqrt(3) * ri
+            sa = ri / 2
+            ca = ri * np.sqrt(3) / 2
 
             def compute_points(segment, layer):
                 r_OP = r_OP_segments[segment, layer]
@@ -277,19 +277,27 @@ class CircularCrossSection(ExportableCrossSection):
                 d3 = d3_segments[segment, layer]
 
                 P0 = r_OP - ri * d3
-                P3 = r_OP + a / 2 * d2 - ri * d3
-                P4 = r_OP + d3 * ru
+                P1 = r_OP + ca * d2 + sa * d3
+                P2 = r_OP - ca * d2 + sa * d3
 
-                P5 = 2 * P0 - P3
-                P1 = 0.5 * (P3 + P4)
-                P0 = 0.5 * (P5 + P3)
-                P2 = 0.5 * (P4 + P5)
+                if interpolation == vtk_bezier:
+                    P3 = r_OP + 2 * ca * d2 - ri * d3
+                    P4 = r_OP + 2 * ri * d3
+                    P5 = r_OP - 2 * ca * d2 - ri * d3
+
+                elif interpolation == vtk_lagrange:
+                    # set P3, P4, P5 on the circle
+                    P3 = r_OP + ca * d2 - sa * d3
+                    P4 = r_OP + ri * d3
+                    P5 = r_OP - ca * d2 - sa * d3
 
                 return np.vstack([P0, P1, P2, P3, P4, P5])
 
             return compute_points
 
         else:
+
+            sqrt2_inv = 1 / np.sqrt(2)
 
             def compute_points(segment, layer):
                 r_OP = r_OP_segments[segment, layer]
@@ -305,11 +313,18 @@ class CircularCrossSection(ExportableCrossSection):
                 P2 = r_OP + rd3
                 P3 = r_OP - rd2
 
-                # points on the outer square
-                P4 = r_OP - rd3 + rd2
-                P5 = r_OP + rd2 + rd3
-                P6 = r_OP + rd3 - rd2
-                P7 = r_OP - rd2 - rd3
+                if interpolation == vtk_bezier:
+                    # points on the outer square
+                    P4 = r_OP - rd3 + rd2
+                    P5 = r_OP + rd2 + rd3
+                    P6 = r_OP + rd3 - rd2
+                    P7 = r_OP - rd2 - rd3
+                elif interpolation == vtk_lagrange:
+                    # points on the circle
+                    P4 = r_OP  + (rd2 - rd3) * sqrt2_inv
+                    P5 = r_OP  + (rd2 + rd3) * sqrt2_inv
+                    P6 = r_OP  + (rd3 - rd2) * sqrt2_inv
+                    P7 = r_OP  - (rd2 + rd3) * sqrt2_inv
 
                 # center point
                 P8 = r_OP
@@ -405,7 +420,7 @@ class RectangularCrossSection(ExportableCrossSection):
     def vtk_rational_weights(self):
         return np.repeat(1, 4)
 
-    def vtk_compute_points(self, r_OP_segments, d2_segments, d3_segments):
+    def vtk_compute_points(self, r_OP_segments, d2_segments, d3_segments, interpolation=None):
         def compute_points(segment, layer):
             r_OP = r_OP_segments[segment, layer]
             d2 = d2_segments[segment, layer]
@@ -415,7 +430,7 @@ class RectangularCrossSection(ExportableCrossSection):
             # P3    |     P2
             # x-----+-----x
             # |     |     |
-            # |-----o-----Q1--> d2
+            # |-----o-----|--> d2
             # |           |
             # x-----------x
             # P0          P1

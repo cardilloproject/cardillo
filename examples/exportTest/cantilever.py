@@ -147,11 +147,25 @@ def cantilever(
         rod_volume_circle_wedge._export_dict["hasCap"] = True
         system.add(rod_volume_circle_wedge)
 
-        # export only nodal quantities for fast export
+        # export only nodal quantities for fast export (rectangle)
         rod_NodalVolume = deepcopy(cantilever)
         rod_NodalVolume.name = "cantilever_NodalVolume"
         rod_NodalVolume._export_dict["level"] = "NodalVolume"
         system.add(rod_NodalVolume)
+
+        # export only nodal quantities for fast export (circle)
+        rod_NodalVolume_circle = deepcopy(cantilever)
+        rod_NodalVolume_circle.cross_section = cross_section_circle
+        rod_NodalVolume_circle.name = "cantilever_NodalVolume_circle"
+        rod_NodalVolume_circle._export_dict["level"] = "NodalVolume"
+        system.add(rod_NodalVolume_circle)
+
+        # export only nodal quantities for fast export (circle as wedge)
+        rod_NodalVolume_circle_wedge = deepcopy(cantilever)
+        rod_NodalVolume_circle_wedge.cross_section = cross_section_circle_wedge
+        rod_NodalVolume_circle_wedge.name = "cantilever_NodalVolume_circle_wedge"
+        rod_NodalVolume_circle_wedge._export_dict["level"] = "NodalVolume"
+        system.add(rod_NodalVolume_circle_wedge)
 
         # export only centerline & directors
         cantilever.name = "cantilever"
