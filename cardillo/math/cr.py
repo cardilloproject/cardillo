@@ -88,7 +88,7 @@ def cr(A, b, x0=None, *, rtol=1e-5, atol=0.0, maxiter=None, M=None, callback=Non
     for iteration in range(maxiter):
         # if np.linalg.norm(r) < atol:
         if np.linalg.norm(r) <= max(rtol * bnrm2, atol):
-            return postprocess(x), iteration, r
+            return postprocess(x), iteration, r, True
 
         # see Algorithm 2 in https://www.sciencedirect.com/science/article/pii/S0377042708002264
         p = z + beta * p
@@ -119,20 +119,21 @@ def cr(A, b, x0=None, *, rtol=1e-5, atol=0.0, maxiter=None, M=None, callback=Non
         if callback:
             callback(x)
 
-    return postprocess(x), maxiter, r
+    return postprocess(x), maxiter, r, False
 
 
 def nonlinear_cr(
     fun,
     x0,
-    maxiter=int(1e3),
+    maxiter=int(1e2),
     atol=1e-3,
     rtol=1e-3,
     sigma1=1e-4,
     sigma2=1e-4,
     r=0.8,
+    # r=0.95,
     t=0.5,
-    tol=1e-5,
+    tol=1e-3,
 ):
     """
     A derivative-free conjugate residual method using secant condition for
@@ -156,8 +157,9 @@ def nonlinear_cr(
     beta = 0.0
     F = fun(x)
     f = 0.5 * np.dot(F, F)
-    for k in range(maxiter):
-        print(f" - k: {k}:")
+    scale = atol + np.abs(F) * rtol
+    for iterations in range(maxiter):
+        print(f" - iterations: {iterations}:")
         d = -F + beta * d
 
         # monotone line search
@@ -172,8 +174,8 @@ def nonlinear_cr(
         ls_converged = (
             f_new <= f - sigma1 * alpha**2 * d2 - sigma2 * alpha**2 * F2 + eta * f
         )
-        print(f"   line search:")
-        print(f"    * k: {k}; ls_converged: {ls_converged}; alpha: {alpha}; eta: {eta}")
+        # print(f"   line search:")
+        # print(f"    * k: {k}; ls_converged: {ls_converged}; alpha: {alpha}; eta: {eta}")
         while not ls_converged:
             k += 1
             alpha = r**k
@@ -184,22 +186,31 @@ def nonlinear_cr(
             ls_converged = (
                 f_new <= f - sigma1 * alpha**2 * d2 - sigma2 * alpha**2 * F2 + eta * f
             )
-            print(
-                f"    * k: {k}; ls_converged: {ls_converged}; alpha: {alpha}; eta: {eta}"
-            )
+            # print(
+            #     f"    * k: {k}; ls_converged: {ls_converged}; alpha: {alpha}; eta: {eta}"
+            # )
 
+        s = x_new - x
         x = x_new.copy()
         F = F_new.copy()
         f = f_new
-        eps = 1e-8
+        # eps = 1e-8
+        eps = 1e-6
         beta = np.abs(np.dot(F, d)) / np.abs(np.dot(d, (fun(x + eps * d) - F) / eps))
+        beta = np.dot(
+            F,
+        )
 
         converged = f < tol
-        print(f"   converged: {converged}; cost: {f}")
+        error = np.linalg.norm(F / scale) / scale.size**0.5
+        converged = error < 1
+        # error = f
+        # converged = error < tol
+        print(f"   converged: {converged}; error: {error}; cost: {f}")
         if converged:
             break
 
-    return x, F, f
+    return x, iterations + 1, error
 
     ####################
     # old implementation
@@ -313,10 +324,10 @@ def test_nonlinear_cr():
     n = 5
     x0 = np.zeros(n)
 
-    x, F, f = nonlinear_cr(fun, x0)
+    x, iterations, error = nonlinear_cr(fun, x0)
     print(f"x: {x}")
-    print(f"F: {F}")
-    print(f"f: {f}")
+    print(f"iterations: {iterations}")
+    print(f"error: {error}")
 
 
 if __name__ == "__main__":
