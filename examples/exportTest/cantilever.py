@@ -181,7 +181,7 @@ if __name__ == "__main__":
         # Rod=make_CosseratRod(interpolation="SE3", mixed=True, constraints=[0, 1, 2]),
         # Rod=make_CosseratRod(interpolation="R12", mixed=True, constraints=[0, 1, 2]),
         Rod=make_CosseratRod(
-            mixed=True, polynomial_degree=3
+            mixed=True, polynomial_degree=1
         ),  # , constraints=[0, 1, 2]),
         # load_type="moment",
         load_type="constant_end_load",

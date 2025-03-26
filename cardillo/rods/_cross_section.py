@@ -175,49 +175,42 @@ class CircularCrossSection(ExportableCrossSection):
             return 9
 
     def vtk_connectivity(self, p_zeta):
-
         nlayers = p_zeta + 1
         ppl = self.vtk_points_per_layer
         npoints = nlayers * ppl
 
+        numbered_layers = np.array(
+            [np.arange(ppl * layer, ppl * (layer + 1)) for layer in range(p_zeta + 1)]
+        )
+
         if self.circle_as_wedge:
-            assert p_zeta == 3
             vtk_cell_type = vtk_types.Wedge
             # fmt: off
-            connectivity_flat = np.array(
+            connectivity_main = np.concatenate(
                 [
-                    18, 19, 20, # vertiecs bottom
-                    24, 25, 26, # vertices top
-                    21, 22, 23, # edges bottom
-                    27, 28, 29, # edges top
-                ],
-                dtype=int
+                    numbered_layers[0, :3],     # vertices bottom
+                    numbered_layers[-1, :3],    # vertices top
+                    numbered_layers[0, 3:],     # edges bottom
+                    numbered_layers[-1, 3:],    # edges top
+                    numbered_layers[1:-1, 0],   # edge1 middle
+                    numbered_layers[1:-1, 1],   # edge2 middle
+                    numbered_layers[1:-1, 2],   # edge3 middle
+                    numbered_layers[1:-1, 3],   # faces1 middle
+                    numbered_layers[1:-1, 4],   # faces2 middle
+                    numbered_layers[1:-1, 5],   # faces3 middle
+                ]
             )
-            connectivity_main = np.array(
+            connectivity_flat = np.concatenate(
                 [
-                     0,  1,  2, # vertices bottom   l0
-                    18, 19, 20, # vertices top      l3
-                     3,  4,  5, # edges bottom      l0
-                    21, 22, 23, # edges top         l3
-                     6, 12,     # edge1 middle      l1&l2
-                     7, 13,     # edge2 middle      l1&l2
-                     8, 14,     # edge3 middle      l1&l2
-                     9, 15,     # faces1 middle     l1&l2
-                    10, 16,     # faces2 middle     l1&l2
-                    11, 17,     # faces3 middle     l1&l2
-                # l1|^, |^l2
-                ], 
-                dtype=int
+                    numbered_layers[-1, :3],    # vertices top (last)
+                    np.arange(0, 3) + npoints,  # vertices bottom (next)
+                    numbered_layers[-1, 3:],    # edges top (last)
+                    np.arange(3, 6) + npoints,  # edges bottom (next)  
+                ]
             )
             # fmt: on
         else:
             vtk_cell_type = vtk_types.Hexahedron
-            numbered_layers = np.array(
-                [
-                    np.arange(ppl * layer, ppl * (layer + 1))
-                    for layer in range(p_zeta + 1)
-                ]
-            )
 
             # fmt: off
             connectivity_main = np.concatenate(
@@ -234,9 +227,9 @@ class CircularCrossSection(ExportableCrossSection):
                     numbered_layers[1:-1,5],    # faces middle 5
                     numbered_layers[1:-1,4],    # faces middle 4
                     numbered_layers[1:-1,6],    # faces middle 6
-                    [numbered_layers[0,8]],     # face bottom
-                    [numbered_layers[-1,8]],    # face top
-                    numbered_layers[1:-1,8],    # volume middle 8
+                    [numbered_layers[0,-1]],    # face bottom
+                    [numbered_layers[-1,-1]],   # face top
+                    numbered_layers[1:-1,-1],   # volume middle 8
                 ]
             )
             connectivity_flat = np.concatenate(
@@ -246,7 +239,7 @@ class CircularCrossSection(ExportableCrossSection):
                     numbered_layers[-1, 4:-1],  # edges top (last)
                     np.arange(4, 8) + npoints,  # edges bottom (next)
                     [npoints],                  # face top (last)
-                    [npoints + ppl - 1]         # face bottom (next)   
+                    [npoints + ppl - 1],        # face bottom (next)   
                 ]
             )
             # fmt: on
@@ -406,26 +399,31 @@ class RectangularCrossSection(ExportableCrossSection):
         return 4
 
     def vtk_connectivity(self, p_zeta):
-        assert p_zeta == 3
+        nlayers = p_zeta + 1
+        ppl = self.vtk_points_per_layer
+        npoints = nlayers * ppl
+
+        numbered_layers = np.array(
+            [np.arange(ppl * layer, ppl * (layer + 1)) for layer in range(p_zeta + 1)]
+        )
+
         vtk_cell_type = vtk_types.Hexahedron
         # fmt: off
-        connectivity_main = np.array(
+        connectivity_main = np.concatenate(
             [
-                 0,  1,  2,  3,  # vertices bottom
-                12, 13, 14, 15,  # vertices top
-                 4,  8,          # edge1
-                 5,  9,          # edge2
-                 6, 10,          # edge3
-                 7, 11,          # edge4
-            ],
-            dtype=int
+                numbered_layers[0, :4],     # vertices bottom
+                numbered_layers[-1, :4],    # vertices top
+                numbered_layers[1:-1,0],    # edges middle 0
+                numbered_layers[1:-1,1],    # edges middle 1
+                numbered_layers[1:-1,2],    # edges middle 2
+                numbered_layers[1:-1,3],    # edges middle 3
+            ]
         )
-        connectivity_flat = np.array(
+        connectivity_flat = np.concatenate(
             [
-                12, 13, 14, 15,
-                16, 17, 18, 19
-            ],
-            dtype=int
+                numbered_layers[-1, :4],    # vertices top (last)
+                np.arange(0, 4) + npoints,  # vertices bottom (next)
+            ]
         )
         # fmt: on
 
