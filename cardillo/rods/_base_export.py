@@ -244,7 +244,6 @@ class RodExportBase(ABC):
                 assert hasattr(self.cross_section, "B_r_PQ")
                 assert hasattr(self.cross_section, "B_r_PQ_eta")
                 assert isinstance(self.cross_section, CircularCrossSection)
-                warn("Implementation of surface normals is experimental!")
                 if not self._export_dict["hasCap"]:
                     warn(
                         "It is recommended to set 'hasCap=True' in rod._export_dict when surface normals are exported!"
@@ -507,9 +506,6 @@ class RodExportBase(ABC):
                         el = i
                         xi = (i + layer / p_zeta) / ncells
                         # TODO: do this cleaner (computation of el)
-                        # TODO: remove the workaround when we can call the basis functions with element number
-                        if i != ncells and layer == p_zeta:
-                            xi -= 1e-9
                         for point in range(ppl):
                             vtk_surface_normals.append(
                                 self.surface_normal(q, xi, etas[point], el)
@@ -520,6 +516,8 @@ class RodExportBase(ABC):
                     vtk_surface_normals.extend(
                         np.repeat([d1_segments[-1, -1]], ppl, axis=0)
                     )
+
+                # TODO: Do we also need to project them?
 
                 # add them to dictionary with point data
                 point_data["surface_normal"] = vtk_surface_normals

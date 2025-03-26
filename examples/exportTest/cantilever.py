@@ -171,7 +171,7 @@ if __name__ == "__main__":
         ),  # , constraints=[0, 1, 2]),
         # load_type="moment",
         load_type="constant_end_load",
-        nelements=6,
+        nelements=4,
         VTK_export=True,
         name="Cosserat mixed",
     )
