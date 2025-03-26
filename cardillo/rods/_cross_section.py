@@ -1,6 +1,22 @@
 from abc import ABC, abstractmethod
+from collections import namedtuple
+from enum import IntEnum
 import numpy as np
-from vtk import VTK_BEZIER_WEDGE, VTK_BEZIER_HEXAHEDRON
+from vtk import (
+    VTK_BEZIER_HEXAHEDRON,
+    VTK_BEZIER_WEDGE,
+    VTK_LAGRANGE_HEXAHEDRON,
+    VTK_LAGRANGE_WEDGE,
+)
+
+
+vtk_types = IntEnum(
+    "VTK_TYPES",
+    [("Hexahedron", 0), ("Wedge", 1)],
+)
+vtk_interpolation = namedtuple("vtk_interpolation", ["Hexahedron", "Wedge"])
+vtk_bezier = vtk_interpolation(VTK_BEZIER_HEXAHEDRON, VTK_BEZIER_WEDGE)
+vtk_lagrange = vtk_interpolation(VTK_LAGRANGE_HEXAHEDRON, VTK_LAGRANGE_WEDGE)
 
 
 class CrossSection(ABC):
@@ -151,7 +167,6 @@ class CircularCrossSection(ExportableCrossSection):
 
     @property
     def vtk_points_per_layer(self):
-        # TODO: this is len(self.alphas)
         if self.circle_as_wedge:
             return 6
         else:
@@ -160,7 +175,7 @@ class CircularCrossSection(ExportableCrossSection):
     def vtk_connectivity(self, p_zeta):
         assert p_zeta == 3
         if self.circle_as_wedge:
-            VTK_CELL_TYPE = VTK_BEZIER_WEDGE
+            vtk_cell_type = vtk_types.Wedge
             # fmt: off
             connectivity_flat = np.array(
                 [
@@ -189,7 +204,7 @@ class CircularCrossSection(ExportableCrossSection):
             )
             # fmt: on
         else:
-            VTK_CELL_TYPE = VTK_BEZIER_HEXAHEDRON
+            vtk_cell_type = vtk_types.Hexahedron
             # fmt: off
             connectivity_main = np.array(
                 [
@@ -223,7 +238,7 @@ class CircularCrossSection(ExportableCrossSection):
             )
             # fmt: on
 
-        return VTK_CELL_TYPE, connectivity_main, connectivity_flat
+        return vtk_cell_type, connectivity_main, connectivity_flat
 
     @property
     def vtk_rational_weights(self):
@@ -362,7 +377,7 @@ class RectangularCrossSection(ExportableCrossSection):
 
     def vtk_connectivity(self, p_zeta):
         assert p_zeta == 3
-        VTK_CELL_TYPE = VTK_BEZIER_HEXAHEDRON
+        vtk_cell_type = vtk_types.Hexahedron
         # fmt: off
         connectivity_main = np.array(
             [
@@ -384,7 +399,7 @@ class RectangularCrossSection(ExportableCrossSection):
         )
         # fmt: on
 
-        return VTK_CELL_TYPE, connectivity_main, connectivity_flat
+        return vtk_cell_type, connectivity_main, connectivity_flat
 
     @property
     def vtk_rational_weights(self):

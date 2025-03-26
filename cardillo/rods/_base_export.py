@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 import numpy as np
-from vtk import VTK_LAGRANGE_CURVE, VTK_LAGRANGE_HEXAHEDRON
+from vtk import (
+    VTK_LAGRANGE_CURVE,
+)
 from warnings import warn
 
 from cardillo.utility.bezier import L2_projection_Bezier_curve
@@ -10,6 +12,8 @@ from ._cross_section import (
     ExportableCrossSection,
     CircularCrossSection,
     RectangularCrossSection,
+    vtk_bezier,
+    vtk_lagrange,
 )
 
 """
@@ -174,9 +178,11 @@ class RodExportBase(ABC):
             # get infos from cross section
             ppl = self.cross_section.vtk_points_per_layer
             points_per_cell = (p_zeta + 1) * ppl
-            VTK_CELL_TYPE, connectivity_main, connectivity_flat = (
+            vtk_cell_type, connectivity_main, connectivity_flat = (
                 self.cross_section.vtk_connectivity(p_zeta)
             )
+
+            VTK_CELL_TYPE = vtk_bezier[vtk_cell_type]
 
             # create cells and higher_order_degrees
             cells = []
@@ -271,12 +277,11 @@ class RodExportBase(ABC):
             # get infos from cross section
             ppl = self.cross_section.vtk_points_per_layer
             points_per_cell = (p_zeta + 1) * ppl
-            VTK_CELL_TYPE, connectivity_main, _ = self.cross_section.vtk_connectivity(
+            vtk_cell_type, connectivity_main, _ = self.cross_section.vtk_connectivity(
                 p_zeta
             )
 
-            # TODO: I think we should choose always the hexahedron, or only return "Hedrahedron" or "Wedge" and select the type then afterwards
-            VTK_CELL_TYPE = VTK_LAGRANGE_HEXAHEDRON
+            VTK_CELL_TYPE = vtk_lagrange[vtk_cell_type]
 
             # create cells and higher_order_degrees
             cells = []
