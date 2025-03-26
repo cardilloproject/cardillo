@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 import numpy as np
-from vtk import VTK_LAGRANGE_CURVE
+from vtk import VTK_LAGRANGE_CURVE, VTK_LAGRANGE_HEXAHEDRON
 from warnings import warn
 
 from cardillo.utility.bezier import L2_projection_Bezier_curve
@@ -121,6 +121,7 @@ class RodExportBase(ABC):
         assert self._export_dict["level"] in [
             "centerline + directors",
             "volume",
+            "NodalVolume",
             "None",
             None,
         ]
@@ -243,6 +244,58 @@ class RodExportBase(ABC):
                         "It is recommended to set 'hasCap=True' in rod._export_dict when surface normals are exported!"
                     )
 
+        elif self._export_dict["level"] == "NodalVolume":
+            assert isinstance(
+                self.cross_section, (ExportableCrossSection)
+            ), "Volume export is only implemented for Classes derived from ExportableCrossSection."
+
+            # overwrite nCells: 1 cell for each element
+            self._export_dict["ncells"] = self.nelement
+            ncells = self._export_dict["ncells"]
+
+            # this works only, when the nodes of both fields coincide
+            assert self.polynomial_degree_r == self.polynomial_degree_p
+            p = self.polynomial_degree_r
+
+            assert p == 3
+
+            # TODO: is this required?
+            self._export_dict["num_frames"] = (p + 1) * ncells + 1
+
+            # make cells
+            p_cs = self.cross_section.vtk_degree
+            p_zeta = p  # polynomial_degree of the cell along the rod
+            self._export_dict["p_zeta"] = p_zeta
+            nlayers = (p_zeta + 1) * ncells
+
+            higher_order_degree_main = [p_cs, p_cs, p_zeta]
+
+            # get infos from cross section
+            ppl = self.cross_section.vtk_points_per_layer
+            points_per_cell = (p_zeta + 1) * ppl
+            VTK_CELL_TYPE, connectivity_main, _ = self.cross_section.vtk_connectivity(
+                p_zeta
+            )
+
+            # TODO: I think we should choose always the hexahedron, or only return "Hedrahedron" or "Wedge" and select the type then afterwards
+            VTK_CELL_TYPE = VTK_LAGRANGE_HEXAHEDRON
+
+            # create cells and higher_order_degrees
+            cells = []
+            higher_order_degree = []
+
+            # iterate all cells
+            for i in range(ncells):
+                this_offset = i * points_per_cell
+                cells.append((VTK_CELL_TYPE, connectivity_main + this_offset))
+                higher_order_degree.append(higher_order_degree_main)
+
+            # Note: if there is a closed rod (ring), this should be handled here
+
+            # save for later use
+            self._export_dict["higher_order_degrees"] = higher_order_degree
+            self._export_dict["cells"] = cells
+
         elif self._export_dict["level"] == "None" or self._export_dict["level"] == None:
             self._export_dict["level"] = None
 
@@ -340,10 +393,10 @@ class RodExportBase(ABC):
             if self._export_dict["hasCap"]:
                 vtk_points.extend(compute_points(-1, -1))
 
-            # points to export is just the R^3 part
+            # points to export in numpy array
             vtk_points = np.array(vtk_points)
 
-            # the 4th component are the rational weights
+            # rational weights for NURBS
             point_data = {
                 "RationalWeights": self._export_dict["RationalWeights"],
             }
@@ -475,4 +528,51 @@ class RodExportBase(ABC):
             cell_data = {
                 "HigherOrderDegrees": self._export_dict["higher_order_degrees"],
             }
+
+        elif level == "NodalVolume":
+            # get frames
+            r_OPs, d1s, d2s, d3s = self.nodalFrames(q, elementwise=True)
+
+            print("This export is not working at the moment!")
+
+            # move axis around
+            # TODO: maybe do this already in the function above
+            r_OPs = np.moveaxis(r_OPs, [0, 1, 2], [2, 0, 1])
+            d1s = np.moveaxis(d1s, [0, 1, 2], [2, 0, 1])
+            d2s = np.moveaxis(d2s, [0, 1, 2], [2, 0, 1])
+            d3s = np.moveaxis(d3s, [0, 1, 2], [2, 0, 1])
+
+            # get characteristic points from the cross-section
+            compute_points = self.cross_section.vtk_compute_points(r_OPs, d2s, d3s)
+
+            # get some values for shortcuts
+            ppl = self.cross_section.vtk_points_per_layer
+            p_zeta = self._export_dict["p_zeta"]
+
+            ##################
+            # compute points #
+            ##################
+            vtk_points = []
+
+            # iterate all cells
+            for i in range(ncells):
+                # iterate all layers
+                for layer in range(p_zeta + 1):
+                    vtk_points.extend(compute_points(i, layer))
+
+            # points to export is just the R^3 part
+            vtk_points = np.array(vtk_points)
+
+            ###################
+            # add points data #
+            ###################
+            point_data = {}
+
+            #################
+            # add cell data #
+            #################
+            cell_data = {
+                "HigherOrderDegrees": self._export_dict["higher_order_degrees"],
+            }
+
         return vtk_points, self._export_dict["cells"], point_data, cell_data
