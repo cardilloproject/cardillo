@@ -136,25 +136,34 @@ class Mesh1D:
         # evaluate element shape functions at quadrature points
         self.shape_functions()
 
-    def basis1D(self, xis):
+    def basis1D(self, xis, el):
         if self.basis == "Lagrange":
             return self.lagrange_basis1D(
                 xis,
+                el,
                 squeeze=False,
             )
         elif self.basis == "Lagrange_Disc":
             return self.lagrange_basis1D(
                 xis,
+                el,
                 squeeze=False,
             )
 
-    def lagrange_basis1D(self, xis, squeeze=True):
+    def lagrange_basis1D(self, xis, els, squeeze=True):
         xis = np.atleast_1d(xis)
+        els = np.atleast_1d(els)
         nxis = len(xis)
+        nels = len(els)
+
+        if nels != nxis:
+            assert nels == 1, "Missmatch in lengths of given xi values and elements!"
+            els = np.tile(els, nxis)
+
         N = np.zeros((self.derivative_order + 1, nxis, self.degree + 1))
-        for i, xi in enumerate(xis):
-            el = self.knot_vector.element_number(xi)[0]
-            interval = self.knot_vector.element_interval(el)
+        for i, (xi, eli) in enumerate(zip(xis, els)):
+            eli = self.knot_vector.element_number(xi)[0] if eli is None else eli
+            interval = self.knot_vector.element_interval(eli)
             self.lagrangebasis.set_interval(interval)
             N[0, i] = self.lagrangebasis(xi)
             if self.derivative_order:
@@ -167,13 +176,13 @@ class Mesh1D:
 
     @cachedmethod(
         lambda self: self._eval_basis_cache,
-        key=lambda self, xi: hashkey(xi),
+        key=lambda self, xi, el=None: hashkey(xi, el),
     )
-    def eval_basis(self, xi):
+    def eval_basis(self, xi, el=None):
         if self.basis == "Lagrange":
-            return self.lagrange_basis1D(xi, squeeze=True)
+            return self.lagrange_basis1D(xi, el, squeeze=True)
         elif self.basis == "Lagrange_Disc":
-            return self.lagrange_basis1D(xi, squeeze=False)
+            return self.lagrange_basis1D(xi, el, squeeze=False)
 
     def quadrature_points(self):
         self.qp = np.zeros((self.nelement, self.nquadrature))
@@ -195,7 +204,7 @@ class Mesh1D:
                 )
 
         for el in range(self.nelement):
-            NN = self.basis1D(self.qp[el])
+            NN = self.basis1D(self.qp[el], el)
             # expression = "self.N"
             # for i in range(self.derivative_order):
             #     expression += ", self.N_" + (i + 1) * "xi"
