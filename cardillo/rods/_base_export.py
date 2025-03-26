@@ -258,9 +258,7 @@ class RodExportBase(ABC):
             p = self.polynomial_degree_r
 
             assert p == 3
-
-            # TODO: is this required?
-            self._export_dict["num_frames"] = (p + 1) * ncells + 1
+            self._export_dict["num_frames"] = p * ncells + 1
 
             # make cells
             p_cs = self.cross_section.vtk_degree
@@ -286,7 +284,7 @@ class RodExportBase(ABC):
 
             # iterate all cells
             for i in range(ncells):
-                this_offset = i * points_per_cell
+                this_offset = i * (points_per_cell - ppl)
                 cells.append((VTK_CELL_TYPE, connectivity_main + this_offset))
                 higher_order_degree.append(higher_order_degree_main)
 
@@ -318,10 +316,10 @@ class RodExportBase(ABC):
         ncells = self._export_dict["ncells"]
         continuity = self._export_dict["continuity"]
         level = self._export_dict["level"]
+        num_frames = self._export_dict["num_frames"]
 
         if level == "centerline + directors":
             # get frames
-            num_frames = self._export_dict["num_frames"]
             r_OPs, d1s, d2s, d3s = self.frames(q, num=num_frames)
 
             #######################################
@@ -343,7 +341,6 @@ class RodExportBase(ABC):
 
         elif level == "volume":
             # get frames
-            num_frames = self._export_dict["num_frames"]
             r_OPs, d1s, d2s, d3s = self.frames(q, num=num_frames)
 
             ################################
@@ -531,10 +528,12 @@ class RodExportBase(ABC):
 
         elif level == "NodalVolume":
             # get frames
-            r_OPs, d1s, d2s, d3s = self.nodalFrames(q, elementwise=True)
+            r_OPs, d1s, d2s, d3s = self.nodalFrames(q)
 
             # get characteristic points from the cross-section
-            compute_points = self.cross_section.vtk_compute_points(r_OPs, d2s, d3s)
+            compute_points = self.cross_section.vtk_compute_points(
+                np.array([r_OPs]), np.array([d2s]), np.array([d3s])
+            )
 
             # get some values for shortcuts
             ppl = self.cross_section.vtk_points_per_layer
@@ -543,16 +542,7 @@ class RodExportBase(ABC):
             ##################
             # compute points #
             ##################
-            vtk_points = []
-
-            # iterate all cells
-            for i in range(ncells):
-                # iterate all layers
-                for layer in range(p_zeta + 1):
-                    vtk_points.extend(compute_points(i, layer))
-
-            # points to export is just the R^3 part
-            vtk_points = np.array(vtk_points)
+            vtk_points = np.vstack([compute_points(0, i) for i in range(num_frames)])
 
             ###################
             # add points data #
