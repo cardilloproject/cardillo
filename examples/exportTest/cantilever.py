@@ -123,6 +123,7 @@ def cantilever(
         rod_volume_rectangular._export_dict["level"] = "volume"
         rod_volume_rectangular._export_dict["stresses"] = True
         rod_volume_rectangular._export_dict["volume_directors"] = True
+        system.add(rod_volume_rectangular)
 
         # export with circular cross-section (hexagonal cells)
         rod_volume_circle = deepcopy(cantilever)
@@ -133,6 +134,7 @@ def cantilever(
         rod_volume_circle._export_dict["volume_directors"] = True
         rod_volume_circle._export_dict["surface_normals"] = True
         rod_volume_circle._export_dict["hasCap"] = True
+        system.add(rod_volume_circle)
 
         # export with circular cross-section (wedge cells)
         rod_volume_circle_wedge = deepcopy(cantilever)
@@ -143,13 +145,14 @@ def cantilever(
         rod_volume_circle_wedge._export_dict["volume_directors"] = True
         rod_volume_circle_wedge._export_dict["surface_normals"] = True
         rod_volume_circle_wedge._export_dict["hasCap"] = True
+        system.add(rod_volume_circle_wedge)
 
         # export only centerline & directors
         cantilever.name = "cantilever"
         cantilever._export_dict["level"] = "centerline + directors"
+        # this rod is already in the system
 
         # add rods and export
-        system.add(rod_volume_rectangular, rod_volume_circle, rod_volume_circle_wedge)
         system.export(dir_name, f"vtk/{save_name}", sol)
 
 
@@ -157,10 +160,12 @@ if __name__ == "__main__":
     cantilever(
         # Rod=make_CosseratRod(interpolation="SE3", mixed=True, constraints=[0, 1, 2]),
         # Rod=make_CosseratRod(interpolation="R12", mixed=True, constraints=[0, 1, 2]),
-        Rod=make_CosseratRod(mixed=True),  # , constraints=[0, 1, 2]),
+        Rod=make_CosseratRod(
+            mixed=True, polynomial_degree=3
+        ),  # , constraints=[0, 1, 2]),
         # load_type="moment",
         load_type="constant_end_load",
-        nelements=4,
+        nelements=6,
         VTK_export=True,
         name="Cosserat mixed",
     )
