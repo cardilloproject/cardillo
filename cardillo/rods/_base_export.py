@@ -265,12 +265,12 @@ class RodExportBase(ABC):
         ncells = self._export_dict["ncells"]
         continuity = self._export_dict["continuity"]
         level = self._export_dict["level"]
-        num = self._export_dict["num_frames"]
-
-        # get frames
-        r_OPs, d1s, d2s, d3s = self.frames(q, num=num)
 
         if level == "centerline + directors":
+            # get frames
+            num_frames = self._export_dict["num_frames"]
+            r_OPs, d1s, d2s, d3s = self.frames(q, num=num_frames)
+
             #######################################
             # simple export of points and directors
             #######################################
@@ -289,6 +289,10 @@ class RodExportBase(ABC):
             return vtk_points, self._export_dict["cells"], point_data, cell_data
 
         elif level == "volume":
+            # get frames
+            num_frames = self._export_dict["num_frames"]
+            r_OPs, d1s, d2s, d3s = self.frames(q, num=num_frames)
+
             ################################
             # project on cubic Bezier volume
             ################################
@@ -351,15 +355,15 @@ class RodExportBase(ABC):
             if self._export_dict["stresses"]:
                 # TODO: do this on element basis when eval_stresses accepts el as argument
                 # This needs than a general rewriting!
-                num = self._export_dict["num_frames"] - 1
-                xis = np.linspace(0, 1, num=num)
-                B_ns = np.zeros([3, num])
-                B_ms = np.zeros([3, num])
+                num_stresses = num_frames - 1
+                xis = np.linspace(0, 1, num=num_stresses)
+                B_ns = np.zeros([3, num_stresses])
+                B_ms = np.zeros([3, num_stresses])
 
                 t = sol_i.t
                 la_c = sol_i.la_c
                 la_g = sol_i.la_g
-                for j in range(num):
+                for j in range(num_stresses):
                     B_ns[:, j], B_ms[:, j] = self.eval_stresses(
                         t, q, la_c, la_g, xis[j], el=None
                     )
