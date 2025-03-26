@@ -306,21 +306,19 @@ class CosseratRod_PetrovGalerkin(RodExportBase, ABC):
 
     def nodalFrames(self, q, elementwise=False):
         """Returns nodal positions and nodal directors.
-        If elementwise==True : returned arrays are each of shape [3, nnodes]
-        If elementwise==False : returned arrays are each of shape [3, nelements, nnodes_per_element]
+        If elementwise==True : returned arrays are each of shape [nnodes, 3]
+        If elementwise==False : returned arrays are each of shape [nelements, nnodes_per_element, 3]
         """
 
         q_body = q[self.qDOF]
         if elementwise:
-            r = np.zeros([3, self.nelement, self.nnodes_element_r])
-            ex = np.zeros([3, self.nelement, self.nnodes_element_r])
-            ey = np.zeros([3, self.nelement, self.nnodes_element_r])
-            ez = np.zeros([3, self.nelement, self.nnodes_element_r])
+            r = np.zeros([self.nelement, self.nnodes_element_r, 3], dtype=float)
+            ex = np.zeros([self.nelement, self.nnodes_element_r, 3], dtype=float)
+            ey = np.zeros([self.nelement, self.nnodes_element_r, 3], dtype=float)
+            ez = np.zeros([self.nelement, self.nnodes_element_r, 3], dtype=float)
             for el, elDOF in enumerate(self.elDOF):
                 qe = q_body[elDOF]
-                r[:, el, :] = np.array(
-                    [qe[nodalDOF_el] for nodalDOF_el in self.nodalDOF_element_r]
-                ).T
+                r[el] = [qe[nodalDOF_el] for nodalDOF_el in self.nodalDOF_element_r]
                 A_IB = np.array(
                     [
                         Exp_SO3_quat(qe[nodalDOF_el], normalize=True)
@@ -328,21 +326,21 @@ class CosseratRod_PetrovGalerkin(RodExportBase, ABC):
                     ]
                 )
 
-                ex[:, el, :] = A_IB[:, :, 0].T
-                ey[:, el, :] = A_IB[:, :, 1].T
-                ez[:, el, :] = A_IB[:, :, 2].T
+                ex[el] = A_IB[:, :, 0]
+                ey[el] = A_IB[:, :, 1]
+                ez[el] = A_IB[:, :, 2]
 
             return r, ex, ey, ez
 
         else:
-            r = np.array([q_body[nodalDOF] for nodalDOF in self.nodalDOF_r]).T
+            r = np.array([q_body[nodalDOF] for nodalDOF in self.nodalDOF_r])
             A_IB = np.array(
                 [
                     Exp_SO3_quat(q_body[nodalDOF], normalize=True)
                     for nodalDOF in self.nodalDOF_p
                 ]
             )
-            return r, A_IB[:, 0, :].T, A_IB[:, 1, :].T, A_IB[:, 2, :].T
+            return r, A_IB[:, :, 0], A_IB[:, :, 1], A_IB[:, :, 2]
 
     ##################
     # abstract methods

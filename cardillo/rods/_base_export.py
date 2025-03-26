@@ -533,15 +533,6 @@ class RodExportBase(ABC):
             # get frames
             r_OPs, d1s, d2s, d3s = self.nodalFrames(q, elementwise=True)
 
-            print("This export is not working at the moment!")
-
-            # move axis around
-            # TODO: maybe do this already in the function above
-            r_OPs = np.moveaxis(r_OPs, [0, 1, 2], [2, 0, 1])
-            d1s = np.moveaxis(d1s, [0, 1, 2], [2, 0, 1])
-            d2s = np.moveaxis(d2s, [0, 1, 2], [2, 0, 1])
-            d3s = np.moveaxis(d3s, [0, 1, 2], [2, 0, 1])
-
             # get characteristic points from the cross-section
             compute_points = self.cross_section.vtk_compute_points(r_OPs, d2s, d3s)
 
