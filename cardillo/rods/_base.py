@@ -328,11 +328,11 @@ class CosseratRod_PetrovGalerkin(RodExportBase, ABC):
                     ]
                 )
 
-                ex[:, el, :] = A_IB[:, 0, :].T
-                ey[:, el, :] = A_IB[:, 1, :].T
-                ez[:, el, :] = A_IB[:, 2, :].T
+                ex[:, el, :] = A_IB[:, :, 0].T
+                ey[:, el, :] = A_IB[:, :, 1].T
+                ez[:, el, :] = A_IB[:, :, 2].T
 
-                return r, ex, ey, ez
+            return r, ex, ey, ez
 
         else:
             r = np.array([q_body[nodalDOF] for nodalDOF in self.nodalDOF_r]).T
