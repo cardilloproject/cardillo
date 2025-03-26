@@ -151,6 +151,7 @@ class CircularCrossSection(ExportableCrossSection):
 
     @property
     def vtk_points_per_layer(self):
+        # TODO: this is len(self.alphas)
         if self.circle_as_wedge:
             return 6
         else:
@@ -269,16 +270,7 @@ class CircularCrossSection(ExportableCrossSection):
                 P0 = 0.5 * (P5 + P3)
                 P2 = 0.5 * (P4 + P5)
 
-                # assemble array to return
-                points = np.zeros((6, 3))
-                points[0] = P0
-                points[1] = P1
-                points[2] = P2
-                points[3] = P3
-                points[4] = P4
-                points[5] = P5
-
-                return points
+                return np.vstack([P0, P1, P2, P3, P4, P5])
 
             return compute_points
 
@@ -307,19 +299,7 @@ class CircularCrossSection(ExportableCrossSection):
                 # center point
                 P8 = r_OP
 
-                # assemble array to return
-                points = np.zeros((9, 3))
-                points[0] = P0
-                points[1] = P1
-                points[2] = P2
-                points[3] = P3
-                points[4] = P4
-                points[5] = P5
-                points[6] = P6
-                points[7] = P7
-                points[8] = P8
-
-                return points
+                return np.vstack([P0, P1, P2, P3, P4, P5, P6, P7, P8])
 
             return compute_points
 
@@ -331,9 +311,9 @@ class RectangularCrossSection(ExportableCrossSection):
         Parameters:
         -----
         width : float
-            Cross-section dimension in in e_y^K-direction.
+            Cross-section dimension in in e_y^B-direction.
         height : float
-            Cross-section dimension in in e_z^K-direction.
+            Cross-section dimension in in e_z^B-direction.
         """
         self._width = width
         self._height = height
@@ -433,13 +413,7 @@ class RectangularCrossSection(ExportableCrossSection):
             P2 = r_OP + r_PP2
             P3 = r_OP - r_PP1
 
-            points = np.zeros((4, 3))
-            points[0] = P0
-            points[1] = P1
-            points[2] = P2
-            points[3] = P3
-
-            return points
+            return np.vstack([P0, P1, P2, P3])
 
         return compute_points
 
@@ -459,7 +433,7 @@ class CrossSectionInertias:
         A_rho0 : float
             Cross-section mass density, i.e., mass per unit reference length of rod.
         B_I_rho0 : np.array(3, 3)
-            Cross-section inertia tensor represented in the cross-section-fixed K-Basis.
+            Cross-section inertia tensor represented in the cross-section-fixed B-Basis.
 
         """
         if density is None or cross_section is None:
