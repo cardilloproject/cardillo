@@ -203,6 +203,44 @@ def make_CosseratRod(
             return np.concatenate([q_r, q_p])
 
         @staticmethod
+        def pose_configuration(
+            nelement,
+            r_OP,
+            A_IB,
+            xi1=1.0,
+            r_OP0=np.zeros(3, dtype=float),
+            A_IB0=np.eye(3, dtype=float),
+        ):
+            """Compute generalized position coordinates for a pre-curved rod with centerline curve r_OP and orientation of A_IB."""
+            nnodes_r = polynomial_degree * nelement + 1
+
+            assert callable(r_OP), "r_OP must be callable!"
+            assert callable(A_IB), "A_IB must be callable!"
+
+            xis = np.linspace(0, xi1, nnodes_r)
+
+            # nodal positions and unit quaternions
+            r0 = np.zeros((3, nnodes_r))
+            p0 = np.zeros((4, nnodes_r))
+
+            for i, xii in enumerate(xis):
+                r0[:, i] = r_OP0 + A_IB0 @ r_OP(xii)
+                A_IBi = A_IB0 @ A_IB(xii)
+                p0[:, i] = Log_SO3_quat(A_IBi)
+
+            # check for the right quaternion hemisphere
+            for i in range(nnodes_r - 1):
+                inner = p0[:, i] @ p0[:, i + 1]
+                if inner < 0:
+                    p0[:, i + 1] *= -1
+
+            # reshape generalized position coordinates to nodal ordering
+            q_r = r0.reshape(-1, order="C")
+            q_p = p0.reshape(-1, order="C")
+
+            return np.concatenate([q_r, q_p])
+
+        @staticmethod
         def straight_initial_configuration(
             nelement,
             L,
