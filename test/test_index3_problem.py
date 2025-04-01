@@ -134,7 +134,6 @@ def test_index3_problem(Solver, kwargs, show=False):
 
     # call the solver
     t1 = 2 * np.pi
-    t1 *= 0.1
     dt = 1e-2
     sol = Solver(system, t1, dt, **kwargs).solve()
     t = sol.t
