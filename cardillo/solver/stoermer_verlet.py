@@ -2,7 +2,7 @@ import warnings
 from tqdm import tqdm
 import numpy as np
 from scipy.linalg import cho_factor, cho_solve
-from scipy.sparse import bmat, block_diag, csc_array
+from scipy.sparse import bmat, block_diag, csc_array, diags_array
 from scipy.sparse.linalg import splu, LinearOperator, cg, inv
 
 from cardillo.math.approx_fprime import approx_fprime
@@ -33,7 +33,7 @@ class DualStörmerVerlet:
         t1,
         dt,
         options=SolverOptions(),
-        debug=True,
+        debug=False,
         linear_solver="CG",
         constant_mass_matrix=True,
     ):
@@ -122,6 +122,7 @@ class DualStörmerVerlet:
         self.la_Fn = system.la_F0
         self.Pi_Nn = dt * system.la_N0
         self.Pi_Fn = dt * system.la_F0
+        self.Pin = dt * np.concatenate([system.la_g0, system.la_gamma0, system.la_c0])
 
         #######################################################################
         # initial values
@@ -140,6 +141,8 @@ class DualStörmerVerlet:
         )
 
         self.solver_summary = SolverSummary("DualStörmerVerlet")
+
+        self.C = self.c_la(format="csr", dt=dt)
 
         # invert constant mass matrix only once
         self.constant_mass_matrix = constant_mass_matrix
@@ -471,9 +474,12 @@ class DualStörmerVerlet:
         q_dot_u = self.system.q_dot_u(tm, qm)
         beta = self.system.q_dot(tm, qm, np.zeros_like(self.un))
         W = self.W(tm, qm)
-        c_q = self.c_q(tm, qm, un, self.la_cn, format="csc")
-        c_u = self.c_u(tm, qm, un, self.la_cn, format="csc")
-        C = self.c_la(format="csc")
+        # c_q = self.c_q(tm, qm, un, self.la_cn, format="csc")
+        # c_u = self.c_u(tm, qm, un, self.la_cn, format="csc")
+        # C = self.c_la(format="csc")
+        c_q = self.c_q(tm, qm, un, self.la_cn, format="csc", dt=dt)
+        c_u = self.c_u(tm, qm, un, self.la_cn, format="csc", dt=dt)
+        C = self.c_la(format="csc", dt=dt)
 
         ############################
         # compute iteration matrices
@@ -611,7 +617,7 @@ class DualStörmerVerlet:
             Pi_Nn1, Pi_Fn1 = prox(Pi_Nn1, Pi_Fn1)
             # R1 -= W_N @ Pi_Nn1 + W_F @ Pi_Fn1
             M_inv_R1 -= M_inv_W_N @ Pi_Nn1 + M_inv_W_F @ Pi_Fn1
-        R2 = self.c(tn1, qn1, un1, Pin1 / dt)
+        R2 = self.c(tn1, qn1, un1, Pin1 / dt, dt=dt)
         # R = np.concatenate((R1, R2))
         R = np.concatenate((M_inv_R1, R2))
 
@@ -656,7 +662,7 @@ class DualStörmerVerlet:
                     Pi_Nn1, Pi_Fn1 = prox(Pi_Nn1, Pi_Fn1)
                     # R1 -= W_N @ Pi_Nn1 + W_F @ Pi_Fn1
                     M_inv_R1 -= M_inv_W_N @ Pi_Nn1 + M_inv_W_F @ Pi_Fn1
-                R2 = self.c(tn1, qn1, un1, Pin1 / dt)
+                R2 = self.c(tn1, qn1, un1, Pin1 / dt, dt=dt)
                 # R = np.concatenate((R1, R2))
                 R = np.concatenate((M_inv_R1, R2))
 
@@ -944,7 +950,15 @@ class DualStörmerVerlet:
         self.Pi_Nn = Pi_Nn1.copy()
         self.Pi_Fn = Pi_Fn1.copy()
 
+    # TODO: Add optimal preconditioning again for the case of LU, since we do
+    # not require a symmetric matrix anymore.
     def _step_cr(self):
+        # chose linear solver
+        # TODO: Make this an option
+        # LS = "CR"
+        # LS = "CR (matrix free)"
+        LS = "LU"
+
         nu = self.nu
         nx = self.nu + self.nla
 
@@ -969,105 +983,129 @@ class DualStörmerVerlet:
         #########################################
         # evaluate all quantities at the midpoint
         #########################################
-        M = self.system.M(tm, qm, format="csc")
-        q_dot_u = self.system.q_dot_u(tm, qm)
+        if self.constant_mass_matrix:
+            M = self.M
+        else:
+            M = self.system.M(tm, qm, format="csr")
+
+        q_dot_u = self.system.q_dot_u(tm, qm, format="csr")
         beta = self.system.q_dot(tm, qm, np.zeros_like(self.un))
         W_N = self.system.W_N(tm, qm, format="csr")
         W_F = self.system.W_F(tm, qm, format="csr")
-        W = self.W(tm, qm)
-        c_q = self.c_q(tm, qm, un, self.la_cn, format="csc", dt=dt)
-        c_u = self.c_u(tm, qm, un, self.la_cn, format="csc", dt=dt)
-        C = self.c_la(format="csc", dt=dt)
+        W = self.W(tm, qm, format="csr")
+        # c_q = self.c_q(tm, qm, un, self.la_cn, format="csc", dt=dt)
+        # c_u = self.c_u(tm, qm, un, self.la_cn, format="csc", dt=dt)
+        # C = self.c_la(format="csr", dt=dt)
+        C = self.C
         # c_q = self.c_q(tm, qm, un, self.la_cn, format="csc")
         # c_u = self.c_u(tm, qm, un, self.la_cn, format="csc")
         # C = self.c_la(format="csc")
-        M_inv = csc_array(inv(M).reshape((self.nu, self.nu)))
+        # M_inv = csc_array(inv(M).reshape((self.nu, self.nu)))
+        # self.solver_summary.add_lu(1)
 
         ############################
         # compute iteration matrices
         ############################
-        # fmt: off
-        A = bmat([
-            # [M,   -W],
-            [M,   W],
-            # [W.T, C / dt],
-            # [0.5 * dt * c_q @ q_dot_u + c_u, C / dt],
-            # [0.5 * dt * c_q @ q_dot_u + c_u, -C / dt],
-            [W.T, -C / dt],
-        ], format="csr")
-        # fmt: on
+        if LS in ["CR", "LU"]:
+            # fmt: off
+            A = bmat([
+                # [M,   -W],
+                # [W.T, C / dt],
+                # [0.5 * dt * c_q @ q_dot_u + c_u, C / dt],
+                # [0.5 * dt * c_q @ q_dot_u + c_u, -C / dt],
+                [M,   W],
+                [W.T, -C / dt],
+            ], format="csr" if LS=="CR" else "csc")
+            # fmt: on
 
-        # TODO: Why is W.T != 0.5 * dt * c_q @ q_dot_u? This leads to a
-        # non-symmetric iteration matrix.
+            # # TODO: Why is W.T != 0.5 * dt * c_q @ q_dot_u? This leads to a
+            # # non-symmetric iteration matrix.
+            # np.set_printoptions(3, suppress=True, linewidth=1000)
+            # print(f"A:\n{A.toarray()}")
+            # print(f"W.T:\n{W.T.toarray()}")
+            # print(f"0.5 * dt * (c_q @ q_dot_u):\n{0.5 * dt * (c_q @ q_dot_u).toarray()}")
+            # pass
+        else:
+            # Note: This seems to be very inefficient with our code structure.
+            def mv(p):
+                p1, p2 = p[:nu], p[nu:]
+                return np.concatenate(
+                    [
+                        M @ p1 + W @ p2,
+                        W.T @ p1 - C @ p2 / dt,
+                    ]
+                )
 
-        # np.set_printoptions(3, suppress=True, linewidth=1000)
-        # print(f"A:\n{A.toarray()}")
-        # print(f"W.T:\n{W.T.toarray()}")
-        # print(f"0.5 * dt * (c_q @ q_dot_u):\n{0.5 * dt * (c_q @ q_dot_u).toarray()}")
-        # pass
+            A = LinearOperator((nx, nx), matvec=mv, dtype=float)
 
-        # # def mv(p):
-        # #     p1, p2 = p[:nu], p[nu:]
-        # #     return np.concatenate([
-        # #         M @ p1 + W @ p2,
-        # #         # (W.T @ p1).reshape(len(p2)),
-        # #         W.T @ p1 + C @ p2,
-        # #     ])
+        if LS in ["CR", "CR (matrix free)"]:
+            # sparse conjugate residual (CR) with Jacobi preconditioner
+            A_inv = type("CR", (), {})()
 
-        # # A = LinearOperator((nx, nx), matvec=mv, dtype=float)
+            # diagonal mass matrix preconditioner
+            # (Why is this better for the rod2rod example than the full
+            # M_inv preconditioner below?)
+            AA_inv = np.ones(nx)
+            AA_inv[: self.nu] = 1 / M.diagonal()
+            preconditioner = LinearOperator(A.shape, lambda x: AA_inv * x)
 
-        # # sparse conjugate residual (CR) with Jacobi preconditioner
-        # A_inv = type("CR", (), {})()
+            # # full mass matrix preconditioner
+            # def mv(p):
+            #     p1, p2 = p[:nu], p[nu:]
+            #     return np.concatenate(
+            #         [
+            #             M_inv @ p1,
+            #             p2,
+            #         ]
+            #     )
 
-        # # diagonal mass matrix preconditioner
-        # # # AA_inv = 1 / np.maximum(1, A.diagonal())
-        # # AA_inv = np.ones(nx)
-        # # # TODO: Can M.diagonal() be used to estimate the proximal point
-        # # # parameters too? This neglects the coupling in M but might be
-        # # # unnecessary.
-        # # AA_inv[:self.nu] = 1 / M.diagonal()
-        # # preconditioner = LinearOperator(A.shape, lambda x: AA_inv * x)
+            # preconditioner = LinearOperator(A.shape, mv)
+            # # preconditioner = None
 
-        # # Mass matrix preconditioner
-        # def mv(p):
-        #     p1, p2 = p[:nu], p[nu:]
-        #     return np.concatenate([
-        #         M_inv @ p1,
-        #         p2,
-        #     ])
-        # # preconditioner = LinearOperator(A.shape, mv)
-        # preconditioner = None
+            def solve(rhs):
+                x, iterations, r, converged = cr(A, rhs, M=preconditioner)
+                if not converged:
+                    print(f"cr not converged")
+                return x
 
-        # def solve(rhs):
-        #     x, iterations, r, converged = cr(A, rhs, M=preconditioner)
-        #     # x, iterations, r, converged = cr(A.T @ A, A.T @ rhs, M=preconditioner)
-        #     # TODO: Add iterations to the solver_summary
-        #     if not converged:
-        #         print(f"cr not converged")
-        #     return x
+            A_inv.solve = solve
 
-        # A_inv.solve = solve
+        else:
+            #####################################################################
+            # LU solver approach (for reference only)
+            # Note: It tourns out this is by far the fastest method. Moreover, it
+            # allows for optimal preconditioning since we do not have the
+            # restriction of a symmetric matrix. Maybe when all matrix vector
+            # products are performed on subsystem level the other methods can be
+            # better.
+            #####################################################################
+            A_inv = type("LU", (), {})()
+            LU = splu(A)
+            self.solver_summary.add_lu(1)
 
-        A_inv = type("LU", (), {})()
-        LU = splu(A)
+            def solve(rhs):
+                return LU.solve(rhs)
 
-        def solve(rhs):
-            return LU.solve(rhs)
-
-        A_inv.solve = solve
+            A_inv.solve = solve
 
         # - only compute optimized prox-parameters once per time step
         # - generalized force directions for constraint forces are only
         #   required if we have contacts
         if self.nla_N + self.nla_F > 0:
-            self.solver_summary.add_lu(1)
             W_N = self.system.W_N(tm, qm, format="csr")
             W_F = self.system.W_F(tm, qm, format="csr")
-            M_inv_W_N = M_inv @ W_N
-            M_inv_W_F = M_inv @ W_F
+            # M_inv = csc_array(inv(M).reshape((self.nu, self.nu)))
+            # self.solver_summary.add_lu(1)
+            # M_inv_W_N = M_inv @ W_N
+            # M_inv_W_F = M_inv @ W_F
             alpha = self.options.prox_scaling
-            self.prox_r_N = alpha / (W_N.T @ M_inv_W_N).diagonal()
-            self.prox_r_F = alpha / (W_F.T @ M_inv_W_F).diagonal()
+            # self.prox_r_N = alpha / (W_N.T @ M_inv_W_N).diagonal()
+            # self.prox_r_F = alpha / (W_F.T @ M_inv_W_F).diagonal()
+            # TODO: Investigate if this is to simple.
+            # It seems to be slightly better for the rod2plane example.
+            M_diag_inv = diags_array(1 / M.diagonal())
+            self.prox_r_N = alpha / (W_N.T @ M_diag_inv @ W_N).diagonal()
+            self.prox_r_F = alpha / (W_F.T @ M_diag_inv @ W_F).diagonal()
 
             # evaluate active contacts
             g_Nm = self.system.g_N(tm, qm)
@@ -1084,9 +1122,13 @@ class DualStörmerVerlet:
         tn1 = self.tn + dt
         un1 = un.copy()
         qn1 = qm + 0.5 * dt * (q_dot_u @ un1 + beta)
-        # note: warmstart seems to be not important at all
-        # Pin1 = dt * np.concatenate([self.la_gn.copy(), self.la_gamman.copy(), self.la_cn.copy()])
-        Pin1 = np.zeros(self.nla)
+        # Note: Warmstart seems to be only important for compliance part.
+        # TODO: Store self.Pin instead of the forces.
+        # Pin1 = dt * np.concatenate(
+        #     [self.la_gn.copy(), self.la_gamman.copy(), self.la_cn.copy()]
+        # )
+        Pin1 = self.Pin
+        # Pin1 = np.zeros(self.nla)
         # warm start often reduces the number of iterations
         Pi_Nn1 = self.Pi_Nn
         Pi_Fn1 = self.Pi_Fn
@@ -1129,13 +1171,18 @@ class DualStörmerVerlet:
             return Pi_Nn1, Pi_Fn1
 
         # evaluate residuals
-        R1 = M @ (un1 - un) - dt * self.system.h(tm, qm, 0.5 * (un + un1)) + W @ Pin1
+        R1 = (
+            M @ (un1 - un)
+            - dt * self.system.h(tm, qm, 0.5 * (un + un1))
+            # - W @ Pin1
+            + W @ Pin1
+        )
         if self.nla_N + self.nla_F > 0:
             Pi_Nn1, Pi_Fn1 = prox(Pi_Nn1, Pi_Fn1)
             R1 -= W_N @ Pi_Nn1 + W_F @ Pi_Fn1
+        # R2 = self.c(tn1, qn1, un1, Pin1 / dt)
         # R2 = self.c(tn1, qn1, un1, Pin1 / dt, dt=dt)
         R2 = self.c(tn1, qn1, un1, -Pin1 / dt, dt=dt)
-        # R2 = self.c(tn1, qn1, un1, Pin1 / dt)
         R = np.concatenate((R1, R2))
 
         # newton scaling
@@ -1166,14 +1213,15 @@ class DualStörmerVerlet:
                 R1 = (
                     M @ (un1 - un)
                     - dt * self.system.h(tm, qm, 0.5 * (un + un1))
+                    # - W @ Pin1
                     + W @ Pin1
                 )
                 if self.nla_N + self.nla_F > 0:
                     Pi_Nn1, Pi_Fn1 = prox(Pi_Nn1, Pi_Fn1)
                     R1 -= W_N @ Pi_Nn1 + W_F @ Pi_Fn1
+                # R2 = self.c(tn1, qn1, un1, Pin1 / dt)
                 # R2 = self.c(tn1, qn1, un1, Pin1 / dt, dt=dt)
                 R2 = self.c(tn1, qn1, un1, -Pin1 / dt, dt=dt)
-                # R2 = self.c(tn1, qn1, un1, Pin1 / dt)
                 R = np.concatenate((R1, R2))
 
                 # error and convergence check
@@ -1198,105 +1246,6 @@ class DualStörmerVerlet:
         Pin1 *= -1
         Pi_gn1, Pi_gamman1, Pi_cn1 = np.array_split(Pin1, self.split_la)
 
-        # def fun(x):
-        #     du, Pin1 = x[: self.nu], x[self.nu :]
-
-        #     tn1 = tn + dt
-        #     un1 = un + du
-        #     qn1 = qm + 0.5 * dt * self.system.q_dot(tm, qm, un1)
-
-        #     return np.concatenate(
-        #         [
-        #             # M @ du - self.system.h(tm, qm, 0.5 * (un + un1)) - W @ Pin1,
-        #             # self.c(tn1, qn1, un1, Pin1 / dt),
-        #             # du - M_inv @ (dt * self.system.h(tm, qm, 0.5 * (un + un1)) - W @ Pin1),
-        #             M @ du - (dt * self.system.h(tm, qm, 0.5 * (un + un1)) - W @ Pin1),
-        #             self.c(tn1, qn1, un1, Pin1 / dt, dt),
-        #         ]
-        #     )
-
-        # def jac(x):
-        #     return approx_fprime(x, fun)
-
-        # def gen_A(x, eps=1e-1):
-        #     def mv(p):
-        #         return (fun(x + eps * p) - fun(x)) / eps
-        #         # return (fun(x) - fun(x + eps * p)) / eps
-        #         # return approx_fprime(x, fun) @ p
-        #         # return (fun(x + eps * p) - fun(x - eps * p)) / (2 * eps)
-
-        #     # A = LinearOperator((nx, nx), matvec=mv, dtype=x.dtype)
-        #     # A._matvec = mv
-        #     # return A
-        #     return LinearOperator((nx, nx), matvec=mv, dtype=x.dtype)
-
-        # ##################
-        # # Newton-CR method
-        # ##################
-        # if self.debug:
-        #     print(f"Newton:")
-        # nx = self.nu + self.nla
-        # x = np.zeros(nx)
-        # f = fun(x)
-        # scale = self.options.newton_atol + np.abs(f) * self.options.newton_rtol
-
-        # # TODO:
-        # # - add contacts
-        # # - try to incorporate prox iteration into cr step
-        # for i in range(self.options.newton_max_iter):
-        #     # # TODO: Why this is correct but cr fails with linear operator?
-        #     # J = jac(x)
-        #     # A = gen_A(x)
-        #     # p = np.random.rand(len(x))
-        #     # Jp = J @ p
-        #     # Ap = A.matvec(p)
-        #     # diff = Jp - Ap
-        #     # error_matvec = np.linalg.norm(diff)
-        #     # print(f"error_matvec: {error_matvec}")
-
-        #     # A = J
-
-        #     # def mv(p, fun=fun, eps=1e-6):
-        #     #     return (fun(x + eps * p) - fun(x)) / eps
-        #     # A = LinearOperator((nx, nx), matvec=mv, dtype=x.dtype)
-
-        #     # # TODO: Add diagonal preconditioner with mass matrix
-        #     # DD_inv = 1 / D.diagonal()
-        #     # preconditioner = LinearOperator(D.shape, lambda x: DD_inv * x)
-
-        #     A = jac(x)
-        #     # A = gen_A(x)
-        #     # maxiter = len(x) * 1000
-        #     maxiter = None
-        #     dx, iterations, r, converged = cr(A, f, rtol=1e-5, atol=0, maxiter=maxiter)
-        #     if not converged:
-        #         print(f"cr not converged")
-        #     x -= dx
-        #     f = fun(x)
-        #     error = np.linalg.norm(f / scale) / scale.size**0.5
-        #     converged = error < 1
-        #     if self.debug:
-        #         print(f"i: {i}; error: {error}; converged: {converged}")
-        #     if converged:
-        #         break
-
-        # self.solver_summary.add_newton(i + 1, error)
-
-        # # update dependent variables
-        # du, Pin1 = x[: self.nu], x[self.nu :]
-        # # Pin1 *= -dt
-        # Pin1 *= -1
-        # tn1 = tn + dt
-        # un1 = un + du
-        # qn1 = qm + 0.5 * dt * self.system.q_dot(tm, qm, un1)
-
-        # # modify converged quantities
-        # tn1 = tn + dt
-        # qn1, un1 = self.system.step_callback(tn1, qn1, un1)
-
-        # # unpack percussion
-        # Pi_gn1, Pi_gamman1, Pi_cn1 = np.array_split(Pin1, self.split_la)
-
         # store solution fields
         self.sol_t.append(tn1)
         self.sol_q.append(qn1)
@@ -1311,9 +1260,7 @@ class DualStörmerVerlet:
         self.tn = tn1
         self.qn = qn1.copy()
         self.un = un1.copy()
-        self.la_gn = Pi_gn1.copy() / dt
-        self.la_gamman = Pi_gamman1.copy() / dt
-        self.la_cn = Pi_cn1.copy() / dt
+        self.Pin = Pin1.copy()
         self.Pi_Nn = Pi_Nn1.copy()
         self.Pi_Fn = Pi_Fn1.copy()
 
