@@ -33,9 +33,8 @@ class DualStörmerVerlet:
         t1,
         dt,
         options=SolverOptions(),
-        debug=False,
-        # linear_solver="CG",
-        linear_solver="CR",
+        debug=True,
+        linear_solver="CG",
         constant_mass_matrix=True,
     ):
         self.debug = debug
@@ -384,38 +383,42 @@ class DualStörmerVerlet:
         self.qn = qn1.copy()
         self.un = un1.copy()
 
-    def c(self, t, q, u, la):
+    def c(self, t, q, u, la, dt=1.0):
         """Combine all constraint forces in order to simplify the solver."""
         la_g, la_gamma, la_c = np.array_split(la, self.split_la)
 
         c = np.zeros(self.nla)
-        c[: self.split_la[0]] = self.system.g(t, q)
+        c[: self.split_la[0]] = self.system.g(t, q) * 2 / dt
         c[self.split_la[0] : self.split_la[1]] = self.system.gamma(t, q, u)
+        # c[self.split_la[1] :] = -self.system.c(t, q, u, la_c) * 2 / dt
         c[self.split_la[1] :] = self.system.c(t, q, u, la_c)
 
         return c
 
-    def c_q(self, t, q, u, la, format="coo"):
+    def c_q(self, t, q, u, la, format="coo", dt=1.0):
         la_g, la_gamma, la_c = np.array_split(la, self.split_la)
 
-        g_q = self.system.g_q(t, q)
+        g_q = self.system.g_q(t, q) * 2 / dt
         gamma_q = self.system.gamma_q(t, q, u)
+        # c_q = -self.system.c_q(t, q, u, la_c) * 2 / dt
         c_q = self.system.c_q(t, q, u, la_c)
 
         return bmat([[g_q], [gamma_q], [c_q]], format=format)
 
-    def c_u(self, t, q, u, la, format="coo"):
+    def c_u(self, t, q, u, la, format="coo", dt=1.0):
         la_g, la_gamma, la_c = np.array_split(la, self.split_la)
 
         g_u = np.zeros((self.nla_g, self.nu))
         gamma_u = self.system.gamma_u(t, q)
+        # c_u = -self.system.c_u(t, q, u, la_c) * 2 / dt
         c_u = self.system.c_u(t, q, u, la_c)
 
         return bmat([[g_u], [gamma_u], [c_u]], format=format)
 
-    def c_la(self, format="coo"):
+    def c_la(self, format="coo", dt=1.0):
         g_la_g = np.zeros((self.nla_g, self.nla_g))
         gamma_la_gamma = np.zeros((self.nla_gamma, self.nla_gamma))
+        # c_la_c = -self.system.c_la_c() * 2 / dt
         c_la_c = self.system.c_la_c()
 
         return block_diag([g_la_g, gamma_la_gamma, c_la_c], format=format)
@@ -432,6 +435,8 @@ class DualStörmerVerlet:
             format=format,
         )
 
+    # TODO: Incorporate Uzawa iterations as described in
+    # https://www.diva-portal.org/smash/get/diva2:1638655/FULLTEXT01.pdf
     def _step_schur(self):
         dt = self.dt
         tn = self.tn
@@ -498,7 +503,7 @@ class DualStörmerVerlet:
                 preconditioner = LinearOperator(D.shape, lambda x: DD_inv * x)
 
                 def solve(rhs):
-                    x, iterations, r = cr(D, rhs, M=preconditioner)
+                    x, iterations, r, converged = cr(D, rhs, M=preconditioner)
                     return x
 
                 D_inv.solve = solve
@@ -696,7 +701,253 @@ class DualStörmerVerlet:
         self.Pi_Nn = Pi_Nn1.copy()
         self.Pi_Fn = Pi_Fn1.copy()
 
+    def _step_schur_projected_cg(self):
+        dt = self.dt
+        tn = self.tn
+        qn = self.qn
+        un = self.un
+
+        ######################################################################
+        # 1. implicit mid-point step solved with simple fixed-point iterations
+        ######################################################################
+        tm = tn + 0.5 * dt
+        qm = qn + 0.5 * dt * self.system.q_dot(tn, qn, un)
+        qm, niter, error = fixed_point_iteration(
+            lambda qm: qn + 0.5 * dt * self.system.q_dot(tm, qm, un),
+            qm,
+        )
+        if self.debug:
+            print(f"Fixed-point:")
+            print(f"i: {niter}; error: {error}")
+
+        #########################################
+        # evaluate all quantities at the midpoint
+        #########################################
+        if self.constant_mass_matrix:
+            M = self.M
+            M_inv = self.M_inv
+        else:
+            M = self.system.M(tm, qm, format="csc")
+            # TODO: We need to implement M_inv on subsystem level.
+            M_inv = csc_array(inv(M).reshape((self.nu, self.nu)))
+            self.solver_summary.add_lu(1)
+
+        q_dot_u = self.system.q_dot_u(tm, qm)
+        beta = self.system.q_dot(tm, qm, np.zeros_like(self.un))
+        W = self.W(tm, qm)
+        c_q = self.c_q(tm, qm, un, self.la_cn, format="csc")
+        c_u = self.c_u(tm, qm, un, self.la_cn, format="csc")
+        C = self.c_la(format="csc")
+
+        ############################
+        # compute iteration matrices
+        ############################
+        A = 0.5 * dt * c_q @ q_dot_u + c_u
+        M_inv_W = M_inv @ W
+        D = C / dt + A @ M_inv_W
+
+        # match self.linear_solver:
+
+        #     case _:
+        #         # sparse conjugate gradient (CG) with Jacobi preconditioner
+        #         D_inv = type("CG", (), {})()
+        #         DD_inv = 1 / D.diagonal()
+        #         preconditioner = LinearOperator(D.shape, lambda x: DD_inv * x)
+
+        #         def solve(rhs):
+        #             x, info = cg(D, rhs, M=preconditioner)
+        #             if info > 0:
+        #                 raise RuntimeError(
+        #                     f"Iterative solver is not converged with 'info': {info}"
+        #                 )
+        #             return x
+
+        #         D_inv.solve = solve
+
+        # - only compute optimized prox-parameters once per time step
+        # - generalized force directions for constraint forces are only
+        #   required if we have contacts
+        if self.nla_N + self.nla_F > 0:
+            W_N = self.system.W_N(tm, qm, format="csr")
+            W_F = self.system.W_F(tm, qm, format="csr")
+            M_inv_W_N = M_inv @ W_N
+            M_inv_W_F = M_inv @ W_F
+            alpha = self.options.prox_scaling
+            self.prox_r_N = alpha / (W_N.T @ M_inv_W_N).diagonal()
+            self.prox_r_F = alpha / (W_F.T @ M_inv_W_F).diagonal()
+
+            # evaluate active contacts
+            g_Nm = self.system.g_N(tm, qm)
+            I_N = g_Nm <= 0
+
+            # # TODO: Do these evaluations only once as in Moreau and introduce
+            # # slicing for active contacts
+            # chi_N = self.system.g_N_dot(tn12, qn12, np.zeros_like(un))[self.I_N]
+            # chi_F = self.system.gamma_F(tn12, qn12, np.zeros_like(un))[self.I_F]
+            # self.xi_N0 = e_N * (self.W_N.T @ un) + (1 + e_N) * chi_N
+            # self.xi_F0 = e_F * (self.W_F.T @ un) + (1 + e_F) * chi_F
+
+        ###################
+        # newton iterations
+        ###################
+        if self.debug:
+            print(f"Newton:")
+        # compute initial positions velocities and percussions
+        tn1 = self.tn + dt
+        un1 = un.copy()
+        qn1 = qm + 0.5 * dt * (q_dot_u @ un1 + beta)
+        # note: warmstart seems to be not important at all
+        # Pin1 = dt * np.concatenate([self.la_gn.copy(), self.la_gamman.copy(), self.la_cn.copy()])
+        Pin1 = np.zeros(self.nla)
+        # warm start often reduces the number of iterations
+        Pi_Nn1 = self.Pi_Nn
+        Pi_Fn1 = self.Pi_Fn
+
+        def prox(Pi_Nn1, Pi_Fn1):
+            # normal contact
+            # # TODO: This is the desired evaluation
+            # TODO: Decompose evaluation of xi_N = e_N * gamma_Nn + gamma_Nn1
+            xi_N = self.system.xi_N(tm, tm, qm, qm, un, un1)
+            # TODO: This leads to second-order convergence for case 1 in the
+            # point mass on slope example
+            # TODO: This also introduces a strange chattering in the same example!
+            # xi_N = self.system.xi_N(tn, tn1, qn, qn1, un, un1)
+            Pi_Nn1 = np.where(
+                I_N,
+                -NegativeOrthant.prox(self.prox_r_N * xi_N - Pi_Nn1),
+                np.zeros_like(Pi_Nn1),
+            )
+
+            # friction
+            # TODO: Decompose evaluation of xi_F = e_F * gamma_Fn + gamma_Fn1
+            # xi_F = self.system.xi_F(tn, tn1, qn, qn1, un, un1)
+            xi_F = self.system.xi_F(tm, tm, qm, qm, un, un1)
+            for contr in self.system.get_contribution_list("gamma_F"):
+                la_FDOF = contr.la_FDOF
+                gamma_F_contr = xi_F[la_FDOF]
+                Pi_Nn1_contr = Pi_Fn1[la_FDOF]
+                prox_r_F_contr = self.prox_r_F[la_FDOF]
+                for i_N, i_F, force_recervoir in contr.friction_laws:
+                    if len(i_N) > 0:
+                        dP_Nn1i = Pi_Nn1[contr.la_NDOF[i_N]]
+                    else:
+                        dP_Nn1i = self.dt
+
+                    Pi_Fn1[la_FDOF[i_F]] = -force_recervoir.prox(
+                        prox_r_F_contr[i_F] * gamma_F_contr[i_F] - Pi_Nn1_contr[i_F],
+                        dP_Nn1i,
+                    )
+
+            return Pi_Nn1, Pi_Fn1
+
+        # evaluate residuals
+        # R1 = M @ (un1 - un) - dt * self.system.h(tm, qm, 0.5 * (un + un1)) - W @ Pin1
+        M_inv_R1 = (
+            (un1 - un)
+            - dt * M_inv @ self.system.h(tm, qm, 0.5 * (un + un1))
+            - M_inv_W @ Pin1
+        )
+        if self.nla_N + self.nla_F > 0:
+            Pi_Nn1, Pi_Fn1 = prox(Pi_Nn1, Pi_Fn1)
+            # R1 -= W_N @ Pi_Nn1 + W_F @ Pi_Fn1
+            M_inv_R1 -= M_inv_W_N @ Pi_Nn1 + M_inv_W_F @ Pi_Fn1
+        R2 = self.c(tn1, qn1, un1, Pin1 / dt)
+        # R = np.concatenate((R1, R2))
+        R = np.concatenate((M_inv_R1, R2))
+
+        # newton scaling
+        # scale1 = self.options.newton_atol + np.abs(R1) * self.options.newton_rtol
+        scale1 = self.options.newton_atol + np.abs(M_inv_R1) * self.options.newton_rtol
+        scale2 = self.options.newton_atol + np.abs(R2) * self.options.newton_rtol
+        scale = np.concatenate((scale1, scale2))
+
+        # error of initial guess
+        error = np.linalg.norm(R / scale) / scale.size**0.5
+        converged = error < 1
+        if self.debug:
+            print(f"i: {-1}; error: {error}; converged: {converged}")
+
+        # Newton loop
+        i = 0
+        if not converged:
+            for i in range(self.options.newton_max_iter):
+                # conjugate gradient step for
+                # D Pin1 = A @ (M_inv_R1 - M_inv_W_N @ Pi_Nn1 - M_inv_W_F @ Pi_Fn1) - R2 =: b
+                raise RuntimeError("Move on here!")
+
+                # Newton updates
+                Delta_Pin1 = D_inv.solve(A @ M_inv_R1 - R2)
+                Delta_Un1 = M_inv_W @ Delta_Pin1 - M_inv_R1
+
+                # update dependent variables
+                un1 += Delta_Un1
+                Pin1 += Delta_Pin1
+                qn1 = qm + 0.5 * dt * (q_dot_u @ un1 + beta)
+
+                # evaluate residuals
+                # R1 = (
+                #     M @ (un1 - un)
+                #     - dt * self.system.h(tm, qm, 0.5 * (un + un1))
+                #     - W @ Pin1
+                # )
+                M_inv_R1 = (
+                    (un1 - un)
+                    - dt * M_inv @ self.system.h(tm, qm, 0.5 * (un + un1))
+                    - M_inv_W @ Pin1
+                )
+                if self.nla_N + self.nla_F > 0:
+                    Pi_Nn1, Pi_Fn1 = prox(Pi_Nn1, Pi_Fn1)
+                    # R1 -= W_N @ Pi_Nn1 + W_F @ Pi_Fn1
+                    M_inv_R1 -= M_inv_W_N @ Pi_Nn1 + M_inv_W_F @ Pi_Fn1
+                R2 = self.c(tn1, qn1, un1, Pin1 / dt)
+                # R = np.concatenate((R1, R2))
+                R = np.concatenate((M_inv_R1, R2))
+
+                # error and convergence check
+                error = np.linalg.norm(R / scale) / scale.size**0.5
+                converged = error < 1
+                if self.debug:
+                    print(f"i: {i}; error: {error}; converged: {converged}")
+                if converged:
+                    break
+
+            if not converged:
+                warnings.warn(
+                    f"Newton method is not converged after {i} iterations with error {error:.2e}"
+                )
+
+        self.solver_summary.add_newton(i + 1, np.max(np.abs(R)))
+
+        # modify converged quantities
+        qn1, un1 = self.system.step_callback(tn1, qn1, un1)
+
+        # unpack percussion
+        Pi_gn1, Pi_gamman1, Pi_cn1 = np.array_split(Pin1, self.split_la)
+
+        # store solution fields
+        self.sol_t.append(tn1)
+        self.sol_q.append(qn1)
+        self.sol_u.append(un1)
+        self.sol_la_c.append(Pi_cn1 / self.dt)
+        self.sol_P_g.append(Pi_gn1)
+        self.sol_P_gamma.append(Pi_gamman1)
+        self.sol_P_N.append(Pi_Nn1)
+        self.sol_P_F.append(Pi_Fn1)
+
+        # update local variables for accepted time step
+        self.tn = tn1
+        self.qn = qn1.copy()
+        self.un = un1.copy()
+        self.la_gn = Pi_gn1.copy() / dt
+        self.la_gamman = Pi_gamman1.copy() / dt
+        self.la_cn = Pi_cn1.copy() / dt
+        self.Pi_Nn = Pi_Nn1.copy()
+        self.Pi_Fn = Pi_Fn1.copy()
+
     def _step_cr(self):
+        nu = self.nu
+        nx = self.nu + self.nla
+
         dt = self.dt
         tn = self.tn
         qn = self.qn
@@ -719,14 +970,89 @@ class DualStörmerVerlet:
         # evaluate all quantities at the midpoint
         #########################################
         M = self.system.M(tm, qm, format="csc")
+        q_dot_u = self.system.q_dot_u(tm, qm)
+        beta = self.system.q_dot(tm, qm, np.zeros_like(self.un))
         W_N = self.system.W_N(tm, qm, format="csr")
         W_F = self.system.W_F(tm, qm, format="csr")
         W = self.W(tm, qm)
+        # c_q = self.c_q(tm, qm, un, self.la_cn, format="csc", dt=dt)
+        # c_u = self.c_u(tm, qm, un, self.la_cn, format="csc", dt=dt)
+        # C = self.c_la(format="csc", dt=dt)
+        c_q = self.c_q(tm, qm, un, self.la_cn, format="csc")
+        c_u = self.c_u(tm, qm, un, self.la_cn, format="csc")
+        C = self.c_la(format="csc")
+        M_inv = csc_array(inv(M).reshape((self.nu, self.nu)))
+
+        ############################
+        # compute iteration matrices
+        ############################
+        # fmt: off
+        A = bmat([
+            [M,   -W],
+            # [W.T, C / dt],
+            [0.5 * dt * c_q @ q_dot_u + c_u, C / dt],
+        ], format="csr")
+        # fmt: on
+
+        # TODO: Why is W.T != 0.5 * dt * c_q @ q_dot_u? This leads to a
+        # non-symmetric iteration matrix.
+
+        # np.set_printoptions(3, suppress=True, linewidth=1000)
+        # print(f"A:\n{A.toarray()}")
+
+        # # def mv(p):
+        # #     p1, p2 = p[:nu], p[nu:]
+        # #     return np.concatenate([
+        # #         M @ p1 + W @ p2,
+        # #         # (W.T @ p1).reshape(len(p2)),
+        # #         W.T @ p1 + C @ p2,
+        # #     ])
+
+        # # A = LinearOperator((nx, nx), matvec=mv, dtype=float)
+
+        # # sparse conjugate residual (CR) with Jacobi preconditioner
+        # A_inv = type("CR", (), {})()
+
+        # # diagonal mass matrix preconditioner
+        # # # AA_inv = 1 / np.maximum(1, A.diagonal())
+        # # AA_inv = np.ones(nx)
+        # # # TODO: Can M.diagonal() be used to estimate the proximal point
+        # # # parameters too? This neglects the coupling in M but might be
+        # # # unnecessary.
+        # # AA_inv[:self.nu] = 1 / M.diagonal()
+        # # preconditioner = LinearOperator(A.shape, lambda x: AA_inv * x)
+
+        # # Mass matrix preconditioner
+        # def mv(p):
+        #     p1, p2 = p[:nu], p[nu:]
+        #     return np.concatenate([
+        #         M_inv @ p1,
+        #         p2,
+        #     ])
+        # # preconditioner = LinearOperator(A.shape, mv)
+        # preconditioner = None
+
+        # def solve(rhs):
+        #     x, iterations, r, converged = cr(A, rhs, M=preconditioner)
+        #     # x, iterations, r, converged = cr(A.T @ A, A.T @ rhs, M=preconditioner)
+        #     # TODO: Add iterations to the solver_summary
+        #     if not converged:
+        #         print(f"cr not converged")
+        #     return x
+
+        # A_inv.solve = solve
+
+        A_inv = type("LU", (), {})()
+        LU = splu(A)
+
+        def solve(rhs):
+            return LU.solve(rhs)
+
+        A_inv.solve = solve
 
         # - only compute optimized prox-parameters once per time step
         # - generalized force directions for constraint forces are only
         #   required if we have contacts
-        M_inv = csc_array(inv(M).reshape((self.nu, self.nu)))
         if self.nla_N + self.nla_F > 0:
             self.solver_summary.add_lu(1)
             W_N = self.system.W_N(tm, qm, format="csr")
@@ -741,118 +1067,247 @@ class DualStörmerVerlet:
             g_Nm = self.system.g_N(tm, qm)
             I_N = g_Nm <= 0
 
-        def fun(x):
-            du, Pin1 = x[: self.nu], x[self.nu :]
+            # TODO: Introduce slicing for active contacts as in Moreau
 
-            tn1 = tn + dt
-            un1 = un + du
-            qn1 = qm + 0.5 * dt * self.system.q_dot(tm, qm, un1)
+        ###################
+        # newton iterations
+        ###################
+        if self.debug:
+            print(f"Newton:")
+        # compute initial positions velocities and percussions
+        tn1 = self.tn + dt
+        un1 = un.copy()
+        qn1 = qm + 0.5 * dt * (q_dot_u @ un1 + beta)
+        # note: warmstart seems to be not important at all
+        # Pin1 = dt * np.concatenate([self.la_gn.copy(), self.la_gamman.copy(), self.la_cn.copy()])
+        Pin1 = np.zeros(self.nla)
+        # warm start often reduces the number of iterations
+        Pi_Nn1 = self.Pi_Nn
+        Pi_Fn1 = self.Pi_Fn
 
-            return np.concatenate(
-                [
-                    # M @ du - self.system.h(tm, qm, 0.5 * (un + un1)) - W @ Pin1,
-                    # self.c(tn1, qn1, un1, Pin1 / dt),
-                    # du - M_inv @ (self.system.h(tm, qm, 0.5 * (un + un1)) - W @ Pin1) * dt,
-                    # M @ du - (self.system.h(tm, qm, 0.5 * (un + un1)) - W @ Pin1) * dt,
-                    M @ du - (dt * self.system.h(tm, qm, 0.5 * (un + un1)) - W @ Pin1),
-                    # self.c(tn1, qn1, un1, Pin1),
-                    self.c(tn1, qn1, un1, Pin1) / dt,  # index 3
-                    # self.c(tn1, qn1, un1, Pin1), # index 2
-                    # self.c(tn1, qn1, un1, Pin1) * dt, # index 1
-                ]
+        def prox(Pi_Nn1, Pi_Fn1):
+            # normal contact
+            # # TODO: This is the desired evaluation
+            # TODO: Decompose evaluation of xi_N = e_N * gamma_Nn + gamma_Nn1
+            xi_N = self.system.xi_N(tm, tm, qm, qm, un, un1)
+            # TODO: This leads to second-order convergence for case 1 in the
+            # point mass on slope example
+            # TODO: This also introduces a strange chattering in the same example!
+            # xi_N = self.system.xi_N(tn, tn1, qn, qn1, un, un1)
+            Pi_Nn1 = np.where(
+                I_N,
+                -NegativeOrthant.prox(self.prox_r_N * xi_N - Pi_Nn1),
+                np.zeros_like(Pi_Nn1),
             )
 
-        def jac(x):
-            return approx_fprime(x, fun)
+            # friction
+            # TODO: Decompose evaluation of xi_F = e_F * gamma_Fn + gamma_Fn1
+            # xi_F = self.system.xi_F(tn, tn1, qn, qn1, un, un1)
+            xi_F = self.system.xi_F(tm, tm, qm, qm, un, un1)
+            for contr in self.system.get_contribution_list("gamma_F"):
+                la_FDOF = contr.la_FDOF
+                gamma_F_contr = xi_F[la_FDOF]
+                Pi_Nn1_contr = Pi_Fn1[la_FDOF]
+                prox_r_F_contr = self.prox_r_F[la_FDOF]
+                for i_N, i_F, force_recervoir in contr.friction_laws:
+                    if len(i_N) > 0:
+                        dP_Nn1i = Pi_Nn1[contr.la_NDOF[i_N]]
+                    else:
+                        dP_Nn1i = self.dt
 
-        def gen_A(x, eps=1e-1):
-            def mv(p):
-                return (fun(x + eps * p) - fun(x)) / eps
-                # return (fun(x) - fun(x + eps * p)) / eps
-                # return approx_fprime(x, fun) @ p
-                # return (fun(x + eps * p) - fun(x - eps * p)) / (2 * eps)
+                    Pi_Fn1[la_FDOF[i_F]] = -force_recervoir.prox(
+                        prox_r_F_contr[i_F] * gamma_F_contr[i_F] - Pi_Nn1_contr[i_F],
+                        dP_Nn1i,
+                    )
 
-            # A = LinearOperator((nx, nx), matvec=mv, dtype=x.dtype)
-            # A._matvec = mv
-            # return A
-            return LinearOperator((nx, nx), matvec=mv, dtype=x.dtype)
+            return Pi_Nn1, Pi_Fn1
 
-        ##################
-        # Newton-CR method
-        ##################
-        nx = self.nu + self.nla
-        x = np.zeros(nx)
-        f = fun(x)
-        scale = self.options.newton_atol + np.abs(f) * self.options.newton_rtol
+        # evaluate residuals
+        R1 = M @ (un1 - un) - dt * self.system.h(tm, qm, 0.5 * (un + un1)) - W @ Pin1
+        if self.nla_N + self.nla_F > 0:
+            Pi_Nn1, Pi_Fn1 = prox(Pi_Nn1, Pi_Fn1)
+            R1 -= W_N @ Pi_Nn1 + W_F @ Pi_Fn1
+        # R2 = self.c(tn1, qn1, un1, Pin1 / dt, dt=dt)
+        R2 = self.c(tn1, qn1, un1, Pin1 / dt)
+        R = np.concatenate((R1, R2))
 
-        # TODO:
-        # - add contacts
-        # - try to incorporate prox iteration into cr step
-        for i in range(self.options.newton_max_iter):
-            # # TODO: Why this is correct but cr fails with linear operator?
-            # J = jac(x)
-            # A = gen_A(x)
-            # p = np.random.rand(len(x))
-            # Jp = J @ p
-            # Ap = A.matvec(p)
-            # diff = Jp - Ap
-            # error_matvec = np.linalg.norm(diff)
-            # print(f"error_matvec: {error_matvec}")
+        # newton scaling
+        scale1 = self.options.newton_atol + np.abs(R1) * self.options.newton_rtol
+        scale2 = self.options.newton_atol + np.abs(R2) * self.options.newton_rtol
+        scale = np.concatenate((scale1, scale2))
 
-            # A = J
+        # error of initial guess
+        error = np.linalg.norm(R / scale) / scale.size**0.5
+        converged = error < 1
+        i = -1
+        if self.debug:
+            print(f"i: {i}; error: {error}; converged: {converged}")
 
-            # def mv(p, fun=fun, eps=1e-6):
-            #     return (fun(x + eps * p) - fun(x)) / eps
-            # A = LinearOperator((nx, nx), matvec=mv, dtype=x.dtype)
+        # Newton loop
+        if not converged:
+            for i in range(self.options.newton_max_iter):
+                # Newton updates
+                dx = A_inv.solve(-R)
+                du, dPi = dx[:nu], dx[nu:]
 
-            A = jac(x)
-            # A = gen_A(x)
-            dx, iterations, r, converged = cr(A, f, atol=0, rtol=1e-6)
+                # update dependent variables
+                un1 += du
+                Pin1 += dPi
+                qn1 = qm + 0.5 * dt * (q_dot_u @ un1 + beta)
+
+                # evaluate residuals
+                R1 = (
+                    M @ (un1 - un)
+                    - dt * self.system.h(tm, qm, 0.5 * (un + un1))
+                    - W @ Pin1
+                )
+                if self.nla_N + self.nla_F > 0:
+                    Pi_Nn1, Pi_Fn1 = prox(Pi_Nn1, Pi_Fn1)
+                    R1 -= W_N @ Pi_Nn1 + W_F @ Pi_Fn1
+                # R2 = self.c(tn1, qn1, un1, Pin1 / dt, dt=dt)
+                R2 = self.c(tn1, qn1, un1, Pin1 / dt)
+                R = np.concatenate((R1, R2))
+
+                # error and convergence check
+                error = np.linalg.norm(R / scale) / scale.size**0.5
+                converged = error < 1
+                if self.debug:
+                    print(f"i: {i}; error: {error}; converged: {converged}")
+                if converged:
+                    break
+
             if not converged:
-                print(f"cr not converged")
-            x -= dx
-            f = fun(x)
-            error = np.linalg.norm(f / scale) / scale.size**0.5
-            print(f"i: {i}; error: {error}")
-            if error < 1:
-                break
+                warnings.warn(
+                    f"Newton method is not converged after {i} iterations with error {error:.2e}"
+                )
 
-        self.solver_summary.add_newton(i + 1, error)
-
-        # update dependent variables
-        du, Pin1 = x[: self.nu], x[self.nu :]
-        # Pin1 *= -dt
-        Pin1 *= -1
-        tn1 = tn + dt
-        un1 = un + du
-        qn1 = qm + 0.5 * dt * self.system.q_dot(tm, qm, un1)
+        self.solver_summary.add_newton(i + 1, np.max(np.abs(R)))
 
         # modify converged quantities
         qn1, un1 = self.system.step_callback(tn1, qn1, un1)
 
-        # unpack percussion
+        # scale and unpack percussion
+        Pin1 *= -1
         Pi_gn1, Pi_gamman1, Pi_cn1 = np.array_split(Pin1, self.split_la)
+
+        # def fun(x):
+        #     du, Pin1 = x[: self.nu], x[self.nu :]
+
+        #     tn1 = tn + dt
+        #     un1 = un + du
+        #     qn1 = qm + 0.5 * dt * self.system.q_dot(tm, qm, un1)
+
+        #     return np.concatenate(
+        #         [
+        #             # M @ du - self.system.h(tm, qm, 0.5 * (un + un1)) - W @ Pin1,
+        #             # self.c(tn1, qn1, un1, Pin1 / dt),
+        #             # du - M_inv @ (dt * self.system.h(tm, qm, 0.5 * (un + un1)) - W @ Pin1),
+        #             M @ du - (dt * self.system.h(tm, qm, 0.5 * (un + un1)) - W @ Pin1),
+        #             self.c(tn1, qn1, un1, Pin1 / dt, dt),
+        #         ]
+        #     )
+
+        # def jac(x):
+        #     return approx_fprime(x, fun)
+
+        # def gen_A(x, eps=1e-1):
+        #     def mv(p):
+        #         return (fun(x + eps * p) - fun(x)) / eps
+        #         # return (fun(x) - fun(x + eps * p)) / eps
+        #         # return approx_fprime(x, fun) @ p
+        #         # return (fun(x + eps * p) - fun(x - eps * p)) / (2 * eps)
+
+        #     # A = LinearOperator((nx, nx), matvec=mv, dtype=x.dtype)
+        #     # A._matvec = mv
+        #     # return A
+        #     return LinearOperator((nx, nx), matvec=mv, dtype=x.dtype)
+
+        # ##################
+        # # Newton-CR method
+        # ##################
+        # if self.debug:
+        #     print(f"Newton:")
+        # nx = self.nu + self.nla
+        # x = np.zeros(nx)
+        # f = fun(x)
+        # scale = self.options.newton_atol + np.abs(f) * self.options.newton_rtol
+
+        # # TODO:
+        # # - add contacts
+        # # - try to incorporate prox iteration into cr step
+        # for i in range(self.options.newton_max_iter):
+        #     # # TODO: Why this is correct but cr fails with linear operator?
+        #     # J = jac(x)
+        #     # A = gen_A(x)
+        #     # p = np.random.rand(len(x))
+        #     # Jp = J @ p
+        #     # Ap = A.matvec(p)
+        #     # diff = Jp - Ap
+        #     # error_matvec = np.linalg.norm(diff)
+        #     # print(f"error_matvec: {error_matvec}")
+
+        #     # A = J
+
+        #     # def mv(p, fun=fun, eps=1e-6):
+        #     #     return (fun(x + eps * p) - fun(x)) / eps
+        #     # A = LinearOperator((nx, nx), matvec=mv, dtype=x.dtype)
+
+        #     # # TODO: Add diagonal preconditioner with mass matrix
+        #     # DD_inv = 1 / D.diagonal()
+        #     # preconditioner = LinearOperator(D.shape, lambda x: DD_inv * x)
+
+        #     A = jac(x)
+        #     # A = gen_A(x)
+        #     # maxiter = len(x) * 1000
+        #     maxiter = None
+        #     dx, iterations, r, converged = cr(A, f, rtol=1e-5, atol=0, maxiter=maxiter)
+        #     if not converged:
+        #         print(f"cr not converged")
+        #     x -= dx
+        #     f = fun(x)
+        #     error = np.linalg.norm(f / scale) / scale.size**0.5
+        #     converged = error < 1
+        #     if self.debug:
+        #         print(f"i: {i}; error: {error}; converged: {converged}")
+        #     if converged:
+        #         break
+
+        # self.solver_summary.add_newton(i + 1, error)
+
+        # # update dependent variables
+        # du, Pin1 = x[: self.nu], x[self.nu :]
+        # # Pin1 *= -dt
+        # Pin1 *= -1
+        # tn1 = tn + dt
+        # un1 = un + du
+        # qn1 = qm + 0.5 * dt * self.system.q_dot(tm, qm, un1)
+
+        # # modify converged quantities
+        # tn1 = tn + dt
+        # qn1, un1 = self.system.step_callback(tn1, qn1, un1)
+
+        # # unpack percussion
+        # Pi_gn1, Pi_gamman1, Pi_cn1 = np.array_split(Pin1, self.split_la)
 
         # store solution fields
         self.sol_t.append(tn1)
         self.sol_q.append(qn1)
         self.sol_u.append(un1)
-        # self.sol_la_c.append(Pi_cn1 / self.dt)
-        self.sol_la_c.append(Pi_cn1)
+        self.sol_la_c.append(Pi_cn1 / self.dt)
         self.sol_P_g.append(Pi_gn1)
         self.sol_P_gamma.append(Pi_gamman1)
-        # self.sol_P_N.append(Pi_Nn1)
-        # self.sol_P_F.append(Pi_Fn1)
+        self.sol_P_N.append(Pi_Nn1)
+        self.sol_P_F.append(Pi_Fn1)
 
         # update local variables for accepted time step
         self.tn = tn1
         self.qn = qn1.copy()
         self.un = un1.copy()
-        self.la_gn = Pi_gn1.copy()  # / dt
-        self.la_gamman = Pi_gamman1.copy()  # / dt
-        self.la_cn = Pi_cn1.copy()  # / dt
-        # self.Pi_Nn = Pi_Nn1.copy()
-        # self.Pi_Fn = Pi_Fn1.copy()
+        self.la_gn = Pi_gn1.copy() / dt
+        self.la_gamman = Pi_gamman1.copy() / dt
+        self.la_cn = Pi_cn1.copy() / dt
+        self.Pi_Nn = Pi_Nn1.copy()
+        self.Pi_Fn = Pi_Fn1.copy()
 
     def _step_nonlinear_cr(self):
         raise RuntimeError("This is not working!")
@@ -983,6 +1438,7 @@ class DualStörmerVerlet:
             # self._step_naive()
             # self._step_schur()
             self._step_cr()
+            # self._step_schur_projected_cg()
             # self._step_nonlinear_cr()
 
         self.solver_summary.print()

@@ -15,6 +15,8 @@ from cardillo.solver import SolverOptions, Moreau, DualStörmerVerlet
 # nelements = 5
 nelements = 3
 polynomial_degree = 2
+# nelements = 1
+# polynomial_degree = 1
 length = 2 * np.pi
 slenderness = 1e2
 # slenderness = 2e2
@@ -65,7 +67,7 @@ if __name__ == "__main__":
         cross_section_inertias=cross_section_inertias,
     )
 
-    # rod.u0 = np.random.rand(len(rod.u0)) * 1e1
+    rod.u0 = np.random.rand(len(rod.u0)) * 1e1
 
     # gravity
     gravity = Force_line_distributed(np.array([0, 0, -g * A_rho0]), rod)
@@ -81,15 +83,17 @@ if __name__ == "__main__":
     # assemble the system
     system.add(rod)
     system.add(gravity)
-    system.add(contact_left)
-    system.add(contact_right)
+    # system.add(contact_left)
+    # system.add(contact_right)
     system.assemble(options=SolverOptions(compute_consistent_initial_conditions=False))
 
     # solver
-    t1 = 10
+    t1 = 1
+    # t1 = 10
     # dt = 1e-5
     # solver = Moreau(system, t1, dt, options=SolverOptions(prox_scaling=0.05))
-    dt = 5e-2
+    # dt = 5e-2
+    dt = 1e-2
     solver = DualStörmerVerlet(
         # system, t1, dt, options=SolverOptions(prox_scaling=0.05, newton_atol=1e-8, newton_rtol=1e-8)
         system,
