@@ -13,10 +13,10 @@ from cardillo.solver import SolverOptions, Moreau, DualStörmerVerlet
 
 
 # nelements = 5
-nelements = 3
-polynomial_degree = 2
-# nelements = 1
-# polynomial_degree = 1
+# nelements = 3
+# polynomial_degree = 2
+nelements = 1
+polynomial_degree = 1
 length = 2 * np.pi
 slenderness = 1e2
 # slenderness = 2e2

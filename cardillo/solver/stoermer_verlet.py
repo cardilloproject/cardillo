@@ -390,8 +390,8 @@ class DualStörmerVerlet:
         c = np.zeros(self.nla)
         c[: self.split_la[0]] = self.system.g(t, q) * 2 / dt
         c[self.split_la[0] : self.split_la[1]] = self.system.gamma(t, q, u)
-        # c[self.split_la[1] :] = -self.system.c(t, q, u, la_c) * 2 / dt
-        c[self.split_la[1] :] = self.system.c(t, q, u, la_c)
+        c[self.split_la[1] :] = self.system.c(t, q, u, la_c) * 2 / dt
+        # c[self.split_la[1] :] = self.system.c(t, q, u, la_c)
 
         return c
 
@@ -400,8 +400,8 @@ class DualStörmerVerlet:
 
         g_q = self.system.g_q(t, q) * 2 / dt
         gamma_q = self.system.gamma_q(t, q, u)
-        # c_q = -self.system.c_q(t, q, u, la_c) * 2 / dt
-        c_q = self.system.c_q(t, q, u, la_c)
+        c_q = self.system.c_q(t, q, u, la_c) * 2 / dt
+        # c_q = self.system.c_q(t, q, u, la_c)
 
         return bmat([[g_q], [gamma_q], [c_q]], format=format)
 
@@ -410,16 +410,16 @@ class DualStörmerVerlet:
 
         g_u = np.zeros((self.nla_g, self.nu))
         gamma_u = self.system.gamma_u(t, q)
-        # c_u = -self.system.c_u(t, q, u, la_c) * 2 / dt
-        c_u = self.system.c_u(t, q, u, la_c)
+        c_u = self.system.c_u(t, q, u, la_c) * 2 / dt
+        # c_u = self.system.c_u(t, q, u, la_c)
 
         return bmat([[g_u], [gamma_u], [c_u]], format=format)
 
     def c_la(self, format="coo", dt=1.0):
         g_la_g = np.zeros((self.nla_g, self.nla_g))
         gamma_la_gamma = np.zeros((self.nla_gamma, self.nla_gamma))
-        # c_la_c = -self.system.c_la_c() * 2 / dt
-        c_la_c = self.system.c_la_c()
+        c_la_c = self.system.c_la_c() * 2 / dt
+        # c_la_c = self.system.c_la_c()
 
         return block_diag([g_la_g, gamma_la_gamma, c_la_c], format=format)
 
@@ -975,12 +975,12 @@ class DualStörmerVerlet:
         W_N = self.system.W_N(tm, qm, format="csr")
         W_F = self.system.W_F(tm, qm, format="csr")
         W = self.W(tm, qm)
-        # c_q = self.c_q(tm, qm, un, self.la_cn, format="csc", dt=dt)
-        # c_u = self.c_u(tm, qm, un, self.la_cn, format="csc", dt=dt)
-        # C = self.c_la(format="csc", dt=dt)
-        c_q = self.c_q(tm, qm, un, self.la_cn, format="csc")
-        c_u = self.c_u(tm, qm, un, self.la_cn, format="csc")
-        C = self.c_la(format="csc")
+        c_q = self.c_q(tm, qm, un, self.la_cn, format="csc", dt=dt)
+        c_u = self.c_u(tm, qm, un, self.la_cn, format="csc", dt=dt)
+        C = self.c_la(format="csc", dt=dt)
+        # c_q = self.c_q(tm, qm, un, self.la_cn, format="csc")
+        # c_u = self.c_u(tm, qm, un, self.la_cn, format="csc")
+        # C = self.c_la(format="csc")
         M_inv = csc_array(inv(M).reshape((self.nu, self.nu)))
 
         ############################
@@ -988,9 +988,12 @@ class DualStörmerVerlet:
         ############################
         # fmt: off
         A = bmat([
-            [M,   -W],
+            # [M,   -W],
+            [M,   W],
             # [W.T, C / dt],
-            [0.5 * dt * c_q @ q_dot_u + c_u, C / dt],
+            # [0.5 * dt * c_q @ q_dot_u + c_u, C / dt],
+            # [0.5 * dt * c_q @ q_dot_u + c_u, -C / dt],
+            [W.T, -C / dt],
         ], format="csr")
         # fmt: on
 
@@ -999,6 +1002,9 @@ class DualStörmerVerlet:
 
         # np.set_printoptions(3, suppress=True, linewidth=1000)
         # print(f"A:\n{A.toarray()}")
+        # print(f"W.T:\n{W.T.toarray()}")
+        # print(f"0.5 * dt * (c_q @ q_dot_u):\n{0.5 * dt * (c_q @ q_dot_u).toarray()}")
+        # pass
 
         # # def mv(p):
         # #     p1, p2 = p[:nu], p[nu:]
@@ -1123,12 +1129,13 @@ class DualStörmerVerlet:
             return Pi_Nn1, Pi_Fn1
 
         # evaluate residuals
-        R1 = M @ (un1 - un) - dt * self.system.h(tm, qm, 0.5 * (un + un1)) - W @ Pin1
+        R1 = M @ (un1 - un) - dt * self.system.h(tm, qm, 0.5 * (un + un1)) + W @ Pin1
         if self.nla_N + self.nla_F > 0:
             Pi_Nn1, Pi_Fn1 = prox(Pi_Nn1, Pi_Fn1)
             R1 -= W_N @ Pi_Nn1 + W_F @ Pi_Fn1
         # R2 = self.c(tn1, qn1, un1, Pin1 / dt, dt=dt)
-        R2 = self.c(tn1, qn1, un1, Pin1 / dt)
+        R2 = self.c(tn1, qn1, un1, -Pin1 / dt, dt=dt)
+        # R2 = self.c(tn1, qn1, un1, Pin1 / dt)
         R = np.concatenate((R1, R2))
 
         # newton scaling
@@ -1159,13 +1166,14 @@ class DualStörmerVerlet:
                 R1 = (
                     M @ (un1 - un)
                     - dt * self.system.h(tm, qm, 0.5 * (un + un1))
-                    - W @ Pin1
+                    + W @ Pin1
                 )
                 if self.nla_N + self.nla_F > 0:
                     Pi_Nn1, Pi_Fn1 = prox(Pi_Nn1, Pi_Fn1)
                     R1 -= W_N @ Pi_Nn1 + W_F @ Pi_Fn1
                 # R2 = self.c(tn1, qn1, un1, Pin1 / dt, dt=dt)
-                R2 = self.c(tn1, qn1, un1, Pin1 / dt)
+                R2 = self.c(tn1, qn1, un1, -Pin1 / dt, dt=dt)
+                # R2 = self.c(tn1, qn1, un1, Pin1 / dt)
                 R = np.concatenate((R1, R2))
 
                 # error and convergence check
