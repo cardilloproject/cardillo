@@ -12,13 +12,16 @@ from cardillo.contacts import Sphere2Plane
 from cardillo.solver import SolverOptions, Moreau, DualStörmerVerlet
 
 
-nelements = 20
-polynomial_degree = 2
+# # nelements = 20
 # nelements = 5
+# polynomial_degree = 2
+nelements = 5
+polynomial_degree = 1
+# nelements = 1
 # polynomial_degree = 1
 length = 2 * np.pi
-# slenderness = 1e2
-slenderness = 2e2
+slenderness = 1e2
+# slenderness = 2e2
 # slenderness = 1e3
 # slenderness = 1e4
 reduced_integration = True
@@ -89,8 +92,8 @@ if __name__ == "__main__":
 
     # solver
     # t1 = 1e-1
-    t1 = 2
-    # t1 = 10
+    # t1 = 2
+    t1 = 10
     # dt = 1e-5
     # solver = Moreau(system, t1, dt, options=SolverOptions(prox_scaling=0.05))
     dt = 1e-1  # this is crazy...
@@ -103,8 +106,10 @@ if __name__ == "__main__":
         dt,
         options=SolverOptions(
             prox_scaling=prox_scaling,
-            newton_atol=1e-6,
-            newton_rtol=1e-6,
+            # newton_atol=1e-6,
+            # newton_rtol=1e-6,
+            newton_atol=1e-8,
+            newton_rtol=1e-8,
             newton_max_iter=500,
         ),
     )

@@ -394,7 +394,8 @@ class DualStörmerVerlet:
         c = np.zeros(self.nla)
         c[: self.split_la[0]] = self.system.g(t, q) * 2 / dt
         c[self.split_la[0] : self.split_la[1]] = self.system.gamma(t, q, u)
-        c[self.split_la[1] :] = self.system.c(t, q, u, la_c) * dt
+        # c[self.split_la[1] :] = self.system.c(t, q, u, la_c) * dt
+        c[self.split_la[1] :] = self.system.c(t, q, u, la_c) * 2 / dt
 
         return c
 
@@ -403,7 +404,8 @@ class DualStörmerVerlet:
 
         g_q = self.system.g_q(t, q) * 2 / dt
         gamma_q = self.system.gamma_q(t, q, u)
-        c_q = self.system.c_q(t, q, u, la_c) * dt
+        # c_q = self.system.c_q(t, q, u, la_c) * dt
+        c_q = self.system.c_q(t, q, u, la_c) * 2 / dt
 
         return bmat([[g_q], [gamma_q], [c_q]], format=format)
 
@@ -412,14 +414,16 @@ class DualStörmerVerlet:
 
         g_u = np.zeros((self.nla_g, self.nu))
         gamma_u = self.system.gamma_u(t, q)
-        c_u = self.system.c_u(t, q, u, la_c) * dt
+        # c_u = self.system.c_u(t, q, u, la_c) * dt
+        c_u = self.system.c_u(t, q, u, la_c) * 2 / dt
 
         return bmat([[g_u], [gamma_u], [c_u]], format=format)
 
     def c_la(self, format="coo", dt=1.0):
         g_la_g = np.zeros((self.nla_g, self.nla_g))
         gamma_la_gamma = np.zeros((self.nla_gamma, self.nla_gamma))
-        c_la_c = self.system.c_la_c() * dt
+        # c_la_c = self.system.c_la_c() * dt
+        c_la_c = self.system.c_la_c() * 2 / dt
 
         return block_diag([g_la_g, gamma_la_gamma, c_la_c], format=format)
 
@@ -752,11 +756,18 @@ class DualStörmerVerlet:
         # fmt: off
         A = bmat([
             [M,                                  -W],
-            [0.5 * dt * c_q @ q_dot_u + c_u, C / dt],
+            # [0.5 * dt * c_q @ q_dot_u + c_u, C / dt],
+            [W.T, C / dt],
         ], format="csc")
         # fmt: on
         LU = splu(A)
         self.solver_summary.add_lu(1)
+
+        # np.set_printoptions(3, suppress=True, linewidth=1000)
+        # print(f"A:\n{A.toarray()}")
+        # print(f"W.T:\n{W.T.toarray()}")
+        # print(f"0.5 * dt * (c_q @ q_dot_u):\n{0.5 * dt * (c_q @ q_dot_u).toarray()}")
+        # print(f"")
 
         ###############################################################
         # - only compute optimized prox-parameters once per time step
