@@ -199,7 +199,7 @@ def make_CosseratRod(
             return np.concatenate([q_r, q_p])
 
         @staticmethod
-        def deformed_configuration(
+        def serret_frenet_configuration(
             nelement,
             r_OP,
             r_OP_xi,
@@ -208,7 +208,7 @@ def make_CosseratRod(
             r_OP0=np.zeros(3, dtype=float),
             A_IB0=np.eye(3, dtype=float),
         ):
-            """Compute generalized position coordinates for a pre-curved rod along curve r_OP."""
+            """Compute generalized position coordinates for a pre-curved rod along curve r_OP. The cross-section orientations are based on the Serret-Frenet equations."""
             nnodes_r = polynomial_degree * nelement + 1
 
             r_OP, r_OP_xi, r_OP_xixi = check_time_derivatives(r_OP, r_OP_xi, r_OP_xixi)
