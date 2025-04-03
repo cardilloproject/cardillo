@@ -33,6 +33,7 @@ class CosseratRod_PetrovGalerkin(RodExportBase, ABC):
         nquadrature_dyn=None,
         cross_section_inertias=CrossSectionInertias(),
         idx_impressed=None,
+        name=None,
     ):
         """Base class for Petrov-Galerkin Cosserat rod formulations with
         quaternions for the nodal orientation parametrization.
@@ -74,8 +75,17 @@ class CosseratRod_PetrovGalerkin(RodExportBase, ABC):
             Inertia properties of cross-sections: Cross-section mass density and
             Cross-section inertia tensor represented in the cross-section-fixed
             B-Basis.
-        idx_impressed:
-
+        idx_impressed : array_like
+            Set of numbers between 0 and 5 to indicate which stress
+            contributions obtain an independent field.
+            0 : n_1 axial force.
+            1 : n_2 shear force in e_y^B-direction.
+            2 : n_3 shear force in e_z^B-direction.
+            3 : m_1 torsion.
+            4 : m_2 bending moment around e_y^B-direction.
+            5 : m_3 bending moment around e_z^B-direction.
+        name : str
+            Name of contribution.
         """
         # call base class for all export properties
         super().__init__(cross_section)
@@ -84,6 +94,7 @@ class CosseratRod_PetrovGalerkin(RodExportBase, ABC):
         self.material_model = material_model
         self.cross_section_inertias = cross_section_inertias
         self.idx_impressed = np.arange(6) if idx_impressed is None else idx_impressed
+        self.name = "Cosserat_rod" if name is None else name
 
         # distinguish between inertia quadrature and other parts
         self.nquadrature = nquadrature
@@ -1117,6 +1128,7 @@ class CosseratRodMixed(CosseratRod_PetrovGalerkin):
         nquadrature_dyn=None,
         cross_section_inertias=CrossSectionInertias(),
         idx_impressed=None,
+        name=None,
     ):
         """Base class for mixed Petrov-Galerkin Cosserat rod formulations with
         quaternions for the nodal orientation parametrization.
@@ -1158,7 +1170,7 @@ class CosseratRodMixed(CosseratRod_PetrovGalerkin):
             Inertia properties of cross-sections: Cross-section mass density and
             Cross-section inertia tensor represented in the cross-section-fixed
             B-Basis.
-        idx_mixed : array_like
+        idx_impressed : array_like
             Set of numbers between 0 and 5 to indicate which stress
             contributions obtain an independent field.
             0 : n_1 axial force.
@@ -1167,7 +1179,8 @@ class CosseratRodMixed(CosseratRod_PetrovGalerkin):
             3 : m_1 torsion.
             4 : m_2 bending moment around e_y^B-direction.
             5 : m_3 bending moment around e_z^B-direction.
-
+        name : str
+            Name of contribution.
         """
 
         # call base class CosseratRod
@@ -1183,6 +1196,7 @@ class CosseratRodMixed(CosseratRod_PetrovGalerkin):
             nquadrature_dyn=nquadrature_dyn,
             cross_section_inertias=cross_section_inertias,
             idx_impressed=idx_impressed,
+            name=name,
         )
 
         #######################################################
@@ -1615,6 +1629,7 @@ def make_CosseratRodConstrained(mixed, constraints):
             u0=None,
             nquadrature_dyn=None,
             cross_section_inertias=CrossSectionInertias(),
+            name=None,
         ):
             """Base class for Petrov-Galerkin Cosserat rod formulations with
             additional constraints with quaternions for the nodal orientation
@@ -1657,6 +1672,8 @@ def make_CosseratRodConstrained(mixed, constraints):
                 Inertia properties of cross-sections: Cross-section mass density and
                 Cross-section inertia tensor represented in the cross-section-fixed
                 B-Basis.
+            name : str
+                Name of contribution.
             """
             super().__init__(
                 cross_section,
@@ -1670,6 +1687,7 @@ def make_CosseratRodConstrained(mixed, constraints):
                 nquadrature_dyn=nquadrature_dyn,
                 cross_section_inertias=cross_section_inertias,
                 idx_impressed=idx_impressed,
+                name=name,
             )
 
             ##################################################################

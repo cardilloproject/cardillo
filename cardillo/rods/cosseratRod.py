@@ -111,7 +111,44 @@ def make_CosseratRod(
             q0=None,
             u0=None,
             cross_section_inertias=CrossSectionInertias(),
+            name="Cosserat_rod",
         ):
+            """Base class for Petrov-Galerkin Cosserat rod formulations with
+            quaternions for the nodal orientation parametrization.
+
+            Parameters
+            ----------
+            cross_section : CrossSection
+                Geometric cross-section properties: area, first and second moments
+                of area.
+            material_model: RodMaterialModel
+                Constitutive law of Cosserat rod which relates the rod strain
+                measures B_Gamma and B_Kappa with the contact forces B_n and couples
+                B_m in the cross-section-fixed B-basis.
+            nelement : int
+                Number of rod elements.
+            Q : np.ndarray (self.nq,)
+                Generalized position coordinates of rod in a stress-free reference
+                state. Q is a collection of nodal generalized position coordinates,
+                which are given by the Cartesian coordinates of the nodal centerline
+                point r_OP_i in R^3 together with non-unit quaternions p_i in R^4
+                representing the nodal cross-section orientation.
+            q0 : np.ndarray (self.nq,)
+                Initial generalized position coordinates of rod at time t0.
+            u0 : np.ndarray (self.nu,)
+                Initial generalized velocity coordinates of rod at time t0.
+                Generalized velocity coordinates u0 is a collection of the nodal
+                generalized velocity coordinates, which are given by the nodal
+                centerline velocity v_P_i in R^3 together with the cross-section
+                angular velocity represented in the cross-section-fixed B-basis
+                B_omega_IB.
+            cross_section_inertias : CrossSectionInertias
+                Inertia properties of cross-sections: Cross-section mass density and
+                Cross-section inertia tensor represented in the cross-section-fixed
+                B-Basis.
+            name : str
+                Name of contribution.
+            """
             nquadrature = polynomial_degree
             nquadrature_dyn = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
 
@@ -132,6 +169,7 @@ def make_CosseratRod(
                 u0=u0,
                 nquadrature_dyn=nquadrature_dyn,
                 cross_section_inertias=cross_section_inertias,
+                name=name,
             )
 
         @staticmethod
