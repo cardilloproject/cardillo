@@ -113,7 +113,7 @@ def make_CosseratRod(
             cross_section_inertias=CrossSectionInertias(),
             name="Cosserat_rod",
         ):
-            """Base class for Petrov-Galerkin Cosserat rod formulations with
+            """Petrov-Galerkin Cosserat rod formulations with
             quaternions for the nodal orientation parametrization.
 
             Parameters

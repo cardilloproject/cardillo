@@ -24,17 +24,50 @@ https://coreform.com/papers/implementation-of-rational-bezier-cells-into-VTK-rep
 
 class RodExportBase(ABC):
     def __init__(self, cross_section: ExportableCrossSection):
+        """Base class for the export of rods into the *.vtk format.
+
+        Parameters
+        ----------
+        cross_section : ExportableCrossSection
+            Geometric cross-section, containing information about the surface and the associated vtk properties.
+
+        Key-Value Pairs of _export_dict
+        ----------
+        - "level" : str | None
+            + "centerline + directors" -> Exports centerline as Lagrange curve, and at each point ex_B, ey_B, ez_B.
+            + "volume" -> Exports Bezier cells, computed with L2-projection of the interpolation on Bezier cells.
+            + "NodalVolume" -> Exports Lagrange cells, computed only by evaluating nodal quantities.
+            + "None" -> No export of the rod.
+            + None -> No export of the rod.
+        - "num_per_cell" : int | str
+            + Only used for "level"=="centerline + directors".
+            + Integer, specifiying the number of points per cell.
+            + "Auto" -> Using the polynomial degree of the centerline interpolation.
+        - "ncells" : int | str
+            + Only used for "level"=="centerline + directors" and "level"=="volume".
+            + "level"=="NodalVolume" uses always the number of elements.
+            + Integer, specifying the number of vtk cells.
+            + "Auto" -> Using the number of elements.
+        - "stresses" : bool
+            + Only possible for "level"=="volume".
+            + Exports resultant stresses B_n and B_m.
+        - "volume_directors" : bool
+            + Only possible for "level"=="volume".
+            + Exports ex_B, ey_B, ez_B at each point of the cell.
+        - "surface_normals" : bool
+            + Was steht hier : 2153.
+            + Only possible for "level"=="volume".
+            + Exports the surface normal at each point of the cell.
+        """
         self.cross_section = cross_section
 
         self._export_dict = {
-            # "level": "centerline + directors",
             "level": "volume",
             "num_per_cell": "Auto",
             "ncells": "Auto",
             "stresses": False,
             "volume_directors": False,
             "surface_normals": False,
-            "hasCap": False,
         }
 
         self.preprocessed_export = False
@@ -165,6 +198,9 @@ class RodExportBase(ABC):
             # this is only the number of points we use for the projection
             self._export_dict["num_frames"] = 4 * ncells + 1
 
+            # set hasCap based on export of surface normals
+            self._export_dict["hasCap"] = self._export_dict["surface_normals"]
+
             # make cells
             p_cs = self.cross_section.vtk_degree
             p_zeta = 3  # polynomial_degree of the cell along the rod. Always 3, this is hardcoded in L2_projection when BernsteinBasis is called!
@@ -244,10 +280,6 @@ class RodExportBase(ABC):
                 assert hasattr(self.cross_section, "B_r_PQ")
                 assert hasattr(self.cross_section, "B_r_PQ_eta")
                 assert isinstance(self.cross_section, CircularCrossSection)
-                if not self._export_dict["hasCap"]:
-                    warn(
-                        "It is recommended to set 'hasCap=True' in rod._export_dict when surface normals are exported!"
-                    )
 
         elif self._export_dict["level"] == "NodalVolume":
             assert isinstance(
