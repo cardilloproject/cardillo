@@ -1,8 +1,6 @@
 from abc import ABC, abstractmethod
 import numpy as np
-from vtk import (
-    VTK_LAGRANGE_CURVE,
-)
+from vtk import VTK_LAGRANGE_CURVE
 from warnings import warn
 
 from cardillo.utility.bezier import L2_projection_Bezier_curve
@@ -111,8 +109,6 @@ class RodExportBase(ABC):
         eval = self._eval(qp, xi, N, N_xi)
         r_OP = eval[0]
         A_IB = eval[1]
-        # B_gamma = eval[2]
-        # B_kappa_IB = eval[3]
 
         B_r_PQ = self.cross_section.B_r_PQ(eta)
 
@@ -124,7 +120,6 @@ class RodExportBase(ABC):
         qp = q_body[self.elDOF[el]]
         N, N_xi = self.basis_functions_r(xi, el)
         eval = self._eval(qp, xi, N, N_xi)
-        # r_OP = eval[0]
         A_IB = eval[1]
         B_gamma = eval[2]
         B_kappa_IB = eval[3]
@@ -261,7 +256,7 @@ class RodExportBase(ABC):
             # assertion for stress export #
             ###############################
             if self._export_dict["stresses"]:
-                # TODO: remove this assertion, when we compute the stresses on element level
+                # TODO: remove this assertion, when we can do the projection also on element level
                 # stresses are evaluated at xis
                 # stresses are very likely to jump at xis_e_int
                 # therfore, we shouldn't evaluate them at these points
@@ -438,7 +433,7 @@ class RodExportBase(ABC):
             ###################
             # streses
             if self._export_dict["stresses"]:
-                # TODO: do this on element basis when eval_stresses accepts el as argument
+                # TODO: do this on element basiswhen we can do the projection also on element level
                 # This needs than a general rewriting!
                 num_stresses = num_frames - 1
                 xis = np.linspace(0, 1, num=num_stresses)
