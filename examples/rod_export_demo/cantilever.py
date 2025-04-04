@@ -133,7 +133,6 @@ def cantilever(
         rod_volume_circle._export_dict["stresses"] = True
         rod_volume_circle._export_dict["volume_directors"] = True
         rod_volume_circle._export_dict["surface_normals"] = True
-        rod_volume_circle._export_dict["hasCap"] = True
         system.add(rod_volume_circle)
 
         # export with circular cross-section (wedge cells)
@@ -144,7 +143,6 @@ def cantilever(
         rod_volume_circle_wedge._export_dict["stresses"] = True
         rod_volume_circle_wedge._export_dict["volume_directors"] = True
         rod_volume_circle_wedge._export_dict["surface_normals"] = True
-        rod_volume_circle_wedge._export_dict["hasCap"] = True
         system.add(rod_volume_circle_wedge)
 
         # export only nodal quantities for fast export (rectangle)
