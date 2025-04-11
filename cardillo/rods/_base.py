@@ -1615,6 +1615,9 @@ def make_CosseratRodConstrained(mixed, constraints):
     else:
         CosseratRodBase = CosseratRodDisplacementBased
 
+    if len(idx_impressed) == 0:
+        CosseratRodBase = CosseratRod_PetrovGalerkin
+
     class CosseratRodConstrained(CosseratRodBase):
         def __init__(
             self,
@@ -1990,7 +1993,10 @@ def make_CosseratRodConstrained(mixed, constraints):
         ##############################
         def eval_stresses(self, t, q, la_c, la_g, xi, el=None):
             el = self.element_number(xi) if el is None else el
-            B_n, B_m = super().eval_stresses(t, q, la_c, la_g, xi, el)
+            if self.nconstraints == 6:
+                B_n, B_m = np.zeros(3, dtype=q.dtype), np.zeros(3, dtype=q.dtype)
+            else:
+                B_n, B_m = super().eval_stresses(t, q, la_c, la_g, xi, el)
 
             la_ge = la_g[self.elDOF_la_g[el]]
             # TODO: lets see how to avoid the flatten
@@ -2008,7 +2014,10 @@ def make_CosseratRodConstrained(mixed, constraints):
 
         def eval_strains(self, t, q, la_c, la_g, xi, el=None):
             el = self.element_number(xi) if el is None else el
-            eps_ga, eps_ka = super().eval_strains(t, q, la_c, la_g, xi, el)
+            if self.nconstraints == 6:
+                eps_ga, eps_ka = np.zeros(3, dtype=q.dtype), np.zeros(3, dtype=q.dtype)
+            else:
+                eps_ga, eps_ka = super().eval_strains(t, q, la_c, la_g, xi, el)
 
             eps_ga[self.constraints_gamma] = np.zeros(self.nconstraints_gamma)
             eps_ka[self.constraints_kappa] = np.zeros(self.nconstraints_kappa)
