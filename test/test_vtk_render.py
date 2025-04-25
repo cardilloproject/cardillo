@@ -108,9 +108,7 @@ def cantilever(
     system = System()
 
     # compute straight initial configuration of cantilever
-    q0 = Rod.straight_configuration(
-        nelements, length, polynomial_degree=polynomial_degree
-    )
+    q0 = Rod.straight_configuration(nelements, length)
     # construct cantilever
     cantilever = Rod(
         cross_section,
@@ -118,11 +116,9 @@ def cantilever(
         nelements,
         Q=q0,
         q0=q0,
-        polynomial_degree=polynomial_degree,
-        reduced_integration=reduced_integration,
     )
 
-    clamping_left = RigidConnection(system.origin, cantilever, xi2=(0,))
+    clamping_left = RigidConnection(system.origin, cantilever, xi2=0)
 
     # assemble the system
     system.add(cantilever)
@@ -131,12 +127,12 @@ def cantilever(
     # spatially fixed load at cantilever tip
     P = lambda t: material_model.Fi[2] * (10 * t) / length**2
     F = lambda t: -P(t) * e2
-    force = Force(F, cantilever, (1,))
+    force = Force(F, cantilever, 1)
     system.add(force)
 
     # moment at cantilever tip
     M = lambda t: 2.5 * P(t) * e3
-    moment = B_Moment(M, cantilever, (1,))
+    moment = B_Moment(M, cantilever, 1)
     system.add(moment)
 
     system.assemble(options=SolverOptions(compute_consistent_initial_conditions=False))
