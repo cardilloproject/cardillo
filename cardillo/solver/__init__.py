@@ -14,6 +14,7 @@ from .scipy_dae import ScipyDAE
 from .moreau import Moreau
 from .backward_euler import BackwardEuler
 from .rattle import Rattle
+from .dual_stormer_verlet import DualStormerVerlet
 
 # static solvers
 from .statics import Newton, Riks
