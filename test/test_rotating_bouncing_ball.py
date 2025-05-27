@@ -9,8 +9,8 @@ from cardillo import System
 from cardillo.solver import (
     Moreau,
     BackwardEuler,
-    SolverOptions,
     Rattle,
+    DualStormerVerlet,
 )
 
 
@@ -215,18 +215,28 @@ def run(case):
     P_N3 = sol3.P_N
     P_F3 = sol3.P_F
 
+    solver4, label4 = DualStormerVerlet(system, t_final, dt), "DualStormerVerlet"
+    sol4 = solver4.solve()
+    t4 = sol4.t
+    q4 = sol4.q
+    u4 = sol4.u
+    P_N4 = sol4.P_N
+    P_F4 = sol4.P_F
+
     fig, ax = plt.subplots(2, 3)
 
     ax[0, 0].set_title("x(t)")
     ax[0, 0].plot(t1, q1[:, 0], "-k", label=label1)
     ax[0, 0].plot(t2, q2[:, 0], "--r", label=label2)
     ax[0, 0].plot(t3, q3[:, 0], "-.b", label=label3)
+    ax[0, 0].plot(t4, q4[:, 0], ":g", label=label4)
     ax[0, 0].legend()
 
     ax[1, 0].set_title("u_x(t)")
     ax[1, 0].plot(t1, u1[:, 0], "-k", label=label1)
     ax[1, 0].plot(t2, u2[:, 0], "--r", label=label2)
     ax[1, 0].plot(t3, u3[:, 0], "-.b", label=label3)
+    ax[1, 0].plot(t4, u4[:, 0], ":g", label=label4)
     ax[1, 0].legend()
 
     ax[0, 1].set_title("y(t)")
@@ -234,24 +244,28 @@ def run(case):
     ax[0, 1].plot(t1, q1[:, 1], "-k", label=label1)
     ax[0, 1].plot(t2, q2[:, 1], "--r", label=label2)
     ax[0, 1].plot(t3, q3[:, 1], "-.b", label=label3)
+    ax[0, 1].plot(t4, q4[:, 1], ":g", label=label4)
     ax[0, 1].legend()
 
     ax[1, 1].set_title("u_y(t)")
     ax[1, 1].plot(t1, u1[:, 1], "-k", label=label1)
     ax[1, 1].plot(t2, u2[:, 1], "--r", label=label2)
     ax[1, 1].plot(t3, u3[:, 1], "-.b", label=label3)
+    ax[1, 1].plot(t4, u4[:, 1], ":g", label=label4)
     ax[1, 1].legend()
 
     ax[0, 2].set_title("phi(t)")
     ax[0, 2].plot(t1, q1[:, -1], "-k", label=label1)
     ax[0, 2].plot(t2, q2[:, -1], "--r", label=label2)
     ax[0, 2].plot(t3, q3[:, -1], "-.b", label=label3)
+    ax[0, 2].plot(t4, q4[:, -1], ":g", label=label4)
     ax[0, 2].legend()
 
     ax[1, 2].set_title("u_phi(t)")
     ax[1, 2].plot(t1, u1[:, -1], "-k", label=label1)
     ax[1, 2].plot(t2, u2[:, -1], "--r", label=label2)
     ax[1, 2].plot(t3, u3[:, -1], "-.b", label=label3)
+    ax[1, 2].plot(t4, u4[:, -1], ":g", label=label4)
     ax[1, 2].legend()
 
     plt.tight_layout()
@@ -262,6 +276,7 @@ def run(case):
     ax[0].plot(t1, P_N1[:, 0], "-k", label=label1)
     ax[0].plot(t2, P_N2[:, 0], "--r", label=label2)
     ax[0].plot(t3, P_N3[:, 0], "-.b", label=label3)
+    ax[0].plot(t4, P_N4[:, 0], ":g", label=label4)
     ax[0].legend()
 
     if mu > 0:
@@ -269,6 +284,7 @@ def run(case):
         ax[1].plot(t1, P_F1[:, 0], "-k", label=label1)
         ax[1].plot(t2, P_F2[:, 0], "--r", label=label2)
         ax[1].plot(t3, P_F3[:, 0], "-.b", label=label3)
+        ax[1].plot(t4, P_F4[:, 0], ":g", label=label4)
         ax[1].legend()
 
     plt.tight_layout()

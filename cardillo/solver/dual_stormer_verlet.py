@@ -22,7 +22,7 @@ def fixed_point_iteration(f, q0, atol=1e-6, rtol=1e-6, max_iter=100):
     )
 
 
-class DualStörmerVerlet:
+class DualStormerVerlet:
     def __init__(
         self,
         system,

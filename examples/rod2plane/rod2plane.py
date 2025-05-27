@@ -9,7 +9,7 @@ from cardillo.rods import (
 from cardillo.rods.cosseratRod import make_CosseratRod
 from cardillo.rods.force_line_distributed import Force_line_distributed
 from cardillo.contacts import Sphere2Plane
-from cardillo.solver import SolverOptions, Moreau, DualStörmerVerlet
+from cardillo.solver import SolverOptions, Moreau, DualStormerVerlet
 
 
 nelements = 5
@@ -25,7 +25,6 @@ mixed = True
 Rod = make_CosseratRod(
     interpolation="Quaternion",
     mixed=mixed,
-    constraints=[0, 1, 2],
     polynomial_degree=polynomial_degree,
     reduced_integration=reduced_integration,
 )
@@ -88,11 +87,9 @@ if __name__ == "__main__":
     t1 = 10
     # dt = 5e-5
     # solver = Moreau(system, t1, dt, options=SolverOptions(prox_scaling=0.05))
-    dt = 1e-1  # this is crazy...
-    # dt = 5e-2
-    # dt = 1e-2
+    dt = 1e-1
     prox_scaling = 1
-    solver = DualStörmerVerlet(
+    solver = DualStormerVerlet(
         system,
         t1,
         dt,
