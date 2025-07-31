@@ -1314,7 +1314,7 @@ class CosseratRodMixed(CosseratRod_PetrovGalerkin):
     ############
     def la_c(self, t, q, u):
         # c(q, la_c) = c_la_c @ la_c + c(q, 0)
-        # --> la_c = c_la_c.inv @ c(q, 0)
+        # --> la_c = -c_la_c.inv @ c(q, 0)
         la_c = np.zeros(self.nla_c, dtype=np.common_type(q, u))
         for el in range(self.nelement):
             qe = q[self.elDOF[el]]
