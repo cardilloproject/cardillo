@@ -81,6 +81,15 @@ def cantilever(
     clamping = RigidConnection(system.origin, cantilever, xi2=0)
     system.add(cantilever, clamping)
 
+    from cardillo.utility.marker import Marker
+
+    markers = [
+        Marker(cantilever, xi=0.0, name="marker_start"),
+        Marker(cantilever, xi=0.5, name="marker_middle"),
+        Marker(cantilever, xi=1.0, name="marker_end"),
+    ]
+    system.add(*markers)
+
     ###############
     # applied loads
     ###############
@@ -114,6 +123,10 @@ def cantilever(
 
     # VTK export
     dir_name = Path(__file__).parent
+    [
+        m.save(dir_name, "csv", sol, ["r_OP", "A_IB", "v_P", "B_Omega"])
+        for m in markers
+    ]
     if VTK_export:
         from copy import deepcopy
 
