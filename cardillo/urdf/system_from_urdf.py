@@ -17,12 +17,13 @@ Modifiers:
 - Parent p (e.g., reference frame parent: Rp)
 """
 
+from logging import root
 from pathlib import Path
 import numpy as np
 
 from urdf_parser_py.urdf import URDF
 from cardillo import System
-from cardillo.constraints import Revolute
+from cardillo.constraints import Revolute, RigidConnection
 from cardillo.discrete import RigidBody, Frame, Meshed
 from cardillo.forces import Force
 from cardillo.math import cross3, norm, ax2skew, ax2skew_squared, A_IB_basic
@@ -76,7 +77,26 @@ def axis_angle_to_A(axis, angle):
     
     return np.eye(3) + np.sin(angle) * ax2skew(axis) + (1 - np.cos(angle)) * ax2skew_squared(axis)
         
+def process_visual(link, BodyType, kwargs_body, A_RB, R_r_RC, folder_path):
+    if link.visual is not None:
+        if link.visual.origin is None:
+            R_r_RV, A_RV = np.zeros(3), np.eye(3)
+        else:
+            R_r_RV, A_RV = pose_to_r_A(link.visual.origin)
 
+        visual_type = type(link.visual.geometry).__name__
+        if visual_type == "Mesh":
+            BodyType = Meshed(BodyType)
+            kwargs_body["mesh_obj"] = Path(folder_path, link.visual.geometry.filename)
+            kwargs_body["B_r_CP"] = A_RB.T @ (R_r_RV - R_r_RC)
+            kwargs_body["A_BM"] = A_RB.T @ A_RV
+        else:
+            pass # TODO: implement Box, Cylinder, and other visual types
+
+    return BodyType
+
+
+    
 def system_from_urdf(
     file_path,
     r_OR=np.zeros(3),
@@ -108,7 +128,7 @@ def system_from_urdf(
     root.R_omega_IR = R_omega_IR
 
     if root_is_floating:
-        if root.inertial is not None:
+        if root.inertial is not None and root.inertial.mass > 0:
             R_r_RC, A_RB = pose_to_r_A(root.inertial.origin)
             root.A_IB = A_IR @ A_RB
             root.r_OC = r_OR + A_IR @ R_r_RC
@@ -131,13 +151,8 @@ def system_from_urdf(
 
         kwargs_body["r_OP"] = r_OR + A_IR @ R_r_RC # r_OC
         kwargs_body["A_IB"] = A_IR @ A_RB # A_IB
-    
-    if root.visual is not None:
-        BodyType = Meshed(BodyType)
-        R_r_RV, A_RV = pose_to_r_A(root.visual.origin)
-        kwargs_body["mesh_obj"] = Path(folder_path, root.visual.geometry.filename)
-        kwargs_body["B_r_CP"] = A_RB.T @ (R_r_RV - R_r_RC)
-        kwargs_body["A_BM"] = A_RB.T @ A_RV
+
+    BodyType = process_visual(root, BodyType, kwargs_body, A_RB, R_r_RC, folder_path)
 
     # create and add root
     system.add(BodyType(**kwargs_body))
@@ -147,18 +162,27 @@ def system_from_urdf(
     links_to_process = [root]
     while links_to_process:
         parent = links_to_process.pop(0)
-        if parent.name not in urdf.child_map: # the link that is processed has not children, i.e., is a leaf
+        if parent.name not in urdf.child_map: # the link that is processed has no children, i.e., is a leaf
             continue
         for item in urdf.child_map[parent.name]:
             joint = urdf.joint_map[item[0]]
             child = urdf.link_map[item[1]]
             links_to_process.append(child)
+            BodyType = None
+            JointType = None
 
             # forward kinematics to get pose and velocity of child
             Rp_r_RpJ, A_RpJ = pose_to_r_A(joint.origin)
             kwargs_joint = {}
             kwargs_joint["name"] = joint.name
-            if joint.type == "revolute":
+            if joint.type == "fixed":
+                JointType = RigidConnection
+                J_r_JRc = np.zeros(3)
+                A_JRc = np.eye(3)
+                J_v_JRc = np.zeros(3)
+                J_omega_JRc = np.zeros(3)
+
+            elif joint.type in ["continuous", "revolute"]:
                 JointType = Revolute
                 # redefine J-frame for such that axis is its x-axis (only for constructor of Revolute joint!)
                 axis = np.asanyarray(joint.axis, dtype=np.float64)
@@ -185,15 +209,42 @@ def system_from_urdf(
 
                 kwargs_joint["angle0"] = angle
                 J_r_JRc = np.zeros(3)
-                A_JRc = A_IB_basic(angle).x
+                A_JRc = axis_angle_to_A(axis, angle)
 
                 if joint.name in velocities:
                     angle_dot = float(velocities[joint.name])
                 else:
                     angle_dot = 0.0
                 J_v_JRc = np.zeros(3)
-                J_omega_JRc = angle_dot * np.array([1, 0, 0])
+                J_omega_JRc = angle_dot * axis
 
+            elif joint.type == "floating":
+                JointType = None
+                if joint.name in configuration:
+                    cfg = np.asanyarray(configuration[joint.name])
+                    if len(cfg) == 7:
+                        J_r_JRc, A_JRc = RigidBody.q2pose(cfg)
+                    elif len(cfg) == 6:
+                        J_r_JRc = cfg[0:3]
+                        A_JRc = rpy_to_A(cfg[3:6])
+                    else:
+                        raise ValueError("Floating joint configuration must be of length 6 (rpy) or 7 (quaternion).")
+                else:
+                    J_r_JRc = np.zeros(3)
+                    A_JRc = np.eye(3)
+
+                if joint.name in velocities:
+                    cfg = np.asanyarray(velocities[joint.name])
+                    if len(cfg) == 6:
+                        J_v_JRc = cfg[0:3]
+                        J_omega_JRc = cfg[3:6]
+                    else:
+                        raise ValueError("Floating joint velocity must be of length 6 (linear + angular).")
+                else:
+                    J_v_JRc = np.zeros(3)
+                    J_omega_JRc = np.zeros(3)
+            else:
+                raise NotImplementedError(f"Joint type {joint.type} not implemented.")
             # forward kinematics (compute child state)
             child.r_OR = parent.r_OR + parent.A_IR @ (Rp_r_RpJ + A_RpJ @ J_r_JRc)
             child.A_IR = parent.A_IR @ A_RpJ @ A_JRc
@@ -202,12 +253,15 @@ def system_from_urdf(
             child.v_R = parent.v_R + parent.A_IR @ (cross3(parent.R_omega_IR, Rp_r_RpJ) +  A_RpJ @ (J_v_JRc + cross3(J_omega_IRc, J_r_JRc)))
 
             if child.inertial is not None:
+                if child.inertial.mass == 0:
+                    raise ValueError("Link must have non-zero mass.")
+                else:
+                    BodyType = RigidBody
                 R_r_RC, A_RB = pose_to_r_A(child.inertial.origin)
                 child.A_IB = child.A_IR @ A_RB
                 child.r_OC = child.r_OR + child.A_IR @ R_r_RC
             else:
                 raise ValueError("Link must have inertial properties.")
-            BodyType = RigidBody
             kwargs_body = {}
             kwargs_body["name"] = child.name
             kwargs_body["mass"] = child.inertial.mass
@@ -217,18 +271,21 @@ def system_from_urdf(
             child.v_C = child.v_R + child.A_IR @ cross3( child.R_omega_IR, R_r_RC)
             kwargs_body["u0"] = np.hstack([child.v_C, child.B_Omega])
 
-            if child.visual is not None:
-                BodyType = Meshed(BodyType)
-                R_r_RV, A_RV = pose_to_r_A(child.visual.origin)
-                kwargs_body["mesh_obj"] = Path(folder_path, child.visual.geometry.filename)
-                kwargs_body["B_r_CP"] = A_RB.T @ (R_r_RV - R_r_RC)
-                kwargs_body["A_BM"] = A_RB.T @ A_RV
+            BodyType = process_visual(child, BodyType, kwargs_body, A_RB, R_r_RC, folder_path)
 
             # create and add link
-            system.add(BodyType(**kwargs_body))
-            kwargs_joint["subsystem1"] = system.contributions_map[parent.name]
-            kwargs_joint["subsystem2"] = system.contributions_map[child.name]
-            system.add(JointType(**kwargs_joint))
+            if BodyType is None:
+                raise ValueError('BodyType could not be determined for {}. No body added.'.format(child.name))
+            else:
+                system.add(BodyType(**kwargs_body))
+
+            if JointType is None:
+                pass # floating joint ;-)
+            else:
+                kwargs_joint["subsystem1"] = system.contributions_map[parent.name]
+                kwargs_joint["subsystem2"] = system.contributions_map[child.name]
+                system.add(JointType(**kwargs_joint))
+                # print(f"Info: Added {joint.name} as {JointType} to the cardillo system.")
 
     # add gravity
     if gravitational_acceleration is not None:
@@ -237,6 +294,7 @@ def system_from_urdf(
                 link = system.contributions_map[link_name]
                 if not isinstance(link, Frame):
                     system.add(Force(link.mass * gravitational_acceleration, link, name="gravity_" + link_name))
+
     system.assemble()
 
-    return system, urdf
+    return system

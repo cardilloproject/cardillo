@@ -7,33 +7,32 @@ from cardillo.solver import Solution, ScipyIVP
 
 configuration = {
     "joint1": np.pi,
-    # "joint2": np.pi / 2,
+    "joint2": np.pi / 2,
 }
 velocity = {
-    "joint1": 0.0,
-    "joint2": 5.0,
+    "joint1": 1.0,
+    # "joint2": 5.0,
 }
 
-robot, urdf = system_from_urdf(
+system = system_from_urdf(
     "examples/urdf_double_pendulum/urdf/double_pendulum.urdf",
-    # r_OR=np.array([0.05, 0, 0.1]),
-    # A_IR=A_IB_basic(np.pi / 4).x,
+    r_OR=np.array([0.05, 0, 0.1]),
+    A_IR=A_IB_basic(np.pi / 4).x,
     configuration=configuration,
     velocities=velocity,
     root_is_floating=False,
     gravitational_acceleration=np.array([0, 0, -9.81]),
 )
 
-
-render = Renderer(robot)
+render = Renderer(system)
 
 if simulate := True:
-    sol = ScipyIVP(robot, t1=1, dt=1e-2).solve()
+    sol = ScipyIVP(system, t1=3, dt=1e-2).solve()
     render.render_solution(
         sol, repeat=True
     )
 else:
     render.render_solution(
-        Solution(robot, np.array([robot.t0]), np.array([robot.q0])), repeat=True
+        Solution(system, np.array([system.t0]), np.array([system.q0])), repeat=True
     )
 
