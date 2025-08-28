@@ -23,6 +23,8 @@ from scipy.sparse import bmat
 from scipy.sparse.linalg import spsolve
 from cardillo.definitions import IS_CLOSE_ATOL
 from cardillo.solver._base import compute_I_F
+
+
 class VM_controller(BaseActuator):
     def __init__(self, system, trunk, joint_names, tau, kp=1, kd=0.1):
         super().__init__(trunk, tau, nla_tau=len(joint_names), ntau=6)
@@ -30,7 +32,6 @@ class VM_controller(BaseActuator):
         self.joint_names = joint_names
         self.kp = kp
         self.kd = kd
-        
 
     def assembler_callback(self):
         self.qDOF = np.arange(self.system.nq)
@@ -52,14 +53,16 @@ class VM_controller(BaseActuator):
             contr = self.system.contributions_map[joint_name]
             W_tau[contr.uDOF[:, None], i] = contr.W_l(t, q[contr.qDOF])
         return W_tau
-    
+
     def W_tau_q(self, t, q):
         W_tau_q = np.zeros((self._nu, self.nla_tau, self._nq))
         for i, joint_name in enumerate(self.joint_names):
             contr = self.system.contributions_map[joint_name]
-            W_tau_q[contr.uDOF[:, None], i, contr.qDOF] = contr.W_l_q(t, q[contr.qDOF])[:, 0, :]
+            W_tau_q[contr.uDOF[:, None], i, contr.qDOF] = contr.W_l_q(t, q[contr.qDOF])[
+                :, 0, :
+            ]
         return W_tau_q
-    
+
     def la_tau(self, t, q, u):
         J_S = np.zeros((3, self.system.nu))
         q_t = q[self.subsystem.qDOF]
@@ -79,7 +82,7 @@ class VM_controller(BaseActuator):
         A_N = np.isclose(g_N, np.zeros(self.system.nla_N), atol=IS_CLOSE_ATOL)
         B_N = A_N * np.isclose(g_N_dot, np.zeros(self.system.nla_N), atol=IS_CLOSE_ATOL)
         # get set of active normal contacts
-        B_N = np.where(B_N)[0]  
+        B_N = np.where(B_N)[0]
         B_F, global_active_friction_laws = compute_I_F(B_N, system, slice=True)
 
         W_N = self.system.W_N(t, q, format="csc")[:, B_N]
@@ -114,6 +117,7 @@ class VM_controller(BaseActuator):
         print(la)
         return la
 
+
 if __name__ == "__main__":
     from os import path
 
@@ -141,8 +145,6 @@ if __name__ == "__main__":
     initial_config["RR_calf_joint"] = -np.pi / 2
 
     joint_names = [name for name in initial_config]
-
-
 
     initial_vel = {}
     # initial_vel["world_trunk"] = np.array([0.5, 0.5, 0, 0, 0, 0])
@@ -172,16 +174,30 @@ if __name__ == "__main__":
 
     radius = 0.022
     mu = 0.3
-    foot_contact_FR = Sphere2Plane(system.origin, system.contributions_map["FR_foot"], mu=mu, r=radius)
-    foot_contact_FL = Sphere2Plane(system.origin, system.contributions_map["FL_foot"], mu=mu, r=radius)
-    foot_contact_RR = Sphere2Plane(system.origin, system.contributions_map["RR_foot"], mu=mu, r=radius)
-    foot_contact_RL = Sphere2Plane(system.origin, system.contributions_map["RL_foot"], mu=mu, r=radius)
+    foot_contact_FR = Sphere2Plane(
+        system.origin, system.contributions_map["FR_foot"], mu=mu, r=radius
+    )
+    foot_contact_FL = Sphere2Plane(
+        system.origin, system.contributions_map["FL_foot"], mu=mu, r=radius
+    )
+    foot_contact_RR = Sphere2Plane(
+        system.origin, system.contributions_map["RR_foot"], mu=mu, r=radius
+    )
+    foot_contact_RL = Sphere2Plane(
+        system.origin, system.contributions_map["RL_foot"], mu=mu, r=radius
+    )
     system.add(foot_contact_FR, foot_contact_FL, foot_contact_RR, foot_contact_RL)
 
     if virtual_model_controller:
         trunk = system.contributions_map["trunk"]
         r_OS0 = trunk.r_OP(0, trunk.q0)
-        controller = VM_controller(system, trunk, joint_names, tau=lambda t: np.concatenate([r_OS0, np.zeros(3)]), kp=1000)
+        controller = VM_controller(
+            system,
+            trunk,
+            joint_names,
+            tau=lambda t: np.concatenate([r_OS0, np.zeros(3)]),
+            kp=1000,
+        )
         system.add(controller)
 
     if PD_joint_controller:
@@ -189,10 +205,14 @@ if __name__ == "__main__":
         kd = 1
         for joint_name in joint_names:
             # controller = PDcontroller(system.contributions_map[joint_name], kp, kd, np.array([0, 0]))
-            motor = PDcontroller(system.contributions_map[joint_name], kp, kd, np.array([initial_config[joint_name], 0]))
+            motor = PDcontroller(
+                system.contributions_map[joint_name],
+                kp,
+                kd,
+                np.array([initial_config[joint_name], 0]),
+            )
             motor.name = "PD_" + system.contributions_map[joint_name].name
             system.add(motor)
-
 
         # kp_hip = 30
         # system.contributions_map["PD_FR_hip_joint"].kp = kp_hip
@@ -201,17 +221,26 @@ if __name__ == "__main__":
         # system.contributions_map["PD_RL_hip_joint"].kp = kp_hip
         frq = 1.25
         angle_d_calf = -np.deg2rad(30)
-        for joint_name in ["FR_calf_joint", "FL_calf_joint", "RR_calf_joint", "RL_calf_joint"]:
-            system.contributions_map["PD_" + joint_name].tau = lambda t: np.array([initial_config[joint_name] + angle_d_calf * np.sin(2 * np.pi * frq * t), angle_d_calf * 2 * np.pi * frq * np.cos(2 * np.pi * frq * t)])
+        for joint_name in [
+            "FR_calf_joint",
+            "FL_calf_joint",
+            "RR_calf_joint",
+            "RL_calf_joint",
+        ]:
+            system.contributions_map["PD_" + joint_name].tau = lambda t: np.array(
+                [
+                    initial_config[joint_name]
+                    + angle_d_calf * np.sin(2 * np.pi * frq * t),
+                    angle_d_calf * 2 * np.pi * frq * np.cos(2 * np.pi * frq * t),
+                ]
+            )
 
             # angle_d_thigh = np.deg2rad(2)
             # for joint_name in ["FR_thigh_joint", "FL_thigh_joint", "RR_thigh_joint", "RL_thigh_joint"]:
             #     system.contributions_map["PD_" + joint_name].tau = lambda t: np.array([initial_config[joint_name] + angle_d_thigh * np.sin(2 * np.pi * frq * t), angle_d_thigh * 2 * np.pi * frq * np.cos(2 * np.pi * frq * t)])
-                
-    
 
     plane = Box(Frame)(dimensions=[4, 4, 0.001], axis=2)
-    plane.name = 'Plane'
+    plane.name = "Plane"
     system.add(plane)
     system.assemble()
     # sol = Rattle(system, 0.5, 1e-2).solve()

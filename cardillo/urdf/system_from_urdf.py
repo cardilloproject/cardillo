@@ -1,0 +1,242 @@
+"""
+Notational convention for bases:
+- Inertial frame: I
+- Body fixed frame: B (for definition of inertial properties)
+- Body fixed frame: V (for definition of visual/mesh)
+- Body fixed frame: R (reference frame for root, link)
+- Body fixed frame: J (joint frame, body fixed to parent)
+
+Notational convention for points:
+- Center of mass: C
+- Origin visuals: V
+- Origin of reference frame: R (root or link)
+- Origin of joint frame: J
+
+Modifiers:
+- Child: c (e.g., reference frame child: Rc)
+- Parent p (e.g., reference frame parent: Rp)
+"""
+
+from pathlib import Path
+import numpy as np
+
+from urdf_parser_py.urdf import URDF
+from cardillo import System
+from cardillo.constraints import Revolute
+from cardillo.discrete import RigidBody, Frame, Meshed
+from cardillo.forces import Force
+from cardillo.math import cross3, norm, ax2skew, ax2skew_squared, A_IB_basic
+
+def rpy_to_A(rpy):
+    """Convert roll-pitch-yaw coordinates to a transformation matrix.
+
+    Parameters
+    ----------
+    coords : (3,) float
+        The roll-pitch-yaw coordinates in order (x-rot, y-rot, z-rot).
+
+    Returns
+    -------
+    R : (3,3) float
+        The corresponding 3x3 transformation matrix.
+    """
+    rpy = np.asanyarray(rpy, dtype=np.float64)
+    c3, c2, c1 = np.cos(rpy)
+    s3, s2, s1 = np.sin(rpy)
+
+    return np.array(
+        [
+            [c1 * c2, (c1 * s2 * s3) - (c3 * s1), (s1 * s3) + (c1 * c3 * s2)],
+            [c2 * s1, (c1 * c3) + (s1 * s2 * s3), (c3 * s1 * s2) - (c1 * s3)],
+            [-s2, c2 * s3, c2 * c3],
+        ],
+        dtype=np.float64,
+    )
+
+
+def pose_to_r_A(pose):
+    return np.array(pose.position), rpy_to_A(pose.rotation)
+
+def inertia_to_matrix(inertia):
+    ixx = inertia.ixx
+    ixy = inertia.ixy
+    ixz = inertia.ixz
+    iyy = inertia.iyy
+    iyz = inertia.iyz
+    izz = inertia.izz
+    return np.array([[ixx, ixy, ixz], [ixy, iyy, iyz], [ixz, iyz, izz]])
+
+def axis_angle_to_A(axis, angle):
+    axis = np.asanyarray(axis, dtype=np.float64)
+
+    if norm_a := norm(axis) > 0:
+        axis /= norm_a
+    else:
+        raise ValueError("Zero axis provided for axis-angle representation.")
+    
+    return np.eye(3) + np.sin(angle) * ax2skew(axis) + (1 - np.cos(angle)) * ax2skew_squared(axis)
+        
+
+def system_from_urdf(
+    file_path,
+    r_OR=np.zeros(3),
+    A_IR=np.eye(3),
+    v_R=np.zeros(3),
+    R_omega_IR=np.zeros(3),
+    configuration={},
+    velocities={},
+    root_is_floating=False,
+    gravitational_acceleration=None,
+):
+    system = System(origin_size=0.01)
+    folder_path = Path(file_path).parent
+    urdf = URDF.from_xml_file(file_path)
+
+    # ----------
+    # root to cardillo
+
+    root = urdf.link_map[urdf.get_root()]
+
+    # argument dictionary for call of (meshed) Frame or RigidBody
+    kwargs_body = {}
+    kwargs_body["name"] = root.name
+
+    # root reference frame
+    root.r_OR = r_OR
+    root.A_IR = A_IR
+    root.v_R = v_R
+    root.R_omega_IR = R_omega_IR
+
+    if root_is_floating:
+        if root.inertial is not None:
+            R_r_RC, A_RB = pose_to_r_A(root.inertial.origin)
+            root.A_IB = A_IR @ A_RB
+            root.r_OC = r_OR + A_IR @ R_r_RC
+        else:
+            raise ValueError("Root must have inertial properties if it is floating.")
+        BodyType = RigidBody
+        kwargs_body["mass"] = root.inertial.mass
+        kwargs_body["B_Theta_C"] = inertia_to_matrix(root.inertial.inertia)
+        kwargs_body["q0"] = RigidBody.pose2q(root.r_OC, root.A_IB)
+        root.B_Omega = A_RB.T @ R_omega_IR
+        root.v_C = v_R + A_IR @ cross3( R_omega_IR, R_r_RC)
+        kwargs_body["u0"] = np.hstack([root.v_C, root.B_Omega])
+    else:
+        BodyType = Frame
+        if root.inertial is not None:
+            R_r_RC, A_RB = pose_to_r_A(root.inertial.origin)
+        else:
+            R_r_RC = np.zeros(3)
+            A_RB = np.eye(3) 
+
+        kwargs_body["r_OP"] = r_OR + A_IR @ R_r_RC # r_OC
+        kwargs_body["A_IB"] = A_IR @ A_RB # A_IB
+    
+    if root.visual is not None:
+        BodyType = Meshed(BodyType)
+        R_r_RV, A_RV = pose_to_r_A(root.visual.origin)
+        kwargs_body["mesh_obj"] = Path(folder_path, root.visual.geometry.filename)
+        kwargs_body["B_r_CP"] = A_RB.T @ (R_r_RV - R_r_RC)
+        kwargs_body["A_BM"] = A_RB.T @ A_RV
+
+    # create and add root
+    system.add(BodyType(**kwargs_body))
+
+    # ----------
+    # parent-child relationships
+    links_to_process = [root]
+    while links_to_process:
+        parent = links_to_process.pop(0)
+        if parent.name not in urdf.child_map: # the link that is processed has not children, i.e., is a leaf
+            continue
+        for item in urdf.child_map[parent.name]:
+            joint = urdf.joint_map[item[0]]
+            child = urdf.link_map[item[1]]
+            links_to_process.append(child)
+
+            # forward kinematics to get pose and velocity of child
+            Rp_r_RpJ, A_RpJ = pose_to_r_A(joint.origin)
+            kwargs_joint = {}
+            kwargs_joint["name"] = joint.name
+            if joint.type == "revolute":
+                JointType = Revolute
+                # redefine J-frame for such that axis is its x-axis (only for constructor of Revolute joint!)
+                axis = np.asanyarray(joint.axis, dtype=np.float64)
+                e1 = axis / norm(axis)
+                if np.abs(e1[0]) == 1:
+                    e2 = cross3(e1, np.array([0, 1, 0]))
+                else:
+                    e2 = cross3(e1, np.array([1, 0, 0]))
+
+                e2 /= norm(e2)
+                e3 = cross3(e1, e2)
+                A_JJ_new = np.array([e1, e2, e3]).T
+
+                # now revolute joint is around x-axis of J-frame
+                kwargs_joint["axis"] = 0
+                kwargs_joint["r_OJ0"] = parent.r_OR + parent.A_IR @ Rp_r_RpJ
+                kwargs_joint["A_IJ0"] = parent.A_IR @ A_RpJ @ A_JJ_new
+
+                # use state of the joint to compute child state relative to joint
+                if joint.name in configuration:
+                    angle = float(configuration[joint.name])
+                else:
+                    angle = 0.0
+
+                kwargs_joint["angle0"] = angle
+                J_r_JRc = np.zeros(3)
+                A_JRc = A_IB_basic(angle).x
+
+                if joint.name in velocities:
+                    angle_dot = float(velocities[joint.name])
+                else:
+                    angle_dot = 0.0
+                J_v_JRc = np.zeros(3)
+                J_omega_JRc = angle_dot * np.array([1, 0, 0])
+
+            # forward kinematics (compute child state)
+            child.r_OR = parent.r_OR + parent.A_IR @ (Rp_r_RpJ + A_RpJ @ J_r_JRc)
+            child.A_IR = parent.A_IR @ A_RpJ @ A_JRc
+            J_omega_IRc = A_RpJ.T @ parent.R_omega_IR + J_omega_JRc #  Rp_omega_RpJ =0 has been used
+            child.R_omega_IR = A_JRc.T @ J_omega_IRc
+            child.v_R = parent.v_R + parent.A_IR @ (cross3(parent.R_omega_IR, Rp_r_RpJ) +  A_RpJ @ (J_v_JRc + cross3(J_omega_IRc, J_r_JRc)))
+
+            if child.inertial is not None:
+                R_r_RC, A_RB = pose_to_r_A(child.inertial.origin)
+                child.A_IB = child.A_IR @ A_RB
+                child.r_OC = child.r_OR + child.A_IR @ R_r_RC
+            else:
+                raise ValueError("Link must have inertial properties.")
+            BodyType = RigidBody
+            kwargs_body = {}
+            kwargs_body["name"] = child.name
+            kwargs_body["mass"] = child.inertial.mass
+            kwargs_body["B_Theta_C"] = inertia_to_matrix(child.inertial.inertia)
+            kwargs_body["q0"] = RigidBody.pose2q(child.r_OC, child.A_IB)
+            child.B_Omega = A_RB.T @ child.R_omega_IR
+            child.v_C = child.v_R + child.A_IR @ cross3( child.R_omega_IR, R_r_RC)
+            kwargs_body["u0"] = np.hstack([child.v_C, child.B_Omega])
+
+            if child.visual is not None:
+                BodyType = Meshed(BodyType)
+                R_r_RV, A_RV = pose_to_r_A(child.visual.origin)
+                kwargs_body["mesh_obj"] = Path(folder_path, child.visual.geometry.filename)
+                kwargs_body["B_r_CP"] = A_RB.T @ (R_r_RV - R_r_RC)
+                kwargs_body["A_BM"] = A_RB.T @ A_RV
+
+            # create and add link
+            system.add(BodyType(**kwargs_body))
+            kwargs_joint["subsystem1"] = system.contributions_map[parent.name]
+            kwargs_joint["subsystem2"] = system.contributions_map[child.name]
+            system.add(JointType(**kwargs_joint))
+
+    # add gravity
+    if gravitational_acceleration is not None:
+        for link_name in urdf.link_map.keys():
+            if link_name in system.contributions_map:
+                link = system.contributions_map[link_name]
+                if not isinstance(link, Frame):
+                    system.add(Force(link.mass * gravitational_acceleration, link, name="gravity_" + link_name))
+    system.assemble()
+
+    return system, urdf
