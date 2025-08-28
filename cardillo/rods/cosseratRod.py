@@ -17,6 +17,7 @@ from cardillo.math import (
     Exp_SO3_quat,
     Exp_SO3_quat_p,
     Log_SO3_quat,
+    A_IB_basic,
 )
 from cardillo.utility.check_time_derivatives import check_time_derivatives
 
@@ -205,13 +206,15 @@ def make_CosseratRod(
             r_OP_xi,
             r_OP_xixi,
             xi1,
+            alpha=0.0,
             r_OP0=np.zeros(3, dtype=float),
             A_IB0=np.eye(3, dtype=float),
         ):
-            """Compute generalized position coordinates for a pre-curved rod along curve r_OP. The cross-section orientations are based on the Serret-Frenet equations."""
+            """Compute generalized position coordinates for a pre-curved rod along curve r_OP. The cross-section orientations are based on the Serret-Frenet equations and afterwards rotated by alpha."""
             nnodes_r = polynomial_degree * nelement + 1
 
             r_OP, r_OP_xi, r_OP_xixi = check_time_derivatives(r_OP, r_OP_xi, r_OP_xixi)
+            alpha, _, _ = check_time_derivatives(alpha, None, None)
 
             xis = np.linspace(0, xi1, nnodes_r)
 
@@ -221,11 +224,13 @@ def make_CosseratRod(
 
             for i, xii in enumerate(xis):
                 r0[:, i] = r_OP0 + A_IB0 @ r_OP(xii)
-                A_B0B = np.zeros((3, 3))
-                A_B0B[:, 0] = r_OP_xi(xii) / norm(r_OP_xi(xii))
-                A_B0B[:, 1] = r_OP_xixi(xii) / norm(r_OP_xixi(xii))
-                A_B0B[:, 2] = cross3(A_B0B[:, 0], A_B0B[:, 1])
-                A_IB = A_IB0 @ A_B0B
+                r_xi = r_OP_xi(xii)
+                r_xixi = r_OP_xixi(xii)
+                ex = r_xi / norm(r_xi)
+                ey = r_xixi - ex * (ex @ r_xixi)
+                ey = ey / norm(ey)
+                A_B0B = np.vstack([ex, ey, cross3(ex, ey)]).T
+                A_IB = A_IB0 @ A_B0B @ A_IB_basic(alpha(xii)).x
                 p0[:, i] = Log_SO3_quat(A_IB)
 
             # check for the right quaternion hemisphere

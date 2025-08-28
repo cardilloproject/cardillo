@@ -1313,8 +1313,16 @@ class CosseratRodMixed(CosseratRod_PetrovGalerkin):
     # compliance
     ############
     def la_c(self, t, q, u):
-        # TODO: implement affine part independently and invert matrix element wise
-        return spsolve(self.c_la_c().tocsr(), self.c(t, q, u, np.zeros(self.nla_c)))
+        # c(q, la_c) = c_la_c @ la_c + c(q, 0)
+        # --> la_c = -c_la_c.inv @ c(q, 0)
+        la_c = np.zeros(self.nla_c, dtype=np.common_type(q, u))
+        for el in range(self.nelement):
+            qe = q[self.elDOF[el]]
+            elDOF_la_c = self.elDOF_la_c[el]
+            la_c[elDOF_la_c] = -self.__c_la_c_el_inv[el] @ self.c_el(
+                qe, np.zeros(self.nla_c_element)
+            )
+        return la_c
 
     def c(self, t, q, u, la_c):
         c = np.zeros(self.nla_c, dtype=np.common_type(q, u, la_c))
@@ -1379,10 +1387,12 @@ class CosseratRodMixed(CosseratRod_PetrovGalerkin):
 
     def _c_la_c_coo(self):
         self.__c_la_c = CooMatrix((self.nla_c, self.nla_c))
+        self.__c_la_c_el_inv = []
         for el in range(self.nelement):
-            elDOF = self.elDOF[el]
+            c_la_c_el = self.c_la_c_el(el)
             elDOF_la_c = self.elDOF_la_c[el]
-            self.__c_la_c[elDOF_la_c, elDOF_la_c] = self.c_la_c_el(el)
+            self.__c_la_c[elDOF_la_c, elDOF_la_c] = c_la_c_el
+            self.__c_la_c_el_inv.append(np.linalg.inv(c_la_c_el))
 
     def c_la_c_el(self, el):
         c_la_c_el = np.zeros((self.nla_c_element, self.nla_c_element))
