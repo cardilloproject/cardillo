@@ -23,7 +23,7 @@ import numpy as np
 
 from urdf_parser_py.urdf import URDF
 from cardillo import System
-from cardillo.constraints import Revolute, RigidConnection
+from cardillo.constraints import Revolute, RigidConnection, Prismatic
 from cardillo.discrete import RigidBody, Frame, Meshed, Sphere
 from cardillo.forces import Force
 from cardillo.math import cross3, norm, ax2skew, ax2skew_squared, A_IB_basic
@@ -336,14 +336,14 @@ def joint_kinematics(parent, joint, configuration, velocities):
 
         kwargs_joint["angle0"] = angle
         J_r_JRc = np.zeros(3)
-        A_JRc = axis_angle_to_A(axis, angle)
+        A_JRc = axis_angle_to_A(e1, angle)
 
         if joint.name in velocities:
             angle_dot = float(velocities[joint.name])
         else:
             angle_dot = 0.0
         J_v_JRc = np.zeros(3)
-        J_omega_JRc = angle_dot * axis
+        J_omega_JRc = angle_dot * e1
 
     elif joint.type == "floating":
         JointType = None
@@ -374,6 +374,65 @@ def joint_kinematics(parent, joint, configuration, velocities):
         else:
             J_v_JRc = np.zeros(3)
             J_omega_JRc = np.zeros(3)
+
+    elif joint.type == "prismatic":
+        JointType = Prismatic
+        # redefine J-frame for such that axis is its x-axis (only for constructor of Prismatic joint!)
+        axis = np.asanyarray(joint.axis, dtype=np.float64)
+        e1 = axis / norm(axis)
+        if np.abs(e1[0]) == 1:
+            e2 = cross3(e1, np.array([0, 1, 0]))
+        else:
+            e2 = cross3(e1, np.array([1, 0, 0]))
+
+        e2 /= norm(e2)
+        e3 = cross3(e1, e2)
+        A_JJ_new = np.array([e1, e2, e3]).T
+
+        # now prismatic joint is along x-axis of J-frame
+        kwargs_joint["axis"] = 0
+        kwargs_joint["r_OJ0"] = parent.r_OR + parent.A_IR @ Rp_r_RpJ
+        kwargs_joint["A_IJ0"] = parent.A_IR @ A_RpJ @ A_JJ_new
+
+        # use state of the joint to compute child state relative to joint
+        if joint.name in configuration:
+            displacement = float(configuration[joint.name])
+        else:
+            displacement = 0.0
+
+        J_r_JRc = displacement * e1
+        A_JRc = np.eye(3)
+
+        if joint.name in velocities:
+            velocity = float(velocities[joint.name])
+        else:
+            velocity = 0.0
+        J_v_JRc = velocity * e1
+        J_omega_JRc = np.zeros(3)
+
+    elif joint.type == "planar":
+
+        # redefine J-frame for such that axis is its x-axis (only for constructor of Prismatic joint!)
+        kwargs_joint["axis"] = 2
+        kwargs_joint["r_OJ0"] = parent.r_OR + parent.A_IR @ Rp_r_RpJ
+        kwargs_joint["A_IJ0"] = parent.A_IR @ A_RpJ 
+
+        # use state of the joint to compute child state relative to joint
+        if joint.name in configuration:
+            x, y = np.asanyarray(configuration[joint.name], dtype=np.float64)
+        else:
+            x, y = np.zeros(2)
+
+        J_r_JRc = np.array([x, y, 0.0])
+        A_JRc = np.eye(3)
+
+        if joint.name in velocities:
+            vx, vy = np.asanyarray(velocities[joint.name], dtype=np.float64)
+        else:
+            vx, vy = np.zeros(2)
+        J_v_JRc = np.array([vx, vy, 0.0])
+        J_omega_JRc = np.zeros(3)
+
     else:
         raise NotImplementedError(f"Joint type {joint.type} not implemented.")
     return JointType, kwargs_joint, J_r_JRc, A_JRc, J_v_JRc, J_omega_JRc
