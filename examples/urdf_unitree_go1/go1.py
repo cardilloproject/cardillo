@@ -8,10 +8,11 @@ import numpy as np
 
 
 from cardillo import System
+from cardillo.actuators import PDcontroller
 from cardillo.urdf import system_from_urdf
 from cardillo.math import A_IB_basic
 from pathlib import Path
-from cardillo.solver import Moreau
+from cardillo.solver import Moreau, Solution, SolverOptions
 from cardillo.discrete import Box, Frame
 from cardillo.contacts import Sphere2Plane
 from cardillo.visualization import Renderer
@@ -22,6 +23,7 @@ if __name__ == "__main__":
     dir_name = path.dirname(__file__)
 
     initial_config = {}
+
     initial_config["FR_hip_joint"] = -np.pi / 12  # np.pi / 2
     initial_config["FR_thigh_joint"] = np.pi / 4
     initial_config["FR_calf_joint"] = -np.pi / 2
@@ -38,28 +40,16 @@ if __name__ == "__main__":
     initial_config["RR_thigh_joint"] = np.pi / 4
     initial_config["RR_calf_joint"] = -np.pi / 2
 
+    initial_config["world_trunk"] = np.array([0, 0, 0.4, 0, 0, 0])
+    
+    joint_names = list(initial_config.keys())
+    joint_names.pop(-1)
+
     system = system_from_urdf(
         file_path=Path(dir_name, "urdf", "go1.urdf"),
         configuration=initial_config,
         gravitational_acceleration=np.array([0, 0, -9.81]),
     )
-
-    render = Renderer(system)
-    if simulate := False:
-        sol = Moreau(system, 0.25, 1e-3).solve()
-        render.render_solution(sol, repeat=True)
-    else:
-        render.render_solution(
-            Solution(
-                system,
-                np.array([system.t0]),
-                np.asanyarray([system.q0]),
-                np.asanyarray([system.u0]),
-            ),
-            repeat=True,
-        )
-    exit()
-
     radius = 0.022
     mu = 0.3
     foot_contact_FR = Sphere2Plane(
@@ -76,7 +66,7 @@ if __name__ == "__main__":
     )
     system.add(foot_contact_FR, foot_contact_FL, foot_contact_RR, foot_contact_RL)
 
-    if PD_joint_controller:
+    if PD_joint_controller:=True:
         kp = 50
         kd = 1
         for joint_name in joint_names:
@@ -95,7 +85,7 @@ if __name__ == "__main__":
         # system.contributions_map["PD_FL_hip_joint"].kp = kp_hip
         # system.contributions_map["PD_RR_hip_joint"].kp = kp_hip
         # system.contributions_map["PD_RL_hip_joint"].kp = kp_hip
-        frq = 1.25
+        frq = 0
         angle_d_calf = -np.deg2rad(30)
         for joint_name in [
             "FR_calf_joint",
@@ -121,7 +111,7 @@ if __name__ == "__main__":
     system.assemble()
 
     render = Renderer(system)
-    if simulate := False:
+    if simulate := True:
         sol = Moreau(system, 0.25, 1e-3).solve()
         render.render_solution(sol, repeat=True)
     else:
@@ -134,3 +124,4 @@ if __name__ == "__main__":
             ),
             repeat=True,
         )
+

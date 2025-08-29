@@ -24,7 +24,7 @@ import numpy as np
 from urdf_parser_py.urdf import URDF
 from cardillo import System
 from cardillo.constraints import Revolute, RigidConnection
-from cardillo.discrete import RigidBody, Frame, Meshed
+from cardillo.discrete import RigidBody, Frame, Meshed, Sphere
 from cardillo.forces import Force
 from cardillo.math import cross3, norm, ax2skew, ax2skew_squared, A_IB_basic
 
@@ -57,7 +57,10 @@ def rpy_to_A(rpy):
 
 
 def pose_to_r_A(pose):
-    return np.array(pose.position), rpy_to_A(pose.rotation)
+    if pose is None: # for spheres, the pose of the origin is None
+        return np.zeros(3), np.eye(3)
+    else:
+        return np.array(pose.position), rpy_to_A(pose.rotation)
 
 
 def inertia_to_matrix(inertia):
@@ -98,8 +101,14 @@ def process_visual(link, BodyType, kwargs_body, A_RB, R_r_RC, folder_path):
             kwargs_body["mesh_obj"] = Path(folder_path, link.visual.geometry.filename)
             kwargs_body["B_r_CP"] = A_RB.T @ (R_r_RV - R_r_RC)
             kwargs_body["A_BM"] = A_RB.T @ A_RV
+        elif visual_type == "Sphere":
+            BodyType = Sphere(BodyType)
+            kwargs_body["radius"] = link.visual.geometry.radius
+            kwargs_body["B_r_CP"] = A_RB.T @ (R_r_RV - R_r_RC)
+            kwargs_body["A_BM"] = A_RB.T @ A_RV
         else:
-            pass  # TODO: implement Box, Cylinder, and other visual types
+            print("Info: No visual for type {} implemented.".format(visual_type))
+            # TODO: implement Box, Cylinder, and other visual types
 
     return BodyType
 
@@ -134,11 +143,15 @@ def system_from_urdf(
     root.v_R = v_R
     root.R_omega_IR = R_omega_IR
 
+    # process root
     if root_is_floating:
-        if root.inertial is not None and root.inertial.mass > 0:
-            R_r_RC, A_RB = pose_to_r_A(root.inertial.origin)
-            root.A_IB = A_IR @ A_RB
-            root.r_OC = r_OR + A_IR @ R_r_RC
+        if root.inertial is not None:
+            if root.inertial.mass > 0:
+                R_r_RC, A_RB = pose_to_r_A(root.inertial.origin)
+                root.A_IB = A_IR @ A_RB
+                root.r_OC = r_OR + A_IR @ R_r_RC
+            else:
+                raise ValueError("Root must have positive mass if it is floating.")
         else:
             raise ValueError("Root must have inertial properties if it is floating.")
         BodyType = RigidBody
@@ -165,7 +178,7 @@ def system_from_urdf(
     system.add(BodyType(**kwargs_body))
 
     # ----------
-    # parent-child relationships
+    # forward kinematics 
     links_to_process = [root]
     while links_to_process:
         parent = links_to_process.pop(0)
@@ -173,91 +186,18 @@ def system_from_urdf(
             parent.name not in urdf.child_map
         ):  # the link that is processed has no children, i.e., is a leaf
             continue
-        for item in urdf.child_map[parent.name]:
+        for item in urdf.child_map[parent.name]:  # for each child
             joint = urdf.joint_map[item[0]]
             child = urdf.link_map[item[1]]
             links_to_process.append(child)
             BodyType = None
             JointType = None
 
-            # forward kinematics to get pose and velocity of child
+            # joint kinematics
             Rp_r_RpJ, A_RpJ = pose_to_r_A(joint.origin)
-            kwargs_joint = {}
-            kwargs_joint["name"] = joint.name
-            if joint.type == "fixed":
-                JointType = RigidConnection
-                J_r_JRc = np.zeros(3)
-                A_JRc = np.eye(3)
-                J_v_JRc = np.zeros(3)
-                J_omega_JRc = np.zeros(3)
-
-            elif joint.type in ["continuous", "revolute"]:
-                JointType = Revolute
-                # redefine J-frame for such that axis is its x-axis (only for constructor of Revolute joint!)
-                axis = np.asanyarray(joint.axis, dtype=np.float64)
-                e1 = axis / norm(axis)
-                if np.abs(e1[0]) == 1:
-                    e2 = cross3(e1, np.array([0, 1, 0]))
-                else:
-                    e2 = cross3(e1, np.array([1, 0, 0]))
-
-                e2 /= norm(e2)
-                e3 = cross3(e1, e2)
-                A_JJ_new = np.array([e1, e2, e3]).T
-
-                # now revolute joint is around x-axis of J-frame
-                kwargs_joint["axis"] = 0
-                kwargs_joint["r_OJ0"] = parent.r_OR + parent.A_IR @ Rp_r_RpJ
-                kwargs_joint["A_IJ0"] = parent.A_IR @ A_RpJ @ A_JJ_new
-
-                # use state of the joint to compute child state relative to joint
-                if joint.name in configuration:
-                    angle = float(configuration[joint.name])
-                else:
-                    angle = 0.0
-
-                kwargs_joint["angle0"] = angle
-                J_r_JRc = np.zeros(3)
-                A_JRc = axis_angle_to_A(axis, angle)
-
-                if joint.name in velocities:
-                    angle_dot = float(velocities[joint.name])
-                else:
-                    angle_dot = 0.0
-                J_v_JRc = np.zeros(3)
-                J_omega_JRc = angle_dot * axis
-
-            elif joint.type == "floating":
-                JointType = None
-                if joint.name in configuration:
-                    cfg = np.asanyarray(configuration[joint.name])
-                    if len(cfg) == 7:
-                        J_r_JRc, A_JRc = RigidBody.q2pose(cfg)
-                    elif len(cfg) == 6:
-                        J_r_JRc = cfg[0:3]
-                        A_JRc = rpy_to_A(cfg[3:6])
-                    else:
-                        raise ValueError(
-                            "Floating joint configuration must be of length 6 (rpy) or 7 (quaternion)."
-                        )
-                else:
-                    J_r_JRc = np.zeros(3)
-                    A_JRc = np.eye(3)
-
-                if joint.name in velocities:
-                    cfg = np.asanyarray(velocities[joint.name])
-                    if len(cfg) == 6:
-                        J_v_JRc = cfg[0:3]
-                        J_omega_JRc = cfg[3:6]
-                    else:
-                        raise ValueError(
-                            "Floating joint velocity must be of length 6 (linear + angular)."
-                        )
-                else:
-                    J_v_JRc = np.zeros(3)
-                    J_omega_JRc = np.zeros(3)
-            else:
-                raise NotImplementedError(f"Joint type {joint.type} not implemented.")
+            
+            JointType, kwargs_joint, J_r_JRc, A_JRc, J_v_JRc, J_omega_JRc = joint_kinematics(parent, joint, configuration, velocities)
+            
             # forward kinematics (compute child state)
             child.r_OR = parent.r_OR + parent.A_IR @ (Rp_r_RpJ + A_RpJ @ J_r_JRc)
             child.A_IR = parent.A_IR @ A_RpJ @ A_JRc
@@ -271,15 +211,32 @@ def system_from_urdf(
             )
 
             if child.inertial is not None:
-                if child.inertial.mass == 0:
-                    raise ValueError("Link must have non-zero mass.")
-                else:
+                if child.inertial.mass > 0: 
                     BodyType = RigidBody
-                R_r_RC, A_RB = pose_to_r_A(child.inertial.origin)
-                child.A_IB = child.A_IR @ A_RB
-                child.r_OC = child.r_OR + child.A_IR @ R_r_RC
+                    R_r_RC, A_RB = pose_to_r_A(child.inertial.origin)
+                    child.A_IB = child.A_IR @ A_RB
+                    child.r_OC = child.r_OR + child.A_IR @ R_r_RC
+                else:
+                    if joint.type == "fixed":
+                        print("Children of body with zero mass:")
+                        if child.name in urdf.child_map:
+                            print(urdf.child_map[child.name])
+                        print("INFO: child name: {}".format(child.name))
+                        continue
+                        raise ValueError("Rigidly attached rigid body with zero mass detected.")
+                    else: 
+                        raise ValueError("Link {child.name} has zero mass, which will lead to a singular system.")
             else:
-                raise ValueError("Link must have inertial properties.")
+                if joint.type == "fixed":
+                    print("Children of body with zero mass:")
+                    if child.name in urdf.child_map:
+                        print(urdf.child_map[child.name])
+                    print("INFO: child name: {}".format(child.name))
+                    continue
+                    raise ValueError("Rigidly attached rigid body with zero mass detected.")
+                else: 
+                    raise ValueError(f"Link {child.name} has no inertia, which will lead to a singular system.")
+
             kwargs_body = {}
             kwargs_body["name"] = child.name
             kwargs_body["mass"] = child.inertial.mass
@@ -306,6 +263,7 @@ def system_from_urdf(
             if JointType is None:
                 pass  # floating joint ;-)
             else:
+                print("INFO: parent name: {}".format(parent.name))
                 kwargs_joint["subsystem1"] = system.contributions_map[parent.name]
                 kwargs_joint["subsystem2"] = system.contributions_map[child.name]
                 system.add(JointType(**kwargs_joint))
@@ -328,3 +286,84 @@ def system_from_urdf(
     system.assemble()
 
     return system
+
+
+def joint_kinematics(parent, joint, configuration, velocities):
+    kwargs_joint = {}
+    kwargs_joint["name"] = joint.name
+    Rp_r_RpJ, A_RpJ = pose_to_r_A(joint.origin)
+    if joint.type == "fixed":
+        JointType = RigidConnection
+        J_r_JRc = np.zeros(3)
+        A_JRc = np.eye(3)
+        J_v_JRc = np.zeros(3)
+        J_omega_JRc = np.zeros(3)
+
+    elif joint.type in ["continuous", "revolute"]:
+        JointType = Revolute
+        # redefine J-frame for such that axis is its x-axis (only for constructor of Revolute joint!)
+        axis = np.asanyarray(joint.axis, dtype=np.float64)
+        e1 = axis / norm(axis)
+        if np.abs(e1[0]) == 1:
+            e2 = cross3(e1, np.array([0, 1, 0]))
+        else:
+            e2 = cross3(e1, np.array([1, 0, 0]))
+
+        e2 /= norm(e2)
+        e3 = cross3(e1, e2)
+        A_JJ_new = np.array([e1, e2, e3]).T
+
+        # now revolute joint is around x-axis of J-frame
+        kwargs_joint["axis"] = 0
+        kwargs_joint["r_OJ0"] = parent.r_OR + parent.A_IR @ Rp_r_RpJ
+        kwargs_joint["A_IJ0"] = parent.A_IR @ A_RpJ @ A_JJ_new
+
+        # use state of the joint to compute child state relative to joint
+        if joint.name in configuration:
+            angle = float(configuration[joint.name])
+        else:
+            angle = 0.0
+
+        kwargs_joint["angle0"] = angle
+        J_r_JRc = np.zeros(3)
+        A_JRc = axis_angle_to_A(axis, angle)
+
+        if joint.name in velocities:
+            angle_dot = float(velocities[joint.name])
+        else:
+            angle_dot = 0.0
+        J_v_JRc = np.zeros(3)
+        J_omega_JRc = angle_dot * axis
+
+    elif joint.type == "floating":
+        JointType = None
+        if joint.name in configuration:
+            cfg = np.asanyarray(configuration[joint.name])
+            if len(cfg) == 7:
+                J_r_JRc, A_JRc = RigidBody.q2pose(cfg)
+            elif len(cfg) == 6:
+                J_r_JRc = cfg[0:3]
+                A_JRc = rpy_to_A(cfg[3:6])
+            else:
+                raise ValueError(
+                    "Floating joint configuration must be of length 6 (rpy) or 7 (quaternion)."
+                )
+        else:
+            J_r_JRc = np.zeros(3)
+            A_JRc = np.eye(3)
+
+        if joint.name in velocities:
+            cfg = np.asanyarray(velocities[joint.name])
+            if len(cfg) == 6:
+                J_v_JRc = cfg[0:3]
+                J_omega_JRc = cfg[3:6]
+            else:
+                raise ValueError(
+                    "Floating joint velocity must be of length 6 (linear + angular)."
+                )
+        else:
+            J_v_JRc = np.zeros(3)
+            J_omega_JRc = np.zeros(3)
+    else:
+        raise NotImplementedError(f"Joint type {joint.type} not implemented.")
+    return JointType, kwargs_joint, J_r_JRc, A_JRc, J_v_JRc, J_omega_JRc
