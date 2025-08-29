@@ -41,7 +41,7 @@ if __name__ == "__main__":
     initial_config["RR_calf_joint"] = -np.pi / 2
 
     initial_config["world_trunk"] = np.array([0, 0, 0.4, 0, 0, 0])
-    
+
     joint_names = list(initial_config.keys())
     joint_names.pop(-1)
 
@@ -66,7 +66,7 @@ if __name__ == "__main__":
     )
     system.add(foot_contact_FR, foot_contact_FL, foot_contact_RR, foot_contact_RL)
 
-    if PD_joint_controller:=True:
+    if PD_joint_controller := True:
         kp = 50
         kd = 1
         for joint_name in joint_names:
@@ -124,4 +124,3 @@ if __name__ == "__main__":
             ),
             repeat=True,
         )
-

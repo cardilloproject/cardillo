@@ -57,7 +57,7 @@ def rpy_to_A(rpy):
 
 
 def pose_to_r_A(pose):
-    if pose is None: # for spheres, the pose of the origin is None
+    if pose is None:  # for spheres, the pose of the origin is None
         return np.zeros(3), np.eye(3)
     else:
         return np.array(pose.position), rpy_to_A(pose.rotation)
@@ -178,7 +178,7 @@ def system_from_urdf(
     system.add(BodyType(**kwargs_body))
 
     # ----------
-    # forward kinematics 
+    # forward kinematics
     links_to_process = [root]
     while links_to_process:
         parent = links_to_process.pop(0)
@@ -195,9 +195,11 @@ def system_from_urdf(
 
             # joint kinematics
             Rp_r_RpJ, A_RpJ = pose_to_r_A(joint.origin)
-            
-            JointType, kwargs_joint, J_r_JRc, A_JRc, J_v_JRc, J_omega_JRc = joint_kinematics(parent, joint, configuration, velocities)
-            
+
+            JointType, kwargs_joint, J_r_JRc, A_JRc, J_v_JRc, J_omega_JRc = (
+                joint_kinematics(parent, joint, configuration, velocities)
+            )
+
             # forward kinematics (compute child state)
             child.r_OR = parent.r_OR + parent.A_IR @ (Rp_r_RpJ + A_RpJ @ J_r_JRc)
             child.A_IR = parent.A_IR @ A_RpJ @ A_JRc
@@ -211,7 +213,7 @@ def system_from_urdf(
             )
 
             if child.inertial is not None:
-                if child.inertial.mass > 0: 
+                if child.inertial.mass > 0:
                     BodyType = RigidBody
                     R_r_RC, A_RB = pose_to_r_A(child.inertial.origin)
                     child.A_IB = child.A_IR @ A_RB
@@ -223,9 +225,13 @@ def system_from_urdf(
                             print(urdf.child_map[child.name])
                         print("INFO: child name: {}".format(child.name))
                         continue
-                        raise ValueError("Rigidly attached rigid body with zero mass detected.")
-                    else: 
-                        raise ValueError("Link {child.name} has zero mass, which will lead to a singular system.")
+                        raise ValueError(
+                            "Rigidly attached rigid body with zero mass detected."
+                        )
+                    else:
+                        raise ValueError(
+                            "Link {child.name} has zero mass, which will lead to a singular system."
+                        )
             else:
                 if joint.type == "fixed":
                     print("Children of body with zero mass:")
@@ -233,9 +239,13 @@ def system_from_urdf(
                         print(urdf.child_map[child.name])
                     print("INFO: child name: {}".format(child.name))
                     continue
-                    raise ValueError("Rigidly attached rigid body with zero mass detected.")
-                else: 
-                    raise ValueError(f"Link {child.name} has no inertia, which will lead to a singular system.")
+                    raise ValueError(
+                        "Rigidly attached rigid body with zero mass detected."
+                    )
+                else:
+                    raise ValueError(
+                        f"Link {child.name} has no inertia, which will lead to a singular system."
+                    )
 
             kwargs_body = {}
             kwargs_body["name"] = child.name
