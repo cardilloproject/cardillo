@@ -47,16 +47,18 @@ if __name__ == "__main__":
     render = Renderer(system)
     if simulate := False:
         sol = Moreau(system, 0.25, 1e-3).solve()
-        render.render_solution(
-            sol, repeat=True
-        )
+        render.render_solution(sol, repeat=True)
     else:
         render.render_solution(
-            Solution(system, np.array([system.t0]), np.asanyarray([system.q0]), np.asanyarray([system.u0])), repeat=True
+            Solution(
+                system,
+                np.array([system.t0]),
+                np.asanyarray([system.q0]),
+                np.asanyarray([system.u0]),
+            ),
+            repeat=True,
         )
     exit()
-
-
 
     radius = 0.022
     mu = 0.3
@@ -113,18 +115,22 @@ if __name__ == "__main__":
             # for joint_name in ["FR_thigh_joint", "FL_thigh_joint", "RR_thigh_joint", "RL_thigh_joint"]:
             #     system.contributions_map["PD_" + joint_name].tau = lambda t: np.array([initial_config[joint_name] + angle_d_thigh * np.sin(2 * np.pi * frq * t), angle_d_thigh * 2 * np.pi * frq * np.cos(2 * np.pi * frq * t)])
 
-    plane = Box(Frame)(dimensions=[4, 4, 0.001], axis=2, name= "Plane")
+    plane = Box(Frame)(dimensions=[4, 4, 0.001], axis=2, name="Plane")
 
     system.add(plane)
     system.assemble()
-    
+
     render = Renderer(system)
     if simulate := False:
         sol = Moreau(system, 0.25, 1e-3).solve()
-        render.render_solution(
-            sol, repeat=True
-        )
+        render.render_solution(sol, repeat=True)
     else:
         render.render_solution(
-            Solution(system, np.array([system.t0]), np.asanyarray([system.q0]), np.asanyarray([system.u0])), repeat=True
+            Solution(
+                system,
+                np.array([system.t0]),
+                np.asanyarray([system.q0]),
+                np.asanyarray([system.u0]),
+            ),
+            repeat=True,
         )

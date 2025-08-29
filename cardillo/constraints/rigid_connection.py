@@ -14,8 +14,8 @@ class RigidConnection(PositionOrientationBase):
         A_IJ0=None,
         xi1=None,
         xi2=None,
-        name="rigid_connection"
-    ):  
+        name="rigid_connection",
+    ):
         self.name = name
         super().__init__(
             subsystem1,

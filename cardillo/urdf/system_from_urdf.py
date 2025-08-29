@@ -28,6 +28,7 @@ from cardillo.discrete import RigidBody, Frame, Meshed
 from cardillo.forces import Force
 from cardillo.math import cross3, norm, ax2skew, ax2skew_squared, A_IB_basic
 
+
 def rpy_to_A(rpy):
     """Convert roll-pitch-yaw coordinates to a transformation matrix.
 
@@ -58,6 +59,7 @@ def rpy_to_A(rpy):
 def pose_to_r_A(pose):
     return np.array(pose.position), rpy_to_A(pose.rotation)
 
+
 def inertia_to_matrix(inertia):
     ixx = inertia.ixx
     ixy = inertia.ixy
@@ -67,6 +69,7 @@ def inertia_to_matrix(inertia):
     izz = inertia.izz
     return np.array([[ixx, ixy, ixz], [ixy, iyy, iyz], [ixz, iyz, izz]])
 
+
 def axis_angle_to_A(axis, angle):
     axis = np.asanyarray(axis, dtype=np.float64)
 
@@ -74,9 +77,14 @@ def axis_angle_to_A(axis, angle):
         axis /= norm_a
     else:
         raise ValueError("Zero axis provided for axis-angle representation.")
-    
-    return np.eye(3) + np.sin(angle) * ax2skew(axis) + (1 - np.cos(angle)) * ax2skew_squared(axis)
-        
+
+    return (
+        np.eye(3)
+        + np.sin(angle) * ax2skew(axis)
+        + (1 - np.cos(angle)) * ax2skew_squared(axis)
+    )
+
+
 def process_visual(link, BodyType, kwargs_body, A_RB, R_r_RC, folder_path):
     if link.visual is not None:
         if link.visual.origin is None:
@@ -91,12 +99,11 @@ def process_visual(link, BodyType, kwargs_body, A_RB, R_r_RC, folder_path):
             kwargs_body["B_r_CP"] = A_RB.T @ (R_r_RV - R_r_RC)
             kwargs_body["A_BM"] = A_RB.T @ A_RV
         else:
-            pass # TODO: implement Box, Cylinder, and other visual types
+            pass  # TODO: implement Box, Cylinder, and other visual types
 
     return BodyType
 
 
-    
 def system_from_urdf(
     file_path,
     r_OR=np.zeros(3),
@@ -139,7 +146,7 @@ def system_from_urdf(
         kwargs_body["B_Theta_C"] = inertia_to_matrix(root.inertial.inertia)
         kwargs_body["q0"] = RigidBody.pose2q(root.r_OC, root.A_IB)
         root.B_Omega = A_RB.T @ R_omega_IR
-        root.v_C = v_R + A_IR @ cross3( R_omega_IR, R_r_RC)
+        root.v_C = v_R + A_IR @ cross3(R_omega_IR, R_r_RC)
         kwargs_body["u0"] = np.hstack([root.v_C, root.B_Omega])
     else:
         BodyType = Frame
@@ -147,10 +154,10 @@ def system_from_urdf(
             R_r_RC, A_RB = pose_to_r_A(root.inertial.origin)
         else:
             R_r_RC = np.zeros(3)
-            A_RB = np.eye(3) 
+            A_RB = np.eye(3)
 
-        kwargs_body["r_OP"] = r_OR + A_IR @ R_r_RC # r_OC
-        kwargs_body["A_IB"] = A_IR @ A_RB # A_IB
+        kwargs_body["r_OP"] = r_OR + A_IR @ R_r_RC  # r_OC
+        kwargs_body["A_IB"] = A_IR @ A_RB  # A_IB
 
     BodyType = process_visual(root, BodyType, kwargs_body, A_RB, R_r_RC, folder_path)
 
@@ -162,7 +169,9 @@ def system_from_urdf(
     links_to_process = [root]
     while links_to_process:
         parent = links_to_process.pop(0)
-        if parent.name not in urdf.child_map: # the link that is processed has no children, i.e., is a leaf
+        if (
+            parent.name not in urdf.child_map
+        ):  # the link that is processed has no children, i.e., is a leaf
             continue
         for item in urdf.child_map[parent.name]:
             joint = urdf.joint_map[item[0]]
@@ -228,7 +237,9 @@ def system_from_urdf(
                         J_r_JRc = cfg[0:3]
                         A_JRc = rpy_to_A(cfg[3:6])
                     else:
-                        raise ValueError("Floating joint configuration must be of length 6 (rpy) or 7 (quaternion).")
+                        raise ValueError(
+                            "Floating joint configuration must be of length 6 (rpy) or 7 (quaternion)."
+                        )
                 else:
                     J_r_JRc = np.zeros(3)
                     A_JRc = np.eye(3)
@@ -239,7 +250,9 @@ def system_from_urdf(
                         J_v_JRc = cfg[0:3]
                         J_omega_JRc = cfg[3:6]
                     else:
-                        raise ValueError("Floating joint velocity must be of length 6 (linear + angular).")
+                        raise ValueError(
+                            "Floating joint velocity must be of length 6 (linear + angular)."
+                        )
                 else:
                     J_v_JRc = np.zeros(3)
                     J_omega_JRc = np.zeros(3)
@@ -248,9 +261,14 @@ def system_from_urdf(
             # forward kinematics (compute child state)
             child.r_OR = parent.r_OR + parent.A_IR @ (Rp_r_RpJ + A_RpJ @ J_r_JRc)
             child.A_IR = parent.A_IR @ A_RpJ @ A_JRc
-            J_omega_IRc = A_RpJ.T @ parent.R_omega_IR + J_omega_JRc #  Rp_omega_RpJ =0 has been used
+            J_omega_IRc = (
+                A_RpJ.T @ parent.R_omega_IR + J_omega_JRc
+            )  #  Rp_omega_RpJ =0 has been used
             child.R_omega_IR = A_JRc.T @ J_omega_IRc
-            child.v_R = parent.v_R + parent.A_IR @ (cross3(parent.R_omega_IR, Rp_r_RpJ) +  A_RpJ @ (J_v_JRc + cross3(J_omega_IRc, J_r_JRc)))
+            child.v_R = parent.v_R + parent.A_IR @ (
+                cross3(parent.R_omega_IR, Rp_r_RpJ)
+                + A_RpJ @ (J_v_JRc + cross3(J_omega_IRc, J_r_JRc))
+            )
 
             if child.inertial is not None:
                 if child.inertial.mass == 0:
@@ -268,19 +286,25 @@ def system_from_urdf(
             kwargs_body["B_Theta_C"] = inertia_to_matrix(child.inertial.inertia)
             kwargs_body["q0"] = RigidBody.pose2q(child.r_OC, child.A_IB)
             child.B_Omega = A_RB.T @ child.R_omega_IR
-            child.v_C = child.v_R + child.A_IR @ cross3( child.R_omega_IR, R_r_RC)
+            child.v_C = child.v_R + child.A_IR @ cross3(child.R_omega_IR, R_r_RC)
             kwargs_body["u0"] = np.hstack([child.v_C, child.B_Omega])
 
-            BodyType = process_visual(child, BodyType, kwargs_body, A_RB, R_r_RC, folder_path)
+            BodyType = process_visual(
+                child, BodyType, kwargs_body, A_RB, R_r_RC, folder_path
+            )
 
             # create and add link
             if BodyType is None:
-                raise ValueError('BodyType could not be determined for {}. No body added.'.format(child.name))
+                raise ValueError(
+                    "BodyType could not be determined for {}. No body added.".format(
+                        child.name
+                    )
+                )
             else:
                 system.add(BodyType(**kwargs_body))
 
             if JointType is None:
-                pass # floating joint ;-)
+                pass  # floating joint ;-)
             else:
                 kwargs_joint["subsystem1"] = system.contributions_map[parent.name]
                 kwargs_joint["subsystem2"] = system.contributions_map[child.name]
@@ -293,7 +317,13 @@ def system_from_urdf(
             if link_name in system.contributions_map:
                 link = system.contributions_map[link_name]
                 if not isinstance(link, Frame):
-                    system.add(Force(link.mass * gravitational_acceleration, link, name="gravity_" + link_name))
+                    system.add(
+                        Force(
+                            link.mass * gravitational_acceleration,
+                            link,
+                            name="gravity_" + link_name,
+                        )
+                    )
 
     system.assemble()
 

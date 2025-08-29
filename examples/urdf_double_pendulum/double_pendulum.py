@@ -28,11 +28,8 @@ render = Renderer(system)
 
 if simulate := True:
     sol = ScipyIVP(system, t1=3, dt=1e-2).solve()
-    render.render_solution(
-        sol, repeat=True
-    )
+    render.render_solution(sol, repeat=True)
 else:
     render.render_solution(
         Solution(system, np.array([system.t0]), np.array([system.q0])), repeat=True
     )
-

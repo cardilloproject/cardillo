@@ -27,7 +27,6 @@ if __name__ == "__main__":
     initial_config["panda_joint7"] = 0.0
     initial_config["panda_finger_joint1"] = 0.0
 
-
     system = system_from_urdf(
         file_path=Path(dir_name, "urdf", "panda.urdf"),
         configuration=initial_config,
@@ -38,10 +37,14 @@ if __name__ == "__main__":
 
 if simulate := False:
     sol = ScipyIVP(system, t1=1, dt=1e-1).solve()
-    render.render_solution(
-        sol, repeat=True
-    )
+    render.render_solution(sol, repeat=True)
 else:
     render.render_solution(
-        Solution(system, np.array([system.t0]), np.asanyarray([system.q0]), np.asanyarray([system.u0])), repeat=True
+        Solution(
+            system,
+            np.array([system.t0]),
+            np.asanyarray([system.q0]),
+            np.asanyarray([system.u0]),
+        ),
+        repeat=True,
     )
