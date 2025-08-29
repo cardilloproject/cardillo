@@ -1,9 +1,3 @@
-# from urdf_parser_py.urdf import URDF
-
-# robot = URDF.from_xml_file("examples/urdf_unitree_go1/urdf/go1.urdf")
-
-# exit()
-
 import numpy as np
 
 

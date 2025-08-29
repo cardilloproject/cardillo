@@ -24,7 +24,7 @@ import numpy as np
 from urdf_parser_py.urdf import URDF
 from cardillo import System
 from cardillo.constraints import Revolute, RigidConnection, Prismatic
-from cardillo.discrete import RigidBody, Frame, Meshed, Sphere
+from cardillo.discrete import RigidBody, Frame, Meshed, Sphere, Box
 from cardillo.forces import Force
 from cardillo.math import cross3, norm, ax2skew, ax2skew_squared, A_IB_basic
 
@@ -106,6 +106,11 @@ def process_visual(link, BodyType, kwargs_body, A_RB, R_r_RC, folder_path):
             kwargs_body["radius"] = link.visual.geometry.radius
             kwargs_body["B_r_CP"] = A_RB.T @ (R_r_RV - R_r_RC)
             kwargs_body["A_BM"] = A_RB.T @ A_RV
+        elif visual_type == "Box":
+            BodyType = Box(BodyType)
+            kwargs_body["dimensions"] = link.visual.geometry.size
+            kwargs_body["B_r_CP"] = A_RB.T @ (R_r_RV - R_r_RC)
+            kwargs_body["A_BM"] = A_RB.T @ A_RV
         else:
             print("Info: No visual for type {} implemented.".format(visual_type))
             # TODO: implement Box, Cylinder, and other visual types
@@ -124,9 +129,14 @@ def system_from_urdf(
     root_is_floating=False,
     gravitational_acceleration=None,
 ):
-    system = System(origin_size=0.01)
+    system = System()
     folder_path = Path(file_path).parent
+
+    print("-" * 80)
+    print(f"Parsing URDF file: {file_path}")
     urdf = URDF.from_xml_file(file_path)
+    print("-" * 80)
+    print(f"Assembling cardillo system from parsed URDF.")
 
     # ----------
     # root to cardillo
@@ -220,28 +230,22 @@ def system_from_urdf(
                     child.r_OC = child.r_OR + child.A_IR @ R_r_RC
                 else:
                     if joint.type == "fixed":
-                        print("Children of body with zero mass:")
                         if child.name in urdf.child_map:
-                            print(urdf.child_map[child.name])
-                        print("INFO: child name: {}".format(child.name))
-                        continue
-                        raise ValueError(
-                            "Rigidly attached rigid body with zero mass detected."
-                        )
+                            raise ValueError(
+                                f"Cannot handle link: {child.name}. It is a body with no inertia that has children."
+                            )
+                        continue  # child has no mass and is leaf, hence not added.
                     else:
                         raise ValueError(
                             "Link {child.name} has zero mass, which will lead to a singular system."
                         )
             else:
                 if joint.type == "fixed":
-                    print("Children of body with zero mass:")
                     if child.name in urdf.child_map:
-                        print(urdf.child_map[child.name])
-                    print("INFO: child name: {}".format(child.name))
-                    continue
-                    raise ValueError(
-                        "Rigidly attached rigid body with zero mass detected."
-                    )
+                        raise ValueError(
+                            f"Cannot handle link: {child.name}. It is a body with no inertia that has children."
+                        )
+                    continue  # child has no mass and is leaf, hence not added.
                 else:
                     raise ValueError(
                         f"Link {child.name} has no inertia, which will lead to a singular system."
@@ -273,7 +277,6 @@ def system_from_urdf(
             if JointType is None:
                 pass  # floating joint ;-)
             else:
-                print("INFO: parent name: {}".format(parent.name))
                 kwargs_joint["subsystem1"] = system.contributions_map[parent.name]
                 kwargs_joint["subsystem2"] = system.contributions_map[child.name]
                 system.add(JointType(**kwargs_joint))
@@ -294,7 +297,7 @@ def system_from_urdf(
                     )
 
     system.assemble()
-
+    print("-" * 80)
     return system
 
 
@@ -415,7 +418,7 @@ def joint_kinematics(parent, joint, configuration, velocities):
         # redefine J-frame for such that axis is its x-axis (only for constructor of Prismatic joint!)
         kwargs_joint["axis"] = 2
         kwargs_joint["r_OJ0"] = parent.r_OR + parent.A_IR @ Rp_r_RpJ
-        kwargs_joint["A_IJ0"] = parent.A_IR @ A_RpJ 
+        kwargs_joint["A_IJ0"] = parent.A_IR @ A_RpJ
 
         # use state of the joint to compute child state relative to joint
         if joint.name in configuration:
