@@ -17,11 +17,13 @@ Modifiers:
 - Parent p (e.g., reference frame parent: Rp)
 """
 
-from logging import root
 from pathlib import Path
 import numpy as np
 
+# External URDF parser
 from urdf_parser_py.urdf import URDF
+
+# Cardillo core classes
 from cardillo import System
 from cardillo.constraints import Revolute, RigidConnection, Prismatic
 from cardillo.discrete import RigidBody, Frame, Meshed, Sphere, Box
@@ -30,22 +32,20 @@ from cardillo.math import cross3, norm, ax2skew, ax2skew_squared, A_IB_basic
 
 
 def rpy_to_A(rpy):
-    """Convert roll-pitch-yaw coordinates to a transformation matrix.
-
+    """
+    Convert roll-pitch-yaw (RPY) coordinates to a 3x3 rotation matrix.
     Parameters
     ----------
-    coords : (3,) float
-        The roll-pitch-yaw coordinates in order (x-rot, y-rot, z-rot).
-
+    rpy : array-like, shape (3,)
+        Roll, pitch, yaw angles (radians).
     Returns
     -------
-    R : (3,3) float
-        The corresponding 3x3 transformation matrix.
+    R : ndarray, shape (3,3)
+        Rotation matrix.
     """
     rpy = np.asanyarray(rpy, dtype=np.float64)
     c3, c2, c1 = np.cos(rpy)
     s3, s2, s1 = np.sin(rpy)
-
     return np.array(
         [
             [c1 * c2, (c1 * s2 * s3) - (c3 * s1), (s1 * s3) + (c1 * c3 * s2)],
@@ -57,13 +57,25 @@ def rpy_to_A(rpy):
 
 
 def pose_to_r_A(pose):
-    if pose is None:  # for spheres, the pose of the origin is None
+    """
+    Convert a URDF pose to position and rotation matrix.
+    Returns
+    -------
+    r : ndarray, shape (3,)
+        Position vector.
+    A : ndarray, shape (3,3)
+        Rotation matrix.
+    """
+    if pose is None:  # For spheres, the pose of the origin is None
         return np.zeros(3), np.eye(3)
     else:
         return np.array(pose.position), rpy_to_A(pose.rotation)
 
 
 def inertia_to_matrix(inertia):
+    """
+    Convert URDF inertia object to 3x3 inertia matrix.
+    """
     ixx = inertia.ixx
     ixy = inertia.ixy
     ixz = inertia.ixz
@@ -74,13 +86,15 @@ def inertia_to_matrix(inertia):
 
 
 def axis_angle_to_A(axis, angle):
+    """
+    Convert axis-angle to rotation matrix.
+    """
     axis = np.asanyarray(axis, dtype=np.float64)
-
-    if norm_a := norm(axis) > 0:
+    norm_a = norm(axis)
+    if norm_a > 0:
         axis /= norm_a
     else:
         raise ValueError("Zero axis provided for axis-angle representation.")
-
     return (
         np.eye(3)
         + np.sin(angle) * ax2skew(axis)
@@ -89,6 +103,9 @@ def axis_angle_to_A(axis, angle):
 
 
 def process_visual(link, BodyType, kwargs_body, A_RB, R_r_RC, folder_path):
+    """
+    Add visual geometry to body if present in URDF link.
+    """
     if link.visual is not None:
         if link.visual.origin is None:
             R_r_RV, A_RV = np.zeros(3), np.eye(3)
@@ -112,9 +129,8 @@ def process_visual(link, BodyType, kwargs_body, A_RB, R_r_RC, folder_path):
             kwargs_body["B_r_CP"] = A_RB.T @ (R_r_RV - R_r_RC)
             kwargs_body["A_BM"] = A_RB.T @ A_RV
         else:
-            print("Info: No visual for type {} implemented.".format(visual_type))
-            # TODO: implement Box, Cylinder, and other visual types
-
+            print(f"Info: No visual for type {visual_type} implemented.")
+            # TODO: implement Cylinder and other visual types
     return BodyType
 
 
@@ -129,6 +145,35 @@ def system_from_urdf(
     root_is_floating=False,
     gravitational_acceleration=None,
 ):
+    """
+    Parse a URDF file and construct a cardillo System instance.
+
+    Parameters
+    ----------
+    file_path : str or Path
+        Path to the URDF file.
+    r_OR : ndarray, shape (3,)
+        Position of the root reference frame in the inertial frame.
+    A_IR : ndarray, shape (3,3)
+        Orientation of the root reference frame in the inertial frame.
+    v_R : ndarray, shape (3,)
+        Linear velocity of the root reference frame.
+    R_omega_IR : ndarray, shape (3,)
+        Angular velocity of the root reference frame.
+    configuration : dict
+        Initial joint configuration values.
+    velocities : dict
+        Initial joint velocity values.
+    root_is_floating : bool
+        If True, treat the root as a floating rigid body.
+    gravitational_acceleration : ndarray, shape (3,)
+        Gravity vector to apply to all bodies.
+
+    Returns
+    -------
+    system : System
+        The assembled cardillo System instance.
+    """
     system = System()
     folder_path = Path(file_path).parent
 
@@ -139,31 +184,26 @@ def system_from_urdf(
     print(f"Assembling cardillo system from parsed URDF.")
 
     # ----------
-    # root to cardillo
-
+    # Parse root link and initialize its state
     root = urdf.link_map[urdf.get_root()]
+    kwargs_body = {"name": root.name}
 
-    # argument dictionary for call of (meshed) Frame or RigidBody
-    kwargs_body = {}
-    kwargs_body["name"] = root.name
-
-    # root reference frame
+    # Set root reference frame properties
     root.r_OR = r_OR
     root.A_IR = A_IR
     root.v_R = v_R
     root.R_omega_IR = R_omega_IR
 
-    # process root
+    # Handle root as floating or fixed
     if root_is_floating:
-        if root.inertial is not None:
-            if root.inertial.mass > 0:
-                R_r_RC, A_RB = pose_to_r_A(root.inertial.origin)
-                root.A_IB = A_IR @ A_RB
-                root.r_OC = r_OR + A_IR @ R_r_RC
-            else:
-                raise ValueError("Root must have positive mass if it is floating.")
+        if root.inertial is not None and root.inertial.mass > 0:
+            R_r_RC, A_RB = pose_to_r_A(root.inertial.origin)
+            root.A_IB = A_IR @ A_RB
+            root.r_OC = r_OR + A_IR @ R_r_RC
         else:
-            raise ValueError("Root must have inertial properties if it is floating.")
+            raise ValueError(
+                "Root must have positive mass and inertial properties if it is floating."
+            )
         BodyType = RigidBody
         kwargs_body["mass"] = root.inertial.mass
         kwargs_body["B_Theta_C"] = inertia_to_matrix(root.inertial.inertia)
@@ -184,105 +224,82 @@ def system_from_urdf(
 
     BodyType = process_visual(root, BodyType, kwargs_body, A_RB, R_r_RC, folder_path)
 
-    # create and add root
+    # Add root body/frame to system
     system.add(BodyType(**kwargs_body))
 
     # ----------
-    # forward kinematics
+    # Forward kinematics: traverse the URDF tree and add links/joints
     links_to_process = [root]
     while links_to_process:
         parent = links_to_process.pop(0)
-        if (
-            parent.name not in urdf.child_map
-        ):  # the link that is processed has no children, i.e., is a leaf
-            continue
-        for item in urdf.child_map[parent.name]:  # for each child
+        if parent.name not in urdf.child_map:
+            continue  # Leaf node, no children
+        for item in urdf.child_map[parent.name]:
             joint = urdf.joint_map[item[0]]
             child = urdf.link_map[item[1]]
             links_to_process.append(child)
             BodyType = None
             JointType = None
 
-            # joint kinematics
+            # Joint kinematics
             Rp_r_RpJ, A_RpJ = pose_to_r_A(joint.origin)
-
             JointType, kwargs_joint, J_r_JRc, A_JRc, J_v_JRc, J_omega_JRc = (
                 joint_kinematics(parent, joint, configuration, velocities)
             )
 
-            # forward kinematics (compute child state)
+            # Compute child state from parent and joint
             child.r_OR = parent.r_OR + parent.A_IR @ (Rp_r_RpJ + A_RpJ @ J_r_JRc)
             child.A_IR = parent.A_IR @ A_RpJ @ A_JRc
-            J_omega_IRc = (
-                A_RpJ.T @ parent.R_omega_IR + J_omega_JRc
-            )  #  Rp_omega_RpJ =0 has been used
+            J_omega_IRc = A_RpJ.T @ parent.R_omega_IR + J_omega_JRc
             child.R_omega_IR = A_JRc.T @ J_omega_IRc
             child.v_R = parent.v_R + parent.A_IR @ (
                 cross3(parent.R_omega_IR, Rp_r_RpJ)
                 + A_RpJ @ (J_v_JRc + cross3(J_omega_IRc, J_r_JRc))
             )
 
-            if child.inertial is not None:
-                if child.inertial.mass > 0:
-                    BodyType = RigidBody
-                    R_r_RC, A_RB = pose_to_r_A(child.inertial.origin)
-                    child.A_IB = child.A_IR @ A_RB
-                    child.r_OC = child.r_OR + child.A_IR @ R_r_RC
-                else:
-                    if joint.type == "fixed":
-                        if child.name in urdf.child_map:
-                            raise ValueError(
-                                f"Cannot handle link: {child.name}. It is a body with no inertia that has children."
-                            )
-                        continue  # child has no mass and is leaf, hence not added.
-                    else:
-                        raise ValueError(
-                            "Link {child.name} has zero mass, which will lead to a singular system."
-                        )
+            # Determine body type and add to system
+            if child.inertial is not None and child.inertial.mass > 0:
+                BodyType = RigidBody
+                R_r_RC, A_RB = pose_to_r_A(child.inertial.origin)
+                child.A_IB = child.A_IR @ A_RB
+                child.r_OC = child.r_OR + child.A_IR @ R_r_RC
             else:
-                if joint.type == "fixed":
-                    if child.name in urdf.child_map:
-                        raise ValueError(
-                            f"Cannot handle link: {child.name}. It is a body with no inertia that has children."
-                        )
-                    continue  # child has no mass and is leaf, hence not added.
-                else:
-                    raise ValueError(
-                        f"Link {child.name} has no inertia, which will lead to a singular system."
-                    )
+                # Only add leaf frames with no mass if joint is fixed
+                if joint.type == "fixed" and child.name not in urdf.child_map:
+                    continue  # Skip leaf with no mass
+                raise ValueError(
+                    f"Link {child.name} has zero mass or no inertia, which will lead to a singular system."
+                )
 
-            kwargs_body = {}
-            kwargs_body["name"] = child.name
-            kwargs_body["mass"] = child.inertial.mass
-            kwargs_body["B_Theta_C"] = inertia_to_matrix(child.inertial.inertia)
-            kwargs_body["q0"] = RigidBody.pose2q(child.r_OC, child.A_IB)
+            kwargs_body = {
+                "name": child.name,
+                "mass": child.inertial.mass,
+                "B_Theta_C": inertia_to_matrix(child.inertial.inertia),
+                "q0": RigidBody.pose2q(child.r_OC, child.A_IB),
+            }
             child.B_Omega = A_RB.T @ child.R_omega_IR
             child.v_C = child.v_R + child.A_IR @ cross3(child.R_omega_IR, R_r_RC)
             kwargs_body["u0"] = np.hstack([child.v_C, child.B_Omega])
 
+            # Add visual geometry if present
             BodyType = process_visual(
                 child, BodyType, kwargs_body, A_RB, R_r_RC, folder_path
             )
 
-            # create and add link
             if BodyType is None:
                 raise ValueError(
-                    "BodyType could not be determined for {}. No body added.".format(
-                        child.name
-                    )
+                    f"BodyType could not be determined for {child.name}. No body added."
                 )
-            else:
-                system.add(BodyType(**kwargs_body))
+            system.add(BodyType(**kwargs_body))
 
-            if JointType is None:
-                pass  # floating joint ;-)
-            else:
+            # Add joint to system
+            if JointType is not None:
                 kwargs_joint["subsystem1"] = system.contributions_map[parent.name]
                 kwargs_joint["subsystem2"] = system.contributions_map[child.name]
                 system.add(JointType(**kwargs_joint))
-                # print(f"Info: Added {joint.name} as {JointType} to the cardillo system.")
 
-    # add gravity
+    # ----------
+    # Add gravity forces to all bodies (except frames)
     if gravitational_acceleration is not None:
         for link_name in urdf.link_map.keys():
             if link_name in system.contributions_map:
@@ -302,6 +319,35 @@ def system_from_urdf(
 
 
 def joint_kinematics(parent, joint, configuration, velocities):
+    """
+    Compute the kinematics for a joint and return joint type, parameters, and state.
+
+    Parameters
+    ----------
+    parent : URDF link object
+        The parent link.
+    joint : URDF joint object
+        The joint connecting parent and child.
+    configuration : dict
+        Joint configuration values.
+    velocities : dict
+        Joint velocity values.
+
+    Returns
+    -------
+    JointType : class or None
+        The cardillo joint class (Revolute, Prismatic, etc.) or None for floating.
+    kwargs_joint : dict
+        Arguments for joint constructor.
+    J_r_JRc : ndarray, shape (3,)
+        Relative position vector from joint to child.
+    A_JRc : ndarray, shape (3,3)
+        Relative orientation from joint to child.
+    J_v_JRc : ndarray, shape (3,)
+        Relative linear velocity from joint to child.
+    J_omega_JRc : ndarray, shape (3,)
+        Relative angular velocity from joint to child.
+    """
     kwargs_joint = {}
     kwargs_joint["name"] = joint.name
     Rp_r_RpJ, A_RpJ = pose_to_r_A(joint.origin)
