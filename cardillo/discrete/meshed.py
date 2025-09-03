@@ -68,20 +68,6 @@ def Meshed(Base):
 
             trimesh_mesh.apply_transform(np.diag([scale, scale, scale, 1]))
 
-            # check if mesh represents a valid volume
-            if not trimesh_mesh.is_volume:
-                print(
-                    "Imported mesh does not represent a volume, i.e. one of the following properties are not fulfilled: watertight, consistent winding, outward facing normals."
-                )
-                # try to fill the wholes
-                trimesh_mesh.fill_holes()
-                if not trimesh_mesh.is_volume:
-                    print(
-                        "Using mesh that is not a volume. Computed mass and moment of inertia might be unphyical."
-                    )
-                else:
-                    print("Fixed mesh by filling the holes.")
-
             # store visual mesh in body fixed basis
             H_KM = np.eye(4)
             H_KM[:3, 3] = B_r_CP
@@ -93,6 +79,19 @@ def Meshed(Base):
 
             # compute inertia quantities of body
             if density is not None:
+                # check if mesh represents a valid volume
+                if not trimesh_mesh.is_volume:
+                    print(
+                        "Imported mesh does not represent a volume, i.e. one of the following properties are not fulfilled: watertight, consistent winding, outward facing normals."
+                    )
+                    # try to fill the wholes
+                    trimesh_mesh.fill_holes()
+                    if not trimesh_mesh.is_volume:
+                        print(
+                            "Using mesh that is not a volume. Computed mass and moment of inertia might be unphyical."
+                        )
+                    else:
+                        print("Fixed mesh by filling the holes.")
                 # set density and compute properties
                 self.B_visual_mesh.density = density
                 mass = self.B_visual_mesh.mass
