@@ -1,4 +1,3 @@
-
 import numpy as np
 from pathlib import Path
 from cardillo.urdf import system_from_urdf
@@ -45,7 +44,9 @@ if __name__ == "__main__":
     radius = 0.022
     mu = 0.3
     for foot in ["FR_foot", "FL_foot", "RR_foot", "RL_foot"]:
-        contact = Sphere2Plane(system.origin, system.contributions_map[foot], mu=mu, r=radius)
+        contact = Sphere2Plane(
+            system.origin, system.contributions_map[foot], mu=mu, r=radius
+        )
         system.add(contact)
 
     # Add PD controllers to each joint
@@ -66,11 +67,19 @@ if __name__ == "__main__":
         # Example: Add time-varying torque to calf joints (currently static)
         frq = 0
         angle_d_calf = -np.deg2rad(30)
-        for joint_name in ["FR_calf_joint", "FL_calf_joint", "RR_calf_joint", "RL_calf_joint"]:
-            system.contributions_map["PD_" + joint_name].tau = lambda t: np.array([
-                initial_config[joint_name] + angle_d_calf * np.sin(2 * np.pi * frq * t),
-                angle_d_calf * 2 * np.pi * frq * np.cos(2 * np.pi * frq * t),
-            ])
+        for joint_name in [
+            "FR_calf_joint",
+            "FL_calf_joint",
+            "RR_calf_joint",
+            "RL_calf_joint",
+        ]:
+            system.contributions_map["PD_" + joint_name].tau = lambda t: np.array(
+                [
+                    initial_config[joint_name]
+                    + angle_d_calf * np.sin(2 * np.pi * frq * t),
+                    angle_d_calf * 2 * np.pi * frq * np.cos(2 * np.pi * frq * t),
+                ]
+            )
 
     # Add ground plane
     plane = Box(Frame)(dimensions=[4, 4, 0.001], axis=2, name="Plane")
