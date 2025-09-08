@@ -123,10 +123,7 @@ def cantilever(
 
     # VTK export
     dir_name = Path(__file__).parent
-    [
-        m.save(dir_name, "csv", sol, ["r_OP", "A_IB", "v_P", "B_Omega"])
-        for m in markers
-    ]
+    [m.save(dir_name, "csv", sol, ["r_OP", "A_IB", "v_P", "B_Omega"]) for m in markers]
     if VTK_export:
         from copy import deepcopy
 
