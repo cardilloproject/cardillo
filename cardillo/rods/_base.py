@@ -1320,7 +1320,7 @@ class CosseratRodMixed(CosseratRod_PetrovGalerkin):
             qe = q[self.elDOF[el]]
             elDOF_la_c = self.elDOF_la_c[el]
             la_c[elDOF_la_c] = -self.__c_la_c_el_inv[el] @ self.c_el(
-                qe, np.zeros(self.nla_c_element)
+                qe, np.zeros(self.nla_c_element), el
             )
         return la_c
 
