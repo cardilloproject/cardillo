@@ -11,7 +11,7 @@ from cardillo import System
 from cardillo.discrete import RigidBody, Sphere, Box, Frame
 from cardillo.forces import Force
 from cardillo.contacts import Sphere2Plane
-from cardillo.solver import Moreau
+from cardillo.solver import Moreau, DualStormerVerlet
 
 if __name__ == "__main__":
     ############
@@ -82,6 +82,7 @@ if __name__ == "__main__":
     ############
     dt = 2.0e-3  # time step
     solver = Moreau(system, t1, dt)  # create solver
+    # solver = DualStormerVerlet(system, t1, dt)  # alternative solver
     sol = solver.solve()  # simulate system
 
     # read solution
