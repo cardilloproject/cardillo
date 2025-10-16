@@ -33,7 +33,9 @@ def consistent_initial_conditions(
 
     q_dot0 = system.q_dot(t0, q0, u0)
 
-    if not options.compute_consistent_initial_conditions:
+    if (
+        not options.compute_consistent_initial_conditions or system.nu == 0
+    ):  # second case can happen during debugging, when only frames are added to the system
         return (
             t0,
             q0,

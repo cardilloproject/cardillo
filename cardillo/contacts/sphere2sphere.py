@@ -243,7 +243,7 @@ class Sphere2Sphere:
         # compute reference contact basis
         #################################
         t0 = self.t0
-        q0 = np.concatenate((self.subsystem1.q0, self.subsystem2.q0))
+        q0 = np.concatenate((self.subsystem1.q0[qDOF1], self.subsystem2.q0[qDOF2]))
         n = self.n(t0, q0)
         vs = np.cross(n, np.eye(3), axisb=0)
         norm_vs = np.linalg.norm(vs, axis=-1)

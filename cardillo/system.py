@@ -312,6 +312,7 @@ class System:
             self.__M_contr = np.array(self.__M_contr)
             for contr in self.__M_contr[I_constant_mass_matrix]:
                 coo[contr.uDOF, contr.uDOF] = contr.M(self.t0, self.q0[contr.qDOF])
+
         self._M0 = coo.tocoo()
 
         # - compliance matrix
