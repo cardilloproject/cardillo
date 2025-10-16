@@ -8,18 +8,117 @@ from cardillo.math.prox import NegativeOrthant
 from cardillo.solver import Solution, SolverOptions, SolverSummary
 
 
-def fixed_point_iteration(f, q0, atol=1e-6, rtol=1e-6, max_iter=100):
-    q = q0.copy()
-    scale = atol + np.abs(q0) * rtol
+def fixed_point_iteration(fun, x0, atol=1e-6, rtol=1e-6, max_iter=100, verbose=False):
+    x = x0.copy()
     for k in range(max_iter):
-        q_new = f(q)
-        error = np.linalg.norm((q_new - q) / scale) / len(scale) ** 0.5
+        x_new = fun(x.copy())
+        scale = atol + np.maximum(np.abs(x), np.abs(x_new)) * rtol
+        scale = np.array([1])
+        error = np.linalg.norm((x_new.copy() - x.copy()) / scale) / len(scale) ** 0.5
+        if verbose:
+            print(f"iter {k:3d} | error: {error:.2e}")
+            pass
         if error < 1:
-            return q_new, k + 1, error
-        q = q_new
+            return x_new, k + 1, error
+        x = x_new.copy()
     raise ValueError(
         f"Fixed-point iteration did not converge after {k + 1} iterations with error: {error}"
     )
+
+
+def fixed_point_iteration_with_momentum(
+    fun,
+    x0,
+    atol=1e-6,
+    rtol=1e-6,
+    max_iter=50,
+    verbose=False,
+):
+    """
+    Nesterov acceleration for solving x = fun(x).
+
+    Parameters:
+        fun        : callable, function implementing the fixed-point map:
+                     x, *args = fun(x)
+        x0         : np.ndarray, initial guess
+        atol, rtol : float, stopping tolerances for relative residual norm
+        max_iter   : int, maximum iterations
+        verbose    : bool, if True prints progress
+
+    Returns:
+        x          : final iterate
+        niter      : number of required iterations
+        error      : final relative residual error
+    """
+    xk = x0.copy()
+    yk = xk.copy()
+    n = len(x0)
+
+    # parameters Nesterov acceleration
+    thk = 1.0
+    error_old = np.inf
+    converged = False
+    for k in range(0, max_iter):
+        # next iterate
+        xk1 = fun(yk.copy())
+        gk = xk1 - yk.copy()
+
+        # error
+        scale = atol + np.maximum(np.abs(yk), np.abs(xk1)) * rtol
+        error = np.linalg.norm(gk / scale) / np.sqrt(n)
+
+        if verbose:
+            print(f"iter {k:3d} | error: {error:.2e}")
+            pass
+
+        rate = error / error_old
+
+        if verbose:
+            print(f"iter {k:3d} | error: {error:.2e} | rate:: {rate:.2e}")
+            pass
+
+        if error < 1:
+            converged = True
+            break
+
+        error_old = error
+
+        # Nesterov acceleration
+        # original defintions, see https://hengshuaiyao.github.io/papers/nesterov83.pdf
+        thk1 = 0.5 * (1 + np.sqrt(4 * thk**2 + 1))
+        betak1 = (thk - 1) / thk1
+
+        # momentum
+        yk1 = xk1 + betak1 * (xk1 - xk)
+
+        # reset strategy, see eq. (12) and (13) in
+        # https://link.springer.com/article/10.1007/s10208-013-9150-3
+        if (
+            np.dot(yk - xk1, xk1 - xk) > 0
+            or not np.isfinite(betak1)
+            or betak1 < 0
+            or betak1 > 1
+        ):
+            if verbose:
+                print(
+                    f"restart triggered with: np.dot(yk - xk1, xk1 - xk) = {np.dot(yk - xk1, xk1 - xk)} > 0"
+                )
+            yk1 = xk1.copy()
+            thk1 = 1.0
+
+        # update previous values
+        xk = xk1.copy()
+        yk = yk1.copy()
+        thk = thk1
+
+    if not converged:
+        print(f"k: {k + 1}")
+        print(f"error: {error}")
+        raise RuntimeError(
+            f"Nesterov acceleration is not converged after {k} iterations with error {error}"
+        )
+
+    return xk, k + 1, error
 
 
 class DualStormerVerlet:
@@ -30,13 +129,15 @@ class DualStormerVerlet:
         dt,
         options=SolverOptions(),
         debug=False,
-        linear_solver="LU",
+        # linear_solver="LU",
         # linear_solver="MINRES",
-        # linear_solver="MINRES (matrix free)",
+        linear_solver="MINRES (matrix free)",
         constant_mass_matrix=True,
+        accelerated=True,
     ):
         self.debug = debug
         self.system = system
+        self.accelerated = accelerated
 
         assert linear_solver in ["LU", "MINRES", "MINRES (matrix free)"]
         self.linear_solver = linear_solver
@@ -88,13 +189,9 @@ class DualStormerVerlet:
         self.la_cn = system.la_c0
         self.la_Nn = system.la_N0
         self.la_Fn = system.la_F0
-        self.Pi_Nn = dt * system.la_N0
-        self.Pi_Fn = dt * system.la_F0
-        self.Pin = dt * np.concatenate([system.la_g0, system.la_gamma0, system.la_c0])
-
         self.solver_summary = SolverSummary("DualStörmerVerlet")
 
-        self.C = self.c_la(format="csr", dt=dt)
+        self.C = self.c_la(format="csr")
 
         # evaluate constant mass matrix only once
         # TODO: We should check if system._System__M_contr[system.I_M] is empty here.
@@ -114,28 +211,10 @@ class DualStormerVerlet:
 
         return c
 
-    def c_q(self, t, q, u, la, format="coo", dt=1.0):
-        la_g, la_gamma, la_c = np.array_split(la, self.split_la)
-
-        g_q = self.system.g_q(t, q) * 2 / dt
-        gamma_q = self.system.gamma_q(t, q, u)
-        c_q = self.system.c_q(t, q, u, la_c) * 2 / dt
-
-        return bmat([[g_q], [gamma_q], [c_q]], format=format)
-
-    def c_u(self, t, q, u, la, format="coo", dt=1.0):
-        la_g, la_gamma, la_c = np.array_split(la, self.split_la)
-
-        g_u = np.zeros((self.nla_g, self.nu))
-        gamma_u = self.system.gamma_u(t, q)
-        c_u = self.system.c_u(t, q, u, la_c) * 2 / dt
-
-        return bmat([[g_u], [gamma_u], [c_u]], format=format)
-
-    def c_la(self, format="coo", dt=1.0):
+    def c_la(self, format="coo"):
         g_la_g = np.zeros((self.nla_g, self.nla_g))
         gamma_la_gamma = np.zeros((self.nla_gamma, self.nla_gamma))
-        c_la_c = self.system.c_la_c() * 2 / dt
+        c_la_c = self.system.c_la_c()
 
         return block_diag([g_la_g, gamma_la_gamma, c_la_c], format=format)
 
@@ -164,10 +243,12 @@ class DualStormerVerlet:
         # 1. implicit mid-point step solved with simple fixed-point iterations
         ######################################################################
         tm = tn + 0.5 * dt
-        qm = qn + 0.5 * dt * self.system.q_dot(tn, qn, un)
         qm, niter, error = fixed_point_iteration(
             lambda qm: qn + 0.5 * dt * self.system.q_dot(tm, qm, un),
-            qm,
+            qn.copy(),
+            atol=self.options.fixed_point_atol,
+            rtol=self.options.fixed_point_rtol,
+            max_iter=self.options.fixed_point_max_iter,
         )
         if self.debug:
             print(f"Fixed-point:")
@@ -187,8 +268,6 @@ class DualStormerVerlet:
         W_F = self.system.W_F(tm, qm, format="csr")
         W = self.W(tm, qm, format="csr")
         C = self.C
-        # c_q = self.c_q(tm, qm, un, self.Pin / dt, format="csc", dt=dt)
-        # c_u = self.c_u(tm, qm, un, self.Pin / dt, format="csc", dt=dt)
 
         ############################
         # compute iteration matrices
@@ -196,9 +275,8 @@ class DualStormerVerlet:
         if self.linear_solver in ["LU", "MINRES"]:
             # fmt: off
             A = bmat([
-                [  M,       W],
-                [W.T, -C / dt],
-                # [0.5 * dt * c_q @ q_dot_u + c_u, -C / dt],
+                [  M,              W],
+                [W.T, -C * 2 / dt**2],
             ], format="csr" if self.linear_solver=="MINRES" else "csc")
             # fmt: on
         else:  # self.linear_solver == "MINRES (matrix free)"
@@ -208,7 +286,7 @@ class DualStormerVerlet:
                 return np.concatenate(
                     [
                         M @ p1 + W @ p2,
-                        W.T @ p1 - C @ p2 / dt,
+                        W.T @ p1 - C @ p2 * 2 / dt**2,
                     ]
                 )
 
@@ -275,95 +353,111 @@ class DualStormerVerlet:
         Pi_Nn1 = self.Pi_Nn
         Pi_Fn1 = self.Pi_Fn
 
-        def prox(Pi_Nn1, Pi_Fn1):
-            # normal contact
-            # TODO: Decompose evaluation of xi_N = e_N * gamma_Nn + gamma_Nn1
-            xi_N = self.system.xi_N(tm, tm, qm, qm, un, un1)
-            Pi_Nn1 = np.where(
-                I_N,
-                -NegativeOrthant.prox(self.prox_r_N * xi_N - Pi_Nn1),
-                np.zeros_like(Pi_Nn1),
+        # the fixed-point equation
+        h0 = self.system.h(tm, qm, un)
+
+        def fun(z0):
+            # unpack state
+            x0, y0 = z0[:nx], z0[nx:]
+            un1, Pin1 = x0[:nu], x0[nu:]
+            Pi_Nn1, Pi_Fn1 = y0[: self.nla_N], y0[self.nla_N :]
+
+            # grid-point update
+            qn1 = qm + 0.5 * dt * (q_dot_u @ un1 + beta)
+
+            def prox(Pi_Nn1, Pi_Fn1):
+                # normal contact
+                # TODO: Decompose evaluation of xi_N = e_N * gamma_Nn + gamma_Nn1
+                xi_N = self.system.xi_N(tm, tm, qm, qm, un, un1)
+                Pi_Nn1 = np.where(
+                    I_N,
+                    -NegativeOrthant.prox(self.prox_r_N * xi_N - Pi_Nn1),
+                    np.zeros_like(Pi_Nn1),
+                )
+
+                # friction
+                # TODO: Decompose evaluation of xi_F = e_F * gamma_Fn + gamma_Fn1
+                xi_F = self.system.xi_F(tm, tm, qm, qm, un, un1)
+                for contr in self.system.get_contribution_list("gamma_F"):
+                    la_FDOF = contr.la_FDOF
+                    gamma_F_contr = xi_F[la_FDOF]
+                    Pi_Nn1_contr = Pi_Fn1[la_FDOF]
+                    prox_r_F_contr = self.prox_r_F[la_FDOF]
+                    for i_N, i_F, force_recervoir in contr.friction_laws:
+                        if len(i_N) > 0:
+                            dP_Nn1i = Pi_Nn1[contr.la_NDOF[i_N]]
+                        else:
+                            dP_Nn1i = self.dt
+
+                        Pi_Fn1[la_FDOF[i_F]] = -force_recervoir.prox(
+                            prox_r_F_contr[i_F] * gamma_F_contr[i_F]
+                            - Pi_Nn1_contr[i_F],
+                            dP_Nn1i,
+                        )
+
+                return Pi_Nn1, Pi_Fn1
+
+            # evaluate residuals
+            R1 = (
+                M @ (un1 - un) - 0.5 * dt * (h0 + self.system.h(tm, qm, un1)) - W @ Pin1
+            )
+            if self.nla_N + self.nla_F > 0:
+                Pi_Nn1, Pi_Fn1 = prox(Pi_Nn1, Pi_Fn1)
+                R1 -= W_N @ Pi_Nn1 + W_F @ Pi_Fn1
+            R2 = self.c(tn1, qn1, un1, Pin1 / dt, dt=dt)
+            R = np.concatenate((R1, R2))
+
+            # Newton updates
+            dx = A_inv.solve(-R)
+            du, dPi = dx[:nu], dx[nu:]
+
+            # update dependent variables (confusing signs are intended!)
+            un1 += du
+            Pin1 -= dPi
+
+            return np.concatenate((un1, Pin1, Pi_Nn1, Pi_Fn1))
+
+        z0 = np.concatenate((un1, Pin1, Pi_Nn1, Pi_Fn1))
+        rtol = self.options.fixed_point_rtol
+        atol = self.options.fixed_point_atol * np.concatenate(
+            [
+                np.ones_like(un1),
+                np.ones(self.nla_g) * dt / 2,
+                np.ones(self.nla_gamma),
+                np.ones(self.nla_c) * dt / 2,
+                np.ones_like(Pi_Nn1),
+                np.ones_like(Pi_Fn1),
+            ]
+        )
+        if self.accelerated:
+            z1, niter, error = fixed_point_iteration_with_momentum(
+                fun,
+                z0,
+                atol=atol,
+                rtol=rtol,
+                max_iter=self.options.fixed_point_max_iter,
+            )
+        else:
+            z1, niter, error = fixed_point_iteration(
+                fun,
+                z0,
+                atol=atol,
+                rtol=rtol,
+                max_iter=self.options.fixed_point_max_iter,
             )
 
-            # friction
-            # TODO: Decompose evaluation of xi_F = e_F * gamma_Fn + gamma_Fn1
-            xi_F = self.system.xi_F(tm, tm, qm, qm, un, un1)
-            for contr in self.system.get_contribution_list("gamma_F"):
-                la_FDOF = contr.la_FDOF
-                gamma_F_contr = xi_F[la_FDOF]
-                Pi_Nn1_contr = Pi_Fn1[la_FDOF]
-                prox_r_F_contr = self.prox_r_F[la_FDOF]
-                for i_N, i_F, force_recervoir in contr.friction_laws:
-                    if len(i_N) > 0:
-                        dP_Nn1i = Pi_Nn1[contr.la_NDOF[i_N]]
-                    else:
-                        dP_Nn1i = self.dt
+        self.solver_summary.add_newton(niter, error)
 
-                    Pi_Fn1[la_FDOF[i_F]] = -force_recervoir.prox(
-                        prox_r_F_contr[i_F] * gamma_F_contr[i_F] - Pi_Nn1_contr[i_F],
-                        dP_Nn1i,
-                    )
-
-            return Pi_Nn1, Pi_Fn1
-
-        # evaluate residuals
-        R1 = M @ (un1 - un) - dt * self.system.h(tm, qm, 0.5 * (un + un1)) - W @ Pin1
-        if self.nla_N + self.nla_F > 0:
-            Pi_Nn1, Pi_Fn1 = prox(Pi_Nn1, Pi_Fn1)
-            R1 -= W_N @ Pi_Nn1 + W_F @ Pi_Fn1
-        R2 = self.c(tn1, qn1, un1, Pin1 / dt, dt=dt)
-        R = np.concatenate((R1, R2))
-
-        # newton scaling
-        scale1 = self.options.newton_atol + np.abs(R1) * self.options.newton_rtol
-        scale2 = self.options.newton_atol + np.abs(R2) * self.options.newton_rtol
-        scale = np.concatenate((scale1, scale2))
-
-        # error of initial guess
-        error = np.linalg.norm(R / scale) / scale.size**0.5
-        converged = error < 1
-        i = -1
         if self.debug:
-            print(f"i: {i}; error: {error}; converged: {converged}")
+            print(f"i: {niter}; error: {error}")
 
-        # Newton loop
-        if not converged:
-            for i in range(self.options.newton_max_iter):
-                # Newton updates
-                dx = A_inv.solve(-R)
-                du, dPi = dx[:nu], dx[nu:]
+        # unpack state
+        x1, y1 = z1[:nx], z1[nx:]
+        un1, Pin1 = x1[:nu], x1[nu:]
+        Pi_Nn1, Pi_Fn1 = y1[: self.nla_N], y1[self.nla_N :]
 
-                # update dependent variables
-                un1 += du
-                Pin1 -= dPi
-                qn1 = qm + 0.5 * dt * (q_dot_u @ un1 + beta)
-
-                # evaluate residuals
-                R1 = (
-                    M @ (un1 - un)
-                    - dt * self.system.h(tm, qm, 0.5 * (un + un1))
-                    - W @ Pin1
-                )
-                if self.nla_N + self.nla_F > 0:
-                    Pi_Nn1, Pi_Fn1 = prox(Pi_Nn1, Pi_Fn1)
-                    R1 -= W_N @ Pi_Nn1 + W_F @ Pi_Fn1
-                R2 = self.c(tn1, qn1, un1, Pin1 / dt, dt=dt)
-                R = np.concatenate((R1, R2))
-
-                # error and convergence check
-                error = np.linalg.norm(R / scale) / scale.size**0.5
-                converged = error < 1
-                if self.debug:
-                    print(f"i: {i}; error: {error}; converged: {converged}")
-                if converged:
-                    break
-
-            if not converged:
-                warnings.warn(
-                    f"Newton method is not converged after {i} iterations with error {error:.2e}"
-                )
-
-        self.solver_summary.add_newton(i + 1, np.max(np.abs(R)))
+        # grid-point update
+        qn1 = qm + 0.5 * dt * (q_dot_u @ un1 + beta)
 
         # modify converged quantities
         qn1, un1 = self.system.step_callback(tn1, qn1, un1)
@@ -399,6 +493,10 @@ class DualStormerVerlet:
         self.sol_P_gamma = [self.dt * self.la_gamman]
         self.sol_P_N = [self.dt * self.la_Nn]
         self.sol_P_F = [self.dt * self.la_Fn]
+
+        self.Pi_Nn = self.dt * self.la_Nn
+        self.Pi_Fn = self.dt * self.la_Fn
+        self.Pin = self.dt * np.concatenate([self.la_gn, self.la_gamman, self.la_cn])
 
         self.pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
         for _ in self.pbar:
