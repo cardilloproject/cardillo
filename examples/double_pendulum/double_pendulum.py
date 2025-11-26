@@ -169,7 +169,14 @@ if __name__ == "__main__":
     u = sol.u
 
     marker_end.save(dir_name, "csv", sol, plot=True)
-    marker_end.save(dir_name, "csv", sol, [SensorRecords.r_OP, SensorRecords.v_P], save=False, plot=True)
+    marker_end.save(
+        dir_name,
+        "csv",
+        sol,
+        [SensorRecords.r_OP, SensorRecords.v_P],
+        save=False,
+        plot=True,
+    )
 
     #################
     # post-processing

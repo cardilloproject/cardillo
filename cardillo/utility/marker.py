@@ -27,9 +27,9 @@ class Sensor:
 
         self.functions = {
             SensorRecords.r_OP: self._r_OP,
-            SensorRecords.ex_B: lambda t, q: self._A_IB(t, q)[:, 0],
-            SensorRecords.ey_B: lambda t, q: self._A_IB(t, q)[:, 1],
-            SensorRecords.ez_B: lambda t, q: self._A_IB(t, q)[:, 2],
+            SensorRecords.ex_B: self._ex_B,
+            SensorRecords.ey_B: self._ey_B,
+            SensorRecords.ez_B: self._ez_B,
             SensorRecords.v_P: self._v_P,
             SensorRecords.B_Omega: self._B_Omega,
         }
@@ -46,6 +46,15 @@ class Sensor:
 
     def _A_IB(self, t, q):
         return self.subsystem.A_IB(t, q, self.xi) @ self.A_BJ
+
+    def _ex_B(self, t, q):
+        return self._A_IB(t, q)[:, 0]
+
+    def _ey_B(self, t, q):
+        return self._A_IB(t, q)[:, 1]
+
+    def _ez_B(self, t, q):
+        return self._A_IB(t, q)[:, 2]
 
     def _v_P(self, t, q, u):
         return self.subsystem.v_P(t, q, u, self.xi, B_r_CP=self.B_r_PQ)
@@ -83,13 +92,15 @@ class Sensor:
             # all vectors are in R^3, but take different amounts of arguments
             narg = fct.__code__.co_argcount
             match narg:
-                case 2 | 3:
+                # self, t, q
+                case 3:
                     vec3s = np.array(
                         [
                             fct(ti, qi[self.qDOF])
                             for (ti, qi) in zip(solution.t, solution.q)
                         ]
                     )
+                # self, t, q, u
                 case 4:
                     vec3s = np.array(
                         [

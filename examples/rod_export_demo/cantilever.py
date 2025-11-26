@@ -16,6 +16,7 @@ from cardillo.rods.cosseratRod import (
     make_CosseratRod,
 )
 from cardillo.solver import Newton, SolverOptions
+from cardillo.utility.marker import Sensor
 
 
 """ Derived cantilever beam example. 
@@ -80,13 +81,10 @@ def cantilever(
     ##########
     clamping = RigidConnection(system.origin, cantilever, xi2=0)
     system.add(cantilever, clamping)
-
-    from cardillo.utility.marker import Marker
-
     markers = [
-        Marker(cantilever, xi=0.0, name="marker_start"),
-        Marker(cantilever, xi=0.5, name="marker_middle"),
-        Marker(cantilever, xi=1.0, name="marker_end"),
+        Sensor(cantilever, xi=0.0, name="sensor_start"),
+        Sensor(cantilever, xi=0.5, name="sensor_middle"),
+        Sensor(cantilever, xi=1.0, name="sensor_end"),
     ]
     system.add(*markers)
 
@@ -123,7 +121,7 @@ def cantilever(
 
     # VTK export
     dir_name = Path(__file__).parent
-    [m.save(dir_name, "csv", sol, ["r_OP", "A_IB", "v_P", "B_Omega"]) for m in markers]
+    [m.save(dir_name, "csv", sol) for m in markers]
     if VTK_export:
         from copy import deepcopy
 
