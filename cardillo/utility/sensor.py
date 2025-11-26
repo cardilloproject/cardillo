@@ -17,7 +17,7 @@ class Sensor:
         B_r_PQ=np.zeros(3),
         A_BJ=np.eye(3),
         xi=None,
-        name="marker",
+        name="sensor",
     ):
         self.subsystem = subsystem
         self.B_r_PQ = B_r_PQ

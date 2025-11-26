@@ -8,7 +8,7 @@ from cardillo.discrete import RigidBody, Frame, Meshed
 from cardillo.forces import Force
 from cardillo.math import A_IB_basic, cross3
 from cardillo.solver import ScipyIVP, ScipyDAE
-from cardillo.utility.marker import Sensor, SensorRecords
+from cardillo.utility.sensor import Sensor, SensorRecords
 
 if __name__ == "__main__":
     ############

@@ -16,7 +16,7 @@ from cardillo.rods.cosseratRod import (
     make_CosseratRod,
 )
 from cardillo.solver import Newton, SolverOptions
-from cardillo.utility.marker import Sensor
+from cardillo.utility.sensor import Sensor
 
 
 """ Derived cantilever beam example. 
