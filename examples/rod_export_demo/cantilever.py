@@ -16,7 +16,7 @@ from cardillo.rods.cosseratRod import (
     make_CosseratRod,
 )
 from cardillo.solver import Newton, SolverOptions
-from cardillo.utility.sensor import Sensor
+from cardillo.utility.sensor import Sensor, SensorRecords
 
 
 """ Derived cantilever beam example. 
@@ -121,7 +121,8 @@ def cantilever(
 
     # VTK export
     dir_name = Path(__file__).parent
-    [m.save(dir_name, "csv", sol) for m in markers]
+    records = [SensorRecords.r_OP, SensorRecords.A_IB]
+    [m.save(dir_name, "csv", sol, records) for m in markers]
     if VTK_export:
         from copy import deepcopy
 
