@@ -120,10 +120,7 @@ def Meshed(Base):
                 r_OC = self.r_OP(
                     sol_i.t, sol_i.q[self.qDOF]
                 )  # TODO: Idea: slicing could be done on global level in Export class. Moreover, solution class should be able to return the slice, e.g., sol_i.get_q_of_body(name).
-                if hasattr(self, "A_IB"):
-                    A_IB = self.A_IB(sol_i.t, sol_i.q[self.qDOF])
-                else:
-                    A_IB = np.eye(3, dtype=float)
+                A_IB = self.A_IB(sol_i.t, sol_i.q[self.qDOF])
                 points = (r_OC[:, None] + A_IB @ self.B_r_CQi_T).T
 
                 cells = [(VTK_TRIANGLE, face) for face in self.B_visual_mesh.faces]
