@@ -8,6 +8,7 @@ from cardillo.discrete import RigidBody, Frame, Meshed
 from cardillo.forces import Force
 from cardillo.math import A_IB_basic, cross3
 from cardillo.solver import ScipyIVP, ScipyDAE
+from cardillo.utility.marker import Sensor, SensorRecords
 
 if __name__ == "__main__":
     ############
@@ -148,9 +149,7 @@ if __name__ == "__main__":
     joint2 = Revolute(link1, link2, axis=0, r_OJ0=r_OJ2, angle0=phi20, name="joint2")
     system.add(joint2)
 
-    from cardillo.utility.marker import Marker
-
-    marker_end = Marker(link2)
+    marker_end = Sensor(link2, name="Link2_COM")
     system.add(marker_end)
 
     # assemble system
@@ -169,7 +168,8 @@ if __name__ == "__main__":
     q = sol.q
     u = sol.u
 
-    marker_end.save(dir_name, "csv", sol, ["r_OP", "A_IB", "v_P", "B_Omega"], plot=True)
+    marker_end.save(dir_name, "csv", sol, plot=True)
+    marker_end.save(dir_name, "csv", sol, [SensorRecords.r_OP, SensorRecords.v_P], save=False, plot=True)
 
     #################
     # post-processing

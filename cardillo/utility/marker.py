@@ -1,35 +1,37 @@
+from enum import Enum
 import matplotlib.pyplot as plt
 import numpy as np
 from pathlib import Path
 from warnings import warn
 
 
-# TODO: this class fits together with the "rigidly atached rigid body"
+SensorRecords = Enum(
+    "Sensor records", ["r_OP", "A_IB", "ex_B", "ey_B", "ez_B", "v_P", "B_Omega"]
+)
 
 
-class Marker:
+class Sensor:
     def __init__(
         self,
         subsystem,
-        # B_r_PQ=np.zeros(3),
-        # A_BJ=np.eye(3),
+        B_r_PQ=np.zeros(3),
+        A_BJ=np.eye(3),
         xi=None,
         name="marker",
     ):
         self.subsystem = subsystem
-        # self.B_r_PQ = B_r_PQ
-        # self.A_BJ = A_BJ
+        self.B_r_PQ = B_r_PQ
+        self.A_BJ = A_BJ
         self.xi = xi
         self.name = name
 
         self.functions = {
-            "r_OP": self._r_OP,
-            "A_IB": lambda t, q: None,
-            "ex_B": lambda t, q: self._A_IB(t, q)[:, 0],
-            "ey_B": lambda t, q: self._A_IB(t, q)[:, 1],
-            "ez_B": lambda t, q: self._A_IB(t, q)[:, 2],
-            "v_P": self._v_P,
-            "B_Omega": self._B_Omega,
+            SensorRecords.r_OP: self._r_OP,
+            SensorRecords.ex_B: lambda t, q: self._A_IB(t, q)[:, 0],
+            SensorRecords.ey_B: lambda t, q: self._A_IB(t, q)[:, 1],
+            SensorRecords.ez_B: lambda t, q: self._A_IB(t, q)[:, 2],
+            SensorRecords.v_P: self._v_P,
+            SensorRecords.B_Omega: self._B_Omega,
         }
 
     def assembler_callback(self):
@@ -40,45 +42,45 @@ class Marker:
         self.uDOF = self.subsystem.uDOF[local_uDOF]
 
     def _r_OP(self, t, q):
-        return self.subsystem.r_OP(t, q, self.xi)
+        return self.subsystem.r_OP(t, q, self.xi, B_r_CP=self.B_r_PQ)
 
     def _A_IB(self, t, q):
-        return self.subsystem.A_IB(t, q, self.xi)
+        return self.subsystem.A_IB(t, q, self.xi) @ self.A_BJ
 
     def _v_P(self, t, q, u):
-        return self.subsystem.v_P(t, q, u, self.xi)
+        return self.subsystem.v_P(t, q, u, self.xi, B_r_CP=self.B_r_PQ)
 
     def _B_Omega(self, t, q, u):
-        return self.subsystem.B_Omega(t, q, u, self.xi)
+        return self.A_BJ.T @ self.subsystem.B_Omega(t, q, u, self.xi)
 
-    def save(self, path, folder_name, solution, functions, save=True, plot=False):
-        if "A_IB" in functions:
-            functions.append("ex_B")
-            functions.append("ey_B")
-            functions.append("ez_B")
+    def save(
+        self,
+        path,
+        folder_name,
+        solution,
+        functions=[*SensorRecords],
+        save=True,
+        plot=False,
+    ):
+        if SensorRecords.A_IB in functions:
+            functions.append(SensorRecords.ex_B)
+            functions.append(SensorRecords.ey_B)
+            functions.append(SensorRecords.ez_B)
 
-            functions.remove("A_IB")
+            functions.remove(SensorRecords.A_IB)
 
-        # remove duplicates
-        functions = list(set(functions))
-
-        # check for valid arguments
-        invalid = [name for name in functions if name not in self.functions]
-        if invalid:
-            warn(
-                f"Marker '{self.name}': Cannot save: {', '.join(invalid)}", stacklevel=2
-            )
-            [functions.remove(name) for name in invalid]
+        # remove duplicates and sort
+        functions = sorted(set(functions), key=lambda x: x.value)
 
         # save and keep order from self.functions
         header = "t"
         names = []
         data = [solution.t]
-        for name, fct in self.functions.items():
-            if not name in functions:
+        for field, fct in self.functions.items():
+            if not field in functions:
                 continue
 
-            # all vectors are in R^3
+            # all vectors are in R^3, but take different amounts of arguments
             narg = fct.__code__.co_argcount
             match narg:
                 case 2 | 3:
@@ -96,8 +98,8 @@ class Marker:
                         ]
                     )
 
-            header += "".join([f", {name}_{xyz}" for xyz in "xyz"])
-            names.append(name)
+            header += "".join([f", {field.name}_{xyz}" for xyz in "xyz"])
+            names.append(field.name)
             data.extend(vec3s.T)
 
         # save as csv
@@ -133,5 +135,4 @@ class Marker:
             ax[2, 0].set_ylabel("z")
             [axii.grid() for axi in ax for axii in axi]
 
-            # plt.tight_layout()
             plt.show()
