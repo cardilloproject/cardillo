@@ -827,7 +827,7 @@ class CosseratRod_PetrovGalerkin(RodExportBase, ABC):
         # interpolate centerline and axis angle contributions
         J_P = np.zeros((3, self.nu_element), dtype=qe.dtype)
         for node in range(self.nnodes_element_r):
-            J_P[:, self.nodalDOF_element_r[node]] += N[node] * eye3
+            J_P[:, self.nodalDOF_element_r_u[node]] += N[node] * eye3
         r_CP_tilde = A_IB @ B_r_CP_tilde
         for node in range(self.nnodes_element_p):
             J_P[:, self.nodalDOF_element_p_u[node]] -= N[node] * r_CP_tilde
