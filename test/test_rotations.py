@@ -45,16 +45,16 @@ functions = [
 # fmt: on
 
 # make list to use it multiple times and as np.array for slicing
-cases_orth = np.array(list(product(arguments_quat, functions)), dtype=object)
-# cases_orth:
+cases_quat = np.array(list(product(arguments_quat, functions)), dtype=object)
+# cases_quat:
 #   0 : no argument
 #   1 : no argument, x is normalized
-#   2 : False   --> only test for orthogonal basis vectors
+#   2 : False   --> not to be considered
 #   3 : False, x is normalized
 #   4 : True
 #   5 : True, x is normalized
 
-cases_quat = cases_orth[np.array([0, 1, 3, 4, 5])]
+cases_quat = cases_quat[np.array([0, 1, 3, 4, 5])]
 
 cases_so3 = [
     ({}, functions[0]),
@@ -74,7 +74,7 @@ A_test = Exp_SO3(q3)
 # test for pair-wise orthogonality of basis vectors
 test_parameters_orthogonality = [
     [Exp_SO3, q3, cases_so3],
-    [Exp_SO3_quat, q4, cases_orth],
+    [Exp_SO3_quat, q4, cases_quat],
 ]
 
 # test for unit length of basis vectors
@@ -197,14 +197,16 @@ def test_T_SO3(A_fct, A_q_fct, T_fct, q, cases):
     # relation to check:
     # v = T_SO3(q) @ dq
     # ax2skew(v) = A.T @ dA
-    dq = np.random.rand(len(q))
+    dq = np.random.rand(len(q)) - 0.5
     for case in cases:
+        # dq_proj @ q = 0 for the case x / ||x||
+        dq_proj = case[1][1](q) @ dq
         T = wrapper(T_fct, case)(q)
-        v = T @ dq
+        v = T @ dq_proj
 
         A = wrapper(A_fct, case)(q)
         A_q = wrapper(A_q_fct, case)(q)
-        dA = A_q @ dq
+        dA = A_q @ dq_proj
         e = np.linalg.norm(v - skew2ax(A.T @ dA))
         assert np.isclose(
             e, 0
@@ -286,6 +288,3 @@ def test_Log_SO3_A(Log_fct, Log_fct_q, A, cases):
 if __name__ == "__main__":
     test_Exp_SO3_q(Exp_SO3, Exp_SO3_psi, q3, cases_so3)
     test_Exp_SO3_q(Exp_SO3_quat, Exp_SO3_quat_P, q4, cases_quat)
-
-    test_Exp_SO3_q(T_SO3, T_SO3_psi, q3, cases_so3)
-    test_Exp_SO3_q(T_SO3_quat, T_SO3_quat_P, q4, cases_quat)
