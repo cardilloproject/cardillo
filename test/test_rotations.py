@@ -14,7 +14,7 @@ from cardillo.math.rotations import (
     T_SO3_inv,
     T_SO3_inv_psi,
     Exp_SO3_quat,
-    Exp_SO3_quat_p,
+    Exp_SO3_quat_P,
     Log_SO3_quat,
     T_SO3_quat,
     T_SO3_quat_P,
@@ -25,8 +25,8 @@ from cardillo.math.rotations import (
 # arguments for Quaternions
 arguments_quat = [
     {},
-    {"normalize": True},
-    {"normalize": False},
+    {"normalize": False},  # P must have unit length
+    {"normalize": True},  # P arbitrary
 ]
 
 # fmt: off
@@ -47,80 +47,87 @@ functions = [
 # make list to use it multiple times and as np.array for slicing
 cases_quat = np.array(list(product(arguments_quat, functions)), dtype=object)
 # cases_quat:
-#   0: no argument
-#   1: no argument, x is normalized
-#   2: True
-#   3: True, x is normalized
-#   4: False
-#   5: False, x is normalized
+#   0 : no argument
+#   1 : no argument, x is normalized
+#   2 : False   --> not to be considered
+#   3 : False, x is normalized
+#   4 : True
+#   5 : True, x is normalized
+
+cases_quat = cases_quat[np.array([0, 1, 3, 4, 5])]
 
 cases_so3 = [
     ({}, functions[0]),
 ]
 
-# test rotation vectors with magnitude <= pi
+# random rotation vectors with magnitude <= pi
 q3 = 2 / np.sqrt(3) * np.pi * (np.random.rand(3) - 0.5)
-# test quaternions with magnitude <= 2
+# random quaternions with components |q4[i]| <= 2
 q4 = 4 * (np.random.rand(4) - 0.5)
 
-# A is used to test Log_SO3
+# transformation matrix to test Log_SO3
 A_test = Exp_SO3(q3)
 
-# all matrices should be orthogonal
+###############################
+# create parameters for tests #
+###############################
+# test for pair-wise orthogonality of basis vectors
 test_parameters_orthogonality = [
     [Exp_SO3, q3, cases_so3],
     [Exp_SO3_quat, q4, cases_quat],
 ]
 
-# is not supposed to work with non-normalized and non-unit quaternions
-idx_normality = np.array([0, 1, 2, 3, 5])
+# test for unit length of basis vectors
 test_parameters_normality = [
     [Exp_SO3, q3, cases_so3],
-    [Exp_SO3_quat, q4, cases_quat[idx_normality]],
+    [Exp_SO3_quat, q4, cases_quat],
 ]
 
-# all derivatives should work
+# test derivatives of Exp_SO3
 test_parameters_Exp_SO3_q = [
     [Exp_SO3, Exp_SO3_psi, q3, cases_so3],
-    [Exp_SO3_quat, Exp_SO3_quat_p, q4, cases_quat],
+    [Exp_SO3_quat, Exp_SO3_quat_P, q4, cases_quat],
 ]
 
-# all T_SO3 should work
+# test tangent operator T_SO3
 test_parameters_T_SO3 = [
     [Exp_SO3, Exp_SO3_psi, T_SO3, q3, cases_so3],
-    [Exp_SO3_quat, Exp_SO3_quat_p, T_SO3_quat, q4, cases_quat],
+    [Exp_SO3_quat, Exp_SO3_quat_P, T_SO3_quat, q4, cases_quat],
 ]
 
-# all T_SO3_inv should work
+# test matrix inverse of tangent operator T_SO3_inv
 test_parameters_T_SO3_inv = [
     [T_SO3, T_SO3_inv, q3, cases_so3],
     [T_SO3_quat, T_SO3_inv_quat, q4, cases_quat],
 ]
 
-# all T_SO3_q should work
+# test derivative of tangent operator T_SO3_q
 test_parameters_T_SO3_q = [
     [T_SO3, T_SO3_psi, q3, cases_so3],
     [T_SO3_quat, T_SO3_quat_P, q4, cases_quat],
 ]
 
-# all T_SO3_inv_q should work
+# test derivative of matrix inverse of tangent operator T_SO3_inv_q
 test_parameters_T_SO3_inv_q = [
     [T_SO3_inv, T_SO3_inv_psi, q3, cases_so3],
     [T_SO3_inv_quat, T_SO3_inv_quat_P, q4, cases_quat],
 ]
 
-# all Log_SO3 should work
+# test inverse function of exponential function Log_SO3
 test_parameters_Log_SO3 = [
     [Exp_SO3, Log_SO3, q3, cases_so3],
     [Exp_SO3_quat, Log_SO3_quat, q3, cases_quat],
 ]
 
-# no implementation of Log_SO3_A
+# test derivative of inverse function of Exp_SO3 (only available for rotation vectors)
 test_parameters_Log_SO3_A = [
     [Log_SO3, Log_SO3_A, A_test, cases_so3],
 ]
 
 
+########################################################
+# wrapper functions to always provide unit quaternions #
+########################################################
 # wrapper for the function to be called only with the parametrizing coordinates
 def wrapper(f, case):
     kwargs = case[0]
@@ -190,14 +197,16 @@ def test_T_SO3(A_fct, A_q_fct, T_fct, q, cases):
     # relation to check:
     # v = T_SO3(q) @ dq
     # ax2skew(v) = A.T @ dA
-    dq = np.random.rand(len(q))
+    dq = np.random.rand(len(q)) - 0.5
     for case in cases:
+        # dq_proj @ q = 0 for the case x / ||x||
+        dq_proj = case[1][1](q) @ dq
         T = wrapper(T_fct, case)(q)
-        v = T @ dq
+        v = T @ dq_proj
 
         A = wrapper(A_fct, case)(q)
         A_q = wrapper(A_q_fct, case)(q)
-        dA = A_q @ dq
+        dA = A_q @ dq_proj
         e = np.linalg.norm(v - skew2ax(A.T @ dA))
         assert np.isclose(
             e, 0
@@ -278,7 +287,4 @@ def test_Log_SO3_A(Log_fct, Log_fct_q, A, cases):
 
 if __name__ == "__main__":
     test_Exp_SO3_q(Exp_SO3, Exp_SO3_psi, q3, cases_so3)
-    test_Exp_SO3_q(Exp_SO3_quat, Exp_SO3_quat_p, q4, cases_quat)
-
-    test_Exp_SO3_q(T_SO3, T_SO3_psi, q3, cases_so3)
-    test_Exp_SO3_q(T_SO3_quat, T_SO3_quat_P, q4, cases_quat)
+    test_Exp_SO3_q(Exp_SO3_quat, Exp_SO3_quat_P, q4, cases_quat)

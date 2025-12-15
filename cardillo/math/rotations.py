@@ -548,53 +548,39 @@ def Exp_SO3_quat(P, normalize=True):
     """Exponential mapping defined by (unit) quaternion, see 
     Egeland2002 (6.163), Nuetzi2016 (3.31) and Rucker2018 (13).
 
+    normalize = True : normalizes P
+    normalize = False: assumes always ||P|| = 1
+
     References:
     -----------
     Egeland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf \\
     Nuetzi2016: https://www.research-collection.ethz.ch/handle/20.500.11850/117165 \\
     Rucker2018: https://ieeexplore.ieee.org/document/8392463
     """
-    p0, p = P[0, None], P[1:]
+    p0, p = P[0], P[1:]
+    matrix = 2 * (p0 * ax2skew(p) + ax2skew_squared(p))
     if normalize:
-        # Nuetzi2016 (3.31) and Rucker2018 (13)
-        P2 = P @ P
-        return eye3 + (2 / P2) * (p0 * ax2skew(p) + ax2skew_squared(p))
-    else:
-        # returns always an orthogonal matrix, but not necessary normalized,
-        # see Egeland2002 (6.163)
-        return (p0**2 - p @ p) * eye3 + np.outer(p, 2 * p) + 2 * p0 * ax2skew(p)
+        matrix /= P @ P
+    return eye3 + matrix
 
 
-def Exp_SO3_quat_p(P, normalize=True):
+def Exp_SO3_quat_P(P, normalize=True):
     """Derivative of Exp_SO3_quat with respect to P."""
-    p0, p = P[0, None], P[1:]
+    p0, p = P[0], P[1:]
     p_tilde = ax2skew(p)
     p_tilde_p = ax2skew_a()
-
+    matrix_P = np.zeros((3, 3, 4), dtype=P.dtype)
+    matrix_P[:, :, 0] = 2 * p_tilde
+    matrix_P[:, :, 1:] = 2 * (
+        p0 * p_tilde_p + (p_tilde_p @ p_tilde).T + p_tilde @ p_tilde_p.T
+    )
     if normalize:
-        P2 = P @ P
-        A_P = np.einsum(
-            "ij,k->ijk", p0 * p_tilde + ax2skew_squared(p), -(4 / (P2 * P2)) * P
-        )
-        s2 = 2 / P2
-        A_P[:, :, 0] += s2 * p_tilde
-        A_P[:, :, 1:] += (
-            s2 * p0 * p_tilde_p
-            + np.einsum("ijl,jk->ikl", p_tilde_p, s2 * p_tilde)
-            + np.einsum("ij,jkl->ikl", s2 * p_tilde, p_tilde_p)
-        )
-    else:
-        A_P = np.zeros((3, 3, 4), dtype=P.dtype)
-        A_P[:, :, 0] = 2 * p0 * eye3 + 2 * ax2skew(p)
-        A_P[:, :, 1:] = -np.multiply.outer(eye3, 2 * p) + 2 * p0 * ax2skew_a()
-        A_P[0, :, 1:] += 2 * p[0] * eye3
-        A_P[1, :, 1:] += 2 * p[1] * eye3
-        A_P[2, :, 1:] += 2 * p[2] * eye3
-        A_P[0, :, 1] += 2 * p
-        A_P[1, :, 2] += 2 * p
-        A_P[2, :, 3] += 2 * p
-
-    return A_P
+        P2_inv = 1 / (P @ P)
+        matrix_P *= P2_inv
+        # inner derivative due to normalization
+        matrix = 2 * (p0 * p_tilde + ax2skew_squared(p))
+        matrix_P += np.multiply.outer(matrix, -2 * P2_inv**2 * P)
+    return matrix_P
 
 
 Log_SO3_quat = Spurrier
@@ -607,11 +593,11 @@ def T_SO3_quat(P, normalize=True):
     -----------
     Egeland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf
     """
-    p0, p = P[0, None], P[1:]
+    p0, p = P[0], P[1:]
+    matrix = 2 * np.hstack((-p[:, None], p0 * eye3 - ax2skew(p)))
     if normalize:
-        return (2 / (P @ P)) * np.hstack((-p[:, None], p0 * eye3 - ax2skew(p)))
-    else:
-        return 2 * (P @ P) * np.hstack((-p[:, None], p0 * eye3 - ax2skew(p)))
+        matrix /= P @ P
+    return matrix
 
 
 def T_SO3_inv_quat(P, normalize=True):
@@ -625,50 +611,31 @@ def T_SO3_inv_quat(P, normalize=True):
     Nuetzi2016: https://www.research-collection.ethz.ch/handle/20.500.11850/117165 \\
     Rucker2018: https://ieeexplore.ieee.org/document/8392463
     """
-    p0, p = P[0, None], P[1:]
-    if normalize:
-        return 0.5 * np.vstack((-p.T, p0 * eye3 + ax2skew(p)))
-    else:
-        return 1 / (2 * (P @ P) ** 2) * np.vstack((-p.T, p0 * eye3 + ax2skew(p)))
+    p0, p = P[0], P[1:]
+    return np.vstack((-p, p0 * eye3 + ax2skew(p))) / 2
 
 
 def T_SO3_quat_P(P, normalize=True):
-    p0, p = P[0, None], P[1:]
-    P2 = P @ P
-    matrix = np.hstack((-p[:, None], p0 * eye3 - ax2skew(p)))
+    p0, p = P[0], P[1:]
+    T_P = np.zeros((3, 4, 4), dtype=float)
+    T_P[:, 0, 1:] = -2 * eye3
+    T_P[:, 1:, 0] = 2 * eye3
+    T_P[:, 1:, 1:] = -2 * ax2skew_a()
+
     if normalize:
-        factor = 2 / P2
-        factor_P = -4 * P / P2**2
-    else:
-        factor = 2 * P2
-        factor_P = 4 * P
-
-    T_P = np.multiply.outer(matrix, factor_P)
-    T_P[:, 0, 1:] -= factor * eye3
-    T_P[:, 1:, 0] += factor * eye3
-    T_P[:, 1:, 1:] -= factor * ax2skew_a()
-
+        P2_inv = 1 / (P @ P)
+        T_P *= P2_inv
+        # inner derivative due to normalization
+        matrix = 2 * np.hstack((-p[:, None], p0 * eye3 - ax2skew(p)))
+        T_P += np.multiply.outer(matrix, -2 * P2_inv**2 * P)
     return T_P
 
 
 def T_SO3_inv_quat_P(P, normalize=True):
-    if normalize:
-        T_inv_P = np.zeros((4, 3, 4), dtype=float)
-        T_inv_P[0, :, 1:] = -0.5 * eye3
-        T_inv_P[1:, :, 0] = 0.5 * eye3
-        T_inv_P[1:, :, 1:] = 0.5 * ax2skew_a()
-    else:
-        p0, p = P[0, None], P[1:]
-        P2 = P @ P
-        factor = 1 / (2 * P2**2)
-        factor_P = -2 / (P2**3) * P
-        matrix = np.vstack((-p.T, p0 * eye3 + ax2skew(p)))
-
-        T_inv_P = np.multiply.outer(matrix, factor_P)
-        T_inv_P[0, :, 1:] -= factor * eye3
-        T_inv_P[1:, :, 0] += factor * eye3
-        T_inv_P[1:, :, 1:] += factor * ax2skew_a()
-
+    T_inv_P = np.zeros((4, 3, 4), dtype=float)
+    T_inv_P[0, :, 1:] = -0.5 * eye3
+    T_inv_P[1:, :, 0] = 0.5 * eye3
+    T_inv_P[1:, :, 1:] = 0.5 * ax2skew_a()
     return T_inv_P
 
 
@@ -679,8 +646,8 @@ def quatprod(P, Q):
     -----------
     Egeland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf
     """
-    p0, p = P[0, None], P[1:]
-    q0, q = Q[0, None], Q[1:]
+    p0, p = P[0], P[1:]
+    q0, q = Q[0], Q[1:]
     z0 = p0 * q0 - p @ q
     z = p0 * q + q0 * p + cross3(p, q)
     return np.array([z0, *z])
