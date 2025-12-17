@@ -15,7 +15,7 @@ from cardillo.math import (
     T_SO3_quat,
     T_SO3_quat_P,
     Exp_SO3_quat,
-    Exp_SO3_quat_p,
+    Exp_SO3_quat_P,
     Log_SO3_quat,
     A_IB_basic,
 )
@@ -424,7 +424,7 @@ def make_CosseratRod_Quat(mixed=True, constraints=None):
             A_IB = Exp_SO3_quat(p, normalize=True)
 
             # derivative w.r.t. generalized coordinates
-            A_IB_qe = Exp_SO3_quat_p(p, normalize=True) @ p_qe
+            A_IB_qe = Exp_SO3_quat_P(p, normalize=True) @ p_qe
 
             # axial and shear strains
             B_Gamma_bar = A_IB.T @ r_OP_xi
@@ -572,8 +572,8 @@ def make_CosseratRod_SE3(mixed=True, constraints=None):
             A_IB1 = Exp_SO3_quat(p1)
             H_IK0 = SE3(A_IB0, r_OP0)
             H_IK1 = SE3(A_IB1, r_OP1)
-            A_IB0_p0 = Exp_SO3_quat_p(p0)
-            A_IB1_p1 = Exp_SO3_quat_p(p1)
+            A_IB0_p0 = Exp_SO3_quat_P(p0)
+            A_IB1_p1 = Exp_SO3_quat_P(p1)
 
             H_IK0_h0 = np.zeros((4, 4, 7), dtype=float)
             H_IK0_h0[:3, :3, 3:] = A_IB0_p0
@@ -761,7 +761,7 @@ def make_CosseratRod_R12(mixed=True, constraints=None):
                 nodalDOF_p = self.nodalDOF_element_p[node]
                 p_node = qe[nodalDOF_p]
                 A_IB_node = Exp_SO3_quat(p_node)
-                A_IB_q_node = Exp_SO3_quat_p(p_node)
+                A_IB_q_node = Exp_SO3_quat_P(p_node)
 
                 A_IB += N[node] * A_IB_node
                 A_IB_qe[:, :, nodalDOF_p] += N[node] * A_IB_q_node
@@ -828,7 +828,7 @@ def make_CosseratRod_R12(mixed=True, constraints=None):
             A_IB_q = np.zeros((3, 3, self.nq_element), dtype=qe.dtype)
             for node in range(self.nnodes_element_p):
                 nodalDOF_p = self.nodalDOF_element_p[node]
-                A_IB_q[:, :, nodalDOF_p] += N_p[node] * Exp_SO3_quat_p(qe[nodalDOF_p])
+                A_IB_q[:, :, nodalDOF_p] += N_p[node] * Exp_SO3_quat_P(qe[nodalDOF_p])
 
             return A_IB_q
 
