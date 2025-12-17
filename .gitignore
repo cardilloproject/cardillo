@@ -30,6 +30,7 @@ eggs/
 # exported data
 *.txt
 *.dat
+*.csv
 
 # videos
 *.mp4
