@@ -330,6 +330,8 @@ class MoreauCompliance:
     def __init__(self, system, t1, dt, theta=0.5, options=SolverOptions()):
         self.system = system
         self.options = options
+        assert 0 < theta <= 1, "theta must be in (0, 1]"
+        self.theta = theta
 
         self.fixed_point_n_iter_list = []
         self.fixed_point_absolute_errors = []
@@ -416,6 +418,8 @@ class MoreauCompliance:
     def step(self):
         # general quantities
         dt = self.dt
+        theta = self.theta
+        theta_inv = 1.0 / theta
         un = self.un
         tn1 = self.tn + dt
         self.tn12 = tn12 = self.tn + 0.5 * dt
@@ -437,10 +441,14 @@ class MoreauCompliance:
 
         # Build matrix A for computation of new velocities and bilateral constraint percussions
         # fmt: off
-        A = bmat([[         M, dt * W_c,  W_g, W_gamma], \
-                  [dt * W_c.T,   -2 * C, None,    None], \
-                  [     W_g.T,     None, None,    None], \
-                  [ W_gamma.T,     None, None,    None]], format="csc")
+        # A = bmat([[         M, dt * W_c,  W_g, W_gamma], \
+        #           [dt * W_c.T,   -2 * C, None,    None], \
+        #           [     W_g.T,     None, None,    None], \
+        #           [ W_gamma.T,     None, None,    None]], format="csc")
+        A = bmat([[         M,       dt * W_c,  W_g, W_gamma], \
+                  [dt * W_c.T, -theta_inv * C, None,    None], \
+                  [     W_g.T,           None, None,    None], \
+                  [ W_gamma.T,           None, None,    None]], format="csc")
         # fmt: on
 
         # perform LU decomposition only once since matrix A is constant in
@@ -450,10 +458,10 @@ class MoreauCompliance:
         # initial right hand side without contact forces
         b = np.concatenate(
             (
-                M @ un + dt * (h + W_tau @ la_tau),
-                -2 * C @ self.P_cn - dt * W_c.T @ un,
-                -W_g.T @ un - chi_g,
-                -W_gamma.T @ un - chi_gamma,
+                M @ un + dt * h + W_tau @ (dt * la_tau),
+                C @ (-theta_inv * self.P_cn) + W_c.T @ (-dt * (1 - theta) / theta * un),
+                W_g.T @ (-(1 - theta) / theta * un) - chi_g,
+                W_gamma.T @ (-(1 - theta) / theta * un) - chi_gamma,
             )
         )
 

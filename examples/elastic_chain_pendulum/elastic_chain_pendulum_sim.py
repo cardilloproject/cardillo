@@ -87,7 +87,7 @@ if __name__ == "__main__":
     # solver = DualStormerVerlet(
     #     system, t1, dt, options=SolverOptions(fixed_point_max_iter=50)
     # )
-    solver = MoreauCompliance(system, t1, dt)
+    solver = MoreauCompliance(system, t1, dt, theta=0.5)
     sol = solver.solve()  # simulate system
 
     ###############
