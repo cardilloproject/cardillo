@@ -7,7 +7,7 @@ from cardillo.forces import Force
 from cardillo.force_laws import KelvinVoigtElement as SpringDamper
 from cardillo.interactions import TwoPointInteraction
 from cardillo.solver import BackwardEuler, SolverOptions, save_solution
-from cardillo.solver import ScipyDAE, DualStormerVerlet
+from cardillo.solver import ScipyDAE, DualStormerVerlet, MoreauCompliance
 
 if __name__ == "__main__":
     ###################
@@ -28,7 +28,7 @@ if __name__ == "__main__":
     compliance_form = True  # use compliance formulation for force element, i.e., force is Lagrange multiplier la_c.
     # compliance_form = False
     t0 = 0  # initial time
-    t1 = 5  # final time
+    # t1 = 5  # final time
     t1 = 20
 
     #################
@@ -84,9 +84,10 @@ if __name__ == "__main__":
     #     system, t1, dt, options=SolverOptions(newton_max_iter=50)
     # )  # create solver
     # solver = ScipyDAE(system, t1, dt, atol=1e-3, rtol=1e-3)
-    solver = DualStormerVerlet(
-        system, t1, dt, options=SolverOptions(fixed_point_max_iter=50)
-    )
+    # solver = DualStormerVerlet(
+    #     system, t1, dt, options=SolverOptions(fixed_point_max_iter=50)
+    # )
+    solver = MoreauCompliance(system, t1, dt)
     sol = solver.solve()  # simulate system
 
     ###############
