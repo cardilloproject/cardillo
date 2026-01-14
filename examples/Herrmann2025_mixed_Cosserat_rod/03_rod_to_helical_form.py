@@ -67,13 +67,7 @@ def rod_to_helical_form(
         r_OP0=r_OP0,
         A_IB0=A_IB0,
     )
-    rod = Rod(
-        cross_section,
-        material_model,
-        nelements,
-        Q=q0,
-        q0=q0,
-    )
+    rod = Rod(cross_section, material_model, nelements, Q=q0)
 
     # left joint
     system = System()
@@ -100,7 +94,7 @@ def rod_to_helical_form(
     solver = Newton(
         system,
         n_load_steps=n_load_steps,
-        options=SolverOptions(newton_max_iter=30, newton_atol=atol),  # rtol=0,
+        options=SolverOptions(newton_max_iter=30, newton_atol=atol),  # rtol=0
     )
     sol = solver.solve()
 
@@ -229,5 +223,4 @@ if __name__ == "__main__":
         n_load_steps=90,
         show_plots=True,
         name="Rod to helical form",
-        save_stresses=True,
     )
