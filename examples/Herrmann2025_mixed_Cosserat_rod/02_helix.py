@@ -2,17 +2,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 from pathlib import Path
 import sys
-import warnings
 
 from cardillo import System
 from cardillo.constraints import RigidConnection
 from cardillo.forces import B_Moment
 from cardillo.math import e1, e3
-from cardillo.rods import (
-    CircularCrossSection,
-    animate_beam,
-    Simo1986,
-)
+from cardillo.rods import CircularCrossSection, animate_beam, Simo1986
 from cardillo.rods.cosseratRod import make_CosseratRod
 from cardillo.solver import Newton, SolverOptions
 

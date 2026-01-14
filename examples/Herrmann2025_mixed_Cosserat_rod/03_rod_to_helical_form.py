@@ -3,7 +3,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from pathlib import Path
 import sys
-import warnings
 
 from cardillo import System
 from cardillo.constraints import RigidConnection

@@ -2,18 +2,11 @@ from math import pi
 import matplotlib.pyplot as plt
 import numpy as np
 from pathlib import Path
-from warnings import warn
 
 from cardillo import System
 from cardillo.constraints import RigidConnection
 from cardillo.math import e2, e3, A_IB_basic
-from cardillo.math.approx_fprime import approx_fprime
-from cardillo.rods import (
-    CircularCrossSection,
-    RectangularCrossSection,
-    Simo1986,
-    RodMaterialModel,
-)
+from cardillo.rods import RectangularCrossSection, Simo1986, RodMaterialModel
 from cardillo.rods.force_line_distributed import Force_line_distributed
 from cardillo.rods.cosseratRod import make_CosseratRod
 from cardillo.solver import Newton, SolverOptions

@@ -8,11 +8,7 @@ from cardillo import System
 from cardillo.constraints import RigidConnection
 from cardillo.forces import Force
 from cardillo.math import e3, A_IB_basic
-from cardillo.rods import (
-    RectangularCrossSection,
-    animate_beam,
-    Simo1986,
-)
+from cardillo.rods import RectangularCrossSection, animate_beam, Simo1986
 from cardillo.rods.cosseratRod import make_CosseratRod
 from cardillo.solver import Newton, SolverOptions
 
