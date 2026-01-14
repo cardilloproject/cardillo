@@ -5,7 +5,6 @@ from pathlib import Path
 from cardillo import System
 from cardillo.constraints import Prismatic, RigidConnection
 from cardillo.discrete import Frame, RigidBody
-from cardillo.forces import Moment
 from cardillo.math import A_IB_basic
 from cardillo.rods import RectangularCrossSection, Simo1986, animate_beam
 from cardillo.rods.cosseratRod import make_CosseratRod

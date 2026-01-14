@@ -4,7 +4,7 @@ from pathlib import Path
 
 from cardillo import System
 from cardillo.constraints import RigidConnection
-from cardillo.forces import B_Force, B_Moment, Force, Moment
+from cardillo.forces import B_Moment, Force
 from cardillo.rods import RectangularCrossSection, Simo1986, animate_beam
 from cardillo.rods.cosseratRod import make_CosseratRod
 from cardillo.solver import Newton, SolverOptions

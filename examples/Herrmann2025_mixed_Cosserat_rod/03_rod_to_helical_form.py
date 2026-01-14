@@ -7,7 +7,7 @@ import sys
 from cardillo import System
 from cardillo.constraints import RigidConnection
 from cardillo.forces import Force, Moment
-from cardillo.math import e1, e2, e3
+from cardillo.math import e3
 from cardillo.rods import CircularCrossSection, Simo1986, animate_beam
 from cardillo.rods.cosseratRod import make_CosseratRod
 from cardillo.solver import Newton, SolverOptions
