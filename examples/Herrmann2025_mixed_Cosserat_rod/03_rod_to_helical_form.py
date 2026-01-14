@@ -150,7 +150,7 @@ def rod_to_helical_form(
             qe = q[i][rod.qDOF][qDOF_tip]
             delta_tip[3:, i] = rod.r_OP(t[i], qe, 1) - r_OP0_tip
 
-        fig.suptitle(f"Tip displacement {name}")
+        fig.suptitle(f"Tip displacement {plot_name}")
         ax.plot(delta_tip[0], delta_tip[3], "r-")
         ax.plot(delta_tip[0], delta_tip[4], "g-")
         ax.plot(delta_tip[0], delta_tip[5], "b-")
@@ -183,7 +183,7 @@ def rod_to_helical_form(
             stresses[1:, idx] = *B_n, *B_m
 
     fig2, ax2 = plt.subplots(2, 1)
-    fig2.suptitle(f"Stresses {name}")
+    fig2.suptitle(f"Stresses {plot_name}")
     for i in range(2):
         ax2[i].plot(stresses[0], stresses[3 * i + 1], "r")
         ax2[i].plot(stresses[0], stresses[3 * i + 2], "g")
