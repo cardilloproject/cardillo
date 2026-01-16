@@ -30,8 +30,6 @@ from cardillo.solver import (
 if __name__ == "__main__":
 
     nturns = 3  # number of coils
-    # nturns = 10  # number of coils
-    # nturns = 20  # number of coils Harsch2021
 
     # t1 = 20
     t1 = 5
@@ -44,11 +42,9 @@ if __name__ == "__main__":
     #######################
     # spring modeled as rod
     #######################
-    # polynomial_degree = 2
-    # elements_per_turn = 12
     polynomial_degree = 1
-    elements_per_turn = 30
-    # elements_per_turn = 40
+    elements_per_turn = 15
+    # elements_per_turn = 30
     nelements = int(elements_per_turn * nturns)
 
     Rod = make_CosseratRod(
@@ -65,16 +61,10 @@ if __name__ == "__main__":
     rho = 7850  # [kg / m^3]
     G = 81.5e9
     E = 206.0e9
-
-    # plastic
-    rho = 1150  # [kg / m^3]
-    G = 0.9e9
-    E = 2.4e9
     print(f"G: {G}; E: {E}")
 
     # 1mm cross sectional diameter
-    # wire_diameter = 1e-3
-    wire_diameter = 5e-3
+    wire_diameter = 1e-3
     wire_radius = wire_diameter / 2
 
     # helix parameter
@@ -128,17 +118,6 @@ if __name__ == "__main__":
     dcurve = lambda xi: dr(xi, phi0=np.pi)
     ddcurve = lambda xi: ddr(xi, phi0=np.pi)
 
-    # q0 = Rod.deformed_configuration(
-    #     nelements,
-    #     curve,
-    #     dcurve,
-    #     ddcurve,
-    #     xi1=1,
-    #     polynomial_degree=polynomial_degree,
-    #     r_OP0=np.zeros(3, dtype=float),
-    #     A_IB0=np.eye(3, dtype=float),
-    # )
-
     q0 = Rod.serret_frenet_configuration(
         nelements,
         curve,
@@ -162,74 +141,39 @@ if __name__ == "__main__":
     ##############
     # pendulum bob
     ##############
-    # R = 10e-3  # radius of the main cylinder
-    # h = 20e-3  # height of the main cylinder
     R = 25e-3  # radius of the main cylinder
     h = 34e-3  # height of the main cylinder
     density = 7850  # [kg / m^3]; steel
-    # density = rho  # match rod density
     r_OS0 = np.array([0, 0, -h / 2 - wire_radius])
     p0 = np.array([1, 0, 0, 0], dtype=float)
     q0 = np.concatenate((r_OS0, p0))
-    # mass_bob = 0.469
     mass_bob = density * R**2 * np.pi * h
-    # K_Theta_S_bob = np.diag([1.468e-4, 1.468e-4, 1.247e-4])
     bob = Cylinder(RigidBody)(radius=R, height=h, density=density, q0=q0)
-    # bob = RigidBody(mass_bob, K_Theta_S_bob, q0=q0)
 
     print(f"bob mass: {mass_bob}")
     print(f"bob B_Theta_C:\n{bob.B_Theta_C}")
-    # exit()
 
     system = System()
 
-    f_g_rod_statics = lambda t, xi: -t * A_rho0 * gravity * e3
-    gravity_rod_statics = Force_line_distributed(f_g_rod_statics, rod)
-    f_g_bob_statics = lambda t: -t * mass_bob * gravity * e3
-    gravity_bob_statics = Force(f_g_bob_statics, bob)
-
-    f_pulling = lambda t: -t * mass_bob * gravity * e3 * 0.3
-    pulling_force = Force(f_pulling, bob)
-
     joint1 = RigidConnection(system.origin, rod, xi2=1)
     joint2 = RigidConnection(bob, rod, xi2=0)
-
-    #####################
-    # assemble the system
-    #####################
-    # system.add(rod, joint1, force_rod)
-    system.add(
-        rod,
-        bob,
-        joint1,
-        joint2,
-        # gravity_rod_statics,
-        # gravity_bob_statics,
-        # pulling_force,
-    )
-    system.assemble()
-
-    # #####################
-    # # solve static system
-    # #####################
-    # n_load_steps = 4
-    # sol = Newton(
-    #     system,
-    #     n_load_steps=n_load_steps,
-    # ).solve()
-    # q = sol.q
-    # nt = len(q)
-    # t = sol.t[:nt]
-
-    # system.set_new_initial_state(q0=sol.q[-1], u0=sol.u[-1])
 
     f_g_rod = lambda t, xi: -A_rho0 * gravity * e3
     gravity_rod = Force_line_distributed(f_g_rod, rod)
     f_g_bob = lambda t: -mass_bob * gravity * e3
     gravity_bob = Force(f_g_bob, bob)
 
-    # system.remove(gravity_bob_statics, gravity_rod_statics, pulling_force)
-    system.add(gravity_bob, gravity_rod)
+    #####################
+    # assemble the system
+    #####################
+    system.add(
+        rod,
+        bob,
+        joint1,
+        joint2,
+        gravity_rod,
+        gravity_bob,
+    )
     system.assemble()
 
     solver = ScipyDAE(
@@ -249,20 +193,12 @@ if __name__ == "__main__":
     #     linear_solver="LU",
     #     accelerated=False,
     # )
-    # solver = Moreau(
+    # solver = MoreauCompliance(
     #     system,
-    #     t1=t1,
-    #     dt=1e-7,
+    #     t1,
+    #     dt=5e-4,
+    #     theta=0.55,
     # )
-    # t1 = 1e-2
-    solver = MoreauCompliance(
-        system,
-        t1,
-        # dt=1e-3,
-        # theta=0.55,
-        dt=1e-3,
-        theta=0.55,
-    )
 
     sol = solver.solve()
     q = sol.q
