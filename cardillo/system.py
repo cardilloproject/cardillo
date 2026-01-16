@@ -13,7 +13,7 @@ properties = []
 
 properties.extend(["E_kin", "E_pot"])
 
-properties.extend(["M", "Mu_q"])
+properties.extend(["M", "Mu_q", "G"])
 
 properties.extend(["h", "h_q", "h_u"])
 
@@ -400,6 +400,12 @@ class System:
         coo = CooMatrix((self.nu, self.nq))
         for contr in self.__Mu_q_contr:
             coo[contr.uDOF, contr.qDOF] = contr.Mu_q(t, q[contr.qDOF], u[contr.uDOF])
+        return coo.asformat(format)
+
+    def G(self, u, format="coo"):
+        coo = CooMatrix((self.nu, self.nu))
+        for contr in self.__G_contr:
+            coo[contr.uDOF, contr.uDOF] = contr.G(u[contr.uDOF])
         return coo.asformat(format)
 
     def h(self, t, q, u):

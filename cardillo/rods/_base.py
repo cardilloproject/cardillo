@@ -443,8 +443,13 @@ class CosseratRod_PetrovGalerkin(RodExportBase, ABC):
 
     def step_callback(self, t, q, u):
         """ "Quaternion normalization after each time step."""
+        p_prev = None
         for node in range(self.nnodes_p):
             p = q[self.nodalDOF_p[node]]
+            if node > 0:
+                if p_prev.dot(p) < 0.0:
+                    p *= -1
+            p_prev = p.copy()
             q[self.nodalDOF_p[node]] = p / norm(p)
         return q, u
 

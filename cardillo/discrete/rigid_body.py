@@ -120,17 +120,24 @@ class RigidBody:
     def M(self, t, q):
         return self.__M
 
-    def h(self, t, q, u):
+    def G(self, u):
+        G = np.zeros((6, 6))
         omega = u[3:]
-        f = np.zeros(self.nu, dtype=np.common_type(q, u))
-        f[3:] = -cross3(omega, self.B_Theta_C @ omega)
-        return f
+        A = 0.5 * (ax2skew(self.B_Theta_C @ omega) - ax2skew(omega) @ self.B_Theta_C)
+        G[3:, 3:] = A
+        return G
 
-    def h_u(self, t, q, u):
-        omega = u[3:]
-        h_u = np.zeros((self.nu, self.nu), dtype=np.common_type(q, u))
-        h_u[3:, 3:] = ax2skew(self.B_Theta_C @ omega) - ax2skew(omega) @ self.B_Theta_C
-        return h_u
+    # def h(self, t, q, u):
+    #     omega = u[3:]
+    #     f = np.zeros(self.nu, dtype=np.common_type(q, u))
+    #     f[3:] = -cross3(omega, self.B_Theta_C @ omega)
+    #     return f
+
+    # def h_u(self, t, q, u):
+    #     omega = u[3:]
+    #     h_u = np.zeros((self.nu, self.nu), dtype=np.common_type(q, u))
+    #     h_u[3:, 3:] = ax2skew(self.B_Theta_C @ omega) - ax2skew(omega) @ self.B_Theta_C
+    #     return h_u
 
     #####################################################
     # stabilization conditions for the kinematic equation
