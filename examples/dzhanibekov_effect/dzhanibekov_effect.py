@@ -3,9 +3,9 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 import trimesh
 
-from cardillo.discrete import RigidBody, Meshed
+from cardillo.discrete import RigidBody, Meshed, RigidBodyDirector
 from cardillo.system import System
-from cardillo.solver import Rattle
+from cardillo.solver import Rattle, MoreauCompliance
 
 
 if __name__ == "__main__":
@@ -17,7 +17,11 @@ if __name__ == "__main__":
     r_OC0 = np.zeros(3)
     v_C0 = np.zeros(3)
     phi_dot0 = 20
-    B_Omega_disturbance = np.array((1e-10, 0, 0))  # disturbance is required
+    B_Omega_disturbance = np.array((1e-10, 0, 1e-10))  # disturbance is required
+    # B_Omega_disturbance = np.array((0, 1e-10, 0))  # disturbance is required
+    # B_Omega_disturbance = np.array((0, 0, 1e-10))  # disturbance is required
+    # B_Omega0 = np.array((0, 0, phi_dot0)) + B_Omega_disturbance
+    # B_Omega0 = np.array((0, phi_dot0, 0)) + B_Omega_disturbance
     B_Omega0 = np.array((0, 0, phi_dot0)) + B_Omega_disturbance
 
     # simulation parameters
@@ -41,9 +45,21 @@ if __name__ == "__main__":
     mass = mesh.mass
     B_Theta_C = mesh.moment_inertia
 
-    q0 = RigidBody.pose2q(r_OC0, np.eye(3))
-    u0 = np.hstack([v_C0, B_Omega0])
-    screwdriver = Meshed(RigidBody)(
+    # q0 = RigidBody.pose2q(r_OC0, np.eye(3))
+    # u0 = np.hstack([v_C0, B_Omega0])
+    # screwdriver = Meshed(RigidBody)(
+    #     mesh_obj=mesh,
+    #     B_r_CP=-B_r_PC,
+    #     A_BM=np.eye(3),
+    #     mass=mass,
+    #     B_Theta_C=B_Theta_C,
+    #     q0=q0,
+    #     u0=u0,
+    #     name="screwdriver",
+    # )
+    q0 = RigidBodyDirector.pose2q(r_OC0, np.eye(3))
+    u0 = RigidBodyDirector.velocity2u(v_C0, B_Omega0, np.eye(3))
+    screwdriver = Meshed(RigidBodyDirector)(
         mesh_obj=mesh,
         B_r_CP=-B_r_PC,
         A_BM=np.eye(3),
@@ -61,8 +77,10 @@ if __name__ == "__main__":
     ############
     # simulation
     ############
+    # t1 = 50
     dt = 1e-2  # time step
-    solver = Rattle(system, t1, dt)  # create solver
+    # solver = Rattle(system, t1, dt)  # create solver
+    solver = MoreauCompliance(system, t1, dt, theta=0.5)
     sol = solver.solve()  # simulate system
 
     # read solution

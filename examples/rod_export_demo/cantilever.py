@@ -4,17 +4,20 @@ import numpy as np
 from pathlib import Path
 
 from cardillo import System
-from cardillo.constraints import RigidConnection
+from cardillo.discrete import Frame
+from cardillo.constraints import RigidConnection, Spherical
 from cardillo.forces import B_Moment, Force
 from cardillo.math import e2, e3
 from cardillo.rods import (
     CircularCrossSection,
     RectangularCrossSection,
     Simo1986,
+    animate_beam,
 )
 from cardillo.rods.cosseratRod import (
     make_CosseratRod,
 )
+from cardillo.rods._director import make_CosseratRodDirectorBubnovGalerkin
 from cardillo.solver import Newton, SolverOptions
 from cardillo.utility.sensor import Sensor, SensorRecords
 
@@ -79,14 +82,19 @@ def cantilever(
     ##########
     # clamping
     ##########
-    clamping = RigidConnection(system.origin, cantilever, xi2=0)
-    system.add(cantilever, clamping)
-    markers = [
-        Sensor(cantilever, xi=0.0, name="sensor_start"),
-        Sensor(cantilever, xi=0.5, name="sensor_middle"),
-        Sensor(cantilever, xi=1.0, name="sensor_end"),
-    ]
-    system.add(*markers)
+    # clamping = RigidConnection(system.origin, cantilever, xi2=0)
+    # system.add(cantilever, clamping)
+    # markers = [
+    #     Sensor(cantilever, xi=0.0, name="sensor_start"),
+    #     Sensor(cantilever, xi=0.5, name="sensor_middle"),
+    #     Sensor(cantilever, xi=1.0, name="sensor_end"),
+    # ]
+    # system.add(*markers)
+    clamping_left = Spherical(system.origin, cantilever, np.zeros(3), xi2=0)
+    r_OP = np.array([length, 0.0, 0.0])
+    frame = Frame(r_OP=r_OP)
+    clamping_right = Spherical(frame, cantilever, r_OP, xi2=1)
+    system.add(cantilever, frame, clamping_left, clamping_right)
 
     ###############
     # applied loads
@@ -100,99 +108,110 @@ def cantilever(
     elif load_type == "constant_end_load":
         # spatially fixed load at cantilever tip
         P = lambda t: material_model.Fi[2] * (10 * t) / length**2
-        F = lambda t: -P(t) * e2
+        F = lambda t: -P(t) * e2 * 0.1
         force = Force(F, cantilever, 3 / 4)
         system.add(force)
     else:
         raise NotImplementedError
 
     # assemble system
-    system.assemble()
+    system.assemble(options=SolverOptions(compute_consistent_initial_conditions=False))
 
     ############
     # simulation
     ############
-    solver = Newton(system, n_load_steps=n_load_steps)  # create solver
+    options = SolverOptions(
+        numerical_jacobian_method="2-point",
+    )
+    solver = Newton(system, n_load_steps=n_load_steps, options=options)  # create solver
     sol = solver.solve()  # solve static equilibrium equations
+
+    # animation
+    t = sol.t
+    q = sol.q
+    animate_beam(t, q, [cantilever], scale=length)
 
     #################
     # post-processing
     #################
 
-    # VTK export
-    dir_name = Path(__file__).parent
-    records = [SensorRecords.r_OP, SensorRecords.A_IB]
-    [m.save(dir_name, "csv", sol, records) for m in markers]
-    if VTK_export:
-        from copy import deepcopy
+    # # VTK export
+    # dir_name = Path(__file__).parent
+    # records = [SensorRecords.r_OP, SensorRecords.A_IB]
+    # [m.save(dir_name, "csv", sol, records) for m in markers]
+    # if VTK_export:
+    #     from copy import deepcopy
 
-        # export with rectangular cross-section
-        rod_volume_rectangular = deepcopy(cantilever)
-        rod_volume_rectangular.name = "cantilever_volume_rectangular"
-        rod_volume_rectangular._export_dict["level"] = "volume"
-        rod_volume_rectangular._export_dict["stresses"] = True
-        rod_volume_rectangular._export_dict["volume_directors"] = True
-        system.add(rod_volume_rectangular)
+    #     # export with rectangular cross-section
+    #     rod_volume_rectangular = deepcopy(cantilever)
+    #     rod_volume_rectangular.name = "cantilever_volume_rectangular"
+    #     rod_volume_rectangular._export_dict["level"] = "volume"
+    #     rod_volume_rectangular._export_dict["stresses"] = True
+    #     rod_volume_rectangular._export_dict["volume_directors"] = True
+    #     system.add(rod_volume_rectangular)
 
-        # export with circular cross-section (hexagonal cells)
-        rod_volume_circle = deepcopy(cantilever)
-        rod_volume_circle.name = "cantilever_volume_circle"
-        rod_volume_circle.cross_section = cross_section_circle
-        rod_volume_circle._export_dict["level"] = "volume"
-        rod_volume_circle._export_dict["stresses"] = True
-        rod_volume_circle._export_dict["volume_directors"] = True
-        rod_volume_circle._export_dict["surface_normals"] = True
-        system.add(rod_volume_circle)
+    #     # export with circular cross-section (hexagonal cells)
+    #     rod_volume_circle = deepcopy(cantilever)
+    #     rod_volume_circle.name = "cantilever_volume_circle"
+    #     rod_volume_circle.cross_section = cross_section_circle
+    #     rod_volume_circle._export_dict["level"] = "volume"
+    #     rod_volume_circle._export_dict["stresses"] = True
+    #     rod_volume_circle._export_dict["volume_directors"] = True
+    #     rod_volume_circle._export_dict["surface_normals"] = True
+    #     system.add(rod_volume_circle)
 
-        # export with circular cross-section (wedge cells)
-        rod_volume_circle_wedge = deepcopy(cantilever)
-        rod_volume_circle_wedge.name = "cantilever_volume_circle_wedge"
-        rod_volume_circle_wedge.cross_section = cross_section_circle_wedge
-        rod_volume_circle_wedge._export_dict["level"] = "volume"
-        rod_volume_circle_wedge._export_dict["stresses"] = True
-        rod_volume_circle_wedge._export_dict["volume_directors"] = True
-        rod_volume_circle_wedge._export_dict["surface_normals"] = True
-        system.add(rod_volume_circle_wedge)
+    #     # export with circular cross-section (wedge cells)
+    #     rod_volume_circle_wedge = deepcopy(cantilever)
+    #     rod_volume_circle_wedge.name = "cantilever_volume_circle_wedge"
+    #     rod_volume_circle_wedge.cross_section = cross_section_circle_wedge
+    #     rod_volume_circle_wedge._export_dict["level"] = "volume"
+    #     rod_volume_circle_wedge._export_dict["stresses"] = True
+    #     rod_volume_circle_wedge._export_dict["volume_directors"] = True
+    #     rod_volume_circle_wedge._export_dict["surface_normals"] = True
+    #     system.add(rod_volume_circle_wedge)
 
-        # export only nodal quantities for fast export (rectangle)
-        rod_NodalVolume = deepcopy(cantilever)
-        rod_NodalVolume.name = "cantilever_NodalVolume"
-        rod_NodalVolume._export_dict["level"] = "NodalVolume"
-        system.add(rod_NodalVolume)
+    #     # export only nodal quantities for fast export (rectangle)
+    #     rod_NodalVolume = deepcopy(cantilever)
+    #     rod_NodalVolume.name = "cantilever_NodalVolume"
+    #     rod_NodalVolume._export_dict["level"] = "NodalVolume"
+    #     system.add(rod_NodalVolume)
 
-        # export only nodal quantities for fast export (circle)
-        rod_NodalVolume_circle = deepcopy(cantilever)
-        rod_NodalVolume_circle.cross_section = cross_section_circle
-        rod_NodalVolume_circle.name = "cantilever_NodalVolume_circle"
-        rod_NodalVolume_circle._export_dict["level"] = "NodalVolume"
-        system.add(rod_NodalVolume_circle)
+    #     # export only nodal quantities for fast export (circle)
+    #     rod_NodalVolume_circle = deepcopy(cantilever)
+    #     rod_NodalVolume_circle.cross_section = cross_section_circle
+    #     rod_NodalVolume_circle.name = "cantilever_NodalVolume_circle"
+    #     rod_NodalVolume_circle._export_dict["level"] = "NodalVolume"
+    #     system.add(rod_NodalVolume_circle)
 
-        # export only nodal quantities for fast export (circle as wedge)
-        rod_NodalVolume_circle_wedge = deepcopy(cantilever)
-        rod_NodalVolume_circle_wedge.cross_section = cross_section_circle_wedge
-        rod_NodalVolume_circle_wedge.name = "cantilever_NodalVolume_circle_wedge"
-        rod_NodalVolume_circle_wedge._export_dict["level"] = "NodalVolume"
-        system.add(rod_NodalVolume_circle_wedge)
+    #     # export only nodal quantities for fast export (circle as wedge)
+    #     rod_NodalVolume_circle_wedge = deepcopy(cantilever)
+    #     rod_NodalVolume_circle_wedge.cross_section = cross_section_circle_wedge
+    #     rod_NodalVolume_circle_wedge.name = "cantilever_NodalVolume_circle_wedge"
+    #     rod_NodalVolume_circle_wedge._export_dict["level"] = "NodalVolume"
+    #     system.add(rod_NodalVolume_circle_wedge)
 
-        # export only centerline & directors
-        cantilever.name = "cantilever"
-        cantilever._export_dict["level"] = "centerline + directors"
-        # this rod is already in the system
+    #     # export only centerline & directors
+    #     cantilever.name = "cantilever"
+    #     cantilever._export_dict["level"] = "centerline + directors"
+    #     # this rod is already in the system
 
-        # add rods and export
-        system.export(dir_name, f"vtk/{save_name}", sol)
+    #     # add rods and export
+    #     system.export(dir_name, f"vtk/{save_name}", sol)
 
 
 if __name__ == "__main__":
     cantilever(
         # Rod=make_CosseratRod(interpolation="SE3", mixed=True, constraints=[0, 1, 2]),
         # Rod=make_CosseratRod(interpolation="R12", mixed=True, constraints=[0, 1, 2]),
-        Rod=make_CosseratRod(
-            mixed=True, polynomial_degree=1
-        ),  # , constraints=[0, 1, 2]),
+        # Rod=make_CosseratRod(
+        #     mixed=True, polynomial_degree=1
+        # ),  # , constraints=[0, 1, 2]),
+        Rod=make_CosseratRodDirectorBubnovGalerkin(
+            polynomial_degree=1,
+        ),
         # load_type="moment",
         load_type="constant_end_load",
-        nelements=4,
+        nelements=20,
         VTK_export=True,
         name="Cosserat mixed",
     )
