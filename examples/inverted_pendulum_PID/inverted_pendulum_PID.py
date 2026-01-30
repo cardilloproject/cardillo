@@ -12,7 +12,6 @@ from cardillo.forces import Force
 from cardillo.math import A_IB_basic, cross3, smoothstep2
 from cardillo.solver import ScipyIVP, ScipyDAE
 
-
 if __name__ == "__main__":
     ############
     # parameters

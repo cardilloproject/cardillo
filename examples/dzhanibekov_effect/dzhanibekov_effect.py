@@ -7,7 +7,6 @@ from cardillo.discrete import RigidBody, Meshed
 from cardillo.system import System
 from cardillo.solver import Rattle
 
-
 if __name__ == "__main__":
     ############
     # parameters
