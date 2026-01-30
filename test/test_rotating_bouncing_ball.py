@@ -20,6 +20,7 @@ class RotatingBouncingBall:
         self.radius = radius
         self.Theta_S = 2 / 5 * mass * radius**2
         self.gravity = gravity
+        self.constant_mass_matrix = True
 
         self.nq = 3
         self.nu = 3

@@ -28,6 +28,7 @@ class ActuatedPendulum:
         self.ntau = 1
 
         self._M = (m * (l**2) * (1 / 4 + 1 / 12)) * np.eye(1)
+        self.constant_mass_matrix = True
 
     def q_dot(self, t, q, u):
         return u

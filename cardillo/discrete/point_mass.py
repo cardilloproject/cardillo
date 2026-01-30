@@ -33,6 +33,7 @@ class PointMass:
 
         self.mass = mass
         self.__M = mass * np.eye(3)
+        self.constant_mass_matrix = True
 
         self.name = name
 
