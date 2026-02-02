@@ -472,7 +472,7 @@ class MoreauCompliance:
         #           [    W_c.T, -2 / dt**2 * C, None,    None], \
         #           [    W_g.T,           None, None,    None], \
         #           [W_gamma.T,           None, None,    None]], format="csc")
-        A = bmat([[ M -dt * G,       dt * W_c,  W_g, W_gamma], \
+        A = bmat([[M - dt * G,       dt * W_c,  W_g, W_gamma], \
                   [dt * W_c.T, -theta_inv * C, None,    None], \
                   [     W_g.T,           None, None,    None], \
                   [ W_gamma.T,           None, None,    None]], format="csc")

@@ -8,7 +8,7 @@ from cardillo.discrete import RigidBody, Frame, Cylinder, Box
 from cardillo.math import axis_angle2quat, e1, e2, e3, cross3, norm, A_IB_basic
 from cardillo.math.approx_fprime import approx_fprime
 from cardillo.forces import Force
-from cardillo.solver import ScipyIVP, Rattle, DualStormerVerlet, MoreauCompliance
+from cardillo.solver import ScipyIVP, Rattle, DualStormerVerlet, MoreauCompliance, Moreau
 
 
 class RollingCondition:
@@ -299,6 +299,7 @@ if __name__ == "__main__":
     # sol = Rattle(system, t1, dt).solve()
     # sol = DualStormerVerlet(system, t1, dt).solve()
     sol = MoreauCompliance(system, t1, dt, theta=0.5).solve()
+    # sol = Moreau(system, t1, dt).solve()
 
     # read solution
     t = sol.t  # time
