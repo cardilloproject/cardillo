@@ -18,6 +18,8 @@ class Truss2D:
         self.u0 = np.zeros(self.nu)
         self.q0 = np.array([phi0])
 
+        self.constant_mass_matrix = True
+
     def M(self, t, q):
         return np.eye(self.nu)
 

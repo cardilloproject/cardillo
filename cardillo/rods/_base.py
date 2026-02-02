@@ -616,6 +616,7 @@ class CosseratRod_PetrovGalerkin(RodExportBase, ABC):
 
     def _M_coo(self):
         """ "Mass matrix is called in assembler callback."""
+        self.constant_mass_matrix = True
         self.__M = CooMatrix((self.nu, self.nu))
         for el in range(self.nelement):
             # extract element degrees of freedom

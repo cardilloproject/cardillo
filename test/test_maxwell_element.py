@@ -16,6 +16,7 @@ class MaxwellElement:
 
     def __init__(self, mass, stiffness, damping, l0, q0, u0):
         self.mass = mass
+        self.constant_mass_matrix = True
         self.stiffness = stiffness
         self.damping = damping
         self.l0 = l0
@@ -64,6 +65,7 @@ class MaxwellElementCompliance:
     """Pointmass connected with Maxwell element to origin."""
 
     def __init__(self, mass, stiffness, damping, l0, q0, u0, la_c0):
+        self.constant_mass_matrix = True
         self.mass = mass
         self.stiffness = stiffness
         self.damping = damping

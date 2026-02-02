@@ -4,7 +4,6 @@ import numpy as np
 from pathlib import Path
 from warnings import warn
 
-
 SensorRecords = Enum(
     "Sensor records", ["r_OP", "A_IB", "ex_B", "ey_B", "ez_B", "v_P", "B_Omega"]
 )

@@ -18,7 +18,6 @@ from cardillo.rods.cosseratRod import (
 from cardillo.solver import Newton, SolverOptions
 from cardillo.utility.sensor import Sensor, SensorRecords
 
-
 """ Derived cantilever beam example. 
 Purpose is to show the different exports. And to be an example how to define the export of rods.
 """

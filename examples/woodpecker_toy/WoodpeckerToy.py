@@ -23,6 +23,7 @@ class WoodpeckerToy:
         self.J_M = 5e-9  # kg m2
         self.m_S = 0.0045  # kg
         self.J_C = 7e-7  # kg m2
+        self.constant_mass_matrix = True
 
         # dynamics
         self.c_phi = 0.0056  # Nm / rad

@@ -11,6 +11,7 @@ class JenkinsElement:
     def __init__(self, force, mass, stiffness, yieldstress, l0, q0, u0):
         self.force = force
         self.mass = mass
+        self.constant_mass_matrix = True
         self.stiffness = stiffness
         self.yieldstress = yieldstress
         self.l0 = l0

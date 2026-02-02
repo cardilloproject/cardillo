@@ -12,7 +12,6 @@ from cardillo.rods import CircularCrossSection, Simo1986, animate_beam
 from cardillo.rods.cosseratRod import make_CosseratRod
 from cardillo.solver import Newton, SolverOptions
 
-
 # On the choice of finite rotation parameters
 # https://doi.org/10.1016/S0045-7825(97)00059-5
 # Adnan Ibrahimbegovic

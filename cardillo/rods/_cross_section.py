@@ -9,7 +9,6 @@ from vtk import (
     VTK_LAGRANGE_WEDGE,
 )
 
-
 vtk_types = IntEnum(
     "VTK_TYPES",
     [("Hexahedron", 0), ("Wedge", 1)],

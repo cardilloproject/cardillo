@@ -11,7 +11,6 @@ from cardillo.rods.force_line_distributed import Force_line_distributed
 from cardillo.contacts import Sphere2Plane
 from cardillo.solver import SolverOptions, Moreau, DualStormerVerlet
 
-
 nelements = 5
 polynomial_degree = 1
 length = 2 * np.pi

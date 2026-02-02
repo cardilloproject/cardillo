@@ -9,6 +9,7 @@ from cardillo.solver import Moreau, BackwardEuler
 class FrictionBelt:
     def __init__(self, q0, u0):
         self.mass = 1
+        self.constant_mass_matrix = True
         self.gravity = 10
         self.la_N = self.mass * self.gravity
         self.stiffness = 1
