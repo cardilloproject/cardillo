@@ -37,7 +37,7 @@ functions = [
         "x"
     ),
     (
-        lambda x: x / np.linalg.norm(x),
+        lambda x: x / np.sqrt(x @ x),
         lambda x: 1 / np.sqrt(x @ x) * (np.eye(len(x), dtype=x.dtype) - np.outer(x, x) / (x @ x)),
         "x/||x||"
     ),
@@ -62,8 +62,10 @@ cases_so3 = [
 
 # random rotation vectors with magnitude <= pi
 q3 = 2 / np.sqrt(3) * np.pi * (np.random.rand(3) - 0.5)
+q3_int = np.random.randint(1, 20, size=3)
 # random quaternions with components |q4[i]| <= 2
 q4 = 4 * (np.random.rand(4) - 0.5)
+q4_int = np.random.randint(1, 20, size=4)
 
 # transformation matrix to test Log_SO3
 A_test = Exp_SO3(q3)
@@ -74,43 +76,57 @@ A_test = Exp_SO3(q3)
 # test for pair-wise orthogonality of basis vectors
 test_parameters_orthogonality = [
     [Exp_SO3, q3, cases_so3],
+    [Exp_SO3, q3_int, cases_so3],
     [Exp_SO3_quat, q4, cases_quat],
+    [Exp_SO3_quat, q4_int, cases_quat],
 ]
 
 # test for unit length of basis vectors
 test_parameters_normality = [
     [Exp_SO3, q3, cases_so3],
+    [Exp_SO3, q3_int, cases_so3],
     [Exp_SO3_quat, q4, cases_quat],
+    [Exp_SO3_quat, q4_int, cases_quat],
 ]
 
 # test derivatives of Exp_SO3
 test_parameters_Exp_SO3_q = [
     [Exp_SO3, Exp_SO3_psi, q3, cases_so3],
+    [Exp_SO3, Exp_SO3_psi, q3_int, cases_so3],
     [Exp_SO3_quat, Exp_SO3_quat_P, q4, cases_quat],
+    [Exp_SO3_quat, Exp_SO3_quat_P, q4_int, cases_quat],
 ]
 
 # test tangent operator T_SO3
 test_parameters_T_SO3 = [
     [Exp_SO3, Exp_SO3_psi, T_SO3, q3, cases_so3],
+    [Exp_SO3, Exp_SO3_psi, T_SO3, q3_int, cases_so3],
     [Exp_SO3_quat, Exp_SO3_quat_P, T_SO3_quat, q4, cases_quat],
+    [Exp_SO3_quat, Exp_SO3_quat_P, T_SO3_quat, q4_int, cases_quat],
 ]
 
 # test matrix inverse of tangent operator T_SO3_inv
 test_parameters_T_SO3_inv = [
     [T_SO3, T_SO3_inv, q3, cases_so3],
+    [T_SO3, T_SO3_inv, q3_int, cases_so3],
     [T_SO3_quat, T_SO3_inv_quat, q4, cases_quat],
+    [T_SO3_quat, T_SO3_inv_quat, q4_int, cases_quat],
 ]
 
 # test derivative of tangent operator T_SO3_q
 test_parameters_T_SO3_q = [
     [T_SO3, T_SO3_psi, q3, cases_so3],
+    [T_SO3, T_SO3_psi, q3_int, cases_so3],
     [T_SO3_quat, T_SO3_quat_P, q4, cases_quat],
+    [T_SO3_quat, T_SO3_quat_P, q4_int, cases_quat],
 ]
 
 # test derivative of matrix inverse of tangent operator T_SO3_inv_q
 test_parameters_T_SO3_inv_q = [
     [T_SO3_inv, T_SO3_inv_psi, q3, cases_so3],
+    [T_SO3_inv, T_SO3_inv_psi, q3_int, cases_so3],
     [T_SO3_inv_quat, T_SO3_inv_quat_P, q4, cases_quat],
+    [T_SO3_inv_quat, T_SO3_inv_quat_P, q4_int, cases_quat],
 ]
 
 # test inverse function of exponential function Log_SO3
@@ -146,7 +162,8 @@ def wrapper_chain_rule(f_deriv, case):
 # function to test derivatives
 def derivative_test(f, f_x, x, case):
     A_q = wrapper_chain_rule(f_x, case)(x)
-    A_q_num = approx_fprime(x, wrapper(f, case), method="3-point")
+    # A_q_num = approx_fprime(x, wrapper(f, case), method="3-point")
+    A_q_num = approx_fprime(x, wrapper(f, case), method="cs")
     e = np.linalg.norm(A_q - A_q_num)
     assert np.isclose(
         e, 0, atol=1e-7

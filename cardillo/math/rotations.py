@@ -42,7 +42,7 @@ def Exp_SO3_psi(psi: np.ndarray) -> np.ndarray:
     """
     angle = norm(psi)
 
-    A_psi = np.zeros((3, 3, 3), dtype=psi.dtype)
+    A_psi = np.zeros((3, 3, 3), dtype=np.result_type(psi, 1.0))
     if angle > angle_singular:
         angle2 = angle * angle
         sa = np.sin(angle)
@@ -105,7 +105,7 @@ def Log_SO3(A: np.ndarray) -> np.ndarray:
         A[2, 1] - A[1, 2],
         A[0, 2] - A[2, 0],
         A[1, 0] - A[0, 1]
-    ], dtype=A.dtype)
+    ], dtype=np.result_type(A, 1.0))
     # fmt: on
 
     if angle > angle_singular and angle < np.pi:
@@ -124,7 +124,7 @@ def Log_SO3_A(A: np.ndarray) -> np.ndarray:
     ca = np.clip(ca, -1, 1)  # clip to [-1, 1] for arccos!
     angle = np.arccos(ca)
 
-    psi_A = np.zeros((3, 3, 3), dtype=A.dtype)
+    psi_A = np.zeros((3, 3, 3), dtype=np.result_type(A, 1.0))
     if angle > angle_singular and angle < np.pi:
         sa = np.sin(angle)
         b = 0.5 * angle / sa
@@ -134,7 +134,7 @@ def Log_SO3_A(A: np.ndarray) -> np.ndarray:
             A[2, 1] - A[1, 2],
             A[0, 2] - A[2, 0],
             A[1, 0] - A[0, 1]
-        ], dtype=A.dtype)
+        ], dtype=np.result_type(A, 1.0))
         # fmt: on
 
         psi_A[0, 0, 0] = psi_A[0, 1, 1] = psi_A[0, 2, 2] = a[0]
@@ -169,7 +169,7 @@ def T_SO3(psi: np.ndarray) -> np.ndarray:
 
 
 def T_SO3_psi(psi: np.ndarray) -> np.ndarray:
-    T_SO3_psi = np.zeros((3, 3, 3), dtype=float)
+    T_SO3_psi = np.zeros((3, 3, 3), dtype=np.result_type(psi, 1.0))
 
     angle = norm(psi)
     if angle > angle_singular:
@@ -263,7 +263,7 @@ def T_SO3_inv(psi: np.ndarray) -> np.ndarray:
 
 
 def T_SO3_inv_psi(psi: np.ndarray) -> np.ndarray:
-    T_SO3_inv_psi = np.zeros((3, 3, 3), dtype=psi.dtype)
+    T_SO3_inv_psi = np.zeros((3, 3, 3), dtype=np.result_type(psi, 1.0))
 
     #################
     # 0.5 * psi_tilde
@@ -316,7 +316,7 @@ def Exp_SE3(h: np.ndarray) -> np.ndarray:
     r = h[:3]
     psi = h[3:]
 
-    H = np.zeros((4, 4), dtype=h.dtype)
+    H = np.zeros((4, 4), dtype=np.result_type(h, 1.0))
     H[:3, :3] = Exp_SO3(psi)
     H[:3, 3] = T_SO3(psi).T @ r
     H[3, 3] = 1.0
@@ -328,7 +328,7 @@ def Exp_SE3_h(h: np.ndarray) -> np.ndarray:
     r = h[:3]
     psi = h[3:]
 
-    H_h = np.zeros((4, 4, 6), dtype=h.dtype)
+    H_h = np.zeros((4, 4, 6), dtype=np.result_type(h, 1.0))
     H_h[:3, :3, 3:] = Exp_SO3_psi(psi)
     H_h[:3, 3, 3:] = np.einsum("l,lik->ik", r, T_SO3_psi(psi))
     H_h[:3, 3, :3] = T_SO3(psi).T
@@ -348,7 +348,7 @@ def Log_SE3_H(H: np.ndarray) -> np.ndarray:
     r = H[:3, 3]
     psi = Log_SO3(A)
     psi_A = Log_SO3_A(A)
-    h_H = np.zeros((6, 4, 4), dtype=H.dtype)
+    h_H = np.zeros((6, 4, 4), dtype=np.result_type(H, 1.0))
     h_H[:3, :3, :3] = np.einsum("l,lim,mjk", r, T_SO3_inv_psi(psi), psi_A)
     h_H[:3, :3, 3] = T_SO3_inv(psi).T
     h_H[3:, :3, :3] = psi_A
@@ -384,7 +384,7 @@ def T_SE3(h: np.ndarray) -> np.ndarray:
     r = h[:3]
     psi = h[3:]
 
-    T = np.zeros((6, 6), dtype=h.dtype)
+    T = np.zeros((6, 6), dtype=np.result_type(h, 1.0))
     T[:3, :3] = T[3:, 3:] = T_SO3(psi)
     T[:3, 3:] = U(r, psi)
     return T
@@ -558,7 +558,7 @@ def Exp_SO3_quat(P, normalize=True):
     Rucker2018: https://ieeexplore.ieee.org/document/8392463
     """
     p0, p = P[0], P[1:]
-    matrix = 2 * (p0 * ax2skew(p) + ax2skew_squared(p))
+    matrix = 2.0 * (p0 * ax2skew(p) + ax2skew_squared(p))
     if normalize:
         matrix /= P @ P
     return eye3 + matrix
@@ -569,17 +569,17 @@ def Exp_SO3_quat_P(P, normalize=True):
     p0, p = P[0], P[1:]
     p_tilde = ax2skew(p)
     p_tilde_p = ax2skew_a()
-    matrix_P = np.zeros((3, 3, 4), dtype=P.dtype)
-    matrix_P[:, :, 0] = 2 * p_tilde
-    matrix_P[:, :, 1:] = 2 * (
+    matrix_P = np.zeros((3, 3, 4), dtype=np.result_type(P, 1.0))
+    matrix_P[:, :, 0] = 2.0 * p_tilde
+    matrix_P[:, :, 1:] = 2.0 * (
         p0 * p_tilde_p + (p_tilde_p @ p_tilde).T + p_tilde @ p_tilde_p.T
     )
     if normalize:
         P2_inv = 1 / (P @ P)
         matrix_P *= P2_inv
         # inner derivative due to normalization
-        matrix = 2 * (p0 * p_tilde + ax2skew_squared(p))
-        matrix_P += np.multiply.outer(matrix, -2 * P2_inv**2 * P)
+        matrix = 2.0 * (p0 * p_tilde + ax2skew_squared(p))
+        matrix_P += np.multiply.outer(matrix, -2.0 * P2_inv**2 * P)
     return matrix_P
 
 
@@ -594,7 +594,7 @@ def T_SO3_quat(P, normalize=True):
     Egeland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf
     """
     p0, p = P[0], P[1:]
-    matrix = 2 * np.hstack((-p[:, None], p0 * eye3 - ax2skew(p)))
+    matrix = 2.0 * np.hstack((-p[:, None], p0 * eye3 - ax2skew(p)))
     if normalize:
         matrix /= P @ P
     return matrix
@@ -617,17 +617,17 @@ def T_SO3_inv_quat(P, normalize=True):
 
 def T_SO3_quat_P(P, normalize=True):
     p0, p = P[0], P[1:]
-    T_P = np.zeros((3, 4, 4), dtype=float)
-    T_P[:, 0, 1:] = -2 * eye3
-    T_P[:, 1:, 0] = 2 * eye3
-    T_P[:, 1:, 1:] = -2 * ax2skew_a()
+    T_P = np.zeros((3, 4, 4), dtype=np.result_type(P, 1.0))
+    T_P[:, 0, 1:] = -2.0 * eye3
+    T_P[:, 1:, 0] = 2.0 * eye3
+    T_P[:, 1:, 1:] = -2.0 * ax2skew_a()
 
     if normalize:
         P2_inv = 1 / (P @ P)
         T_P *= P2_inv
         # inner derivative due to normalization
-        matrix = 2 * np.hstack((-p[:, None], p0 * eye3 - ax2skew(p)))
-        T_P += np.multiply.outer(matrix, -2 * P2_inv**2 * P)
+        matrix = 2.0 * np.hstack((-p[:, None], p0 * eye3 - ax2skew(p)))
+        T_P += np.multiply.outer(matrix, -2.0 * P2_inv**2 * P)
     return T_P
 
 
