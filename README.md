@@ -1,6 +1,10 @@
 # Cardillo
 
 <p align="center">
+  <img src="https://github.com/user-attachments/assets/56821f4d-f307-40ba-9d12-f8fca06c186e" alt="Cardillo banner" width="70%">
+</p>
+
+<p align="center">
   <em>Open-source Python framework for flexible multi-body systems with frictional contacts and impacts</em>
 </p>
 
@@ -26,6 +30,7 @@
 ## Table of Contents
 
 - [Key Features](#key-features)
+- [Simulation Gallery](#simulation-gallery)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
 - [Framework Overview](#framework-overview)
@@ -46,6 +51,45 @@
 - 🤖 **Robot integration** — URDF parser with ready-made examples for the Franka Emika Panda arm and the Unitree Go1 quadruped
 - 📊 **Visualization & export** — VTK rendering, STL mesh export, trimesh integration and real-time animation
 - 🛠️ **Composable API** — Build any system by assembling bodies, constraints, forces and contacts around a sparse-matrix `System` core
+
+---
+
+## Simulation Gallery
+
+<table>
+  <tr>
+    <td align="center"><strong>Rockfall</strong></td>
+    <td align="center"><strong>Two-mass Oscillator</strong></td>
+  </tr>
+  <tr>
+    <td><img src="https://github.com/user-attachments/assets/412621b0-bbf5-4213-8327-e983b2430283" alt="Rockfall simulation" width="100%"></td>
+    <td><img src="https://github.com/user-attachments/assets/0e3911d0-b689-4f38-85cc-8c14513fbe8c" alt="Two-mass oscillator simulation" width="100%"></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>Spinning Top</strong></td>
+    <td align="center"><strong>Multiple Balls</strong></td>
+  </tr>
+  <tr>
+    <td><img src="https://github.com/user-attachments/assets/88a9b65d-272f-432b-ae7b-925e3b00ae0f" alt="Spinning top simulation" width="100%"></td>
+    <td><img src="https://github.com/user-attachments/assets/899bd885-e3d0-460b-a133-174357e2f841" alt="Multiple balls simulation" width="100%"></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>Bouncing Ball</strong></td>
+    <td align="center"><strong>Double Pendulum</strong></td>
+  </tr>
+  <tr>
+    <td><img src="https://github.com/user-attachments/assets/135f783d-da23-4b80-8a36-9e1c8edfd8de" alt="Bouncing ball simulation" width="100%"></td>
+    <td><img src="https://github.com/user-attachments/assets/96f98dae-b50c-4b4a-8f6b-fe65e00d2b71" alt="Double pendulum simulation" width="100%"></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>Dzhanibekov Effect</strong></td>
+    <td align="center"><strong>Rolling Disc</strong></td>
+  </tr>
+  <tr>
+    <td><img src="https://github.com/user-attachments/assets/2beb0a9b-fe1c-43b7-9c08-48128cc478db" alt="Dzhanibekov effect simulation" width="100%"></td>
+    <td><img src="https://github.com/user-attachments/assets/8a097f6c-097b-4f07-8027-b0ced33a0b97" alt="Rolling disc simulation" width="100%"></td>
+  </tr>
+</table>
 
 ---
 
