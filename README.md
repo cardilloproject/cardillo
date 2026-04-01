@@ -47,7 +47,7 @@
 - 🧲 **Frictional contact & impact** — Sphere-to-plane and sphere-to-sphere contact with Coulomb friction and restitution coefficients
 - 🔗 **Holonomic constraints** — Revolute, prismatic, spherical, cylindrical, fixed-distance and rigid-connection joints
 - ⚙️ **Control & actuation** — PD/PID controllers, motor models and optimal-control examples
-- 📐 **Multiple integrators** — Variational (Moreau, Dual Störmer-Verlet), DAE (RATTLE, SciPy DAE) and ODE (Backward Euler, SciPy IVP) solvers, plus a nonlinear statics RIKS solver
+- 📐 **Multiple integrators** — Nonsmooth (Moreau, Dual Störmer-Verlet), DAE (RATTLE, SciPy DAE) and ODE (Backward Euler, SciPy IVP) solvers, plus a nonlinear statics RIKS solver
 - 🤖 **Robot integration** — URDF parser with ready-made examples for the Franka Emika Panda arm and the Unitree Go1 quadruped
 - 📊 **Visualization & export** — VTK rendering, STL mesh export, trimesh integration and real-time animation
 - 🛠️ **Composable API** — Build any system by assembling bodies, constraints, forces and contacts around a sparse-matrix `System` core
@@ -226,10 +226,10 @@ Cardillo is developed and maintained by:
 
 | Name | Affiliation |
 |---|---|
-| **Jonas Breuling** | University of Stuttgart |
-| **Giuseppe Capobianco** | Friedrich-Alexander-Universität Erlangen-Nuremberg (FAU) |
-| **Lisa Eberhardt** | University of Stuttgart |
-| **Simon Eugster** | Eindhoven University of Technology (TU/e) |
+| **[Jonas Breuling](https://github.com/JonasBreuling)** | University of Stuttgart |
+| **[Giuseppe Capobianco](https://github.com/capobiag)** | Friedrich-Alexander-Universität Erlangen-Nuremberg (FAU) |
+| **[Lisa Eberhardt](https://github.com/lisaeb)** | University of Stuttgart |
+| **[Simon Reugster](https://github.com/simonreugster)** | Eindhoven University of Technology (TU/e) |
 
 ---
 
