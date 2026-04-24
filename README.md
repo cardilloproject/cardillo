@@ -226,10 +226,10 @@ Cardillo is developed and maintained by:
 
 | Name | Affiliation |
 |---|---|
-| **[Jonas Breuling](https://github.com/JonasBreuling)** | University of Stuttgart |
-| **[Giuseppe Capobianco](https://github.com/capobiag)** | Friedrich-Alexander-Universität Erlangen-Nuremberg (FAU) |
-| **[Lisa Eberhardt](https://github.com/lisaeb)** | University of Stuttgart |
-| **[Simon Reugster](https://github.com/simonreugster)** | Eindhoven University of Technology (TU/e) |
+| **[Jonas Breuling](https://github.com/JonasBreuling)** | [University of Stuttgart](https://www.inm.uni-stuttgart.de/institut/mitarbeiter/Harsch/) |
+| **[Giuseppe Capobianco](https://github.com/capobiag)** | [Friedrich-Alexander-Universität Erlangen-Nuremberg (FAU)](https://www.ltd.tf.fau.de/faudir/giuseppe-capobianco/) |
+| **[Lisa Eberhardt](https://github.com/lisaeb)** | [University of Stuttgart](https://www.inm.uni-stuttgart.de/institut/mitarbeiter/Eberhardt/) |
+| **[Simon Reugster](https://github.com/simonreugster)** | [Eindhoven University of Technology (TU/e)](https://www.tue.nl/en/research/researchers/simon-eugster) |
 
 ---
 
