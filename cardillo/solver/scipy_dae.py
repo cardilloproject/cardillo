@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.sparse import eye_array, lil_array
-from scipy_dae.integrate import solve_dae
+from solve_dae.integrate import solve_dae
 from tqdm import tqdm
 
 from cardillo.solver import Solution, SolverSummary
@@ -9,12 +9,12 @@ from cardillo.solver import Solution, SolverSummary
 # TODO:
 # - Add Jacobian of GGl term if convergence problems occur
 class ScipyDAE:
-    """Wrapper around Radau IIA and BDF methods implementted in `scipy_dae`. 
+    """Wrapper around Radau IIA and BDF methods implementted in `solve_dae`. 
     A stabilized index 1 formulation is used as proposed by Anantharaman and Hiller.
 
     References:
     -----------
-    scipy_dae: https://github.com/JonasBreuling/scipy_dae \\
+    solve_dae: https://github.com/SolveDAE/solve_dae \\
     Anantharaman and Hiller.: https://doi.org/10.1002/nme.1620320803
     """
 
