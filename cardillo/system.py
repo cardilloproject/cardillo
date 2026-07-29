@@ -66,7 +66,7 @@ class System:
 
     """
 
-    def __init__(self, t0=0, origin_size=0):
+    def __init__(self, t0=0.0, origin_size=0):
         self.t0 = t0
         self.nq = 0
         self.nu = 0
@@ -313,7 +313,7 @@ class System:
             for contr in self.__M_contr[I_constant_mass_matrix]:
                 coo[contr.uDOF, contr.uDOF] = contr.M(self.t0, self.q0[contr.qDOF])
 
-        self._M0 = coo.tocoo()
+        self._M0 = coo
 
         # - compliance matrix
         coo = CooMatrix((self.nla_c, self.nla_c))
@@ -348,18 +348,20 @@ class System:
             q_dot[contr.my_qDOF] = contr.q_dot(t, q[contr.qDOF], u[contr.uDOF])
         return q_dot
 
-    def q_dot_q(self, t, q, u, format="coo"):
-        coo = CooMatrix((self.nq, self.nq))
-        for contr in self.__q_dot_q_contr:
-            coo[contr.my_qDOF, contr.qDOF] = contr.q_dot_q(
+    def q_dot_q(self, t, q, u, format="coo", coo=None):
+        if coo is None:
+            coo = CooMatrix((self.nq, self.nq))
+        for i, contr in enumerate(self.__q_dot_q_contr):
+            coo[i, contr.my_qDOF, contr.qDOF] = contr.q_dot_q(
                 t, q[contr.qDOF], u[contr.uDOF]
             )
         return coo.asformat(format)
 
-    def q_dot_u(self, t, q, format="coo"):
-        coo = CooMatrix((self.nq, self.nu))
-        for contr in self.__q_dot_u_contr:
-            coo[contr.my_qDOF, contr.uDOF] = contr.q_dot_u(t, q[contr.qDOF])
+    def q_dot_u(self, t, q, format="coo", coo=None):
+        if coo is None:
+            coo = CooMatrix((self.nq, self.nu))
+        for i, contr in enumerate(self.__q_dot_u_contr):
+            coo[i, contr.my_qDOF, contr.uDOF] = contr.q_dot_u(t, q[contr.qDOF])
         return coo.asformat(format)
 
     def step_callback(self, t, q, u):
@@ -387,19 +389,24 @@ class System:
     #####################
     # equations of motion
     #####################
-    def M(self, t, q, format="coo"):
+    def M(self, t, q, format="coo", coo=None):
         if np.any(self.I_M):
-            coo = CooMatrix((self.nu, self.nu))
-            for contr in self.__M_contr[self.I_M]:  # only loop over variable mass parts
-                coo[contr.uDOF, contr.uDOF] = contr.M(t, q[contr.qDOF])
-            return coo.asformat(format) + self._M0.asformat(format)
+            if coo is None:
+                coo = CooMatrix((self.nu, self.nu))
+                coo[:, :] = self._M0
+            for i, contr in enumerate(
+                self.__M_contr[self.I_M]
+            ):  # only loop over variable mass parts
+                coo[i, contr.uDOF, contr.uDOF] = contr.M(t, q[contr.qDOF])
+            return coo.asformat(format)
         else:
             return self._M0.asformat(format)
 
-    def Mu_q(self, t, q, u, format="coo"):
-        coo = CooMatrix((self.nu, self.nq))
-        for contr in self.__Mu_q_contr:
-            coo[contr.uDOF, contr.qDOF] = contr.Mu_q(t, q[contr.qDOF], u[contr.uDOF])
+    def Mu_q(self, t, q, u, format="coo", coo=None):
+        if coo is None:
+            coo = CooMatrix((self.nu, self.nq))
+        for i, contr in enumerate(self.__Mu_q_contr):
+            coo[i, contr.uDOF, contr.qDOF] = contr.Mu_q(t, q[contr.qDOF], u[contr.uDOF])
         return coo.asformat(format)
 
     def h(self, t, q, u):
@@ -408,16 +415,18 @@ class System:
             h[contr.uDOF] += contr.h(t, q[contr.qDOF], u[contr.uDOF])
         return h
 
-    def h_q(self, t, q, u, format="coo"):
-        coo = CooMatrix((self.nu, self.nq))
-        for contr in self.__h_q_contr:
-            coo[contr.uDOF, contr.qDOF] = contr.h_q(t, q[contr.qDOF], u[contr.uDOF])
+    def h_q(self, t, q, u, format="coo", coo=None):
+        if coo is None:
+            coo = CooMatrix((self.nu, self.nq))
+        for i, contr in enumerate(self.__h_q_contr):
+            coo[i, contr.uDOF, contr.qDOF] = contr.h_q(t, q[contr.qDOF], u[contr.uDOF])
         return coo.asformat(format)
 
-    def h_u(self, t, q, u, format="coo"):
-        coo = CooMatrix((self.nu, self.nu))
-        for contr in self.__h_u_contr:
-            coo[contr.uDOF, contr.uDOF] = contr.h_u(t, q[contr.qDOF], u[contr.uDOF])
+    def h_u(self, t, q, u, format="coo", coo=None):
+        if coo is None:
+            coo = CooMatrix((self.nu, self.nu))
+        for i, contr in enumerate(self.__h_u_contr):
+            coo[i, contr.uDOF, contr.uDOF] = contr.h_u(t, q[contr.qDOF], u[contr.uDOF])
         return coo.asformat(format)
 
     ############
@@ -437,18 +446,20 @@ class System:
             )
         return c
 
-    def c_q(self, t, q, u, la_c, format="coo"):
-        coo = CooMatrix((self.nla_c, self.nq))
-        for contr in self.__c_q_contr:
-            coo[contr.la_cDOF, contr.qDOF] = contr.c_q(
+    def c_q(self, t, q, u, la_c, format="coo", coo=None):
+        if coo is None:
+            coo = CooMatrix((self.nla_c, self.nq))
+        for i, contr in enumerate(self.__c_q_contr):
+            coo[i, contr.la_cDOF, contr.qDOF] = contr.c_q(
                 t, q[contr.qDOF], u[contr.uDOF], la_c[contr.la_cDOF]
             )
         return coo.asformat(format)
 
-    def c_u(self, t, q, u, la_c, format="coo"):
-        coo = CooMatrix((self.nla_c, self.nu))
-        for contr in self.__c_u_contr:
-            coo[contr.la_cDOF, contr.uDOF] = contr.c_u(
+    def c_u(self, t, q, u, la_c, format="coo", coo=None):
+        if coo is None:
+            coo = CooMatrix((self.nla_c, self.nu))
+        for i, contr in enumerate(self.__c_u_contr):
+            coo[i, contr.la_cDOF, contr.uDOF] = contr.c_u(
                 t, q[contr.qDOF], u[contr.uDOF], la_c[contr.la_cDOF]
             )
         return coo.asformat(format)
@@ -456,16 +467,18 @@ class System:
     def c_la_c(self, format="coo"):
         return self._c_la_c0.asformat(format)
 
-    def W_c(self, t, q, format="coo"):
-        coo = CooMatrix((self.nu, self.nla_c))
-        for contr in self.__c_contr:
-            coo[contr.uDOF, contr.la_cDOF] = contr.W_c(t, q[contr.qDOF])
+    def W_c(self, t, q, format="coo", coo=None):
+        if coo is None:
+            coo = CooMatrix((self.nu, self.nla_c))
+        for i, contr in enumerate(self.__c_contr):
+            coo[i, contr.uDOF, contr.la_cDOF] = contr.W_c(t, q[contr.qDOF])
         return coo.asformat(format)
 
-    def Wla_c_q(self, t, q, la_c, format="coo"):
-        coo = CooMatrix((self.nu, self.nq))
-        for contr in self.__c_q_contr:
-            coo[contr.uDOF, contr.qDOF] = contr.Wla_c_q(
+    def Wla_c_q(self, t, q, la_c, format="coo", coo=None):
+        if coo is None:
+            coo = CooMatrix((self.nu, self.nq))
+        for i, contr in enumerate(self.__c_q_contr):
+            coo[i, contr.uDOF, contr.qDOF] = contr.Wla_c_q(
                 t, q[contr.qDOF], la_c[contr.la_cDOF]
             )
         return coo.asformat(format)
@@ -473,10 +486,11 @@ class System:
     ###########
     # actuators
     ###########
-    def W_tau(self, t, q, format="coo"):
-        coo = CooMatrix((self.nu, self.nla_tau))
-        for contr in self.__la_tau_contr:
-            coo[contr.uDOF, contr.la_tauDOF] = contr.W_tau(t, q[contr.qDOF])
+    def W_tau(self, t, q, format="coo", coo=None):
+        if coo is None:
+            coo = CooMatrix((self.nu, self.nla_tau))
+        for i, contr in enumerate(self.__la_tau_contr):
+            coo[i, contr.uDOF, contr.la_tauDOF] = contr.W_tau(t, q[contr.qDOF])
         return coo.asformat(format)
 
     def la_tau(self, t, q, u):
@@ -485,18 +499,20 @@ class System:
             la_tau[contr.la_tauDOF] = contr.la_tau(t, q[contr.qDOF], u[contr.uDOF])
         return la_tau
 
-    def Wla_tau_q(self, t, q, u, format="coo"):
-        coo = CooMatrix((self.nu, self.nq))
-        for contr in self.__la_tau_contr:
-            coo[contr.uDOF, contr.qDOF] = contr.Wla_tau_q(
+    def Wla_tau_q(self, t, q, u, format="coo", coo=None):
+        if coo is None:
+            coo = CooMatrix((self.nu, self.nq))
+        for i, contr in enumerate(self.__la_tau_contr):
+            coo[i, contr.uDOF, contr.qDOF] = contr.Wla_tau_q(
                 t, q[contr.qDOF], u[contr.uDOF]
             )
         return coo.asformat(format)
 
-    def Wla_tau_u(self, t, q, u, format="coo"):
-        coo = CooMatrix((self.nu, self.nu))
-        for contr in self.__la_tau_contr:
-            coo[contr.uDOF, contr.uDOF] = contr.Wla_tau_u(
+    def Wla_tau_u(self, t, q, u, format="coo", coo=None):
+        if coo is None:
+            coo = CooMatrix((self.nu, self.nu))
+        for i, contr in enumerate(self.__la_tau_contr):
+            coo[i, contr.uDOF, contr.uDOF] = contr.Wla_tau_u(
                 t, q[contr.qDOF], u[contr.uDOF]
             )
         return coo.asformat(format)
@@ -534,30 +550,34 @@ class System:
             g[contr.la_gDOF] = contr.g(t, q[contr.qDOF])
         return g
 
-    def g_q(self, t, q, format="coo"):
-        coo = CooMatrix((self.nla_g, self.nq))
-        for contr in self.__g_contr:
-            coo[contr.la_gDOF, contr.qDOF] = contr.g_q(t, q[contr.qDOF])
+    def g_q(self, t, q, format="coo", coo=None):
+        if coo is None:
+            coo = CooMatrix((self.nla_g, self.nq))
+        for i, contr in enumerate(self.__g_contr):
+            coo[i, contr.la_gDOF, contr.qDOF] = contr.g_q(t, q[contr.qDOF])
         return coo.asformat(format)
 
-    def g_q_T_mu_q(self, t, q, mu_g, format="coo"):
-        coo = CooMatrix((self.nq, self.nq))
-        for contr in self.__g_contr:
-            coo[contr.qDOF, contr.qDOF] = contr.g_q_T_mu_q(
+    def g_q_T_mu_q(self, t, q, mu_g, format="coo", coo=None):
+        if coo is None:
+            coo = CooMatrix((self.nq, self.nq))
+        for i, contr in enumerate(self.__g_contr):
+            coo[i, contr.qDOF, contr.qDOF] = contr.g_q_T_mu_q(
                 t, q[contr.qDOF], mu_g[contr.la_gDOF]
             )
         return coo.asformat(format)
 
-    def W_g(self, t, q, format="coo"):
-        coo = CooMatrix((self.nu, self.nla_g))
-        for contr in self.__g_contr:
-            coo[contr.uDOF, contr.la_gDOF] = contr.W_g(t, q[contr.qDOF])
+    def W_g(self, t, q, format="coo", coo=None):
+        if coo is None:
+            coo = CooMatrix((self.nu, self.nla_g))
+        for i, contr in enumerate(self.__g_contr):
+            coo[i, contr.uDOF, contr.la_gDOF] = contr.W_g(t, q[contr.qDOF])
         return coo.asformat(format)
 
-    def Wla_g_q(self, t, q, la_g, format="coo"):
-        coo = CooMatrix((self.nu, self.nq))
-        for contr in self.__g_contr:
-            coo[contr.uDOF, contr.qDOF] = contr.Wla_g_q(
+    def Wla_g_q(self, t, q, la_g, format="coo", coo=None):
+        if coo is None:
+            coo = CooMatrix((self.nu, self.nq))
+        for i, contr in enumerate(self.__g_contr):
+            coo[i, contr.uDOF, contr.qDOF] = contr.Wla_g_q(
                 t, q[contr.qDOF], la_g[contr.la_gDOF]
             )
         return coo.asformat(format)
@@ -572,16 +592,18 @@ class System:
     def chi_g(self, t, q):
         return self.g_dot(t, q, np.zeros(self.nu))
 
-    def g_dot_u(self, t, q, format="coo"):
-        coo = CooMatrix((self.nla_g, self.nu))
-        for contr in self.__g_contr:
-            coo[contr.la_gDOF, contr.uDOF] = contr.g_dot_u(t, q[contr.qDOF])
+    def g_dot_u(self, t, q, format="coo", coo=None):
+        if coo is None:
+            coo = CooMatrix((self.nla_g, self.nu))
+        for i, contr in enumerate(self.__g_contr):
+            coo[i, contr.la_gDOF, contr.uDOF] = contr.g_dot_u(t, q[contr.qDOF])
         return coo.asformat(format)
 
-    def g_dot_q(self, t, q, u, format="coo"):
-        coo = CooMatrix((self.nla_g, self.nq))
-        for contr in self.__g_contr:
-            coo[contr.la_gDOF, contr.qDOF] = contr.g_dot_q(
+    def g_dot_q(self, t, q, u, format="coo", coo=None):
+        if coo is None:
+            coo = CooMatrix((self.nla_g, self.nq))
+        for i, contr in enumerate(self.__g_contr):
+            coo[i, contr.la_gDOF, contr.qDOF] = contr.g_dot_q(
                 t, q[contr.qDOF], u[contr.uDOF]
             )
         return coo.asformat(format)
@@ -611,18 +633,20 @@ class System:
     def chi_gamma(self, t, q):
         return self.gamma(t, q, np.zeros(self.nu))
 
-    def gamma_q(self, t, q, u, format="coo"):
-        coo = CooMatrix((self.nla_gamma, self.nq))
-        for contr in self.__gamma_contr:
-            coo[contr.la_gammaDOF, contr.qDOF] = contr.gamma_q(
+    def gamma_q(self, t, q, u, format="coo", coo=None):
+        if coo is None:
+            coo = CooMatrix((self.nla_gamma, self.nq))
+        for i, contr in enumerate(self.__gamma_contr):
+            coo[i, contr.la_gammaDOF, contr.qDOF] = contr.gamma_q(
                 t, q[contr.qDOF], u[contr.uDOF]
             )
         return coo.asformat(format)
 
-    def gamma_u(self, t, q, format="coo"):
-        coo = CooMatrix((self.nla_gamma, self.nu))
-        for contr in self.__gamma_contr:
-            coo[contr.la_gammaDOF, contr.uDOF] = contr.gamma_u(t, q[contr.qDOF])
+    def gamma_u(self, t, q, format="coo", coo=None):
+        if coo is None:
+            coo = CooMatrix((self.nla_gamma, self.nu))
+        for i, contr in enumerate(self.__gamma_contr):
+            coo[i, contr.la_gammaDOF, contr.uDOF] = contr.gamma_u(t, q[contr.qDOF])
         return coo.asformat(format)
 
     def gamma_dot(self, t, q, u, u_dot):
@@ -633,18 +657,20 @@ class System:
             )
         return gamma_dot
 
-    def gamma_dot_q(self, t, q, u, u_dot, format="coo"):
-        coo = CooMatrix((self.nla_gamma, self.nq))
-        for contr in self.__gamma_contr:
-            coo[contr.la_gammaDOF, contr.qDOF] = contr.gamma_dot_q(
+    def gamma_dot_q(self, t, q, u, u_dot, format="coo", coo=None):
+        if coo is None:
+            coo = CooMatrix((self.nla_gamma, self.nq))
+        for i, contr in enumerate(self.__gamma_contr):
+            coo[i, contr.la_gammaDOF, contr.qDOF] = contr.gamma_dot_q(
                 t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF]
             )
         return coo.asformat(format)
 
-    def gamma_dot_u(self, t, q, u, u_dot, format="coo"):
-        coo = CooMatrix((self.nla_gamma, self.nu))
-        for contr in self.__gamma_contr:
-            coo[contr.la_gammaDOF, contr.uDOF] = contr.gamma_dot_u(
+    def gamma_dot_u(self, t, q, u, u_dot, format="coo", coo=None):
+        if coo is None:
+            coo = CooMatrix((self.nla_gamma, self.nu))
+        for i, contr in enumerate(self.__gamma_contr):
+            coo[i, contr.la_gammaDOF, contr.uDOF] = contr.gamma_dot_u(
                 t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF]
             )
         return coo.asformat(format)
@@ -653,16 +679,18 @@ class System:
     def zeta_gamma(self, t, q, u):
         return self.gamma_dot(t, q, u, np.zeros(self.nu))
 
-    def W_gamma(self, t, q, format="coo"):
-        coo = CooMatrix((self.nu, self.nla_gamma))
-        for contr in self.__gamma_contr:
-            coo[contr.uDOF, contr.la_gammaDOF] = contr.W_gamma(t, q[contr.qDOF])
+    def W_gamma(self, t, q, format="coo", coo=None):
+        if coo is None:
+            coo = CooMatrix((self.nu, self.nla_gamma))
+        for i, contr in enumerate(self.__gamma_contr):
+            coo[i, contr.uDOF, contr.la_gammaDOF] = contr.W_gamma(t, q[contr.qDOF])
         return coo.asformat(format)
 
-    def Wla_gamma_q(self, t, q, la_gamma, format="coo"):
-        coo = CooMatrix((self.nu, self.nq))
-        for contr in self.__gamma_contr:
-            coo[contr.uDOF, contr.qDOF] = contr.Wla_gamma_q(
+    def Wla_gamma_q(self, t, q, la_gamma, format="coo", coo=None):
+        if coo is None:
+            coo = CooMatrix((self.nu, self.nq))
+        for i, contr in enumerate(self.__gamma_contr):
+            coo[i, contr.uDOF, contr.qDOF] = contr.Wla_gamma_q(
                 t, q[contr.qDOF], la_gamma[contr.la_gammaDOF]
             )
         return coo.asformat(format)
@@ -676,10 +704,11 @@ class System:
             g_S[contr.la_SDOF] = contr.g_S(t, q[contr.qDOF])
         return g_S
 
-    def g_S_q(self, t, q, format="coo"):
-        coo = CooMatrix((self.nla_S, self.nq))
-        for contr in self.__g_S_contr:
-            coo[contr.la_SDOF, contr.qDOF] = contr.g_S_q(t, q[contr.qDOF])
+    def g_S_q(self, t, q, format="coo", coo=None):
+        if coo is None:
+            coo = CooMatrix((self.nla_S, self.nq))
+        for i, contr in enumerate(self.__g_S_contr):
+            coo[i, contr.la_SDOF, contr.qDOF] = contr.g_S_q(t, q[contr.qDOF])
         return coo.asformat(format)
 
     #################
@@ -691,16 +720,18 @@ class System:
             g_N[contr.la_NDOF] = contr.g_N(t, q[contr.qDOF])
         return g_N
 
-    def g_N_q(self, t, q, format="coo"):
-        coo = CooMatrix((self.nla_N, self.nq))
-        for contr in self.__g_N_contr:
-            coo[contr.la_NDOF, contr.qDOF] = contr.g_N_q(t, q[contr.qDOF])
+    def g_N_q(self, t, q, format="coo", coo=None):
+        if coo is None:
+            coo = CooMatrix((self.nla_N, self.nq))
+        for i, contr in enumerate(self.__g_N_contr):
+            coo[i, contr.la_NDOF, contr.qDOF] = contr.g_N_q(t, q[contr.qDOF])
         return coo.asformat(format)
 
-    def W_N(self, t, q, format="coo"):
-        coo = CooMatrix((self.nu, self.nla_N))
-        for contr in self.__g_N_contr:
-            coo[contr.uDOF, contr.la_NDOF] = contr.W_N(t, q[contr.qDOF])
+    def W_N(self, t, q, format="coo", coo=None):
+        if coo is None:
+            coo = CooMatrix((self.nu, self.nla_N))
+        for i, contr in enumerate(self.__g_N_contr):
+            coo[i, contr.uDOF, contr.la_NDOF] = contr.W_N(t, q[contr.qDOF])
         return coo.asformat(format)
 
     def g_N_dot(self, t, q, u):
@@ -725,10 +756,11 @@ class System:
             ) + contr.e_N * contr.g_N_dot(t_pre, q_pre[contr.qDOF], u_pre[contr.uDOF])
         return xi_N
 
-    def xi_N_q(self, t_post, q_post, u_post, format="coo"):
-        coo = CooMatrix((self.nla_N, self.nq))
-        for contr in self.__g_N_contr:
-            coo[contr.la_NDOF, contr.qDOF] = contr.g_N_dot_q(
+    def xi_N_q(self, t_post, q_post, u_post, format="coo", coo=None):
+        if coo is None:
+            coo = CooMatrix((self.nla_N, self.nq))
+        for i, contr in enumerate(self.__g_N_contr):
+            coo[i, contr.la_NDOF, contr.qDOF] = contr.g_N_dot_q(
                 t_post, q_post[contr.qDOF], u_post[contr.uDOF]
             )
         return coo.asformat(format)
@@ -737,19 +769,21 @@ class System:
     def chi_N(self, t, q):
         return self.g_N_dot(t, q, np.zeros(self.nu), dtype=q.dtype)
 
-    def g_N_dot_u(self, t, q, format="coo"):
+    def g_N_dot_u(self, t, q, format="coo", coo=None):
         warnings.warn(
             "We assume g_N_dot_u(t, q) == W_N(t, q).T. This function will be deleted soon!"
         )
-        coo = CooMatrix((self.nla_N, self.nu))
-        for contr in self.__g_N_contr:
-            coo[contr.la_NDOF, contr.uDOF] = contr.g_N_dot_u(t, q[contr.qDOF])
+        if coo is None:
+            coo = CooMatrix((self.nla_N, self.nu))
+        for i, contr in enumerate(self.__g_N_contr):
+            coo[i, contr.la_NDOF, contr.uDOF] = contr.g_N_dot_u(t, q[contr.qDOF])
         return coo.asformat(format)
 
-    def Wla_N_q(self, t, q, la_N, format="coo"):
-        coo = CooMatrix((self.nu, self.nq))
-        for contr in self.__g_N_contr:
-            coo[contr.uDOF, contr.qDOF] = contr.Wla_N_q(
+    def Wla_N_q(self, t, q, la_N, format="coo", coo=None):
+        if coo is None:
+            coo = CooMatrix((self.nu, self.nq))
+        for i, contr in enumerate(self.__g_N_contr):
+            coo[i, contr.uDOF, contr.qDOF] = contr.Wla_N_q(
                 t, q[contr.qDOF], la_N[contr.la_NDOF]
             )
         return coo.asformat(format)
@@ -779,57 +813,64 @@ class System:
             ) + contr.e_F * contr.gamma_F(t_pre, q_pre[contr.qDOF], u_pre[contr.uDOF])
         return xi_F
 
-    def xi_F_q(self, t_post, q_post, u_post, format="coo"):
-        coo = CooMatrix((self.nla_F, self.nq))
-        for contr in self.__gamma_F_contr:
-            coo[contr.la_FDOF, contr.qDOF] = contr.gamma_F_q(
+    def xi_F_q(self, t_post, q_post, u_post, format="coo", coo=None):
+        if coo is None:
+            coo = CooMatrix((self.nla_F, self.nq))
+        for i, contr in enumerate(self.__gamma_F_contr):
+            coo[i, contr.la_FDOF, contr.qDOF] = contr.gamma_F_q(
                 t_post, q_post[contr.qDOF], u_post[contr.uDOF]
             )
         return coo.asformat(format)
 
-    def gamma_F_q(self, t, q, u, format="coo"):
-        coo = CooMatrix((self.nla_F, self.nq))
-        for contr in self.__gamma_F_q_contr:
-            coo[contr.la_FDOF, contr.qDOF] = contr.gamma_F_q(
+    def gamma_F_q(self, t, q, u, format="coo", coo=None):
+        if coo is None:
+            coo = CooMatrix((self.nla_F, self.nq))
+        for i, contr in enumerate(self.__gamma_F_q_contr):
+            coo[i, contr.la_FDOF, contr.qDOF] = contr.gamma_F_q(
                 t, q[contr.qDOF], u[contr.uDOF]
             )
         return coo.asformat(format)
 
-    def gamma_F_u(self, t, q, format="coo"):
+    def gamma_F_u(self, t, q, format="coo", coo=None):
         warnings.warn(
             "We assume gamma_F_u(t, q) == W_F(t, q).T. This function will be deleted soon!"
         )
-        coo = CooMatrix((self.nla_F, self.nu))
-        for contr in self.__gamma_F_contr:
-            coo[contr.la_FDOF, contr.uDOF] = contr.gamma_F_u(t, q[contr.qDOF])
+        if coo is None:
+            coo = CooMatrix((self.nla_F, self.nu))
+        for i, contr in enumerate(self.__gamma_F_contr):
+            coo[i, contr.la_FDOF, contr.uDOF] = contr.gamma_F_u(t, q[contr.qDOF])
         return coo.asformat(format)
 
-    def gamma_F_dot_q(self, t, q, u, u_dot, format="coo"):
-        coo = CooMatrix((self.nla_F, self.nq))
-        for contr in self.__gamma_F_contr:
-            coo[contr.la_FDOF, contr.qDOF] = contr.gamma_F_dot_q(
+    def gamma_F_dot_q(self, t, q, u, u_dot, format="coo", coo=None):
+        if coo is None:
+            coo = CooMatrix((self.nla_F, self.nq))
+        for i, contr in enumerate(self.__gamma_F_contr):
+            coo[i, contr.la_FDOF, contr.qDOF] = contr.gamma_F_dot_q(
                 t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF]
             )
         return coo.asformat(format)
 
-    def gamma_F_dot_u(self, t, q, u, u_dot, format="coo"):
-        coo = CooMatrix((self.nla_F, self.nu))
-        for contr in self.__gamma_F_contr:
-            coo[contr.la_FDOF, contr.uDOF] = contr.gamma_F_dot_u(
+    def gamma_F_dot_u(self, t, q, u, u_dot, format="coo", coo=None):
+        if coo is None:
+            coo = CooMatrix((self.nla_F, self.nu))
+        for i, contr in enumerate(self.__gamma_F_contr):
+            coo[i, contr.la_FDOF, contr.uDOF] = contr.gamma_F_dot_u(
                 t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF]
             )
         return coo.asformat(format)
 
-    def W_F(self, t, q, format="coo"):
-        coo = CooMatrix((self.nu, self.nla_F))
-        for contr in self.__gamma_F_contr:
-            coo[contr.uDOF, contr.la_FDOF] = contr.W_F(t, q[contr.qDOF])
+    def W_F(self, t, q, format="coo", coo=None):
+        if coo is None:
+            coo = CooMatrix((self.nu, self.nla_F))
+        for i, contr in enumerate(self.__gamma_F_contr):
+            coo[i, contr.uDOF, contr.la_FDOF] = contr.W_F(t, q[contr.qDOF])
         return coo.asformat(format)
 
-    def Wla_F_q(self, t, q, la_F, format="coo"):
-        coo = CooMatrix((self.nu, self.nq))
-        for contr in self.__gamma_F_contr:
-            coo[contr.uDOF, contr.qDOF] = contr.Wla_F_q(
+    def Wla_F_q(self, t, q, la_F, format="coo", coo=None):
+        if coo is None:
+            coo = CooMatrix((self.nu, self.nq))
+        for i, contr in enumerate(self.__gamma_F_contr):
+            coo[i, contr.uDOF, contr.qDOF] = contr.Wla_F_q(
                 t, q[contr.qDOF], la_F[contr.la_FDOF]
             )
         return coo.asformat(format)
