@@ -115,9 +115,6 @@ class RollingCondition:
     def gamma_q(self, t, q, u):
         return approx_fprime(q, lambda q: self.gamma(t, q, u))
 
-    def gamma_dot_q(self, t, q, u, u_dot):
-        raise NotImplementedError("")
-
     def gamma_u(self, t, q):
         return self.subsystem.J_P(
             t, q, B_r_CP=self.subsystem.A_IB(t, q).T @ self.r_CP(t, q)

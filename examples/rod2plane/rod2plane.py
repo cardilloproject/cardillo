@@ -69,10 +69,10 @@ if __name__ == "__main__":
 
     # contacts
     contact_left = Sphere2Plane(
-        system.origin, rod, mu=0.3, r=0, xi=0, name="contact left"
+        system.origin, rod, mu=0.3, radius=0, xi2=0, name="contact left"
     )
     contact_right = Sphere2Plane(
-        system.origin, rod, mu=0.3, r=0, xi=1, name="contact right"
+        system.origin, rod, mu=0.3, radius=0, xi2=1, name="contact right"
     )
 
     # assemble the system

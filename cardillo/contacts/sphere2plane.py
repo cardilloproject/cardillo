@@ -1,27 +1,38 @@
 import numpy as np
+from cachetools import LRUCache, cachedmethod
+from cachetools.keys import hashkey
 from vtk import VTK_LINE
+from warnings import warn
 
-
-from cardillo.math.algebra import ax2skew, cross3
-from cardillo.math.approx_fprime import approx_fprime
+from cardillo.constraints._base import (
+    concatenate_qDOF,
+    concatenate_uDOF,
+    auxiliary_functions,
+)
+from cardillo.math.algebra import cross3
 from cardillo.math.prox import Sphere
+
+zeros3 = np.zeros(3)
+eye3 = np.eye(3)
 
 
 # TODO: We have to add a function that computes the correct contact forces by
 # application of A @ la_F. That should be done on system level and the solver
 # calls this before the converged la_F's are stored.
-# TODO: add orientation excitation of frame
 class Sphere2Plane:
     def __init__(
         self,
-        frame,
-        subsystem,
+        subsystem1,
+        subsystem2,
         mu,
-        r=0,
-        xi=None,
-        B_r_CP=np.zeros(3),
+        radius,
+        B_r_CP1=zeros3,
+        B_r_CP2=zeros3,
+        A_B1P=eye3,
         e_N=None,
         e_F=None,
+        xi1=None,
+        xi2=None,
         anisotropy=np.ones(2),
         name="sphere_to_plane_contact",
     ):
@@ -29,30 +40,42 @@ class Sphere2Plane:
 
         Parameters
         ----------
-        frame : cardillo.discrete.Frame
-            Frame that defines the plane. e_z-axis of frame is plane's normal direction. Origin of frame is point on plane.
-        subsystem : object
-            Subsystem containing the point around which the spherical contact surface is defined.
+        subsystem1 : object
+            Subsystem that defines the plane.
+            e_z-axis of P-basis is plane's normal direction: A_IP = A_IB1 @ A_B1P.
+            P1 is point on plane: r_OP1 = r_OC1 + A_IB1 @ B_r_CP1
+        subsystem2 : object
+            Subsystem containing the point P2 around which the spherical contact surface is defined.
+            r_OP2 = r_OC2 + A_IB2 @ B_r_CP2
         mu : float
             Frictional coefficient
+        radius : float
+            Radius of spherical contact surface. Possible values are in [0, inf].
+        B_r_CP1: np.ndarray (3,)
+            Vector from reference point of subsystem1 to point P1 in the plane in body-fixed coordinates of subsystem1.
+        B_r_CP2: np.ndarray (3,)
+            Vector from reference point of subsystem2 to point P2 in the plane in body-fixed coordinates of subsystem2.
         e_N : float
             Restitution coefficient for Newton-like impact law in normal direction.
         e_N : float
             Restitution coefficient for Newton-like impact law for friction.
-        xi : TODO
-        B_r_CP : np.ndarray (3,)
-            Position of center of sphere (P) with respect to the center of mass/reference point TODO (C) of the subsystem in the body-fixed K-basis.
-        r : float
-            Radius of spherical contact surface. Possible values are in [0, inf].
+        xi1 : TODO
+        xi2 : TODO
         anisotropy : np.ndarray (2,)
-            Scaling factors for stretching the friction force reservoir in e_x and e_y-direction of the 'frame'.
+            Scaling factors for stretching the friction force reservoir in e_x and e_y-direction of the plane.
             anisotropy=(1,1) corresponds to a circular force reservoir, i.e., isotropic Coulomb friction.
         name : str
             Name of contribution.
         """
-        self.frame = frame
-        self.subsystem = subsystem
-        self.r = r
+        self.subsystem1 = subsystem1
+        self.subsystem2 = subsystem2
+        self.xi1 = xi1
+        self.xi2 = xi2
+        self.B_r_CP1 = B_r_CP1
+        self.B_r_CP2 = B_r_CP2
+        self.A_B1P = A_B1P
+
+        self.radius = radius
         self.name = name
 
         self.nla_N = 1
@@ -61,8 +84,13 @@ class Sphere2Plane:
         if mu > 0:
             self.A = np.diag(anisotropy)
             self.nla_F = 2 * self.nla_N
-            self.gamma_F = self.__gamma_F
-            self.gamma_F_q = self.__gamma_F_q
+            self.gamma_F = lambda t, q, u: self.A @ self._gamma(t, q, u)[:2]
+            self.gamma_F_q = lambda t, q, u: self.A @ self._gamma_q(t, q, u)[:2]
+            self.gamma_F_u = lambda t, q: self.A @ self._gamma_u(t, q)[:2]
+            self.gamma_F_dot = (
+                lambda t, q, u, u_dot: self.A @ self._gamma_dot(t, q, u, u_dot)[:2]
+            )
+
             self.e_F = (
                 np.zeros(self.nla_F) if e_F is None else e_F * np.ones(self.nla_F)
             )
@@ -73,278 +101,358 @@ class Sphere2Plane:
             ]
             # fmt: on
 
-        self.r_OQ = self.frame.r_OP
-        self.v_Q = self.frame.v_P
-        self.a_Q = self.frame.a_P
-        self.t1t2 = lambda t: self.frame.A_IB(t).T[:2]
-        self.t1t2_dot = lambda t: self.frame.A_IB_t__(t)[:2]
-        self.t1t2_ddot = lambda t: self.frame.A_IB_tt__(t)[:2]
-        self.n = lambda t: self.frame.A_IB(t)[:, 2]
-        self.n_dot = lambda t: self.frame.A_IB_t__(t)[:, 2]
-        self.n_ddot = lambda t: self.frame.A_IB_tt__(t)[:, 2]
-        self.Omega_F_tilde = self.frame.A_IB_t__
-        self.Psi_F_tilde = self.frame.A_IB_tt__
-
-        self.xi = xi
-        self.B_r_CP = B_r_CP
+        self.gamma_cache = LRUCache(maxsize=1)
+        self.gamma_q_cache = LRUCache(maxsize=1)
+        self.gamma_u_cache = LRUCache(maxsize=1)
+        self.gamma_dot_cache = LRUCache(maxsize=1)
 
     def assembler_callback(self):
-        qDOF = self.subsystem.local_qDOF_P(self.xi)
-        self.qDOF = self.subsystem.qDOF[qDOF]
-        self.nq = len(self.qDOF)
+        assert hasattr(self.subsystem1, "A_IB"), "subsystem1 must have A_IB"
 
-        uDOF = self.subsystem.local_uDOF_P(self.xi)
-        self.uDOF = self.subsystem.uDOF[uDOF]
-        self.nu = len(self.uDOF)
+        # check for A_IB of subsystem 2
+        B_r_CP2 = self.B_r_CP2
+        if not hasattr(self.subsystem2, "A_IB"):
+            if B_r_CP2 @ B_r_CP2 > 0:
+                warn(
+                    "subsystem2 doesn't have A_IB, but B_r_CP2 was non-zero. Setting B_r_CP2 to zero."
+                )
+            B_r_CP2 = zeros3
 
-        self.r_OP = lambda t, q: self.subsystem.r_OP(
-            t, q, xi=self.xi, B_r_CP=self.B_r_CP
+        concatenate_qDOF(self)
+        concatenate_uDOF(self)
+        auxiliary_functions(self, self.B_r_CP1, B_r_CP2, self.A_B1P, None)
+
+        # overwrite for subsystem2
+        if not hasattr(self.subsystem2, "A_IB"):
+            Omega2_q2 = np.zeros((3, self.subsystem2.nq))
+            J_R2 = np.zeros((3, self.subsystem2.nu))
+            J_R2_q2 = np.zeros((3, self.subsystem2.nu, self.subsystem2.nq))
+
+            # auxiliary functions for subsystem 2
+            self.Omega2 = lambda t, q, u: zeros3
+            self.Omega2_q2 = lambda t, q, u: Omega2_q2
+            self.Psi2 = lambda t, q, u, u_dot: zeros3
+            self.J_R2 = lambda t, q: J_R2
+            self.J_R2_q2 = lambda t, q: J_R2_q2
+
+    # methods that share implementation
+    @cachedmethod(
+        lambda self: self.gamma_cache,
+        key=lambda self, t, q, u: hashkey(t, *q, *u),
+    )
+    def _gamma(self, t, q, u):
+        A_IJ1 = self.A_IJ1(t, q)
+        n = A_IJ1[:, 2]
+        r_OJ1 = self.r_OJ1(t, q)
+        r_OJ2 = self.r_OJ2(t, q)
+        r_J1J2 = r_OJ2 - r_OJ1
+        r_J1C1 = r_J1J2 - n * (n @ r_J1J2)
+        r_J2C2 = -self.radius * n
+
+        v_J1 = self.v_J1(t, q, u)
+        v_J2 = self.v_J2(t, q, u)
+        Omega1 = self.Omega1(t, q, u)
+        Omega2 = self.Omega2(t, q, u)
+        v_C1 = v_J1 + cross3(Omega1, r_J1C1)
+        v_C2 = v_J2 + cross3(Omega2, r_J2C2)
+
+        return A_IJ1.T @ (v_C2 - v_C1)
+
+    @cachedmethod(
+        lambda self: self.gamma_q_cache,
+        key=lambda self, t, q, u: hashkey(t, *q, *u),
+    )
+    def _gamma_q(self, t, q, u):
+        A_IJ1 = self.A_IJ1(t, q)
+        n = A_IJ1[:, 2]
+        r_OJ1 = self.r_OJ1(t, q)
+        r_OJ2 = self.r_OJ2(t, q)
+        r_J1J2 = r_OJ2 - r_OJ1
+        r_J1C1 = r_J1J2 - n * (n @ r_J1J2)
+        r_J2C2 = -self.radius * n
+
+        v_J1 = self.v_J1(t, q, u)
+        v_J2 = self.v_J2(t, q, u)
+        Omega1 = self.Omega1(t, q, u)
+        Omega2 = self.Omega2(t, q, u)
+        v_C1 = v_J1 + cross3(Omega1, r_J1C1)
+        v_C2 = v_J2 + cross3(Omega2, r_J2C2)
+
+        # derivatives
+        A_IJ1_q1 = self.A_IJ1_q1(t, q)
+        n_q1 = A_IJ1_q1[:, 2, :]
+        r_OJ1_q1 = self.r_OJ1_q1(t, q)
+        r_OJ2_q2 = self.r_OJ2_q2(t, q)
+        r_J1C1_q1 = (
+            -r_OJ1_q1
+            - (n @ r_J1J2) * n_q1
+            - np.outer(n, r_J1J2 @ n_q1)
+            + np.outer(n, n @ r_OJ1_q1)
         )
-        self.r_OP_q = lambda t, q: self.subsystem.r_OP_q(
-            t, q, xi=self.xi, B_r_CP=self.B_r_CP
+        r_J1C1_q2 = r_OJ2_q2 - np.outer(n, n @ r_OJ2_q2)
+        r_J2C2_q1 = -self.radius * n_q1
+
+        v_J1_q1 = self.v_J1_q1(t, q, u)
+        v_J2_q2 = self.v_J2_q2(t, q, u)
+        Omega1_q1 = self.Omega1_q1(t, q, u)
+        Omega2_q2 = self.Omega2_q2(t, q, u)
+        v_C1_q1 = (
+            v_J1_q1
+            - np.cross(r_J1C1, Omega1_q1, axis=0)
+            + np.cross(Omega1, r_J1C1_q1, axis=0)
         )
-        self.v_P = lambda t, q, u: self.subsystem.v_P(
-            t, q, u, xi=self.xi, B_r_CP=self.B_r_CP
+        v_C1_q2 = np.cross(Omega1, r_J1C1_q2, axis=0)
+        v_C2_q1 = np.cross(Omega2, r_J2C2_q1, axis=0)
+        v_C2_q2 = v_J2_q2 - np.cross(r_J2C2, Omega2_q2, axis=0)
+
+        # compute
+        nq1 = self._nq1
+        gamma_q = np.zeros([3, self._nq], dtype=q.dtype)
+        gamma_q[:, :nq1] = A_IJ1.T @ (v_C2_q1 - v_C1_q1) + np.einsum(
+            "ijk,i->jk", A_IJ1_q1, v_C2 - v_C1
         )
-        self.v_P_q = lambda t, q, u: self.subsystem.v_P_q(
-            t, q, u, xi=self.xi, B_r_CP=self.B_r_CP
+        gamma_q[:, nq1:] = A_IJ1.T @ (v_C2_q2 - v_C1_q2)
+        return gamma_q
+
+    @cachedmethod(
+        lambda self: self.gamma_u_cache,
+        key=lambda self, t, q: hashkey(t, *q),
+    )
+    def _gamma_u(self, t, q):
+        A_IJ1 = self.A_IJ1(t, q)
+        n = A_IJ1[:, 2]
+        r_OJ1 = self.r_OJ1(t, q)
+        r_OJ2 = self.r_OJ2(t, q)
+        r_J1J2 = r_OJ2 - r_OJ1
+        r_J1C1 = r_J1J2 - n * (n @ r_J1J2)
+        r_J2C2 = -self.radius * n
+
+        J_J1 = self.J_J1(t, q)
+        J_J2 = self.J_J2(t, q)
+        J_R1 = self.J_R1(t, q)
+        J_R2 = self.J_R2(t, q)
+        J_C1 = J_J1 - np.cross(r_J1C1, J_R1, axis=0)
+        J_C2 = J_J2 - np.cross(r_J2C2, J_R2, axis=0)
+
+        nu1 = self._nu1
+        gamma_u = np.zeros([3, self._nu], dtype=q.dtype)
+        gamma_u[:, :nu1] = -J_C1
+        gamma_u[:, nu1:] = J_C2
+
+        return A_IJ1.T @ gamma_u
+
+    @cachedmethod(
+        lambda self: self.gamma_dot_cache,
+        key=lambda self, t, q, u, u_dot: hashkey(t, *q, *u, *u_dot),
+    )
+    def _gamma_dot(self, t, q, u, u_dot):
+        A_IJ1 = self.A_IJ1(t, q)
+        n = A_IJ1[:, 2]
+        r_OJ1 = self.r_OJ1(t, q)
+        r_OJ2 = self.r_OJ2(t, q)
+        r_J1J2 = r_OJ2 - r_OJ1
+        r_J1C1 = r_J1J2 - n * (n @ r_J1J2)
+        r_J2C2 = -self.radius * n
+
+        v_J1 = self.v_J1(t, q, u)
+        v_J2 = self.v_J2(t, q, u)
+        Omega1 = self.Omega1(t, q, u)
+        Omega2 = self.Omega2(t, q, u)
+        v_C1 = v_J1 + cross3(Omega1, r_J1C1)
+        v_C2 = v_J2 + cross3(Omega2, r_J2C2)
+
+        # time derivatives
+        n_dot = cross3(Omega1, n)
+        v_J1J2 = v_J2 - v_J1
+        r_J1C1_dot = (
+            v_J1J2 - n_dot * (n @ r_J1J2) - n * (n_dot @ r_J1J2) - n * (n @ v_J1J2)
         )
-        self.J_P = lambda t, q: self.subsystem.J_P(t, q, xi=self.xi, B_r_CP=self.B_r_CP)
-        self.J_P_q = lambda t, q: self.subsystem.J_P_q(
-            t, q, xi=self.xi, B_r_CP=self.B_r_CP
+        r_J2C2_dot = -self.radius * n_dot
+
+        a_J1 = self.a_J1(t, q, u, u_dot)
+        a_J2 = self.a_J2(t, q, u, u_dot)
+        Psi1 = self.Psi1(t, q, u, u_dot)
+        Psi2 = self.Psi2(t, q, u, u_dot)
+        v_C1_dot = a_J1 + cross3(Psi1, r_J1C1) + cross3(Omega1, r_J1C1_dot)
+        v_C2_dot = a_J2 + cross3(Psi2, r_J2C2) + cross3(Omega2, r_J2C2_dot)
+
+        # compute
+        gamma_dot = A_IJ1.T @ (v_C2_dot - v_C1_dot - cross3(Omega1, v_C2 - v_C1))
+        return gamma_dot
+
+    def _Wla_q(self, t, q, J1_F):
+        # position and orientation
+        A_IJ1 = self.A_IJ1(t, q)
+        n = A_IJ1[:, 2]
+        r_OJ1 = self.r_OJ1(t, q)
+        r_OJ2 = self.r_OJ2(t, q)
+        r_J1J2 = r_OJ2 - r_OJ1
+        r_J1C1 = r_J1J2 - n * (n @ r_J1J2)
+        r_J2C2 = -self.radius * n
+
+        # jacobians
+        J_J1 = self.J_J1(t, q)
+        J_J2 = self.J_J2(t, q)
+        J_R1 = self.J_R1(t, q)
+        J_R2 = self.J_R2(t, q)
+
+        # generalized force
+        # Wla = [-F @ J_J1 + m1 @ J_R1, F @ J_J2 + m2 @ J_R2]
+        F = A_IJ1 @ J1_F
+        m1 = -cross3(r_J1C1, F)
+        m2 = cross3(r_J2C2, F)
+
+        ###############
+        # derivatives #
+        ###############
+        # positions and orientations
+        A_IJ1_q1 = self.A_IJ1_q1(t, q)
+        n_q1 = A_IJ1_q1[:, 2, :]
+        r_OJ1_q1 = self.r_OJ1_q1(t, q)
+        r_OJ2_q2 = self.r_OJ2_q2(t, q)
+        r_J1C1_q1 = (
+            -r_OJ1_q1
+            - (n @ r_J1J2) * n_q1
+            - np.outer(n, r_J1J2 @ n_q1)
+            + np.outer(n, n @ r_OJ1_q1)
         )
-        self.a_P = lambda t, q, u, a: self.subsystem.a_P(
-            t, q, u, a, xi=self.xi, B_r_CP=self.B_r_CP
+        r_J1C1_q2 = r_OJ2_q2 - np.outer(n, n @ r_OJ2_q2)
+        r_J2C2_q1 = -self.radius * n_q1
+
+        # jacobians
+        J_J1_q1 = self.J_J1_q1(t, q)
+        J_J2_q2 = self.J_J2_q2(t, q)
+        J_R1_q1 = self.J_R1_q1(t, q)
+        J_R2_q2 = self.J_R2_q2(t, q)
+
+        # forces
+        F_q1 = np.einsum("ijk,j->ik", A_IJ1_q1, J1_F)
+        m1_q1 = -np.cross(r_J1C1, F_q1, axis=0) - np.cross(r_J1C1_q1, F, axis=0)
+        m1_q2 = -np.cross(r_J1C1_q2, F, axis=0)
+        m2_q1 = np.cross(r_J2C2, F_q1, axis=0) + np.cross(r_J2C2_q1, F, axis=0)
+
+        nu1 = self._nu1
+        nq1 = self._nq1
+        Wla_q = np.zeros([self._nu, self._nq], dtype=q.dtype)
+        Wla_q[:nu1, :nq1] = (
+            -np.einsum("i,ijk->jk", F, J_J1_q1)
+            - J_J1.T @ F_q1
+            + np.einsum("i,ijk->jk", m1, J_R1_q1)
+            + J_R1.T @ m1_q1
         )
-        self.a_P_q = lambda t, q, u, a: self.subsystem.a_P_q(
-            t, q, u, a, xi=self.xi, B_r_CP=self.B_r_CP
-        )
-        self.a_P_u = lambda t, q, u, a: self.subsystem.a_P_u(
-            t, q, u, a, xi=self.xi, B_r_CP=self.B_r_CP
+        Wla_q[:nu1, nq1:] = J_R1.T @ m1_q2
+        Wla_q[nu1:, :nq1] = J_J2.T @ F_q1 + J_R2.T @ m2_q1
+        Wla_q[nu1:, nq1:] = np.einsum("i,ijk->jk", F, J_J2_q2) + np.einsum(
+            "i,ijk->jk", m2, J_R2_q2
         )
 
-        if hasattr(self.subsystem, "A_IB"):
-            self.A_IB = lambda t, q: self.subsystem.A_IB(t, q, xi=self.xi)
-            self.Omega = lambda t, q, u: self.subsystem.A_IB(
-                t, q, xi=self.xi
-            ) @ self.subsystem.B_Omega(t, q, u, xi=self.xi)
-            self.Omega_q = lambda t, q, u: self.subsystem.A_IB(
-                t, q, xi=self.xi
-            ) @ self.subsystem.B_Omega_q(t, q, u, xi=self.xi) + np.einsum(
-                "ijk,j->ik",
-                self.subsystem.A_IB_q(t, q, xi=self.xi),
-                self.subsystem.B_Omega(t, q, u, xi=self.xi),
-            )
-            self.J_R = lambda t, q: self.subsystem.A_IB(
-                t, q, xi=self.xi
-            ) @ self.subsystem.B_J_R(t, q, xi=self.xi)
-            self.J_R_q = lambda t, q: np.einsum(
-                "ijl,jk->ikl",
-                self.subsystem.A_IB_q(t, q, xi=self.xi),
-                self.subsystem.B_J_R(t, q, xi=self.xi),
-            ) + np.einsum(
-                "ij,jkl->ikl",
-                self.subsystem.A_IB(t, q, xi=self.xi),
-                self.subsystem.B_J_R_q(t, q, xi=self.xi),
-            )
-            self.Psi = lambda t, q, u, a: self.subsystem.A_IB(
-                t, q, xi=self.xi
-            ) @ self.subsystem.B_Psi(t, q, u, a, xi=self.xi)
-            self.Psi_q = lambda t, q, u, a: self.subsystem.A_IB(
-                t, q, xi=self.xi
-            ) @ self.subsystem.B_Psi_q(t, q, u, a, xi=self.xi) + np.einsum(
-                "ijk,j->ik",
-                self.subsystem.A_IB_q(t, q, xi=self.xi),
-                self.subsystem.B_Psi(t, q, u, a, xi=self.xi),
-            )
-            self.Psi_u = lambda t, q, u, a: self.subsystem.A_IB(
-                t, q, xi=self.xi
-            ) @ self.subsystem.B_Psi_u(t, q, u, a, xi=self.xi)
-        else:
-            self.A_IB = lambda t, q: np.eye(3)
-            self.Omega = lambda t, q, u: np.zeros(3)
-            self.Omega_q = lambda t, q, u: np.zeros((3, self.subsystem.nq))
-            self.J_R = lambda t, q: np.zeros((self.subsystem.nu, 3))
-            self.J_R_q = lambda t, q: np.zeros(
-                (self.subsystem.nu, 3, self.subsystem.nq)
-            )
-            self.Psi = lambda t, q, u, u_dot: np.zeros(3)
-            self.Psi_q = lambda t, q, u, u_dot: np.zeros((3, self.subsystem.nq))
-            self.Psi_u = lambda t, q, u, u_dot: np.zeros((3, self.subsystem.nu))
+        return Wla_q
 
     ################
     # normal contact
     ################
     def g_N(self, t, q):
-        return np.array([self.n(t) @ (self.r_OP(t, q) - self.r_OQ(t))]) - self.r
+        n = self.A_IJ1(t, q)[:, 2]
+        r_OJ1 = self.r_OJ1(t, q)
+        r_OJ2 = self.r_OJ2(t, q)
+
+        return np.array([n @ (r_OJ2 - r_OJ1)]) - self.radius
 
     def g_N_q(self, t, q):
-        return np.array([self.n(t) @ self.r_OP_q(t, q)], dtype=q.dtype)
+        n = self.A_IJ1(t, q)[:, 2]
+        r_OJ1 = self.r_OJ1(t, q)
+        r_OJ2 = self.r_OJ2(t, q)
+
+        n_q1 = self.A_IJ1_q1(t, q)[:, 2, :]
+        r_OJ1_q1 = self.r_OJ1_q1(t, q)
+        r_OJ2_q2 = self.r_OJ2_q2(t, q)
+
+        nq1 = self._nq1
+        g_N_q = np.zeros([self.nla_N, self._nq], dtype=q.dtype)
+        g_N_q[:, :nq1] = (r_OJ2 - r_OJ1) @ n_q1 - n @ r_OJ1_q1
+        g_N_q[:, nq1:] = n @ r_OJ2_q2
+
+        return g_N_q
 
     def g_N_dot(self, t, q, u):
-        return np.array(
-            [
-                self.n(t) @ (self.v_P(t, q, u) - self.v_Q(t))
-                + self.n_dot(t) @ (self.r_OP(t, q) - self.r_OQ(t))
-            ],
-            dtype=np.common_type(q, u),
-        )
+        return self._gamma(t, q, u)[2:]
 
     def g_N_dot_q(self, t, q, u):
-        return np.array(
-            [self.n(t) @ self.v_P_q(t, q, u) + self.n_dot(t) @ self.r_OP_q(t, q)],
-            dtype=np.common_type(q, u),
-        )
+        return self._gamma_q(t, q, u)[2:]
 
     def g_N_dot_u(self, t, q):
-        return np.array([self.n(t) @ self.J_P(t, q)], dtype=q.dtype)
+        return self._gamma_u(t, q)[2:]
 
     def W_N(self, t, q):
         return self.g_N_dot_u(t, q).T
 
     def g_N_ddot(self, t, q, u, u_dot):
-        return np.array(
-            [
-                self.n(t) @ (self.a_P(t, q, u, u_dot) - self.a_Q(t))
-                + 2 * self.n_dot(t) @ (self.v_P(t, q, u) - self.v_Q(t))
-                + self.n_ddot(t) @ (self.r_OP(t, q) - self.r_OQ(t))
-            ],
-            dtype=np.common_type(q, u, u_dot),
-        )
+        return self._gamma_dot(t, q, u, u_dot)[2:]
 
     def Wla_N_q(self, t, q, la_N):
-        return la_N[0] * np.einsum("i,ijk->jk", self.n(t), self.J_P_q(t, q))
+        J1_F = np.zeros(3)
+        J1_F[2:] = la_N
+        return self._Wla_q(t, q, J1_F)
 
     ##########
     # friction
     ##########
-    def __gamma_F(self, t, q, u):
-        r_PS = -self.r * self.n(t)
-        v_S = self.v_P(t, q, u) + cross3(self.Omega(t, q, u), r_PS)
-        r_QS = self.r_OP(t, q) + r_PS - self.r_OQ(t)
-        v_F = self.v_Q(t) + self.Omega_F_tilde(t) @ r_QS
-        return self.A.T @ self.t1t2(t) @ (v_S - v_F)
-
-    def __gamma_F_q(self, t, q, u):
-        # return approx_fprime(q, lambda q: self.gamma_F(t, q, u))
-        v_S_q = self.v_P_q(t, q, u) + self.r * ax2skew(self.n(t)) @ self.Omega_q(
-            t, q, u
-        )
-        v_F_q = self.Omega_F_tilde(t) @ self.r_OP_q(t, q)
-        return self.A.T @ self.t1t2(t) @ (v_S_q - v_F_q)
-
-    def gamma_F_dot(self, t, q, u, u_dot):
-        r_PS = -self.r * self.n(t)
-        r_PS_dot = -self.r * self.n_dot(t)
-        v_S = self.v_P(t, q, u) + cross3(self.Omega(t, q, u), r_PS)
-        a_S = (
-            self.a_P(t, q, u, u_dot)
-            + cross3(self.Psi(t, q, u, u_dot), r_PS)
-            + cross3(self.Omega(t, q, u), r_PS_dot)
-        )
-        r_QS = self.r_OP(t, q) + r_PS - self.r_OQ(t)
-        r_QS_dot = self.v_P(t, q, u) + r_PS_dot - self.v_Q(t)
-        v_F = self.v_Q(t) + self.Omega_F_tilde(t) @ r_QS
-        a_F = (
-            self.a_Q(t) + self.Psi_F_tilde(t) @ r_QS + self.Omega_F_tilde(t) @ r_QS_dot
-        )
-        return self.A.T @ (self.t1t2(t) @ (a_S - a_F) + self.t1t2_dot(t) @ (v_S - v_F))
-
-    def gamma_F_dot_q(self, t, q, u, u_dot):
-        # return approx_fprime(q, lambda q: self.gamma_F_dot(t, q, u, u_dot))
-        r_PS_tilde = ax2skew(-self.r * self.n(t))
-        r_PS_dot_tilde = ax2skew(-self.r * self.n_dot(t))
-        v_S_q = self.v_P_q(t, q, u) - r_PS_tilde @ self.Omega_q(t, q, u)
-        a_S_q = (
-            self.a_P_q(t, q, u, u_dot)
-            - r_PS_tilde @ self.Psi_q(t, q, u, u_dot)
-            - r_PS_dot_tilde @ self.Omega_q(t, q, u)
-        )
-
-        v_F_q = self.Omega_F_tilde(t) @ self.r_OP_q(t, q)
-        a_F_q = self.Psi_F_tilde(t) @ self.r_OP_q(t, q) + self.Omega_F_tilde(
-            t
-        ) @ self.v_P_q(t, q, u)
-
-        return self.A.T @ (
-            self.t1t2(t) @ (a_S_q - a_F_q) + self.t1t2_dot(t) @ (v_S_q - v_F_q)
-        )
-
-    def gamma_F_dot_u(self, t, q, u, u_dot):
-        # return approx_fprime(u, lambda u: self.gamma_F_dot(t, q, u, u_dot))
-        r_PS_tilde = ax2skew(-self.r * self.n(t))
-        a_S_u = self.a_P_u(t, q, u, u_dot) - r_PS_tilde @ self.Psi_u(t, q, u, u_dot)
-        J_P = self.J_P(t, q)
-        a_F_u = self.Omega_F_tilde(t) @ J_P
-        J_S = self.J_P - r_PS_tilde @ self.J_R(t, q)
-        return self.A.T @ (self.t1t2(t) @ (a_S_u - a_F_u) + self.t1t2_dot(t) @ J_S)
-
-    def gamma_F_u(self, t, q):
-        # return approx_fprime(np.zeros(self.nu), lambda u: self.gamma_F(t, q, u))
-        r_PS_tilde = ax2skew(-self.r * self.n(t))
-        J_S = self.J_P(t, q) - r_PS_tilde @ self.J_R(t, q)
-        return self.A.T @ self.t1t2(t) @ J_S
-
     def W_F(self, t, q):
         return self.gamma_F_u(t, q).T
 
     def Wla_F_q(self, t, q, la_F):
-        J_S_q = self.J_P_q(t, q) + self.r * np.einsum(
-            "ij,jkl->ikl", ax2skew(self.n(t)), self.J_R_q(t, q)
-        )
-        Wla_F_q = np.einsum("i,ij,jkl->kl", la_F, self.A.T @ self.t1t2(t), J_S_q)
-        return Wla_F_q
-        # Wla_F_q_num = approx_fprime(q, lambda q: self.gamma_F_u(t, q).T @ la_F)
-        # diff = Wla_F_q - Wla_F_q_num
-        # error = np.linalg.norm(diff)
-        # print(f"error Wla_F_q: {error}")
-        # return Wla_F_q_num
+        J1_F = np.zeros(3)
+        J1_F[:2] = self.A @ la_F
+        return self._Wla_q(t, q, J1_F)
 
     ############
     # vtk export
     ############
     def export(self, sol_i, **kwargs):
-        r_OP = self.r_OP(sol_i.t, sol_i.q[self.qDOF])
-        n = self.n(sol_i.t)
-        t1, t2 = self.t1t2(sol_i.t)
-        g_N = self.g_N(sol_i.t, sol_i.q[self.qDOF])
+        # extract from solution
+        t = sol_i.t
+        q = sol_i.q[self.qDOF]
+        u = sol_i.u[self.uDOF]
         P_N = sol_i.P_N[self.la_NDOF]
-        r_PC1 = -self.r * n
-        r_QC2 = r_OP - self.r_OQ(sol_i.t) - n * (g_N + self.r)
-        points = [r_OP + r_PC1, r_OP - n * (g_N + self.r)]
+
+        # positions and orientation
+        A_IJ1 = self.A_IJ1(t, q)
+        t1, t2, n = A_IJ1.T
+        r_OJ1 = self.r_OJ1(t, q)
+        r_OJ2 = self.r_OJ2(t, q)
+        r_J1J2 = r_OJ2 - r_OJ1
+        r_J1C1 = r_J1J2 - n * (n @ r_J1J2)
+        r_J2C2 = -self.radius * n
+        g_N = n @ r_J1J2 - self.radius
+
+        # velocities
+        v_J1 = self.v_J1(t, q, u)
+        v_J2 = self.v_J2(t, q, u)
+        Omega1 = self.Omega1(t, q, u)
+        Omega2 = self.Omega2(t, q, u)
+        v_C1 = v_J1 + cross3(Omega1, r_J1C1)
+        v_C2 = v_J2 + cross3(Omega2, r_J2C2)
+        _gamma = A_IJ1.T @ (v_C2 - v_C1)
+
+        # vtk
+        points = [r_OJ1 + r_J1C1, r_OJ2 + r_J2C2]
         cells = [(VTK_LINE, [0, 1])]
-        A_IB1 = self.A_IB(sol_i.t, sol_i.q[self.qDOF])
-        A_IB2 = self.frame.A_IB(sol_i.t)
         point_data = dict(
-            v_Ci=[
-                self.subsystem.v_P(
-                    sol_i.t,
-                    sol_i.q[self.qDOF],
-                    sol_i.u[self.uDOF],
-                    self.xi,
-                    A_IB1.T @ r_PC1,
-                ),
-                self.frame.v_P(sol_i.t, B_r_CP=A_IB2.T @ r_QC2),
-            ],
-            Omega=[
-                self.Omega(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF]),
-                A_IB2 @ self.frame.B_Omega(sol_i.t),
-            ],
-            n=[-n, n],
-            t1=[-t1, t1],
-            t2=[-t2, t2],
+            v_Ci=[v_C1, v_C2],
+            Omega=[Omega1, Omega2],
+            n=[n, -n],
+            t1=[t1, -t1],
+            t2=[t2, -t2],
             P_N=[P_N, P_N],
         )
         cell_data = dict(
-            g_N=[g_N],
-            g_N_dot=[self.g_N_dot(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])],
+            g_N=[[g_N]],
+            g_N_dot=[[_gamma[2]]],
         )
 
         if hasattr(self, f"gamma_F"):
-            cell_data["gamma_F"] = [
-                self.gamma_F(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])
-            ]
             P_F = sol_i.P_F[self.la_FDOF]
+            cell_data["gamma_F"] = [_gamma[:2]]
             point_data["P_F"] = np.array([P_F, P_F])
 
         return points, cells, point_data, cell_data

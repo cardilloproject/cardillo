@@ -60,7 +60,7 @@ floor = Box(Frame)(
 )
 
 # add contact between ball and floor
-ball2plane = Sphere2Plane(floor, ball, mu=mu, r=radius, e_N=e_N, e_F=e_F)
+ball2plane = Sphere2Plane(floor, ball, mu=mu, radius=radius, e_N=e_N, e_F=e_F)
 system.add(floor, ball2plane)
 
 # assemble system

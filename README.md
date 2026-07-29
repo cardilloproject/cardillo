@@ -113,7 +113,7 @@ pip install .
 
 ## Quick Start
 
-The snippet below simulates a 3-D sphere bouncing off a flat plane with Coulomb friction and coefficient of restitution — all in under 30 lines:
+The snippet below simulates a 3-D sphere bouncing off a flat plane with Coulomb friction and coefficient of restitution — all in under 40 lines:
 
 ```python
 import numpy as np
@@ -141,15 +141,16 @@ ball = Sphere(RigidBody)(
 
 # Ground plane and contact model (e_N = restitution, mu = friction)
 ground = Frame(name="ground")
-contact = Sphere2Plane(ball, ground, mu=0.5, e_N=0.75, e_F=0.0, name="contact")
+contact = Sphere2Plane(ground, ball, mu=0.5, radius=radius, e_N=0.75, e_F=0.0, name="contact")
 
 # Gravity
 gravity = Force(np.array([0, 0, -9.81]) * ball.mass, ball, name="gravity")
 
 system.add(ball, ground, contact, gravity)
+system.assemble()
 
 # Solve and inspect
-sol = Moreau(system).solve(t1=3.0, dt=1e-3)
+sol = Moreau(system, t1=3.0, dt=1e-3).solve()
 print("Final height:", sol.q[-1][2])
 ```
 
