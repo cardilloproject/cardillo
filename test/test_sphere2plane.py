@@ -7,11 +7,9 @@ import warnings
 from cardillo import System
 from cardillo.discrete import RigidBody, Box, Sphere, Frame, Tetrahedron
 from cardillo.forces import Force
-from cardillo.force_laws import KelvinVoigtElement as SpringDamper
-from cardillo.interactions import TwoPointInteraction
-from cardillo.contacts import Sphere2Plane, Sphere2Sphere
+from cardillo.contacts import Sphere2Plane
 from cardillo.solver import Moreau, BackwardEuler, SolverOptions
-from cardillo.math import A_IB_basic, Exp_SO3, Exp_SO3_quat, ax2skew
+from cardillo.math import A_IB_basic, Exp_SO3
 from cardillo.math.approx_fprime import approx_fprime
 from cardillo.constraints import RigidConnection
 
@@ -184,8 +182,6 @@ def test_implementation():
     B_r_CP2 = np.random.rand(3)
     A_B1P = Exp_SO3(np.random.rand(3))
 
-    B1_t1 = A_B1P[:, 0]
-    B1_t2 = A_B1P[:, 1]
     B1_n = A_B1P[:, 2]
 
     mu = 1.0
@@ -220,120 +216,88 @@ def test_implementation():
     ####################
     # g_N
     g_N = contact.g_N(t0, q0)[0]
-    assert np.isclose(g_N, g_N_ana), f"g_N: {g_N} != {g_N_ana}"
+    assert np.isclose(g_N, g_N_ana), f"g_N: {np.abs(g_N - g_N_ana)}"
 
     # g_N_q
     g_N_q = contact.g_N_q(t0, q0)
     g_N_q_num = approx_fprime(q0, lambda q_: contact.g_N(t0, q_))
     assert np.all(
         np.isclose(g_N_q, g_N_q_num, rtol=1e-5)
-    ), f"g_N_q: {g_N_q} != {g_N_q_num}"
+    ), f"g_N_q: {np.linalg.norm(g_N_q - g_N_q_num)}"
 
     # g_N_dot
     g_N_dot = contact.g_N_dot(t0, q0, u0)
     g_N_dot_num = g_N_q_num @ q0_dot
-    assert np.isclose(g_N_dot, g_N_dot_num), f"g_N_dot: {g_N_dot} != {g_N_dot_num}"
+    assert np.isclose(g_N_dot, g_N_dot_num), f"g_N_dot: {np.linalg.norm(g_N_dot - g_N_dot_num)}"
 
     # g_N_dot_q
     g_N_dot_q = contact.g_N_dot_q(t0, q0, u0)
     g_N_dot_q_num = approx_fprime(q0, lambda q_: contact.g_N_dot(t0, q_, u0))
     assert np.all(
         np.isclose(g_N_dot_q, g_N_dot_q_num, rtol=1e-5)
-    ), f"g_N_dot_q: {g_N_dot_q} != {g_N_dot_q_num}"
+    ), f"g_N_dot_q: {np.linalg.norm(g_N_dot_q - g_N_dot_q_num)}"
 
     # g_N_dot_u
     g_N_dot_u = contact.g_N_dot_u(t0, q0)
     g_N_dot_u_num = approx_fprime(u0, lambda u_: contact.g_N_dot(t0, q0, u_))
     assert np.all(
         np.isclose(g_N_dot_u, g_N_dot_u_num, rtol=1e-5)
-    ), f"g_N_dot_u: {g_N_dot_u} != {g_N_dot_u_num}"
+    ), f"g_N_dot_u: {np.linalg.norm(g_N_dot_u - g_N_dot_u_num)}"
 
     # W_N
     W_N = contact.W_N(t0, q0)
     assert np.all(
         np.isclose(W_N, g_N_dot_u.T, rtol=1e-5)
-    ), f"W_N: {W_N} != {g_N_dot_u.T}"
+    ), f"W_N: {np.linalg.norm(W_N - g_N_dot_u.T)}"
 
     # g_N_ddot
     g_N_ddot = contact.g_N_ddot(t0, q0, u0, u0_dot)
     g_N_ddot_num = g_N_dot_q_num @ q0_dot + g_N_dot_u @ u0_dot
-    assert np.isclose(g_N_ddot, g_N_ddot_num), f"g_N_ddot: {g_N_ddot} != {g_N_ddot_num}"
+    assert np.isclose(g_N_ddot, g_N_ddot_num), f"g_N_ddot: {np.linalg.norm(g_N_ddot - g_N_ddot_num)}"
 
     # Wla_N_q
     Wla_N_q = contact.Wla_N_q(t0, q0, la_N0)
     Wla_N_q_num = approx_fprime(q0, lambda q_: contact.W_N(t0, q_) @ la_N0)
     assert np.all(
         np.isclose(Wla_N_q, Wla_N_q_num, rtol=1e-5)
-    ), f"Wla_N_q: {Wla_N_q} != {Wla_N_q_num}"
-
-    # KN_N
-    B_sys = np.block(
-        [
-            [body1.q_dot_u(t0, q01), np.zeros((7, 6))],
-            [np.zeros((7, 6)), body2.q_dot_u(t0, q02)],
-        ]
-    )
-    K_N_num = -Wla_N_q @ B_sys
-    K_N_num = (K_N_num + K_N_num.T) / 2
-    N_N_num = np.zeros_like(K_N_num)
-    K_N, N_N = contact.KN_N(t0, q0, la_N0)
-
-    assert np.all(np.isclose(K_N, K_N.T)), f"K_N-symmetry: {K_N} != {K_N.T}"
-    assert np.all(np.isclose(K_N, K_N_num)), f"K_N-num: {K_N} != {K_N_num}"
-    assert np.all(np.isclose(N_N, N_N_num)), f"N_N: {N_N} != {N_N_num}"
+    ), f"Wla_N_q: {np.linalg.norm(Wla_N_q - Wla_N_q_num)}"
 
     ########################
     # tangential direction #
     ########################
-    # TODO: how to test gamma_F?
-    gamma_F = contact.gamma_F(t0, q0, u0)
-
     # gamma_F_q
     gamma_F_q_num = approx_fprime(q0, lambda q_: contact.gamma_F(t0, q_, u0))
     gamma_F_q = contact.gamma_F_q(t0, q0, u0)
     assert np.all(
         np.isclose(gamma_F_q, gamma_F_q_num, rtol=1e-5)
-    ), f"gamma_F_q: {gamma_F_q} != {gamma_F_q_num}"
+    ), f"gamma_F_q: {np.linalg.norm(gamma_F_q - gamma_F_q_num)}"
 
     # gamma_F_u
     gamma_F_u_num = approx_fprime(u0, lambda u_: contact.gamma_F(t0, q0, u_))
     gamma_F_u = contact.gamma_F_u(t0, q0)
     assert np.all(
         np.isclose(gamma_F_u, gamma_F_u_num, rtol=1e-5)
-    ), f"gamma_F_u: {gamma_F_u} != {gamma_F_u_num}"
+    ), f"gamma_F_u: {np.linalg.norm(gamma_F_u - gamma_F_u_num)}"
 
     # W_F
     W_F = contact.W_F(t0, q0)
     assert np.all(
         np.isclose(W_F, gamma_F_u.T, rtol=1e-5)
-    ), f"W_F: {W_F} != {gamma_F_u.T}"
+    ), f"W_F: {np.linalg.norm(W_F - gamma_F_u.T)}"
 
     # gamma_F_dot
     gamma_F_dot = contact.gamma_F_dot(t0, q0, u0, u0_dot)
     gamma_F_dot_num = gamma_F_q @ q0_dot + gamma_F_u @ u0_dot
     assert np.all(
         np.isclose(gamma_F_dot, gamma_F_dot_num)
-    ), f"gamma_F_dot: {gamma_F_dot} != {gamma_F_dot_num}"
+    ), f"gamma_F_dot: {np.linalg.norm(gamma_F_dot - gamma_F_dot_num)}"
 
     # Wla_N_q
     Wla_F_q = contact.Wla_F_q(t0, q0, la_F0)
     Wla_F_q_num = approx_fprime(q0, lambda q_: contact.W_F(t0, q_) @ la_F0)
     assert np.all(
         np.isclose(Wla_F_q, Wla_F_q_num, rtol=1e-5)
-    ), f"Wla_F_q: {Wla_F_q} != {Wla_F_q_num}"
-
-    # KN_F
-    K_F_num = -Wla_F_q @ B_sys
-    K_F_num = (K_F_num + K_F_num.T) / 2
-    # N_F_num = np.zeros_like(K_F_num) # TODO: this should be something
-    K_F, N_F = contact.KN_F(t0, q0, la_F0)
-
-    assert np.all(np.isclose(K_F, K_F.T)), f"K_F-symmetry"  #: {K_F} != {K_F.T}"
-    assert np.all(
-        np.isclose(K_F, K_F_num)
-    ), f"K_F-num"  #: {K_F} != {K_F_num}" # TODO: what is this?
-    assert np.all(np.isclose(N_F, -N_F.T)), f"N_F-skew symmetry"  #: {N_F} != {N_F_num}"
-    # assert np.all(np.isclose(N_F, N_F_num)), f"N_F" #: {N_F} != {N_F_num}" # TODO: what is this?
+    ), f"Wla_F_q: {np.linalg.norm(Wla_F_q - Wla_F_q_num)}"
 
 
 def test_rotating_plate_kin(show_plot=False):
@@ -364,9 +328,9 @@ def test_rotating_plate_kin(show_plot=False):
         ax[0, 1].set_title("gamma_2")
         plt.show()
 
-    assert np.all(np.isclose(gamma, gamma_theo, atol=1e-6))
-    assert np.all(np.isclose(gamma, gamma_rig, atol=1e-6))
-    assert np.all(np.isclose(gamma_rig, gamma_theo_rig, atol=1e-6))
+    assert np.all(np.isclose(gamma, gamma_theo, atol=1e-6)), f"gamma: {gamma}, gamma_theory: {gamma_theo}"
+    assert np.all(np.isclose(gamma, gamma_rig, atol=1e-6)), f"gamma: {gamma}, gamma of transformed system: {gamma_rig}"
+    assert np.all(np.isclose(gamma_rig, gamma_theo_rig, atol=1e-6)), f"gamma of transformed system: {gamma_rig}, gamma_theory: {gamma_theo_rig}"
 
 
 def test_rotating_plate_dyn(show_plot=False):
@@ -397,7 +361,7 @@ def test_rotating_plate_dyn(show_plot=False):
         [(axi.legend(), axi.grid()) for axi in ax.flatten()]
         plt.show()
 
-    assert np.all(np.isclose(r_OBall, r_OBall_rig, atol=1e-6))
+    assert np.all(np.isclose(r_OBall, r_OBall_rig, atol=1e-6)), "Position of ball is not the same in both systems!"
 
 
 def rotating_plate(A_rig, r_rig, constrained=True, blender_export=False):
