@@ -22,7 +22,7 @@ class ScipyDAE:
         self,
         system,
         t1,
-        dt,
+        dt=None,
         method="Radau",
         rtol=1.0e-3,
         atol=1.0e-6,
@@ -76,11 +76,15 @@ class ScipyDAE:
 
         # integration time
         t0 = system.t0
+        self.t0 = t0
         self.t1 = (
             t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
         )
         self.dt = dt
-        self.t_eval = np.arange(t0, self.t1 + self.dt, self.dt)
+        if dt is not None:
+            self.t_eval = np.arange(t0, self.t1 + self.dt, self.dt)
+        else:
+            self.t_eval = None
 
         self.frac = (t1 - t0) / 101
         self.pbar = tqdm(total=100, leave=True)
@@ -158,7 +162,7 @@ class ScipyDAE:
         Wla_gamma_q = self.system.Wla_gamma_q(t, q, la_gamma)
         Wla_c_q = self.system.Wla_c_q(t, q, la_c)
 
-        g_dot_q = self.system.g_dot_q(t, q, u)
+        # g_dot_q = self.system.g_dot_q(t, q, u)
         g_dot_u = self.system.g_dot_u(t, q)
 
         gamma_q = self.system.gamma_q(t, q, u)
@@ -193,7 +197,7 @@ class ScipyDAE:
 
         Jy[self.split[1] : self.split[2], : self.split[0]] = g_q
 
-        Jy[self.split[2] : self.split[3], : self.split[0]] = g_dot_q
+        # Jy[self.split[2] : self.split[3], : self.split[0]] = g_dot_q
         Jy[self.split[2] : self.split[3], self.split[0] : self.split[1]] = g_dot_u
 
         Jy[self.split[3] : self.split[4], : self.split[0]] = gamma_q
@@ -238,14 +242,15 @@ class ScipyDAE:
         solver_summary = SolverSummary(f"Scipy solve_dae with method '{self.method}'")
         sol = solve_dae(
             self.fun,
-            self.t_eval[[0, -1]],
+            # self.t_eval[[0, -1]],
+            (self.t0, self.t1),
             self.y0,
             self.y_dot0,
             t_eval=self.t_eval,
             method=self.method,
             rtol=self.rtol,
             atol=self.atol,
-            events=[self.event],
+            # events=[self.event],
             jac=self.jac,
             **self.kwargs,
         )
