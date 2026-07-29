@@ -228,7 +228,9 @@ def test_implementation():
     # g_N_dot
     g_N_dot = contact.g_N_dot(t0, q0, u0)
     g_N_dot_num = g_N_q_num @ q0_dot
-    assert np.isclose(g_N_dot, g_N_dot_num), f"g_N_dot: {np.linalg.norm(g_N_dot - g_N_dot_num)}"
+    assert np.isclose(
+        g_N_dot, g_N_dot_num
+    ), f"g_N_dot: {np.linalg.norm(g_N_dot - g_N_dot_num)}"
 
     # g_N_dot_q
     g_N_dot_q = contact.g_N_dot_q(t0, q0, u0)
@@ -253,7 +255,9 @@ def test_implementation():
     # g_N_ddot
     g_N_ddot = contact.g_N_ddot(t0, q0, u0, u0_dot)
     g_N_ddot_num = g_N_dot_q_num @ q0_dot + g_N_dot_u @ u0_dot
-    assert np.isclose(g_N_ddot, g_N_ddot_num), f"g_N_ddot: {np.linalg.norm(g_N_ddot - g_N_ddot_num)}"
+    assert np.isclose(
+        g_N_ddot, g_N_ddot_num
+    ), f"g_N_ddot: {np.linalg.norm(g_N_ddot - g_N_ddot_num)}"
 
     # Wla_N_q
     Wla_N_q = contact.Wla_N_q(t0, q0, la_N0)
@@ -328,9 +332,15 @@ def test_rotating_plate_kin(show_plot=False):
         ax[0, 1].set_title("gamma_2")
         plt.show()
 
-    assert np.all(np.isclose(gamma, gamma_theo, atol=1e-6)), f"gamma: {gamma}, gamma_theory: {gamma_theo}"
-    assert np.all(np.isclose(gamma, gamma_rig, atol=1e-6)), f"gamma: {gamma}, gamma of transformed system: {gamma_rig}"
-    assert np.all(np.isclose(gamma_rig, gamma_theo_rig, atol=1e-6)), f"gamma of transformed system: {gamma_rig}, gamma_theory: {gamma_theo_rig}"
+    assert np.all(
+        np.isclose(gamma, gamma_theo, atol=1e-6)
+    ), f"gamma: {gamma}, gamma_theory: {gamma_theo}"
+    assert np.all(
+        np.isclose(gamma, gamma_rig, atol=1e-6)
+    ), f"gamma: {gamma}, gamma of transformed system: {gamma_rig}"
+    assert np.all(
+        np.isclose(gamma_rig, gamma_theo_rig, atol=1e-6)
+    ), f"gamma of transformed system: {gamma_rig}, gamma_theory: {gamma_theo_rig}"
 
 
 def test_rotating_plate_dyn(show_plot=False):
@@ -361,7 +371,9 @@ def test_rotating_plate_dyn(show_plot=False):
         [(axi.legend(), axi.grid()) for axi in ax.flatten()]
         plt.show()
 
-    assert np.all(np.isclose(r_OBall, r_OBall_rig, atol=1e-6)), "Position of ball is not the same in both systems!"
+    assert np.all(
+        np.isclose(r_OBall, r_OBall_rig, atol=1e-6)
+    ), "Position of ball is not the same in both systems!"
 
 
 def rotating_plate(A_rig, r_rig, constrained=True, blender_export=False):
