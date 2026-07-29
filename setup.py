@@ -29,7 +29,7 @@ setup(
         "cachetools>=5.3.3",
         "trimesh>=4.0.5",
         "vtk>=9.3.0",
-        "scipy_dae>=0.1.0",
+        "solve_dae>=0.2.3",
         "urdf_parser_py",
     ],
     packages=find_packages(),
