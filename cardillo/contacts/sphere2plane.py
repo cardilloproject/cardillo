@@ -2,6 +2,7 @@ import numpy as np
 from cachetools import LRUCache, cachedmethod
 from cachetools.keys import hashkey
 from vtk import VTK_LINE
+from warnings import warn
 
 from cardillo.constraints._base import (
     concatenate_qDOF,
@@ -10,6 +11,9 @@ from cardillo.constraints._base import (
 )
 from cardillo.math.algebra import cross3
 from cardillo.math.prox import Sphere
+
+zeros3 = np.zeros(3)
+eye3 = np.eye(3)
 
 
 # TODO: We have to add a function that computes the correct contact forces by
@@ -22,9 +26,9 @@ class Sphere2Plane:
         subsystem2,
         mu,
         radius,
-        B_r_CP1=np.zeros(3),
-        B_r_CP2=np.zeros(3),
-        A_B1P=np.eye(3),
+        B_r_CP1=zeros3,
+        B_r_CP2=zeros3,
+        A_B1P=eye3,
         e_N=None,
         e_F=None,
         xi1=None,
@@ -103,9 +107,33 @@ class Sphere2Plane:
         self.gamma_dot_cache = LRUCache(maxsize=1)
 
     def assembler_callback(self):
+        assert hasattr(self.subsystem1, "A_IB"), "subsystem1 must have A_IB"
+
+        # check for A_IB of subsystem 2
+        B_r_CP2 = self.B_r_CP2
+        if not hasattr(self.subsystem2, "A_IB"):
+            if B_r_CP2 @ B_r_CP2 > 0:
+                warn(
+                    "subsystem2 doesn't have A_IB, but B_r_CP2 was non-zero. Setting B_r_CP2 to zero."
+                )
+            B_r_CP2 = zeros3
+
         concatenate_qDOF(self)
         concatenate_uDOF(self)
-        auxiliary_functions(self, self.B_r_CP1, self.B_r_CP2, self.A_B1P, None)
+        auxiliary_functions(self, self.B_r_CP1, B_r_CP2, self.A_B1P, None)
+
+        # overwrite for subsystem2
+        if not hasattr(self.subsystem2, "A_IB"):
+            Omega2_q2 = np.zeros((3, self.subsystem2.nq))
+            J_R2 = np.zeros((3, self.subsystem2.nu))
+            J_R2_q2 = np.zeros((3, self.subsystem2.nu, self.subsystem2.nq))
+
+            # auxiliary functions for subsystem 2
+            self.Omega2 = lambda t, q, u: zeros3
+            self.Omega2_q2 = lambda t, q, u: Omega2_q2
+            self.Psi2 = lambda t, q, u, u_dot: zeros3
+            self.J_R2 = lambda t, q: J_R2
+            self.J_R2_q2 = lambda t, q: J_R2_q2
 
     # methods that share implementation
     @cachedmethod(

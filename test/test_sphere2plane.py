@@ -5,7 +5,7 @@ import pytest
 import warnings
 
 from cardillo import System
-from cardillo.discrete import RigidBody, Box, Sphere, Frame, Tetrahedron
+from cardillo.discrete import RigidBody, Box, Sphere, Frame, Tetrahedron, PointMass
 from cardillo.forces import Force
 from cardillo.contacts import Sphere2Plane
 from cardillo.solver import Moreau, BackwardEuler, SolverOptions
@@ -135,6 +135,33 @@ def run(solver=Moreau, VTK_export=False):
                 name=f"floor2{tetrahedron.name}_{i}",
             )
         )
+
+    # ball as PointMass
+    r_OBall20 = np.array([10 * edge, 0, radius + initial_gap])
+    ball2 = PointMass(
+        mass=ball.mass,
+        q0=r_OBall20,
+        u0=np.zeros(3),
+        name="ball2",
+    )
+
+    system.add(ball2)
+
+    # gravity of ball
+    system.add(Force(ball2.mass * g, ball2, name="gravity_" + ball2.name))
+
+    # contact between ball and plane
+    system.add(
+        Sphere2Plane(
+            floor,
+            ball2,
+            mu=mu,
+            radius=radius,
+            e_N=e_N,
+            e_F=e_F,
+            name="floor2" + ball2.name,
+        )
+    )
 
     # assemble system
     system.assemble()
