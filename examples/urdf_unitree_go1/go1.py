@@ -45,7 +45,7 @@ if __name__ == "__main__":
     mu = 0.3
     for foot in ["FR_foot", "FL_foot", "RR_foot", "RL_foot"]:
         contact = Sphere2Plane(
-            system.origin, system.contributions_map[foot], mu=mu, r=radius
+            system.origin, system.contributions_map[foot], mu=mu, radius=radius
         )
         system.add(contact)
 

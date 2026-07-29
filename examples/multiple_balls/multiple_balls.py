@@ -81,7 +81,7 @@ if __name__ == "__main__":
                 floor,
                 ball,
                 mu=mu,
-                r=radius,
+                radius=radius,
                 e_N=e_N,
                 e_F=e_F,
                 name="floor2" + ball.name,

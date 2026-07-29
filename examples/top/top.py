@@ -73,7 +73,7 @@ if __name__ == "__main__":
         name="floor",
     )
 
-    tip2plane = Sphere2Plane(floor, top, mu=0.01, r=tip_radius, e_N=0, B_r_CP=-B_r_PC)
+    tip2plane = Sphere2Plane(floor, top, mu=0.01, radius=tip_radius, e_N=0, B_r_CP2=-B_r_PC)
     system.add(floor, tip2plane)
     # assemble system
     system.assemble()
