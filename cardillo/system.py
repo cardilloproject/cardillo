@@ -437,6 +437,16 @@ class System:
             )
         return c
 
+    # TODO: We have to split c and further add compliant forces on velocity level
+    # def c_g(self, t, q):
+    #     pass
+
+    # def c_g_dot(self, t, q, u): # => W_c_g, chi_c_g
+    #     pass
+
+    # def c_gamma(self, t, q, u): # => W_c_gamma, chi_c_gamma
+    #     pass
+
     def c_q(self, t, q, u, la_c, format="coo"):
         coo = CooMatrix((self.nla_c, self.nq))
         for contr in self.__c_q_contr:
