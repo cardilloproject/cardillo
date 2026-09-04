@@ -428,7 +428,7 @@ class MoreauTheta:
         h = self.system.h(tnth, qnth, un)
         W_g = self.system.W_g(tnth, qnth) # C == 0
         W_gamma = self.system.W_gamma(tnth, qnth)
-        W_c = -self.system.W_c(tnth, qnth) # C != 0, regular and diagonal
+        W_c = self.system.W_c(tnth, qnth) # C != 0, regular and diagonal
         W_tau = self.system.W_tau(tnth, qnth)
         la_tau = self.system.la_tau(tnth, qnth, un)
         chi_g = self.system.g_dot(tnth, qnth, np.zeros_like(un))
@@ -438,10 +438,10 @@ class MoreauTheta:
 
         # Build matrix A for computation of new velocities and bilateral constraint percussions
         # fmt: off
-        A = bmat([[        M, -dt * W_g, -dt* W_gamma,        -dt * W_c],
-                  [    W_g.T,      None,         None,             None],
-                  [W_gamma.T,      None,         None,             None],
-                  [    W_c.T,      None,         None, C / (dt * theta)]], format="csc")
+        A = bmat([[                M, -dt * W_g, -dt* W_gamma,        -dt * W_c],
+                  [    theta * W_g.T,      None,         None,             None],
+                  [theta * W_gamma.T,      None,         None,             None],
+                  [    theta * W_c.T,      None,         None, C / (dt * theta)]], format="csc")
         # fmt: on
 
         # perform LU decomposition only once since matrix A is constant in
@@ -449,7 +449,7 @@ class MoreauTheta:
         lu_A = splu(A)
 
         # initial right hand side without contact forces
-        # g(tn, qn) => c(tn, qn, 0, 0)
+        # C @ la_cn = -g(tn, qn) => g(tn, qn) => c(tn, qn, 0, 0)
         Cla_n = -self.system.c(self.tn, self.qn, np.zeros_like(un), np.zeros_like(la_cn))
         # c = C @ la - g(t, q)
         gn = self.system.g(self.tn, self.qn)
@@ -459,10 +459,13 @@ class MoreauTheta:
                 # - W_g.T @ ((1 - theta) * un) - chi_g,
                 -gn / (dt * theta) - W_g.T @ ((1 - theta) * un) - chi_g, # stabilized variant
                 -W_gamma.T @ ((1 - theta) * un) - chi_gamma,
-                C @ (la_cn / (dt * theta)) - W_c.T @ ((1 - theta) * un) - chi_c,
-                # Cla_n / (dt * theta) - W_c.T @ ((1 - theta) * un) - chi_c, # stabilized variant
+                # C @ (la_cn / (dt * theta)) - W_c.T @ ((1 - theta) * un) - chi_c,  # - beta * self.system.c(self.tn, self.qn, un, la_cn)
+                Cla_n / (dt * theta) - W_c.T @ ((1 - theta) * un) - chi_c, # stabilized variant
             )
         )
+
+        # 0 = C @ la + g(t, q)
+        # 0 = C @ la_n + g(tn + qn) + dt * (C @ la' + W.T @ u)
 
         # solve for initial velocities and percussions of the bilateral
         # constraints for the fixed point iteration
@@ -566,10 +569,10 @@ class MoreauTheta:
         un1, la_gn_theta, la_gamman_theta, la_cn_theta = np.array_split(x, self.split_x)
         # la_gn1 = la_gn_theta / theta - (1 - theta) / theta * self.la_gn
         # la_gamman1 = la_gamman_theta / theta - (1 - theta) / theta * self.la_gamman
-        # la_cn1 = la_cn_theta / theta - (1 - theta) / theta * self.la_cn
+        la_cn1 = la_cn_theta / theta - (1 - theta) / theta * self.la_cn
         la_gn1 = la_gn_theta
         la_gamman1 = la_gamman_theta
-        la_cn1 = la_cn_theta
+        # la_cn1 = la_cn_theta
 
         # second half step
         qn1 = qnth + theta * dt * self.system.q_dot(tnth, qnth, un1)

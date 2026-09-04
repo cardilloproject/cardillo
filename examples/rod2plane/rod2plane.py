@@ -9,7 +9,7 @@ from cardillo.rods import (
 from cardillo.rods.cosseratRod import make_CosseratRod
 from cardillo.rods.force_line_distributed import Force_line_distributed
 from cardillo.contacts import Sphere2Plane
-from cardillo.solver import SolverOptions, Moreau, DualStormerVerlet
+from cardillo.solver import SolverOptions, Moreau, MoreauTheta
 
 nelements = 5
 polynomial_degree = 1
@@ -88,10 +88,11 @@ if __name__ == "__main__":
     # solver = Moreau(system, t1, dt, options=SolverOptions(prox_scaling=0.05))
     dt = 1e-1
     prox_scaling = 1
-    solver = DualStormerVerlet(
+    solver = MoreauTheta(
         system,
         t1,
         dt,
+        theta=0.6,
         options=SolverOptions(
             prox_scaling=prox_scaling,
             newton_atol=1e-8,

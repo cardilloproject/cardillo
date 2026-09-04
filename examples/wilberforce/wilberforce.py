@@ -33,7 +33,7 @@ if __name__ == "__main__":
     # nturns = 20  # number of coils Harsch2021
 
     t1 = 20  #
-    t1 = 0.5
+    t1 = 5
 
     #########
     # gravity
@@ -143,6 +143,8 @@ if __name__ == "__main__":
         cross_section_inertias=cross_section_inertias,
     )
 
+    rod._export_dict["level"] = "NodalVolume"
+
     ##############
     # pendulum bob
     ##############
@@ -218,13 +220,13 @@ if __name__ == "__main__":
         ########################
         # system.remove(gravity_bob_statics, gravity_rod_statics, pulling_force)
         system.add(gravity_bob, gravity_rod)
-        system.assemble(options=SolverOptions(compute_consistent_initial_conditions=False))
-        dt = 1e-2
+        system.assemble(options=SolverOptions(compute_consistent_initial_conditions=True))
+        dt = 1e-3
         solver = MoreauTheta(
             system, 
             t1=t1, 
             dt=dt, 
-            theta=0.95,
+            theta=0.75,
         )
         sol = solver.solve()
         sol.system = None
@@ -260,6 +262,10 @@ if __name__ == "__main__":
     #     header="t,z,alpha",
     #     comments="",
     # )
+
+    # compute reference and current arc length
+    # l0 = 
+    # q_rod = q[rod.qDOF].reshape(len(t), 7, -1)[:, :3]
 
     ###############
     # visualization
@@ -300,6 +306,6 @@ if __name__ == "__main__":
         bob_glyph.qDOF = bob.qDOF
         bob_glyph.uDOF = bob.uDOF
         system.add(bob_glyph)
-        system.export(dir_name, f"vtk/wilberforce_pendulum", sol, fps=50)
+        system.export(dir_name, f"vtk/wilberforce_pendulum", sol, fps=25)
     print("finished")
     exit()
