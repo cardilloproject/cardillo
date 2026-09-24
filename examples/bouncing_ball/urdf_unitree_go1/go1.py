@@ -169,16 +169,16 @@ if __name__ == "__main__":
     radius = 0.022
     mu = 0.3
     foot_contact_FR = Sphere2Plane(
-        system.origin, system.contributions_map["FR_foot"], mu=mu, r=radius
+        system.origin, system.contributions_map["FR_foot"], mu=mu, radius=radius
     )
     foot_contact_FL = Sphere2Plane(
-        system.origin, system.contributions_map["FL_foot"], mu=mu, r=radius
+        system.origin, system.contributions_map["FL_foot"], mu=mu, radius=radius
     )
     foot_contact_RR = Sphere2Plane(
-        system.origin, system.contributions_map["RR_foot"], mu=mu, r=radius
+        system.origin, system.contributions_map["RR_foot"], mu=mu, radius=radius
     )
     foot_contact_RL = Sphere2Plane(
-        system.origin, system.contributions_map["RL_foot"], mu=mu, r=radius
+        system.origin, system.contributions_map["RL_foot"], mu=mu, radius=radius
     )
     system.add(foot_contact_FR, foot_contact_FL, foot_contact_RR, foot_contact_RL)
 

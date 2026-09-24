@@ -26,7 +26,7 @@ def create_subsystems(nx, ny, dist, mass, frame, height):
             )
             contacts.append(
                 Sphere2Plane(
-                    frame, pms[-1], mu=0, r=0, e_N=0.2, name=f"contact_{ix}_{iy}"
+                    frame, pms[-1], mu=0, radius=0, e_N=0.2, name=f"contact_{ix}_{iy}"
                 )
             )
     return pms, grav, contacts
