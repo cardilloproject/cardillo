@@ -270,3 +270,71 @@ def compute_I_F(I_N, system, slice=True):
                 global_active_friction_laws.append(([], i_F_local, force_reservoir))
 
     return np.array(I_F, dtype=int), global_active_friction_laws
+
+
+def fixed_point_iteration(fun, x0, error, max_iter):
+    """Pure fixed-point iteration for solving x = fun(x).
+
+    Parameters:
+        fun      : callable, fixed-point map x -> fun(x)
+        x0       : np.ndarray, initial guess
+        error    : callable, scaled error measure error(x_new, x); the
+                   iteration is converged if error(x_new, x) < 1
+        max_iter : int, maximum number of iterations
+
+    Returns:
+        x         : final iterate
+        converged : bool, convergence flag
+        niter     : number of performed iterations
+        error     : final scaled error
+    """
+    x = x0.copy()
+    err = np.inf
+    for k in range(max_iter):
+        x_new = fun(x)
+        err = error(x_new, x)
+        x = x_new
+        if err < 1:
+            return x, True, k + 1, err
+    return x, False, max_iter, err
+
+
+def fixed_point_iteration_with_momentum(fun, x0, error, max_iter):
+    """Nesterov accelerated fixed-point iteration for solving x = fun(x)
+    with adaptive restart, see
+    - https://hengshuaiyao.github.io/papers/nesterov83.pdf
+    - https://link.springer.com/article/10.1007/s10208-013-9150-3
+
+    Parameters and returns are the same as for `fixed_point_iteration`.
+    """
+    xk = x0.copy()
+    yk = xk.copy()
+    thk = 1.0
+    err = np.inf
+    for k in range(max_iter):
+        # next iterate
+        xk1 = fun(yk)
+
+        # error
+        err = error(xk1, yk)
+        if err < 1:
+            return xk1, True, k + 1, err
+
+        # Nesterov acceleration
+        thk1 = 0.5 * (1 + np.sqrt(4 * thk**2 + 1))
+        betak1 = (thk - 1) / thk1
+
+        # momentum
+        yk1 = xk1 + betak1 * (xk1 - xk)
+
+        # gradient based restart, see eq. (12) and (13) in O'Donoghue2015
+        if np.dot(yk - xk1, xk1 - xk) > 0:
+            yk1 = xk1.copy()
+            thk1 = 1.0
+
+        # update previous values
+        xk = xk1
+        yk = yk1
+        thk = thk1
+
+    return xk1, False, max_iter, err

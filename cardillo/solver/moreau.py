@@ -6,6 +6,10 @@ from tqdm import tqdm
 
 from cardillo.definitions import IS_CLOSE_ATOL
 from cardillo.solver import SolverOptions, SolverSummary, Solution, compute_I_F
+from cardillo.solver._base import (
+    fixed_point_iteration,
+    fixed_point_iteration_with_momentum,
+)
 from cardillo.math.prox import estimate_prox_parameter, NegativeOrthant
 
 
@@ -327,9 +331,18 @@ class Moreau:
 
 
 class MoreauTheta:
-    def __init__(self, system, t1, dt, theta=0.5, options=SolverOptions()):
+    def __init__(
+        self,
+        system,
+        t1,
+        dt,
+        theta=0.5,
+        options=SolverOptions(),
+        accelerated=True,
+    ):
         self.system = system
         self.options = options
+        self.accelerated = accelerated
 
         assert 0 < theta <= 1.0, "theta is not in (0, 1]"
         self.theta = theta
@@ -470,15 +483,13 @@ class MoreauTheta:
         # solve for initial velocities and percussions of the bilateral
         # constraints for the fixed point iteration
         x0 = lu_A.solve(b)
-        u0 = x0[: self.nu]
 
         P_Nn1 = np.zeros(self.nla_N, dtype=float)
         P_Fn1 = np.zeros(self.nla_F, dtype=float)
 
         converged = True
-        error = 0
-        abs_error = 0.0
-        j = 0
+        error = 0.0
+        niter = 0
 
         # identify active contacts
         g_Nn12 = self.system.g_N(tnth, qnth)
@@ -520,40 +531,54 @@ class MoreauTheta:
                 [len(self.I_N)],
             )
 
-            # warm start
-            P_N = self.P_Nn.copy()[self.I_N]
-            P_F = self.P_Fn.copy()[self.I_F]
-            for j in range(self.options.fixed_point_max_iter):
+            # fixed-point map z = (x, P_N, P_F) -> fun(z), where x contains
+            # the velocities and the bilateral constraint forces
+            nu = self.nu
+            nx = len(x0)
+            nN = len(self.I_N)
+
+            def fun(z):
+                u0 = z[:nu]
+                P_N = z[nx : nx + nN].copy()
+                P_F = z[nx + nN :].copy()
+
                 # project percussions
                 P_N, P_F = self.prox(u0, P_N, P_F)
 
                 # update rhs
                 bb = b.copy()
-                bb[: self.nu] += self.W_N @ P_N + self.W_F @ P_F
+                bb[:nu] += self.W_N @ P_N + self.W_F @ P_F
 
-                # compute new velocities
+                # compute new velocities and bilateral constraint forces
                 x = lu_A.solve(bb)
-                u = x[: self.nu]
 
-                # convergence in velocities
-                diff = u - u0
+                return np.concatenate((x, P_N, P_F))
 
-                # error measure, see Hairer1993, Section II.4
+            # convergence in velocities, error measure see Hairer1993, Section II.4
+            def error_measure(z_new, z):
+                u, u0 = z_new[:nu], z[:nu]
                 sc = (
                     self.options.fixed_point_atol
                     + np.maximum(np.abs(u), np.abs(u0)) * self.options.fixed_point_rtol
                 )
-                error = np.linalg.norm(diff / sc) / sc.size**0.5
-                converged = error < 1.0
+                return np.linalg.norm((u - u0) / sc) / sc.size**0.5
 
-                abs_error = np.max(np.abs(diff))
+            # warm start
+            z0 = np.concatenate((x0, self.P_Nn[self.I_N], self.P_Fn[self.I_F]))
 
-                if converged:
-                    P_Nn1[self.I_N] = P_N
-                    P_Fn1[self.I_F] = P_F
-                    break
+            if self.accelerated:
+                z, converged, niter, error = fixed_point_iteration_with_momentum(
+                    fun, z0, error_measure, self.options.fixed_point_max_iter
+                )
+            else:
+                z, converged, niter, error = fixed_point_iteration(
+                    fun, z0, error_measure, self.options.fixed_point_max_iter
+                )
 
-                u0 = u.copy()
+            # unpack solution of the fixed-point iteration
+            x = z[:nx]
+            P_Nn1[self.I_N] = z[nx : nx + nN]
+            P_Fn1[self.I_F] = z[nx + nN :]
 
             if not converged:
                 if self.options.continue_with_unconverged:
@@ -578,7 +603,7 @@ class MoreauTheta:
         qn1 = qnth + theta * dt * self.system.q_dot(tnth, qnth, un1)
 
         return (
-            (converged, j, abs_error),
+            (converged, niter, error),
             tn1,
             qn1,
             un1,
@@ -605,7 +630,7 @@ class MoreauTheta:
         pbar = tqdm(self.t[1:], leave=True, mininterval=0.5, miniters=nfrac)
         for _ in pbar:
             (
-                (converged, j, error),
+                (converged, niter, error),
                 tn1,
                 qn1,
                 un1,
@@ -616,19 +641,19 @@ class MoreauTheta:
                 P_Fn1,
             ) = self.step()
             pbar.set_description(
-                f"t: {tn1:0.2e}; fixed-point iterations: {j+1}; error: {error:.3e}"
+                f"t: {tn1:0.2e}; fixed-point iterations: {niter}; error: {error:.3e}"
             )
             if not converged:
                 if self.options.continue_with_unconverged:
                     print(
-                        f"fixed-point iteration not converged after {j+1} iterations with error: {error:.5e}"
+                        f"fixed-point iteration not converged after {niter} iterations with error: {error:.5e}"
                     )
                 else:
                     raise RuntimeError(
-                        f"fixed-point iteration not converged after {j+1} iterations with error: {error:.5e}"
+                        f"fixed-point iteration not converged after {niter} iterations with error: {error:.5e}"
                     )
             solver_summary.add_lu(1)
-            solver_summary.add_fixed_point(j, error)
+            solver_summary.add_fixed_point(niter, error)
 
             qn1, un1 = self.system.step_callback(tn1, qn1, un1)
 
