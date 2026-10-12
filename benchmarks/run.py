@@ -24,6 +24,12 @@ RESULTS = Path(__file__).parent / "results"
 # Cases that solve linear systems iteratively (MINRES, rtol=1e-5): results only
 # agree up to the solver tolerance when the rounding of a matvec changes.
 LOOSE = {"rod2plane": (1e-3, 1e-3)}
+# cases that reproduce another case and are compared with its baseline
+BASELINE_OF = {
+    "balls_world": "balls",
+    "balls_world_dsv": "balls_dsv",
+    "balls_world_200": "balls_200",
+}
 FIELDS = ["t", "q", "u", "la_g", "la_gamma", "la_c", "la_N", "la_F", "P_N", "P_F"]
 
 
@@ -70,7 +76,8 @@ def main():
             d.mkdir(parents=True, exist_ok=True)
             np.savez(d / f"{name}.npz", **res, wall_time=dt)
         if args.check:
-            ref = np.load(RESULTS / args.check / f"{name}.npz")
+            ref_name = BASELINE_OF.get(name, name)
+            ref = np.load(RESULTS / args.check / f"{ref_name}.npz")
             bad = []
             for k, v in res.items():
                 if k not in ref:

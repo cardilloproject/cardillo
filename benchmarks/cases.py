@@ -5,6 +5,7 @@ import numpy as np
 from cardillo import System
 from cardillo.constraints import RigidConnection, Spherical
 from cardillo.contacts import Sphere2Plane, Sphere2Sphere
+from cardillo.contacts.collision import CollisionWorld, PlaneShape, SphereShape
 from cardillo.discrete import Box, Frame, PointMass, RigidBody, Sphere
 from cardillo.force_laws import KelvinVoigtElement
 from cardillo.forces import B_Moment, Force
@@ -29,7 +30,9 @@ from cardillo.solver import (
 )
 
 
-def case_balls(t1=0.5, nx=3, ny=3, nz=5, Solver=Moreau, dt=1e-3, **solver_options):
+def case_balls(
+    t1=0.5, nx=3, ny=3, nz=5, Solver=Moreau, dt=1e-3, world=False, **solver_options
+):
     """Many rigid spheres with Sphere2Plane and Sphere2Sphere contacts, Moreau."""
     radius, mu, g = 0.05, 0.3, np.array([0, 0, -10])
     offset = 0.3 * radius
@@ -62,21 +65,40 @@ def case_balls(t1=0.5, nx=3, ny=3, nz=5, Solver=Moreau, dt=1e-3, **solver_option
     system.add(floor)
     for ball in balls:
         system.add(Force(ball.mass * g, ball, name="gravity_" + ball.name))
-        system.add(
-            Sphere2Plane(
-                floor, ball, mu=mu, radius=radius, e_N=0, e_F=0, name="f2" + ball.name
-            )
-        )
-    idx = 0
-    while balls:
-        for ball in balls[1:]:
-            idx += 1
+    if world:
+        # all contacts in one CollisionWorld (same slot order as below)
+        shapes = [PlaneShape(floor)] + [SphereShape(ball, radius) for ball in balls]
+        system.add(CollisionWorld(shapes, mu=mu, e_N=0, e_F=0))
+    else:
+        for ball in balls:
             system.add(
-                Sphere2Sphere(
-                    balls[0], ball, radius, radius, mu, e_N=0, e_F=0, name=f"s2s{idx}"
+                Sphere2Plane(
+                    floor,
+                    ball,
+                    mu=mu,
+                    radius=radius,
+                    e_N=0,
+                    e_F=0,
+                    name="f2" + ball.name,
                 )
             )
-        balls.pop(0)
+        idx = 0
+        while balls:
+            for ball in balls[1:]:
+                idx += 1
+                system.add(
+                    Sphere2Sphere(
+                        balls[0],
+                        ball,
+                        radius,
+                        radius,
+                        mu,
+                        e_N=0,
+                        e_F=0,
+                        name=f"s2s{idx}",
+                    )
+                )
+            balls.pop(0)
     system.assemble()
     options = {"fixed_point_max_iter": int(1e4), "prox_scaling": 0.5, **solver_options}
     solver = Solver(system, t1, dt, options=SolverOptions(**options))
@@ -86,6 +108,23 @@ def case_balls(t1=0.5, nx=3, ny=3, nz=5, Solver=Moreau, dt=1e-3, **solver_option
 def case_balls_solver(Solver, **kw):
     """Small version of the balls case for solvers that treat all contacts."""
     return case_balls(t1=0.45, nx=2, ny=2, nz=3, Solver=Solver, dt=3e-3, **kw)
+
+
+def case_balls_200():
+    """200 spheres, 20100 contact pairs (per-pair contact classes)."""
+    return case_balls(t1=0.35, nx=5, ny=5, nz=8)
+
+
+def case_balls_world_200():
+    return case_balls(t1=0.35, nx=5, ny=5, nz=8, world=True)
+
+
+def case_balls_world():
+    return case_balls(world=True)
+
+
+def case_balls_world_dsv():
+    return case_balls_solver(DualStormerVerlet, world=True)
 
 
 def case_balls_backward_euler():
@@ -257,6 +296,10 @@ def case_pendulum_backward_euler(**kw):
 
 CASES = {
     "balls": case_balls,
+    "balls_world": case_balls_world,
+    "balls_200": case_balls_200,
+    "balls_world_200": case_balls_world_200,
+    "balls_world_dsv": case_balls_world_dsv,
     "balls_backward_euler": case_balls_backward_euler,
     "balls_rattle": case_balls_rattle,
     "balls_dsv": case_balls_dsv,

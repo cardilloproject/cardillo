@@ -5,6 +5,8 @@ Detailed plans for the next three structural optimizations:
 * **Plan A**: batching identical joints,
 * **Plan B**: batching all elements of a rod,
 * **Plan C**: assembly plans for the sparse matrices of `System` and the solvers.
+* **Plan D**: generic contacts between primitive pairs (signed distance functions,
+  broad phase, one contribution for the whole collision world).
 
 Plans A and B follow the pattern that already worked for `Sphere2Sphere` (see
 `_Sphere2SphereBatch` in `cardillo/contacts/sphere2sphere.py` and
@@ -523,6 +525,258 @@ blocks** of fixed shape. These cases stay on the current path:
 
 ---
 
+## Plan D: generic contacts with signed distance functions
+
+### Status
+
+* **Phase 1 done**: `CooMatrix.add_entries`, local active sets
+  (`supports_active_set`), `System.friction_indices` / `friction_prox`
+  (vectorized Coulomb projection used by BackwardEuler, Rattle and
+  DualStormerVerlet), `System.active_friction_laws` (vectorized `compute_I_F`).
+* **Phase 2 done**: `cardillo/contacts/collision/` with `SphereShape`,
+  `PlaneShape` and `CollisionWorld` (sphere-sphere and plane-sphere, fixed
+  slots, `cKDTree` broad phase with rebuild on displacement, Moreau and
+  DualStormerVerlet). It reproduces the `Sphere2Sphere`/`Sphere2Plane` results
+  bitwise on the `balls` benchmarks; with 200 spheres (20100 pairs) it is 2.8x
+  faster than the per-pair classes (5.0 s vs 14.0 s).
+* Known limits of phase 2: shape kinematics are evaluated by a python loop over
+  the shapes, velocity- and force-direction quantities by a loop over the active
+  slots, and the tangent bases of all sphere-sphere slots are transported every
+  step (O(N^2) memory and work, as with fixed slots in general).
+
+### Goal
+
+Replace the one-contribution-per-pair contact classes by a collision world that
+
+* supports generic primitive pairs (sphere, plane/half-space, capsule, box,
+  cylinder, ellipsoid; later meshes and rods) through signed distance functions
+  (SDF),
+* finds candidate pairs with a broad phase instead of evaluating all O(N^2) pairs,
+* evaluates gaps, normals, tangents and force directions for all candidate pairs with
+  batched kernels per pair type,
+* plugs into all existing solvers through the usual contact interface (`g_N`, `W_N`,
+  `g_N_dot`, `gamma_F`, `W_F`, `xi_N`, `xi_F`, `Wla_N_q`, `Wla_F_q`, `step_callback`,
+  `friction_laws`, `e_N`, `e_F`).
+
+### Where we are
+
+* `Sphere2Sphere` and `Sphere2Plane` (`cardillo/contacts/`) are one `System`
+  contribution per pair. The balls benchmark therefore has 1035 contributions for 45
+  spheres, and `System` loops over all of them.
+* Only `Sphere2Sphere` is batched (`_Sphere2SphereBatch`: `g_N` and `step_callback`).
+* Active-set evaluation (`I_N`, `I_F`, `gamma_F_contributions`) skips inactive
+  contacts, but `g_N` and `step_callback` still touch every pair every step.
+* Each pair carries state: the reference contact basis for friction, updated in
+  `step_callback` by smallest-rotation transport. The recently fixed cache bug (tangent
+  caches ignored this state) shows that this state has to be part of any cache key.
+
+### Architecture
+
+```
+CollisionWorld (one System contribution)
+ |- shapes:   Shape(sdf, grad, support, aabb) + attachment (subsystem, xi, B_r, A_BS)
+ |- filters:  collision groups / masks, excluded pairs
+ |- materials: (mu, e_N, e_F) per shape pair or material pair
+ |- broad phase:  AABBs -> candidate pairs (once per step)
+ |- narrow phase: dispatch[(type_A, type_B)] -> batched kernel
+ |               -> gap, witness points p_A, p_B (body frames), normal, feature ids
+ |- slots:    fixed contact slots per pair (manifold points), persistent state
+ `- kinematics: W_N, g_N_dot, gamma_F, W_F from subsystem point kinematics
+```
+
+### Shapes
+
+Each primitive is a class in its local frame with
+
+* `sdf(x)`, `grad(x)` (outward normal), optionally `hess(x)` for curvature terms,
+* `support(d)` (furthest point in direction `d`, for GJK),
+* `aabb(A_IS, r_OS)` (bounding box for the broad phase),
+* vectorized versions of all of these over a leading batch axis.
+
+A shape is attached to a subsystem with a local pose `(B_r, A_BS)`. The world pose
+comes from the subsystem's `r_OP(t, q, xi, B_r)` and `A_IB(t, q, xi)`, exactly as the
+current contact classes do, so rigid bodies, frames, point masses and rods at a
+parameter `xi` all work.
+
+**Sphere-swept primitives.** Many shapes are a core plus a radius: sphere = point +
+r, capsule = segment + r, rounded box = box + r, disk = circle + r. The distance between
+two sphere-swept shapes is the core distance minus both radii. Core distances
+(point-point, point-segment, segment-segment, point-box) are cheap, closed form and
+mostly smooth, which keeps gaps and normals smooth for the common cases.
+
+### Narrow phase
+
+A dispatch table maps an unordered pair of shape types to a batched kernel. For a batch
+of K pairs it returns:
+
+* the gap `g` (K, m) for up to m manifold points per pair,
+* witness points `p_A`, `p_B` expressed in the respective body frames,
+* the normal `n` (pointing from A to B),
+* feature ids (vertex, edge or face index) per manifold point, used to keep slot
+  identity stable across steps,
+* a smoothness flag (false at box edges and corners, where the normal jumps).
+
+Kernels, in order of implementation:
+
+1. **Closed form**: sphere-sphere, sphere-plane, sphere-capsule, capsule-capsule,
+   capsule-plane (2 points), sphere-box, box-plane (up to 4 points).
+2. **SDF kernel** for pairs without closed form: minimize `sdf_B` over the surface of A
+   with a few projected Newton steps (or Frank-Wolfe on the support function),
+   warm-started from the previous step's witness point. For sphere-swept A this
+   reduces to minimizing over the core.
+3. **GJK/EPA** fallback for general convex pairs (separation: GJK distance and
+   witness points; penetration: EPA depth and normal).
+4. **Contact manifolds** for flat contacts (box-plane, box-box, cylinder-plane):
+   clip the incident face against the reference face, reduce to at most m points,
+   assign them to slots by feature id.
+
+### Kinematics and derivatives
+
+Witness points are treated as body-fixed at the current configuration. By the envelope
+theorem, the first derivatives of the gap only need point kinematics of the subsystems:
+
+```
+g_N_dot = n . (v_B(p_B) - v_A(p_A))
+W_N     = J_B(p_B)^T n - J_A(p_A)^T n
+gamma_F = [t1, t2] . (v_B(p_B) - v_A(p_A))     (plus rotation terms for rolling)
+W_F     = J_B(p_B)^T [t1, t2] - J_A(p_A)^T [t1, t2]
+```
+
+with the existing `J_P`, `v_P` (and `a_P` for `g_N_ddot`) of the subsystems. This is
+valid for any pair type and is what Moreau and DualStormerVerlet need.
+
+Second derivatives (`g_N_q`, `Wla_N_q`, `Wla_F_q`, `gamma_F_q`) are only needed by
+BackwardEuler and Rattle Jacobians:
+
+* analytic for smooth sphere-swept pairs (curvature of the cores, `hess` of the SDF),
+* frozen-normal / frozen-witness approximation otherwise (the Jacobian is only used for
+  Newton steps and prox parameter estimation, so an approximation slows convergence
+  but does not change the solution).
+
+### Contact frames and friction
+
+* Tangents per slot by the smallest-rotation transport already used in
+  `Sphere2Sphere` (Crisfield 1997, (16.107)), stored per slot and updated in
+  `step_callback`. Slots that become free are reset; slots that are reused for a new
+  feature get a fresh basis from the current normal.
+* Friction laws: one `Sphere(mu)` law per slot, coupled to that slot's normal
+  multiplier, so the existing prox machinery applies.
+* Restitution `e_N`, `e_F` per slot from the material pair.
+
+### Broad phase
+
+Once per step, in `step_callback` (the new `q` of the step is known there) and in
+`assembler_callback` for the initial state:
+
+1. compute AABBs of all shapes, inflated by a margin of about `max|v| * dt` plus a
+   contact skin, so no contact can appear during the next step without being a
+   candidate,
+2. find overlapping AABB pairs with sweep-and-prune along the axis of largest
+   variance, or with `scipy.spatial.cKDTree` on bounding-sphere centers,
+3. apply collision filters, then run the narrow phase only for candidates.
+
+Pairs and slots that are not candidates report a large positive gap, zero `g_N_dot`,
+and empty columns in `W_N`/`W_F`, so all solvers treat them as inactive.
+
+### The `CollisionWorld` contribution
+
+One contribution with `nla_N = sum of slots`, `nla_F = 2 nla_N` (for slots with
+friction), `e_N`, `e_F`, `friction_laws` (one entry per slot), and `qDOF`/`uDOF`
+concatenating the DOFs of all involved subsystems.
+
+Important details that differ from per-pair contributions:
+
+* **Sparse returns.** `System` writes `coo[contr.uDOF, contr.la_NDOF] = contr.W_N(...)`.
+  For a world contribution this block is `nu_world x nla_N`, so the methods must return
+  a `CooMatrix` with local indices (already supported by `CooMatrix.__setitem__`), never a
+  dense array. With `CooMatrix.add_entries` (shared prerequisites) this is cheap.
+* **Active sets inside one contribution.** `System._contributions_with` selects whole
+  contributions, so a world contribution would always be evaluated completely. Extend the
+  protocol: contributions that declare `supports_active_set = True` receive the
+  **local** active indices (`I_N`, `I_F` restricted to their `la_NDOF`/`la_FDOF`) as an
+  argument and evaluate only those slots. This is a small change in `System` (in
+  `_contributions_with` and the methods that call it).
+* **Friction loops in the solvers.** BackwardEuler, Rattle and DualStormerVerlet loop
+  over `contr.friction_laws` for every contribution returned by
+  `gamma_F_contributions`. With one world contribution this is a Python loop over all
+  slots. Port Moreau's vectorized `Sphere` prox (`Moreau._setup_friction_prox`) to the
+  other three solvers, restricted to slots with positive normal percussion. This is
+  worth doing anyway.
+* **Per-call caches.** Narrow-phase results (gaps, witness points, normals) are cached
+  per `(t, q.tobytes())` and include the per-slot state version in the key, so
+  `g_N`, `W_N`, `g_N_dot`, `gamma_F`, `W_F` at the same point share one evaluation.
+
+### Fixed versus dynamic slots
+
+* **Fixed slots** (recommended first): every pair that passes the collision filters
+  gets m slots, allocated in `assemble()`. `nla_N` stays constant, warm starts map one to
+  one, and all solvers and `Solution` arrays work unchanged. Cost: O(N^2) multipliers and
+  O(N^2) memory in the solution history; acceptable up to a few thousand pairs because
+  only candidate pairs are evaluated.
+* **Dynamic slots**: slots are created by the broad phase each step. Scales to large N
+  but needs a varying `nla_N` in all solvers, per-pair warm-start mapping, and
+  variable-size solution storage.
+
+Keep the slot mapping behind one interface in `CollisionWorld`, so switching to dynamic
+slots later only touches that class and the solvers' state handling.
+
+### Phases
+
+0. **Benchmarks.** Reproduce `balls`, `balls_*` and `rod2plane` with the world
+   contribution; add a box stack on a plane, capsules in a box, and a 500-sphere case
+   that the per-pair classes cannot handle in reasonable time.
+1. **Prerequisites.** `CooMatrix.add_entries`, local active sets for contributions
+   (`supports_active_set`), vectorized friction prox in BackwardEuler, Rattle and
+   DualStormerVerlet.
+2. **Spheres and planes.** Shapes sphere and plane, broad phase, first-derivative
+   kinematics, fixed slots, Moreau only. Acceptance: the `balls` results match the
+   current `Sphere2Sphere`/`Sphere2Plane` results to rounding level (same gap
+   formula, same tangent transport).
+3. **Capsules** and the other solvers (DualStormerVerlet first, it needs only first
+   derivatives).
+4. **Boxes** with contact manifolds and feature ids; tests for box-on-plane resting
+   contact, box stacks, sliding with friction, energy behavior.
+5. **Jacobians** for BackwardEuler and Rattle: analytic for sphere-swept pairs, frozen
+   approximation elsewhere, finite-difference checks.
+6. **SDF and GJK/EPA kernels** for the remaining convex pairs (cylinder, ellipsoid).
+7. **Meshes and rods**: SDF grids or convex decomposition for meshes; rods as chains of
+   capsules along `xi`, with witness points moving along the rod (the subsystem's
+   `local_qDOF_P(xi)` changes with the element).
+8. **Optional**: dynamic slots.
+
+### Tests
+
+* Per kernel: gap, witness points and normal against brute-force references (dense
+  sampling of both surfaces, or the SDF evaluated on a fine grid), random poses, both
+  separated and penetrating configurations.
+* Derivatives: `W_N` against finite differences of `g_N` for smooth pairs (the
+  envelope theorem makes them exact there); `Wla_N_q` against finite differences of
+  `W_N @ la`.
+* Broad phase: candidate pairs are a superset of all pairs with gap below the margin, on
+  random scenes, compared with an all-pairs check.
+* Equivalence with the existing classes: world contribution vs `Sphere2Sphere` /
+  `Sphere2Plane` on the balls scenes for every solver, rtol about 1e-9.
+* Physics regressions: resting box on a plane (no drift, correct normal forces
+  distributed over 4 points), sliding box with Coulomb friction (analytic
+  deceleration), stacking stability, restitution.
+
+### Risks and open questions
+
+* **Non-smooth normals** at box edges and corners: Jacobians are discontinuous there,
+  Newton-based solvers (BackwardEuler, Rattle) may converge slowly; sphere-swept
+  (rounded) boxes avoid this and could be the default.
+* **Deep penetration**: the closest-point problem becomes ambiguous; EPA and the SDF
+  minimization need a defined fallback (e.g. keep the previous normal).
+* **Slot identity** for manifolds: if feature ids are unstable, warm starts and tangent
+  bases jump, which costs fixed-point iterations and can cause jitter.
+* **Margin choice**: too small misses contacts that appear within a step, too large
+  evaluates many pairs; derive it from the velocity bound and log missed activations
+  in debug mode.
+* **Scope**: phases 2-4 already deliver the main value (generic primitives, O(N)
+  broad phase, batched evaluation); meshes, rods and dynamic slots are separate projects.
+
+---
+
 ## Suggested order and dependencies
 
 | Step | Needs | Expected gain | Notes |
@@ -531,6 +785,7 @@ blocks** of fixed shape. These cases stay on the current path:
 | Plan B (rods) | prerequisites | 2.5-4x on rod models, growing with element count | largest remaining win |
 | Plan A (joints) | prerequisites | up to about 1.5x on joint-heavy models | bounded by the constraint share of the run |
 | Plan C (assembly) | `add_entries`; best after A and B | 1.1-1.25x on top, more for big models | do it on the matrices that are still slow |
+| Plan D (generic contacts) | `add_entries`, local active sets, vectorized friction prox | new capability; O(N) broad phase instead of O(N^2) pair evaluation | independent of A-C; phases 2-4 deliver most of the value |
 
 Plans A and B make Plan C's preconditions (fixed shapes, known indices, flat data)
 true for large parts of the model, which is why Plan C comes last. If you mainly run

@@ -401,12 +401,18 @@ class System:
         # one normal force and two friction forces are projected all at once,
         # all other laws one by one.
         sph_iN, sph_iF, sph_mu, rest = [], [], [], []
+        # all laws in contribution order: first normal force (-1 if none),
+        # friction forces and force reservoir, see active_friction_laws
+        law_iN, law_iF, law_force = [], [], []
         for contr in self.__gamma_F_contr:
             for i_N, i_F, force in contr.friction_laws:
                 i_F_global = contr.la_FDOF[i_F]
                 i_N_global = (
                     contr.la_NDOF[i_N] if len(i_N) > 0 else np.empty(0, dtype=int)
                 )
+                law_iN.append(i_N_global[0] if len(i_N_global) > 0 else -1)
+                law_iF.append(i_F_global)
+                law_force.append(force)
                 if type(force) is Sphere and len(i_N) == 1 and len(i_F) == 2:
                     sph_iN.append(i_N_global[0])
                     sph_iF.append(i_F_global)
@@ -417,6 +423,12 @@ class System:
         self.__sph_iF = np.array(sph_iF, dtype=int).reshape(-1, 2)
         self.__sph_mu = np.array(sph_mu, dtype=float)
         self.__rest_friction_laws = rest
+        self.__law_iN = np.array(law_iN, dtype=int)
+        self.__law_nF = np.array([len(i_F) for i_F in law_iF], dtype=int)
+        self.__law_iF = (
+            np.concatenate(law_iF).astype(int) if law_iF else np.empty(0, dtype=int)
+        )
+        self.__law_force = law_force
         self.__rest_F = (
             np.concatenate([i_F for _, i_F, _ in rest])
             if rest
@@ -796,6 +808,39 @@ class System:
             else:
                 pairs.append((contr, _NO_KWARGS))
         return pairs
+
+    def active_friction_laws(self, I_N, slice=True):
+        """Friction forces and laws that belong to the active normal contacts
+        I_N (sorted and unique). Laws without normal force dependence are always
+        active. With slice=False all laws are returned.
+
+        Returns the global indices I_F of the active friction forces and a list
+        of (i_N_local, i_F_local, force_reservoir), where the local indices refer
+        to the arrays restricted to I_N and I_F."""
+        I_N = np.asarray(I_N, dtype=int)
+        local_N = np.full(self.nla_N, -1, dtype=int)
+        local_N[I_N] = np.arange(len(I_N))
+        law_iN = self.__law_iN
+        local_of_law = np.where(law_iN >= 0, local_N[np.maximum(law_iN, 0)], -1)
+        if slice:
+            selected = (law_iN < 0) | (local_of_law >= 0)
+        else:
+            selected = np.ones(len(law_iN), dtype=bool)
+        I_F = self.__law_iF[np.repeat(selected, self.__law_nF)]
+
+        laws = []
+        offset = 0
+        for law in np.nonzero(selected)[0]:
+            n_F = self.__law_nF[law]
+            i_F_local = np.arange(n_F) + offset
+            offset += n_F
+            if law_iN[law] >= 0:
+                k = local_of_law[law]
+                i_N_local = np.array([k]) if k >= 0 else np.empty(0, dtype=int)
+            else:
+                i_N_local = []
+            laws.append((i_N_local, i_F_local, self.__law_force[law]))
+        return I_F, laws
 
     def friction_indices(self, I_N):
         """Global friction coordinates that can be non-zero if only the normal
