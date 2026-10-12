@@ -9,7 +9,13 @@ from cardillo import System
 from cardillo.contacts import Sphere2Sphere
 from cardillo.discrete import PointMass, RigidBody, Sphere
 from cardillo.math import Spurrier
-from cardillo.solver import Moreau, SolverOptions
+from cardillo.solver import (
+    BackwardEuler,
+    DualStormerVerlet,
+    Moreau,
+    Rattle,
+    SolverOptions,
+)
 from cardillo.utility.cache import cached_last, fast_key
 from cardillo.utility.coo_matrix import CooMatrix
 
@@ -220,3 +226,67 @@ def test_vectorized_friction_prox_matches_loop(monkeypatch):
 
     monkeypatch.setattr(Moreau, "_setup_friction_prox", setup_loop_only)
     _assert_same_solution(sol, _solve(_sphere_system()))
+
+
+def _disable_active_set_evaluation(monkeypatch):
+    """Make System ignore all active-set arguments, i.e., evaluate everything."""
+    for name, kw in [
+        ("W_N", "I_N"),
+        ("W_F", "I_F"),
+        ("g_N_dot", "I_N"),
+        ("gamma_F", "I_F"),
+        ("Wla_N_q", "I_N"),
+        ("Wla_F_q", "I_F"),
+        ("xi_N", "I_N"),
+        ("xi_F", "I_N"),
+    ]:
+        original = getattr(System, name)
+
+        def wrapper(self, *args, __f=original, __kw=kw, **kwargs):
+            kwargs.pop(__kw, None)
+            return __f(self, *args, **kwargs)
+
+        monkeypatch.setattr(System, name, wrapper)
+    original = System.gamma_F_contributions
+    monkeypatch.setattr(
+        System, "gamma_F_contributions", lambda self, I_N=None: original(self, None)
+    )
+
+
+@pytest.mark.parametrize("Solver", [BackwardEuler, Rattle, DualStormerVerlet])
+def test_active_set_evaluation_in_solvers(Solver, monkeypatch):
+    def solve():
+        solver = Solver(
+            _sphere_system(),
+            0.06,
+            2e-3,
+            options=SolverOptions(fixed_point_max_iter=int(1e4), prox_scaling=0.5),
+        )
+        return solver.solve()
+
+    sol = solve()
+    P_N = sol.P_N if hasattr(sol, "P_N") else sol.la_N
+    P_F = sol.P_F if hasattr(sol, "P_F") else sol.la_F
+    assert np.abs(P_N).max() > 0 and np.abs(P_F).max() > 0  # contacts active
+
+    _disable_active_set_evaluation(monkeypatch)
+    ref = solve()
+    for name in ("q", "u", "P_N", "P_F"):
+        assert np.allclose(
+            getattr(sol, name), getattr(ref, name), rtol=1e-9, atol=1e-11
+        ), name
+
+
+def test_sphere2sphere_cache_follows_reference_basis():
+    system = _sphere_system()
+    contr = system._System__batches[0].contrs[0]
+    q = system.q0[contr.qDOF]
+    first = contr.t1t2(0.0, q)
+    # same position but a rotated reference basis, e.g., after a step callback
+    n = contr.n(0.0, q)
+    basis = contr.reference_contact_basis
+    contr.reference_contact_basis = np.vstack(
+        (basis[:, 1], -basis[:, 0], n)
+    ).T  # t1, t2 rotated by 90 degrees
+    second = contr.t1t2(0.0, q)
+    assert not np.allclose(first[0], second[0])

@@ -264,8 +264,6 @@ class DualStormerVerlet:
 
         q_dot_u = self.system.q_dot_u(tm, qm, format="csr")
         beta = self.system.q_dot(tm, qm, np.zeros_like(self.un))
-        W_N = self.system.W_N(tm, qm, format="csr")
-        W_F = self.system.W_F(tm, qm, format="csr")
         W = self.W(tm, qm, format="csr")
         C = self.C
 
@@ -329,14 +327,34 @@ class DualStormerVerlet:
         # - generalized force directions for constraint forces are only
         #   required if we have contacts
         if self.nla_N + self.nla_F > 0:
-            alpha = self.options.prox_scaling
-            M_diag_inv = diags_array(1 / M.diagonal())
-            self.prox_r_N = alpha / (W_N.T @ M_diag_inv @ W_N).diagonal()
-            self.prox_r_F = alpha / (W_F.T @ M_diag_inv @ W_F).diagonal()
-
             # evaluate active contacts
             g_Nm = self.system.g_N(tm, qm)
             I_N = g_Nm <= 0
+            I_N_idx = np.nonzero(I_N)[0]
+
+            # Normal forces vanish for inactive contacts and so does friction
+            # bounded by them. Hence, only the force directions and prox
+            # parameters of these contacts are required.
+            gamma_F_contrs = self.system.gamma_F_contributions(I_N_idx)
+            I_F_idx = (
+                np.concatenate([contr.la_FDOF for contr in gamma_F_contrs])
+                if len(gamma_F_contrs) > 0
+                else np.array([], dtype=int)
+            )
+            W_N = self.system.W_N(tm, qm, format="csr", I_N=I_N_idx)
+            W_F = self.system.W_F(tm, qm, format="csr", I_F=I_F_idx)
+
+            alpha = self.options.prox_scaling
+            M_diag_inv = diags_array(1 / M.diagonal())
+            diag_N = (W_N.T @ M_diag_inv @ W_N).diagonal()
+            diag_F = (W_F.T @ M_diag_inv @ W_F).diagonal()
+            # entries of inactive contacts are never used
+            self.prox_r_N = np.divide(
+                alpha, diag_N, out=np.ones_like(diag_N), where=diag_N > 0
+            )
+            self.prox_r_F = np.divide(
+                alpha, diag_F, out=np.ones_like(diag_F), where=diag_F > 0
+            )
 
             # TODO: Introduce slicing for active contacts as in Moreau
 
@@ -371,17 +389,19 @@ class DualStormerVerlet:
             def prox(Pi_Nn1, Pi_Fn1):
                 # normal contact
                 # TODO: Decompose evaluation of xi_N = e_N * gamma_Nn + gamma_Nn1
-                xi_N = self.system.xi_N(tm, tm, qm, qm, un, un1)
+                xi_N = self.system.xi_N(tm, tm, qm, qm, un, un1, I_N=I_N_idx)
                 Pi_Nn1 = np.where(
                     I_N,
                     -NegativeOrthant.prox(self.prox_r_N * xi_N - Pi_Nn1),
                     np.zeros_like(Pi_Nn1),
                 )
 
-                # friction
+                # friction, only contributions with active normal contacts
+                # (or without normal force dependence) can be non-zero
                 # TODO: Decompose evaluation of xi_F = e_F * gamma_Fn + gamma_Fn1
-                xi_F = self.system.xi_F(tm, tm, qm, qm, un, un1)
-                for contr in self.system.get_contribution_list("gamma_F"):
+                xi_F = self.system.xi_F(tm, tm, qm, qm, un, un1, I_N=I_N_idx)
+                Pi_Fn1_new = np.zeros_like(Pi_Fn1)
+                for contr in gamma_F_contrs:
                     la_FDOF = contr.la_FDOF
                     gamma_F_contr = xi_F[la_FDOF]
                     Pi_Nn1_contr = Pi_Fn1[la_FDOF]
@@ -392,13 +412,13 @@ class DualStormerVerlet:
                         else:
                             dP_Nn1i = self.dt
 
-                        Pi_Fn1[la_FDOF[i_F]] = -force_recervoir.prox(
+                        Pi_Fn1_new[la_FDOF[i_F]] = -force_recervoir.prox(
                             prox_r_F_contr[i_F] * gamma_F_contr[i_F]
                             - Pi_Nn1_contr[i_F],
                             dP_Nn1i,
                         )
 
-                return Pi_Nn1, Pi_Fn1
+                return Pi_Nn1, Pi_Fn1_new
 
             # evaluate residuals
             R1 = (

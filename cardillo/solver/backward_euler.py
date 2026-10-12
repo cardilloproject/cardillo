@@ -115,6 +115,7 @@ class BackwardEuler:
         self.M = system.M(self.tn, self.qn)
         self.W_N = system.W_N(self.tn, self.qn)
         self.W_F = system.W_F(self.tn, self.qn)
+        self._last_point = None
 
     def R_x(self, xn1, yn1):
         (
@@ -148,8 +149,12 @@ class BackwardEuler:
         # equations of motion
         ####################
         self.M = self.system.M(tn1, qn1, format="csr")
-        self.W_N = self.system.W_N(tn1, qn1, format="csr")
-        self.W_F = self.system.W_F(tn1, qn1, format="csr")
+        # Only contacts with non-zero percussions contribute. The full force
+        # directions are required for the estimation of the prox parameters
+        # and are assembled lazily for the last evaluation point.
+        self._last_point = (tn1, qn1)
+        W_N = self.system.W_N(tn1, qn1, format="csr", I_N=np.nonzero(dP_Nn1)[0])
+        W_F = self.system.W_F(tn1, qn1, format="csr", I_F=np.nonzero(dP_Fn1)[0])
         R_x[self.split_x[0] : self.split_x[1]] = (
             self.M @ dun1
             - dt
@@ -161,8 +166,8 @@ class BackwardEuler:
             - self.system.W_g(tn1, qn1, format="csr") @ dP_gn1
             - self.system.W_gamma(tn1, qn1, format="csr") @ dP_gamman1
             - self.system.W_c(tn1, qn1, format="csr") @ dP_cn1
-            - self.W_N @ dP_Nn1
-            - self.W_F @ dP_Fn1
+            - W_N @ dP_Nn1
+            - W_F @ dP_Fn1
         )
 
         #######################
@@ -217,8 +222,8 @@ class BackwardEuler:
             - self.system.Wla_g_q(tn1, qn1, dP_gn1)
             - self.system.Wla_gamma_q(tn1, qn1, dP_gamman1)
             - self.system.Wla_c_q(tn1, qn1, dP_cn1)
-            - self.system.Wla_N_q(tn1, qn1, dP_Nn1)
-            - self.system.Wla_F_q(tn1, qn1, dP_Fn1)
+            - self.system.Wla_N_q(tn1, qn1, dP_Nn1, I_N=np.nonzero(dP_Nn1)[0])
+            - self.system.Wla_F_q(tn1, qn1, dP_Fn1, I_F=np.nonzero(dP_Fn1)[0])
         )
         Ru_dot_u_dot = M - dt * (
             self.system.h_u(tn1, qn1, un1) + self.system.Wla_tau_u(tn1, qn1, un1)
@@ -296,7 +301,9 @@ class BackwardEuler:
         #############################
         # fixed-point update friction
         #############################
-        for contr in self.system.get_contribution_list("gamma_F"):
+        # the friction radius is zero without normal force: only contributions
+        # with a positive normal percussion can have non-zero friction
+        for contr in self.system.gamma_F_contributions(np.nonzero(dP_Nn1 > 0)[0]):
             gamma_F_contr = contr.gamma_F(tn1, qn1[contr.qDOF], un1[contr.uDOF])
             la_FDOF = contr.la_FDOF
             dP_Fn1_contr = dP_Fn1[la_FDOF]
@@ -378,6 +385,12 @@ class BackwardEuler:
             #     ),
             #     [self.nla_N],
             # )
+
+            if self._last_point is not None:
+                # force directions for the last evaluation of the residual
+                self.W_N = self.system.W_N(*self._last_point, format="csr")
+                self.W_F = self.system.W_F(*self._last_point, format="csr")
+                self._last_point = None
 
             A = -lu.solve(self.J_y(self.xn, self.yn).toarray())
             # fmt: off

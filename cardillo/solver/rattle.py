@@ -1,6 +1,6 @@
 import warnings
 import numpy as np
-from scipy.sparse import eye, bmat
+from scipy.sparse import eye, bmat, csc_array
 from scipy.sparse.linalg import splu
 from tqdm import tqdm
 
@@ -100,6 +100,12 @@ class Rattle:
                 dt * system.la_gamma0,
             )
         )
+        # a constant mass matrix is factorized only once for the estimation of
+        # the prox parameters
+        I_M = getattr(system, "I_M", None)
+        self._constant_mass_matrix = I_M is not None and not np.any(I_M)
+        self._M_lu = None
+
         self.x2n = np.concatenate(
             (
                 system.u0,
@@ -271,7 +277,9 @@ class Rattle:
         #############################
         # fixed-point update friction
         #############################
-        for contr in self.system.get_contribution_list("gamma_F"):
+        # the friction radius is zero without normal force: only contributions
+        # with a positive normal percussion can have non-zero friction
+        for contr in self.system.gamma_F_contributions(np.nonzero(P_N1 > 0)[0]):
             gamma_F_contr = contr.gamma_F(tn1, qn1[contr.qDOF], un12[contr.uDOF])
             la_FDOF = contr.la_FDOF
             P_Fn1_contr = P_F1[la_FDOF]
@@ -311,7 +319,8 @@ class Rattle:
         ##############################
         # fixed-point update Signorini
         ##############################
-        xi_N = self.system.xi_N(tn, tn1, qn, qn1, un, un1)
+        # normal percussions are only non-zero for the active set I_N
+        xi_N = self.system.xi_N(tn, tn1, qn, qn1, un, un1, I_N=np.nonzero(self.I_N)[0])
         y2n1p[: self.split_y[0]] = self.I_N * (
             -NegativeOrthant.prox(prox_r_N * xi_N - P_N)
         )
@@ -319,8 +328,11 @@ class Rattle:
         #############################
         # fixed-point update friction
         #############################
-        xi_F = self.system.xi_F(tn, tn1, qn, qn1, un, un1)
-        for contr in self.system.get_contribution_list("gamma_F"):
+        # the friction radius is zero without normal force: only contributions
+        # with a positive normal percussion can have non-zero friction
+        active_N = np.nonzero(self.I_N | (P_N > 0))[0]
+        xi_F = self.system.xi_F(tn, tn1, qn, qn1, un, un1, I_N=active_N)
+        for contr in self.system.gamma_F_contributions(active_N):
             la_FDOF = contr.la_FDOF
             xi_F_contr = xi_F[la_FDOF]
             P_F_contr = P_F[la_FDOF]
@@ -434,9 +446,18 @@ class Rattle:
         pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
         for _ in pbar:
             # only compute optimized prox-parameters once per time step
+            if self._constant_mass_matrix:
+                if self._M_lu is None:
+                    self._M_lu = splu(csc_array(self.Mn))
+                M_lu = self._M_lu
+            else:
+                M_lu = splu(csc_array(self.Mn))
             self.prox_r_N, self.prox_r_F = np.array_split(
                 estimate_prox_parameter(
-                    self.options.prox_scaling, bmat([[self.W_Nn, self.W_Fn]]), self.Mn
+                    self.options.prox_scaling,
+                    bmat([[self.W_Nn, self.W_Fn]]),
+                    self.Mn,
+                    M_lu=M_lu,
                 ),
                 [self.nla_N],
             )

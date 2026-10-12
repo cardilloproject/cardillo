@@ -281,7 +281,7 @@ class Sphere2Sphere:
         return n_q1, n_q2
 
     @cached_last(
-        key=lambda self, t, q: fast_key(t, q),
+        key=lambda self, t, q: fast_key(t, q, self.reference_contact_basis),
     )
     def t1t2(self, t, q):
         n = self.n(t, q)
@@ -294,7 +294,7 @@ class Sphere2Sphere:
         return t1, t2
 
     @cached_last(
-        key=lambda self, t, q: fast_key(t, q),
+        key=lambda self, t, q: fast_key(t, q, self.reference_contact_basis),
     )
     def t1t2_q1_q2(self, t, q):
         n = self.n(t, q)

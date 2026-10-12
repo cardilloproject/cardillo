@@ -7,6 +7,7 @@ from cardillo.utility.coo_matrix import CooMatrix
 from cardillo.discrete.frame import Frame
 from cardillo.discrete.meshed import Axis
 from cardillo.solver import consistent_initial_conditions
+from cardillo.math.prox import Sphere
 from cardillo.visualization import Export
 
 properties = []
@@ -368,6 +369,21 @@ class System:
         self.__la_F_owner = np.full(self.nla_F, -1, dtype=int)
         for k, contr in enumerate(self.__gamma_F_contr):
             self.__la_F_owner[contr.la_FDOF] = k
+
+        # Friction laws that are bounded by a normal force (Sphere reservoirs)
+        # vanish for contacts without normal force. All other friction
+        # contributions always have to be evaluated.
+        self.__la_N_owner_F = np.full(self.nla_N, -1, dtype=int)
+        always = []
+        for k, contr in enumerate(self.__gamma_F_contr):
+            if len(contr.friction_laws) > 0 and all(
+                len(i_N) > 0 and type(force) is Sphere
+                for i_N, _, force in contr.friction_laws
+            ):
+                self.__la_N_owner_F[contr.la_NDOF] = k
+            else:
+                always.append(k)
+        self.__always_F = np.array(always, dtype=int)
         self.__g_N_single = [c for c in self.__g_N_contr if id(c) not in batched]
         self.__step_callback_single = [
             c for c in self.__step_callback_contr if id(c) not in batched
@@ -727,6 +743,17 @@ class System:
             return contrs
         return [contrs[k] for k in np.unique(owner[active])]
 
+    def gamma_F_contributions(self, I_N=None):
+        """Friction contributions that can have non-zero friction forces if only
+        the normal contacts I_N carry a (positive) normal force. Friction laws
+        with a normal force dependence vanish otherwise. All contributions are
+        returned if I_N is None."""
+        if I_N is None:
+            return self.__gamma_F_contr
+        owners = self.__la_N_owner_F[I_N]
+        idx = np.unique(np.concatenate((self.__always_F, owners[owners >= 0])))
+        return [self.__gamma_F_contr[k] for k in idx]
+
     def W_N(self, t, q, format="coo", I_N=None):
         """Generalized force directions of the normal contacts. If the active
         set I_N is given, only contributions with active contacts are evaluated,
@@ -752,9 +779,11 @@ class System:
             )
         return g_N_ddot
 
-    def xi_N(self, t_pre, t_post, q_pre, q_post, u_pre, u_post):
+    def xi_N(self, t_pre, t_post, q_pre, q_post, u_pre, u_post, I_N=None):
+        """If the active set I_N is given, only the entries in I_N are
+        computed, the others are zero."""
         xi_N = np.zeros(self.nla_N, dtype=np.common_type(q_post, u_post))
-        for contr in self.__g_N_contr:
+        for contr in self._contributions_with(self.__g_N_contr, self.__la_N_owner, I_N):
             xi_N[contr.la_NDOF] = contr.g_N_dot(
                 t_post, q_post[contr.qDOF], u_post[contr.uDOF]
             ) + contr.e_N * contr.g_N_dot(t_pre, q_pre[contr.qDOF], u_pre[contr.uDOF])
@@ -781,9 +810,11 @@ class System:
             coo[contr.la_NDOF, contr.uDOF] = contr.g_N_dot_u(t, q[contr.qDOF])
         return coo.asformat(format)
 
-    def Wla_N_q(self, t, q, la_N, format="coo"):
+    def Wla_N_q(self, t, q, la_N, format="coo", I_N=None):
+        """If I_N is given, only contributions with these contacts are
+        evaluated. This is exact if la_N is zero for all other contacts."""
         coo = CooMatrix((self.nu, self.nq))
-        for contr in self.__g_N_contr:
+        for contr in self._contributions_with(self.__g_N_contr, self.__la_N_owner, I_N):
             coo[contr.uDOF, contr.qDOF] = contr.Wla_N_q(
                 t, q[contr.qDOF], la_N[contr.la_NDOF]
             )
@@ -810,9 +841,12 @@ class System:
             )
         return gamma_F_dot
 
-    def xi_F(self, t_pre, t_post, q_pre, q_post, u_pre, u_post):
+    def xi_F(self, t_pre, t_post, q_pre, q_post, u_pre, u_post, I_N=None):
+        """If the normal contacts I_N with a normal force are given, only the
+        friction of contributions that can be non-zero is computed, see
+        `gamma_F_contributions`. The others are zero."""
         xi_F = np.zeros(self.nla_F, dtype=np.common_type(q_post, u_post))
-        for contr in self.__gamma_F_contr:
+        for contr in self.gamma_F_contributions(I_N):
             xi_F[contr.la_FDOF] = contr.gamma_F(
                 t_post, q_post[contr.qDOF], u_post[contr.uDOF]
             ) + contr.e_F * contr.gamma_F(t_pre, q_pre[contr.qDOF], u_pre[contr.uDOF])
@@ -854,9 +888,13 @@ class System:
             coo[contr.uDOF, contr.la_FDOF] = contr.W_F(t, q[contr.qDOF])
         return coo.asformat(format)
 
-    def Wla_F_q(self, t, q, la_F, format="coo"):
+    def Wla_F_q(self, t, q, la_F, format="coo", I_F=None):
+        """If I_F is given, only contributions with these friction forces are
+        evaluated. This is exact if la_F is zero for all other forces."""
         coo = CooMatrix((self.nu, self.nq))
-        for contr in self.__gamma_F_contr:
+        for contr in self._contributions_with(
+            self.__gamma_F_contr, self.__la_F_owner, I_F
+        ):
             coo[contr.uDOF, contr.qDOF] = contr.Wla_F_q(
                 t, q[contr.qDOF], la_F[contr.la_FDOF]
             )

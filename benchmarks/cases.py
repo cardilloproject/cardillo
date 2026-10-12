@@ -29,7 +29,7 @@ from cardillo.solver import (
 )
 
 
-def case_balls(t1=0.5, nx=3, ny=3, nz=5):
+def case_balls(t1=0.5, nx=3, ny=3, nz=5, Solver=Moreau, dt=1e-3, **solver_options):
     """Many rigid spheres with Sphere2Plane and Sphere2Sphere contacts, Moreau."""
     radius, mu, g = 0.05, 0.3, np.array([0, 0, -10])
     offset = 0.3 * radius
@@ -78,13 +78,26 @@ def case_balls(t1=0.5, nx=3, ny=3, nz=5):
             )
         balls.pop(0)
     system.assemble()
-    solver = Moreau(
-        system,
-        t1,
-        1e-3,
-        options=SolverOptions(fixed_point_max_iter=int(1e4), prox_scaling=0.5),
-    )
+    options = {"fixed_point_max_iter": int(1e4), "prox_scaling": 0.5, **solver_options}
+    solver = Solver(system, t1, dt, options=SolverOptions(**options))
     return solver.solve()
+
+
+def case_balls_solver(Solver, **kw):
+    """Small version of the balls case for solvers that treat all contacts."""
+    return case_balls(t1=0.45, nx=2, ny=2, nz=3, Solver=Solver, dt=3e-3, **kw)
+
+
+def case_balls_backward_euler():
+    return case_balls_solver(BackwardEuler)
+
+
+def case_balls_rattle():
+    return case_balls_solver(Rattle)
+
+
+def case_balls_dsv():
+    return case_balls_solver(DualStormerVerlet)
 
 
 def case_chain(t1=2, n_particles=20):
@@ -244,6 +257,9 @@ def case_pendulum_backward_euler(**kw):
 
 CASES = {
     "balls": case_balls,
+    "balls_backward_euler": case_balls_backward_euler,
+    "balls_rattle": case_balls_rattle,
+    "balls_dsv": case_balls_dsv,
     "chain": case_chain,
     "rod_mixed": case_rod_mixed,
     "rod_constrained": case_rod_constrained,

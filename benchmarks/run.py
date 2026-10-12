@@ -24,7 +24,7 @@ RESULTS = Path(__file__).parent / "results"
 # Cases that solve linear systems iteratively (MINRES, rtol=1e-5): results only
 # agree up to the solver tolerance when the rounding of a matvec changes.
 LOOSE = {"rod2plane": (1e-3, 1e-3)}
-FIELDS = ["t", "q", "u", "la_g", "la_gamma", "la_c", "la_N", "la_F"]
+FIELDS = ["t", "q", "u", "la_g", "la_gamma", "la_c", "la_N", "la_F", "P_N", "P_F"]
 
 
 def extract(sol):
@@ -73,7 +73,9 @@ def main():
             ref = np.load(RESULTS / args.check / f"{name}.npz")
             bad = []
             for k, v in res.items():
-                if k not in ref or ref[k].shape != v.shape:
+                if k not in ref:
+                    continue  # field not stored in older baselines
+                if ref[k].shape != v.shape:
                     bad.append(f"{k}(shape)")
                 elif not np.allclose(
                     v, ref[k], *(LOOSE.get(name) or (args.rtol, args.atol))
