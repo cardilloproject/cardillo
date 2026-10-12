@@ -317,18 +317,27 @@ evaluated.
 * at assembly,
 * in `step_callback` after every accepted time step, and
 * before evaluating gaps whenever some sphere center has moved more than
-  `margin / 2` since the last rebuild (solvers evaluate the midpoint and
+  `margin / 4` since the last rebuild (solvers evaluate the midpoint and
   iterates, which can differ from the last accepted state).
 
 **Guarantee.** After a rebuild the gap of a non-candidate pair satisfies
-$g_0 > \text{margin}$. If every center moved by at most $\text{margin}/2$ since
-then, the gap decreased by at most $|\Delta_i| + |\Delta_j| \le \text{margin}$,
-hence $g > 0$: a non-candidate pair is still strictly separated, i.e.
-inactive, and reporting a large gap does not change the active set. The
-guarantee is strict positivity, not a quantitative lower bound: a pair whose
-true gap is positive but smaller than the solver's closeness tolerance may be
-treated as inactive. Choosing a larger margin makes this unlikely; the default
-is half the largest radius.
+$g_0 > \text{margin}$. The gap of two spheres changes by at most the sum of the
+displacements of their centers (triangle inequality for the center distance).
+While every center has moved by at most $\text{margin}/4$ since the rebuild, this
+sum is at most $\text{margin}/2$, hence
+
+$$
+g \;>\; g_0 - \frac{\text{margin}}{2} \;>\; \frac{\text{margin}}{2} .
+$$
+
+A non-candidate pair is therefore separated by more than half the margin, and
+reporting a large gap does not change the active set of any solver whose
+closeness tolerance is below $\text{margin}/2$. (The default margin is half the
+largest radius; the solvers' tolerances are many orders of magnitude smaller.)
+The bound is quantitative, not only "strictly positive": a smaller threshold
+than $\text{margin}/4$ would only increase the number of rebuilds, a larger one
+(for example $\text{margin}/2$) would allow the gap of a skipped pair to drop
+arbitrarily close to zero.
 
 The margin therefore only affects efficiency.
 
@@ -382,8 +391,9 @@ world reproduces them exactly.
 | Formula / concept | Code (`world.py`) |
 |---|---|
 | shape frame pose, velocity, Jacobian, acceleration | `_positions`, `_velocities`, `_jacobians`, `_accelerations` |
-| sphere-sphere gap | `g_N` (vectorized over candidate slots) |
-| sphere-sphere normal and normal velocity | `_ss_normal`, `g_N_dot` |
+| gaps of all slots: plane-sphere (all slots) and sphere-sphere (candidate slots, vectorized), `INACTIVE_GAP` otherwise | `g_N` |
+| sphere-sphere normal | `_ss_normal` |
+| normal velocity $\gamma_N$ of both pair types | `g_N_dot` (plane-sphere via `_ps_gamma`) |
 | sphere-sphere tangents | `_ss_tangents` |
 | sphere-sphere $\gamma_F$, $W_F$ | `_gamma_F`, `_W_F` |
 | plane-sphere geometry, $\gamma$, $\gamma_u$, $\dot\gamma$ | `_ps_geometry`, `_ps_gamma`, `_ps_gamma_u`, `_ps_gamma_dot` |

@@ -42,8 +42,9 @@ class CollisionWorld:
         Restitution coefficients in normal and tangential direction.
     margin : float
         Distance below which sphere pairs become candidates of the broad phase.
-        The broad phase is rebuilt as soon as a sphere moved more than margin / 2,
-        so the margin only affects efficiency, not the result. Default: half the
+        The broad phase is rebuilt as soon as a sphere moved more than margin / 4,
+        so that every pair outside the candidates keeps a gap above margin / 2.
+        The margin therefore only affects efficiency, not the result. Default: half the
         largest sphere radius (or 1e-2 for points only).
     exclude : iterable of pairs of shapes
         Pairs that never collide. Shapes on the same subsystem never collide.
@@ -271,15 +272,17 @@ class CollisionWorld:
     # broad phase
     #######################################################################
     def _update_candidates(self, R, force=False):
-        """Candidate sphere-sphere slots: pairs closer than the margin at the
-        last rebuild. Rebuilt if a sphere moved by more than margin / 2, so that
-        no pair outside the candidates can be in contact."""
+        """Candidate sphere-sphere slots: pairs with a gap of at most the margin
+        at the last rebuild. Rebuilt if a sphere moved by more than margin / 4.
+        A pair outside the candidates had a gap above margin and the gap
+        decreases by at most the sum of the displacements of its two spheres,
+        i.e., by at most margin / 2: its gap stays above margin / 2."""
         Rs = R[self._sphere_ids]
         if not force and self._snapshot is not None:
             d = Rs - self._snapshot
             if (
                 len(d) == 0
-                or 2 * np.sqrt(np.einsum("ki,ki->k", d, d).max()) <= self.margin
+                or 4 * np.sqrt(np.einsum("ki,ki->k", d, d).max()) <= self.margin
             ):
                 return
         self._snapshot = Rs.copy()

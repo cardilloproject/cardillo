@@ -161,7 +161,7 @@ def test_broad_phase_finds_all_close_pairs():
     assert np.all(g[~close] >= exact[~close] - 1e-12)  # others never too small
     assert np.count_nonzero(g < INACTIVE_GAP) < len(g) / 4  # and most are skipped
 
-    # move all spheres by more than margin / 2 without a step callback: the
+    # move all spheres by more than margin / 4 without a step callback: the
     # broad phase must be rebuilt before gaps are evaluated
     q_moved = q + rng.uniform(-0.05, 0.05, q.shape)
     exact = _all_pair_gaps(q_moved, radii)
@@ -251,3 +251,61 @@ def test_slots_and_filters():
     system.add(world)
     system.assemble(options=SolverOptions(compute_consistent_initial_conditions=False))
     assert system.nla_F == 0
+
+
+def test_broad_phase_bound_for_skipped_pairs():
+    margin = 0.04
+    # two spheres with a gap just above the margin, a third far away
+    radius = 0.05
+    gap0 = 1.001 * margin
+    x = np.array([[0.0, 0, 0], [2 * radius + gap0, 0, 0], [1.0, 1.0, 1.0]])
+    system = System()
+    bodies = [PointMass(1.0, q0=xi, u0=np.zeros(3)) for xi in x]
+    system.add(*bodies)
+    world = CollisionWorld([SphereShape(b, radius) for b in bodies], margin=margin)
+    system.add(world)
+    system.assemble(options=SolverOptions(compute_consistent_initial_conditions=False))
+    pair01 = 0  # slot of the sphere pair (0, 1)
+    # the gap is above the margin, the pair is skipped
+    assert system.g_N(0.0, system.q0)[pair01] == INACTIVE_GAP
+
+    # worst case: both spheres move towards each other by just below margin / 4,
+    # which does not trigger a rebuild; the pair stays skipped and its true gap is
+    # still above margin / 2
+    q = system.q0.copy()
+    step = 0.999 * margin / 4
+    q[0] += step
+    q[3] -= step
+    snapshot = world._snapshot.copy()
+    assert system.g_N(0.0, q)[pair01] == INACTIVE_GAP
+    assert np.array_equal(world._snapshot, snapshot)  # no rebuild
+    true_gap = np.linalg.norm(q[3:6] - q[0:3]) - 2 * radius
+    assert true_gap > margin / 2
+    assert np.isclose(true_gap, gap0 - 2 * step)
+
+    # moving both spheres by more than margin / 4 triggers a rebuild, the pair
+    # becomes a candidate and its gap is evaluated exactly
+    q = system.q0.copy()
+    step = 1.01 * margin / 4
+    q[0] += step
+    q[3] -= step
+    g = system.g_N(0.0, q)
+    assert np.isclose(g[pair01], gap0 - 2 * step)
+
+    # random scene: for random displacements just below margin / 4 no rebuild
+    # happens and the gaps of all skipped pairs stay above margin / 2
+    rng = np.random.default_rng(5)
+    system, world, radii = _random_sphere_scene(60, rng, margin=margin)
+    q = system.q0.copy()
+    g = system.g_N(0.0, q)
+    snapshot = world._snapshot.copy()
+    for _ in range(20):
+        direction = rng.standard_normal((len(radii), 3))
+        direction /= np.linalg.norm(direction, axis=1, keepdims=True)
+        q = (snapshot + 0.999 * margin / 4 * direction).ravel()  # no rebuild
+        g = system.g_N(0.0, q)
+        assert np.array_equal(world._snapshot, snapshot)  # list was not rebuilt
+        exact = _all_pair_gaps(q, radii)
+        skipped = g >= INACTIVE_GAP
+        assert np.all(exact[skipped] > margin / 2)
+        assert np.allclose(g[~skipped], exact[~skipped])
