@@ -1,6 +1,5 @@
 import numpy as np
-from cachetools import LRUCache, cachedmethod
-from cachetools.keys import hashkey
+from cardillo.utility.cache import cached_last, fast_key
 from vtk import VTK_LINE
 from warnings import warn
 
@@ -101,11 +100,6 @@ class Sphere2Plane:
             ]
             # fmt: on
 
-        self.gamma_cache = LRUCache(maxsize=1)
-        self.gamma_q_cache = LRUCache(maxsize=1)
-        self.gamma_u_cache = LRUCache(maxsize=1)
-        self.gamma_dot_cache = LRUCache(maxsize=1)
-
     def assembler_callback(self):
         assert hasattr(self.subsystem1, "A_IB"), "subsystem1 must have A_IB"
 
@@ -136,9 +130,8 @@ class Sphere2Plane:
             self.J_R2_q2 = lambda t, q: J_R2_q2
 
     # methods that share implementation
-    @cachedmethod(
-        lambda self: self.gamma_cache,
-        key=lambda self, t, q, u: hashkey(t, *q, *u),
+    @cached_last(
+        key=lambda self, t, q, u: fast_key(t, q, u),
     )
     def _gamma(self, t, q, u):
         A_IJ1 = self.A_IJ1(t, q)
@@ -158,9 +151,8 @@ class Sphere2Plane:
 
         return A_IJ1.T @ (v_C2 - v_C1)
 
-    @cachedmethod(
-        lambda self: self.gamma_q_cache,
-        key=lambda self, t, q, u: hashkey(t, *q, *u),
+    @cached_last(
+        key=lambda self, t, q, u: fast_key(t, q, u),
     )
     def _gamma_q(self, t, q, u):
         A_IJ1 = self.A_IJ1(t, q)
@@ -214,9 +206,8 @@ class Sphere2Plane:
         gamma_q[:, nq1:] = A_IJ1.T @ (v_C2_q2 - v_C1_q2)
         return gamma_q
 
-    @cachedmethod(
-        lambda self: self.gamma_u_cache,
-        key=lambda self, t, q: hashkey(t, *q),
+    @cached_last(
+        key=lambda self, t, q: fast_key(t, q),
     )
     def _gamma_u(self, t, q):
         A_IJ1 = self.A_IJ1(t, q)
@@ -241,9 +232,8 @@ class Sphere2Plane:
 
         return A_IJ1.T @ gamma_u
 
-    @cachedmethod(
-        lambda self: self.gamma_dot_cache,
-        key=lambda self, t, q, u, u_dot: hashkey(t, *q, *u, *u_dot),
+    @cached_last(
+        key=lambda self, t, q, u, u_dot: fast_key(t, q, u, u_dot),
     )
     def _gamma_dot(self, t, q, u, u_dot):
         A_IJ1 = self.A_IJ1(t, q)

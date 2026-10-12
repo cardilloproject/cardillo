@@ -124,7 +124,7 @@ class Sphere:
         return Jx, Jy, Jz
 
 
-def estimate_prox_parameter(alpha, W, M):
+def estimate_prox_parameter(alpha, W, M, M_lu=None):
     r"""
     Estimation of relaxation parameters $r_i$ of prox function for normal contacts
     and friction. The parameters are calculated as follows, whereby $\alpha \in (0,2)$
@@ -133,6 +133,10 @@ def estimate_prox_parameter(alpha, W, M):
         r_i = \alpha / diag(\vG)_i,
     $$
     where $\vG = \vW^T \vM^{-1} \vW$.
+
+    If a (SuperLU) factorization `M_lu` of the mass matrix is passed, it is
+    used instead of factorizing `M` again. In this case only the diagonal of
+    $\vG$ is computed.
 
 
     References
@@ -143,6 +147,15 @@ def estimate_prox_parameter(alpha, W, M):
     cols = W.shape[1]
     if cols > 0:
         W = csc_array(W)
+        if M_lu is not None:
+            diagonal = np.empty(cols, dtype=float)
+            chunk = 256  # limit memory of dense right hand sides
+            for start in range(0, cols, chunk):
+                W_chunk = W[:, start : start + chunk].toarray()
+                diagonal[start : start + chunk] = np.einsum(
+                    "ij,ij->j", W_chunk, M_lu.solve(W_chunk)
+                )
+            return alpha / diagonal
         M_inv_W = spsolve(csc_array(M), W)
         WT_M_inv_W = csc_array((W.T @ M_inv_W).reshape((cols, cols)))
         return alpha / WT_M_inv_W.diagonal()

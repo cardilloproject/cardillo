@@ -1,5 +1,4 @@
-from cachetools import cachedmethod, LRUCache
-from cachetools.keys import hashkey
+from cardillo.utility.cache import cached_last, fast_key
 import numpy as np
 from vtk import VTK_VERTEX
 
@@ -13,6 +12,20 @@ from cardillo.math import (
     T_SO3_inv_quat_P,
     Spurrier,
 )
+
+
+# default (center of mass) offset
+_B_r_CP0 = np.zeros(3, dtype=float)
+
+
+def _is_zero_offset(B_r_CP):
+    """True if the offset is zero. In this case all rotation dependent terms
+    are multiplied by zero and need not be evaluated."""
+    if B_r_CP is _B_r_CP0:
+        return True
+    if type(B_r_CP) is np.ndarray:
+        return not B_r_CP.any()
+    return not np.any(B_r_CP)
 
 
 class RigidBody:
@@ -75,12 +88,6 @@ class RigidBody:
         self.constant_mass_matrix = True
 
         self.name = name
-
-        self.A_IB_cache = LRUCache(maxsize=1)
-        self.A_IB_q_cache = LRUCache(maxsize=1)
-        self.r_OP_cache = LRUCache(maxsize=1)
-        self.v_P_cache = LRUCache(maxsize=1)
-        self.J_P_cache = LRUCache(maxsize=1)
 
     #####################
     # utility
@@ -155,29 +162,23 @@ class RigidBody:
     def local_uDOF_P(self, xi=None):
         return np.arange(self.nu)
 
-    @cachedmethod(
-        lambda self: self.A_IB_cache,
-        key=lambda self, t, q, xi=None: hashkey(t, *q),
+    @cached_last(
+        key=lambda self, t, q, xi=None: fast_key(t, q),
     )
     def A_IB(self, t, q, xi=None):
         return Exp_SO3_quat(q[3:])
 
-    @cachedmethod(
-        lambda self: self.A_IB_q_cache,
-        key=lambda self, t, q, xi=None: hashkey(t, *q),
+    @cached_last(
+        key=lambda self, t, q, xi=None: fast_key(t, q),
     )
     def A_IB_q(self, t, q, xi=None):
         A_IB_q = np.zeros((3, 3, self.nq), dtype=q.dtype)
         A_IB_q[:, :, 3:] = Exp_SO3_quat_P(q[3:])
         return A_IB_q
 
-    @cachedmethod(
-        lambda self: self.r_OP_cache,
-        key=lambda self, t, q, xi=None, B_r_CP=np.zeros(3, dtype=float): hashkey(
-            t, *q, *B_r_CP
-        ),
-    )
-    def r_OP(self, t, q, xi=None, B_r_CP=np.zeros(3, dtype=float)):
+    def r_OP(self, t, q, xi=None, B_r_CP=_B_r_CP0):
+        if _is_zero_offset(B_r_CP):
+            return q[:3] + 0.0
         return q[:3] + self.A_IB(t, q) @ B_r_CP
 
     def r_OP_q(self, t, q, xi=None, B_r_CP=np.zeros(3, dtype=float)):
@@ -186,13 +187,9 @@ class RigidBody:
         r_OP_q[:, :] += np.einsum("ijk,j->ik", self.A_IB_q(t, q), B_r_CP)
         return r_OP_q
 
-    @cachedmethod(
-        lambda self: self.v_P_cache,
-        key=lambda self, t, q, u, xi=None, B_r_CP=np.zeros(3, dtype=float): hashkey(
-            t, *q, *u, *B_r_CP
-        ),
-    )
-    def v_P(self, t, q, u, xi=None, B_r_CP=np.zeros(3, dtype=float)):
+    def v_P(self, t, q, u, xi=None, B_r_CP=_B_r_CP0):
+        if _is_zero_offset(B_r_CP):
+            return u[:3] + 0.0
         return u[:3] + self.A_IB(t, q) @ cross3(u[3:], B_r_CP)
 
     def v_P_q(self, t, q, u, xi=None, B_r_CP=np.zeros(3, dtype=float)):
@@ -217,13 +214,15 @@ class RigidBody:
         )
         return a_P_u
 
-    @cachedmethod(
-        lambda self: self.J_P_cache,
-        key=lambda self, t, q, xi=None, B_r_CP=np.zeros(3, dtype=float): hashkey(
-            t, *q, *B_r_CP
-        ),
-    )
-    def J_P(self, t, q, xi=None, B_r_CP=np.zeros(3, dtype=float)):
+    def J_P(self, t, q, xi=None, B_r_CP=_B_r_CP0):
+        if _is_zero_offset(B_r_CP):
+            J_P = np.zeros((3, self.nu), dtype=q.dtype)
+            J_P[:, :3] = np.eye(3)
+            return J_P
+        return self._J_P(t, q, B_r_CP)
+
+    @cached_last(key=lambda self, t, q, B_r_CP: fast_key(t, q, B_r_CP))
+    def _J_P(self, t, q, B_r_CP):
         J_P = np.zeros((3, self.nu), dtype=q.dtype)
         J_P[:, :3] = np.eye(3)
         J_P[:, 3:] = -self.A_IB(t, q) @ ax2skew(B_r_CP)

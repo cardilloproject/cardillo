@@ -115,6 +115,12 @@ class BackwardEuler:
         self.M = system.M(self.tn, self.qn)
         self.W_N = system.W_N(self.tn, self.qn)
         self.W_F = system.W_F(self.tn, self.qn)
+        self._last_point = None
+
+        # a constant mass matrix is only assembled once
+        I_M = getattr(system, "I_M", None)
+        self._constant_mass_matrix = I_M is not None and not np.any(I_M)
+        self._M_constant = None
 
     def R_x(self, xn1, yn1):
         (
@@ -147,34 +153,52 @@ class BackwardEuler:
         ####################
         # equations of motion
         ####################
-        self.M = self.system.M(tn1, qn1, format="csr")
-        self.W_N = self.system.W_N(tn1, qn1, format="csr")
-        self.W_F = self.system.W_F(tn1, qn1, format="csr")
-        R_x[self.split_x[0] : self.split_x[1]] = (
-            self.M @ dun1
-            - dt
-            * (
-                self.system.h(tn1, qn1, un1)
-                + self.system.W_tau(tn1, qn1, format="csr")
-                @ self.system.la_tau(tn1, qn1, un1)
+        if self._constant_mass_matrix:
+            if self._M_constant is None:
+                self._M_constant = self.system.M(tn1, qn1, format="csr")
+            self.M = self._M_constant
+        else:
+            self.M = self.system.M(tn1, qn1, format="csr")
+
+        # terms with a vanishing dimension are skipped, they would only add zeros
+        h = self.system.h(tn1, qn1, un1)
+        if self.system.nla_tau > 0:
+            h = h + self.system.W_tau(tn1, qn1, format="csr") @ self.system.la_tau(
+                tn1, qn1, un1
             )
-            - self.system.W_g(tn1, qn1, format="csr") @ dP_gn1
-            - self.system.W_gamma(tn1, qn1, format="csr") @ dP_gamman1
-            - self.system.W_c(tn1, qn1, format="csr") @ dP_cn1
-            - self.W_N @ dP_Nn1
-            - self.W_F @ dP_Fn1
-        )
+        R_u = self.M @ dun1 - dt * h
+        if self.nla_g > 0:
+            R_u = R_u - self.system.W_g(tn1, qn1, format="csr") @ dP_gn1
+        if self.nla_gamma > 0:
+            R_u = R_u - self.system.W_gamma(tn1, qn1, format="csr") @ dP_gamman1
+        if self.nla_c > 0:
+            R_u = R_u - self.system.W_c(tn1, qn1, format="csr") @ dP_cn1
+
+        # Only contacts with non-zero percussions contribute. The full force
+        # directions are required for the estimation of the prox parameters
+        # and are assembled lazily for the last evaluation point.
+        self._last_point = (tn1, qn1)
+        if self.nla_N > 0:
+            W_N = self.system.W_N(tn1, qn1, format="csr", I_N=np.nonzero(dP_Nn1)[0])
+            R_u = R_u - W_N @ dP_Nn1
+        if self.nla_F > 0:
+            W_F = self.system.W_F(tn1, qn1, format="csr", I_F=np.nonzero(dP_Fn1)[0])
+            R_u = R_u - W_F @ dP_Fn1
+        R_x[self.split_x[0] : self.split_x[1]] = R_u
 
         #######################
         # bilateral constraints
         #######################
-        R_x[self.split_x[1] : self.split_x[2]] = self.system.g(tn1, qn1)
-        R_x[self.split_x[2] : self.split_x[3]] = self.system.gamma(tn1, qn1, un1)
+        if self.nla_g > 0:
+            R_x[self.split_x[1] : self.split_x[2]] = self.system.g(tn1, qn1)
+        if self.nla_gamma > 0:
+            R_x[self.split_x[2] : self.split_x[3]] = self.system.gamma(tn1, qn1, un1)
 
         ############
         # compliance
         ############
-        R_x[self.split_x[3] :] = self.system.c(tn1, qn1, un1, dP_cn1 / self.dt)
+        if self.nla_c > 0:
+            R_x[self.split_x[3] :] = self.system.c(tn1, qn1, un1, dP_cn1 / self.dt)
 
         return R_x
 
@@ -196,60 +220,74 @@ class BackwardEuler:
         qn1 = qn + dqn1
         un1 = un + dun1
 
+        system = self.system
         ####################
         # kinematic equation
         ####################
-        Rq_dot_q_dot = eye(self.nq) - dt * self.system.q_dot_q(tn1, qn1, un1)
-        Rq_dot_u_dot = -dt * self.system.q_dot_u(tn1, qn1)
+        Rq_dot_q_dot = eye(self.nq) - dt * system.q_dot_q(tn1, qn1, un1)
+        Rq_dot_u_dot = -dt * system.q_dot_u(tn1, qn1)
 
+        # Blocks with a vanishing dimension (no constraints of this kind) are
+        # skipped, they would only add zeros.
         ########################
         # equations of motion (1)
         ########################
-        M = self.system.M(tn1, qn1)
-        W_g = self.system.W_g(tn1, qn1)
-        W_gamma = self.system.W_gamma(tn1, qn1)
-        W_c = self.system.W_c(tn1, qn1)
+        if self._constant_mass_matrix:
+            if self._M_constant is None:
+                self._M_constant = system.M(tn1, qn1, format="csr")
+            M = self._M_constant
+        else:
+            M = system.M(tn1, qn1)
 
-        Ru_dot_q_dot = (
-            self.system.Mu_q(tn1, qn1, dun1)
-            - dt
-            * (self.system.h_q(tn1, qn1, un1) + self.system.Wla_tau_q(tn1, qn1, un1))
-            - self.system.Wla_g_q(tn1, qn1, dP_gn1)
-            - self.system.Wla_gamma_q(tn1, qn1, dP_gamman1)
-            - self.system.Wla_c_q(tn1, qn1, dP_cn1)
-            - self.system.Wla_N_q(tn1, qn1, dP_Nn1)
-            - self.system.Wla_F_q(tn1, qn1, dP_Fn1)
-        )
-        Ru_dot_u_dot = M - dt * (
-            self.system.h_u(tn1, qn1, un1) + self.system.Wla_tau_u(tn1, qn1, un1)
-        )
+        h_q = system.h_q(tn1, qn1, un1)
+        h_u = system.h_u(tn1, qn1, un1)
+        if system.nla_tau > 0:
+            h_q = h_q + system.Wla_tau_q(tn1, qn1, un1)
+            h_u = h_u + system.Wla_tau_u(tn1, qn1, un1)
+        Ru_dot_q_dot = -dt * h_q
+        if not self._constant_mass_matrix:
+            Ru_dot_q_dot = system.Mu_q(tn1, qn1, dun1) + Ru_dot_q_dot
+        if self.nla_g > 0:
+            Ru_dot_q_dot = Ru_dot_q_dot - system.Wla_g_q(tn1, qn1, dP_gn1)
+        if self.nla_gamma > 0:
+            Ru_dot_q_dot = Ru_dot_q_dot - system.Wla_gamma_q(tn1, qn1, dP_gamman1)
+        if self.nla_c > 0:
+            Ru_dot_q_dot = Ru_dot_q_dot - system.Wla_c_q(tn1, qn1, dP_cn1)
+        if self.nla_N > 0:
+            Ru_dot_q_dot = Ru_dot_q_dot - system.Wla_N_q(
+                tn1, qn1, dP_Nn1, I_N=np.nonzero(dP_Nn1)[0]
+            )
+        if self.nla_F > 0:
+            Ru_dot_q_dot = Ru_dot_q_dot - system.Wla_F_q(
+                tn1, qn1, dP_Fn1, I_F=np.nonzero(dP_Fn1)[0]
+            )
+        Ru_dot_u_dot = M - dt * h_u
 
-        #######################
-        # bilateral constraints
-        #######################
-        Rla_g_q_dot = self.system.g_q(tn1, qn1)
-        Rla_gamma_q_dot = self.system.gamma_q(tn1, qn1, un1)
-        Rla_gamma_u_dot = self.system.gamma_u(tn1, qn1)
-
-        ############
-        # compliance
-        ############
-        Rla_c_q_dot = self.system.c_q(tn1, qn1, un1, dP_cn1 / self.dt)
-        Rla_c_u_dot = self.system.c_u(tn1, qn1, un1, dP_cn1 / self.dt)
-        Rla_c_la_c = self.system.c_la_c() / self.dt
-
-        # fmt: off
+        # block matrix of the Jacobian, rows and columns: q, u, P_g, P_gamma, P_c
+        blocks = {
+            (0, 0): Rq_dot_q_dot,
+            (0, 1): Rq_dot_u_dot,
+            (1, 0): Ru_dot_q_dot,
+            (1, 1): Ru_dot_u_dot,
+        }
+        if self.nla_g > 0:
+            blocks[1, 2] = -system.W_g(tn1, qn1)
+            blocks[2, 0] = system.g_q(tn1, qn1)
+        if self.nla_gamma > 0:
+            blocks[1, 3] = -system.W_gamma(tn1, qn1)
+            blocks[3, 0] = system.gamma_q(tn1, qn1, un1)
+            blocks[3, 1] = system.gamma_u(tn1, qn1)
+        if self.nla_c > 0:
+            blocks[1, 4] = -system.W_c(tn1, qn1)
+            blocks[4, 0] = system.c_q(tn1, qn1, un1, dP_cn1 / self.dt)
+            blocks[4, 1] = system.c_u(tn1, qn1, un1, dP_cn1 / self.dt)
+            blocks[4, 4] = system.c_la_c() / self.dt
+        dims = [self.nq, self.nu, self.nla_g, self.nla_gamma, self.nla_c]
+        keep = [i for i, n in enumerate(dims) if n > 0]
         J = bmat(
-            [
-                [   Rq_dot_q_dot,    Rq_dot_u_dot, None,     None,       None],
-                [   Ru_dot_q_dot,    Ru_dot_u_dot, -W_g, -W_gamma,       -W_c],
-                [    Rla_g_q_dot,            None, None,     None,       None],
-                [Rla_gamma_q_dot, Rla_gamma_u_dot, None,     None,       None],
-                [    Rla_c_q_dot,     Rla_c_u_dot, None,     None, Rla_c_la_c],
-            ],
+            [[blocks.get((i, j)) for j in keep] for i in keep],
             format="csc",
         )
-        # fmt: on
         return J
 
     def J_y(self, xn1, yn1):
@@ -296,21 +334,13 @@ class BackwardEuler:
         #############################
         # fixed-point update friction
         #############################
-        for contr in self.system.get_contribution_list("gamma_F"):
-            gamma_F_contr = contr.gamma_F(tn1, qn1[contr.qDOF], un1[contr.uDOF])
-            la_FDOF = contr.la_FDOF
-            dP_Fn1_contr = dP_Fn1[la_FDOF]
-            prox_r_F_contr = prox_r_F[la_FDOF]
-            for i_N, i_F, force_recervoir in contr.friction_laws:
-                if len(i_N) > 0:
-                    dP_Nn1i = dP_Nn1[contr.la_NDOF[i_N]]
-                else:
-                    dP_Nn1i = self.dt
-
-                y1[self.split_y[0] + la_FDOF[i_F]] = -force_recervoir.prox(
-                    prox_r_F_contr[i_F] * gamma_F_contr[i_F] - dP_Fn1_contr[i_F],
-                    dP_Nn1i,
-                )
+        # the friction radius is zero without normal force: only friction forces
+        # of contacts with a positive normal percussion can be non-zero
+        I_F = self.system.friction_indices(np.nonzero(dP_Nn1 > 0)[0])
+        gamma_F = self.system.gamma_F(tn1, qn1, un1, I_F=I_F)
+        y1[self.split_y[0] :] = self.system.friction_prox(
+            prox_r_F * gamma_F - dP_Fn1, dP_Nn1, self.dt
+        )
 
         return y1
 
@@ -378,6 +408,12 @@ class BackwardEuler:
             #     ),
             #     [self.nla_N],
             # )
+
+            if self._last_point is not None:
+                # force directions for the last evaluation of the residual
+                self.W_N = self.system.W_N(*self._last_point, format="csr")
+                self.W_F = self.system.W_F(*self._last_point, format="csr")
+                self._last_point = None
 
             A = -lu.solve(self.J_y(self.xn, self.yn).toarray())
             # fmt: off

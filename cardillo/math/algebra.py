@@ -53,12 +53,16 @@ def LeviCivita3(i: int, j: int, k: int) -> int:
 
 def ax2skew(a: np.ndarray) -> np.ndarray:
     """Computes the skew symmetric matrix from a 3D vector."""
-    assert a.size == 3
-    # fmt: off
-    return np.array([[0,    -a[2], a[1] ],
-                     [a[2],  0,    -a[0]],
-                     [-a[1], a[0], 0    ]], dtype=a.dtype)
-    # fmt: on
+    # unpacking python floats is much faster than indexing numpy scalars
+    a0, a1, a2 = a.tolist()
+    A = np.zeros((3, 3), dtype=a.dtype)
+    A[0, 1] = -a2
+    A[0, 2] = a1
+    A[1, 0] = a2
+    A[1, 2] = -a0
+    A[2, 0] = -a1
+    A[2, 1] = a0
+    return A
 
 
 def ax2skew_squared(a: np.ndarray) -> np.ndarray:
@@ -84,6 +88,23 @@ def skew2ax(A: np.ndarray) -> np.ndarray:
     # fmt: on
 
 
+_ax2skew_a = np.zeros((3, 3, 3), dtype=float)
+_ax2skew_a[1, 2, 0] = -1
+_ax2skew_a[2, 1, 0] = 1
+_ax2skew_a[0, 2, 1] = 1
+_ax2skew_a[2, 0, 1] = -1
+_ax2skew_a[0, 1, 2] = -1
+_ax2skew_a[1, 0, 2] = 1
+
+_skew2ax_A = np.zeros((3, 3, 3), dtype=float)
+_skew2ax_A[0, 2, 1] = 0.5
+_skew2ax_A[0, 1, 2] = -0.5
+_skew2ax_A[1, 0, 2] = 0.5
+_skew2ax_A[1, 2, 0] = -0.5
+_skew2ax_A[2, 1, 0] = 0.5
+_skew2ax_A[2, 0, 1] = -0.5
+
+
 def ax2skew_a():
     """
     Partial derivative of the `ax2skew` function with respect to its argument.
@@ -91,14 +112,7 @@ def ax2skew_a():
     Note:
     -----
     This is a constant 3x3x3 ndarray."""
-    A = np.zeros((3, 3, 3), dtype=float)
-    A[1, 2, 0] = -1
-    A[2, 1, 0] = 1
-    A[0, 2, 1] = 1
-    A[2, 0, 1] = -1
-    A[0, 1, 2] = -1
-    A[1, 0, 2] = 1
-    return A
+    return _ax2skew_a.copy()
 
 
 def skew2ax_A() -> np.ndarray:
@@ -108,27 +122,14 @@ def skew2ax_A() -> np.ndarray:
     Note:
     -----
     This is a constant 3x3x3 ndarray."""
-    A = np.zeros((3, 3, 3), dtype=float)
-    A[0, 2, 1] = 0.5
-    A[0, 1, 2] = -0.5
-
-    A[1, 0, 2] = 0.5
-    A[1, 2, 0] = -0.5
-
-    A[2, 1, 0] = 0.5
-    A[2, 0, 1] = -0.5
-    return A
+    return _skew2ax_A.copy()
 
 
 def cross3(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     """Vector product of two 3D vectors."""
-    assert a.size == 3
-    assert b.size == 3
-    # fmt: off
-    return np.array([a[1] * b[2] - a[2] * b[1], \
-                     a[2] * b[0] - a[0] * b[2], \
-                     a[0] * b[1] - a[1] * b[0] ])
-    # fmt: on
+    a0, a1, a2 = a.tolist()
+    b0, b1, b2 = b.tolist()
+    return np.array([a1 * b2 - a2 * b1, a2 * b0 - a0 * b2, a0 * b1 - a1 * b0])
 
 
 def is_positive_definite(A) -> bool:

@@ -1,6 +1,6 @@
 import warnings
 import numpy as np
-from scipy.sparse import lil_array, eye, bmat
+from scipy.sparse import eye, bmat, csc_array
 from scipy.sparse.linalg import splu
 from tqdm import tqdm
 
@@ -100,6 +100,12 @@ class Rattle:
                 dt * system.la_gamma0,
             )
         )
+        # a constant mass matrix is factorized only once for the estimation of
+        # the prox parameters
+        I_M = getattr(system, "I_M", None)
+        self._constant_mass_matrix = I_M is not None and not np.any(I_M)
+        self._M_lu = None
+
         self.x2n = np.concatenate(
             (
                 system.u0,
@@ -150,33 +156,39 @@ class Rattle:
         ########################
         # euations of motion (1)
         ########################
-        R[self.split_x1[0] : self.split_x1[1]] = (
-            self.Mn @ (un12 - un)
-            - 0.5
-            * dt
-            * (
-                self.system.h(tn, qn, un12)
-                + self.W_taun @ self.system.la_tau(tn, qn, un12)
-                + self.W_cn @ la_c1
-            )
-            - (
-                self.W_gn @ P_g1
-                + self.W_gamman @ P_gamma1
-                + self.W_Nn @ P_N1
-                + self.W_Fn @ P_F1
-            )
-        )
+        # terms with a vanishing dimension are skipped, they would only add zeros
+        system = self.system
+        h = system.h(tn, qn, un12)
+        if system.nla_tau > 0:
+            h = h + self.W_taun @ system.la_tau(tn, qn, un12)
+        if system.nla_c > 0:
+            h = h + self.W_cn @ la_c1
+        R_u = self.Mn @ (un12 - un) - 0.5 * dt * h
+        # the bilateral and contact percussions are subtracted together
+        P = 0
+        if system.nla_g > 0:
+            P = P + self.W_gn @ P_g1
+        if system.nla_gamma > 0:
+            P = P + self.W_gamman @ P_gamma1
+        if system.nla_N > 0:
+            P = P + self.W_Nn @ P_N1
+        if system.nla_F > 0:
+            P = P + self.W_Fn @ P_F1
+        R[self.split_x1[0] : self.split_x1[1]] = R_u - P
 
         ############
         # compliance
         ############
-        R[self.split_x1[1] : self.split_x1[2]] = self.system.c(tn, qn, un12, la_c1)
+        if system.nla_c > 0:
+            R[self.split_x1[1] : self.split_x1[2]] = system.c(tn, qn, un12, la_c1)
 
         #######################
         # bilateral constraints
         #######################
-        R[self.split_x1[2] : self.split_x1[3]] = self.system.g(tn1, qn1)
-        R[self.split_x1[3] :] = self.system.gamma(tn1, qn1, un12)
+        if system.nla_g > 0:
+            R[self.split_x1[2] : self.split_x1[3]] = system.g(tn1, qn1)
+        if system.nla_gamma > 0:
+            R[self.split_x1[3] :] = system.gamma(tn1, qn1, un12)
 
         return R
 
@@ -190,59 +202,45 @@ class Rattle:
 
         qn1, un12, la_c1, _, _ = np.array_split(x1n1, self.split_x1)
 
-        J_x1 = lil_array((self.nx1, self.nx1))
-
+        system = self.system
         ####################
         # kinematic equation
         ####################
-        J_x1[: self.split_x1[0], : self.split_x1[0]] = eye(
-            self.nq
-        ) - 0.5 * dt * self.system.q_dot_q(tn1, qn1, un12)
-        J_x1[: self.split_x1[0], self.split_x1[0] : self.split_x1[1]] = (
-            -0.5 * dt * (self.Bn + self.system.q_dot_u(tn1, qn1))
-        )
+        J_qq = eye(self.nq) - 0.5 * dt * system.q_dot_q(tn1, qn1, un12)
+        J_qu = -0.5 * dt * (self.Bn + system.q_dot_u(tn1, qn1))
 
+        # Blocks with a vanishing dimension (no constraints of this kind) are
+        # skipped, they would only add zeros.
         ########################
         # euations of motion (1)
         ########################
-        J_x1[
-            self.split_x1[0] : self.split_x1[1], self.split_x1[0] : self.split_x1[1]
-        ] = self.Mn - 0.5 * dt * (
-            self.system.h_u(tn, qn, un12)
-            + self.system.Wla_tau_u(self.tn, self.qn, un12)
-        )
-        J_x1[
-            self.split_x1[0] : self.split_x1[1], self.split_x1[1] : self.split_x1[2]
-        ] = (-0.5 * dt * self.W_cn)
-        J_x1[
-            self.split_x1[0] : self.split_x1[1], self.split_x1[2] : self.split_x1[3]
-        ] = -self.W_gn
-        J_x1[self.split_x1[0] : self.split_x1[1], self.split_x1[3] :] = -self.W_gamman
+        h_u = system.h_u(tn, qn, un12)
+        if system.nla_tau > 0:
+            h_u = h_u + system.Wla_tau_u(self.tn, self.qn, un12)
+        J_uu = self.Mn - 0.5 * dt * h_u
 
-        ############
-        # compliance
-        ############
-        J_x1[
-            self.split_x1[1] : self.split_x1[2], self.split_x1[0] : self.split_x1[1]
-        ] = self.system.c_u(tn, qn, un12, la_c1)
-        J_x1[
-            self.split_x1[1] : self.split_x1[2], self.split_x1[1] : self.split_x1[2]
-        ] = self.system.c_la_c()
-
-        #######################
-        # bilateral constraints
-        #######################
-        J_x1[self.split_x1[2] : self.split_x1[3], : self.split_x1[0]] = self.system.g_q(
-            tn1, qn1
-        )
-        J_x1[self.split_x1[3] :, : self.split_x1[0]] = self.system.gamma_q(
-            tn1, qn1, un12
-        )
-        J_x1[self.split_x1[3] :, self.split_x1[0] : self.split_x1[1]] = (
-            self.system.gamma_u(tn1, qn1)
-        )
-
-        return J_x1.tocsc()
+        # block matrix of the Jacobian, rows and columns: q, u, la_c, P_g, P_gamma
+        blocks = {(0, 0): J_qq, (0, 1): J_qu, (1, 1): J_uu}
+        if self.system.nla_c > 0:
+            blocks[1, 2] = -0.5 * dt * self.W_cn
+            blocks[2, 1] = system.c_u(tn, qn, un12, la_c1)
+            blocks[2, 2] = system.c_la_c()
+        if self.system.nla_g > 0:
+            blocks[1, 3] = -self.W_gn
+            blocks[3, 0] = system.g_q(tn1, qn1)
+        if self.system.nla_gamma > 0:
+            blocks[1, 4] = -self.W_gamman
+            blocks[4, 0] = system.gamma_q(tn1, qn1, un12)
+            blocks[4, 1] = system.gamma_u(tn1, qn1)
+        dims = [
+            self.nq,
+            self.nu,
+            self.system.nla_c,
+            self.system.nla_g,
+            self.system.nla_gamma,
+        ]
+        keep = [i for i, n in enumerate(dims) if n > 0]
+        return bmat([[blocks.get((i, j)) for j in keep] for i in keep], format="csc")
 
         # J_x1_num = csc_array(
         #     approx_fprime(x1n1, lambda x: self.R_x1(x, y1n1), method="cs")
@@ -282,21 +280,13 @@ class Rattle:
         #############################
         # fixed-point update friction
         #############################
-        for contr in self.system.get_contribution_list("gamma_F"):
-            gamma_F_contr = contr.gamma_F(tn1, qn1[contr.qDOF], un12[contr.uDOF])
-            la_FDOF = contr.la_FDOF
-            P_Fn1_contr = P_F1[la_FDOF]
-            prox_r_F_contr = prox_r_F[la_FDOF]
-            for i_N, i_F, force_recervoir in contr.friction_laws:
-                if len(i_N) > 0:
-                    P_Nn1i = P_N1[contr.la_NDOF[i_N]]
-                else:
-                    P_Nn1i = self.dt
-
-                y1n1p[self.split_y[0] + la_FDOF[i_F]] = -force_recervoir.prox(
-                    prox_r_F_contr[i_F] * gamma_F_contr[i_F] - P_Fn1_contr[i_F],
-                    P_Nn1i,
-                )
+        # the friction radius is zero without normal force: only friction forces
+        # of contacts with a positive normal percussion can be non-zero
+        I_F = self.system.friction_indices(np.nonzero(P_N1 > 0)[0])
+        gamma_F = self.system.gamma_F(tn1, qn1, un12, I_F=I_F)
+        y1n1p[self.split_y[0] :] = self.system.friction_prox(
+            prox_r_F * gamma_F - P_F1, P_N1, self.dt
+        )
 
         return y1n1p
 
@@ -322,7 +312,8 @@ class Rattle:
         ##############################
         # fixed-point update Signorini
         ##############################
-        xi_N = self.system.xi_N(tn, tn1, qn, qn1, un, un1)
+        # normal percussions are only non-zero for the active set I_N
+        xi_N = self.system.xi_N(tn, tn1, qn, qn1, un, un1, I_N=np.nonzero(self.I_N)[0])
         y2n1p[: self.split_y[0]] = self.I_N * (
             -NegativeOrthant.prox(prox_r_N * xi_N - P_N)
         )
@@ -330,22 +321,13 @@ class Rattle:
         #############################
         # fixed-point update friction
         #############################
-        xi_F = self.system.xi_F(tn, tn1, qn, qn1, un, un1)
-        for contr in self.system.get_contribution_list("gamma_F"):
-            la_FDOF = contr.la_FDOF
-            xi_F_contr = xi_F[la_FDOF]
-            P_F_contr = P_F[la_FDOF]
-            prox_r_F_contr = prox_r_F[la_FDOF]
-            for i_N, i_F, force_recervoir in contr.friction_laws:
-                if len(i_N) > 0:
-                    P_Ni = P_N[contr.la_NDOF[i_N]]
-                else:
-                    P_Ni = self.dt
-
-                y2n1p[self.split_y[0] + la_FDOF[i_F]] = -force_recervoir.prox(
-                    prox_r_F_contr[i_F] * xi_F_contr[i_F] - P_F_contr[i_F],
-                    P_Ni,
-                )
+        # the friction radius is zero without normal force: only contributions
+        # with a positive normal percussion can have non-zero friction
+        active_N = np.nonzero(self.I_N | (P_N > 0))[0]
+        xi_F = self.system.xi_F(tn, tn1, qn, qn1, un, un1, I_N=active_N)
+        y2n1p[self.split_y[0] :] = self.system.friction_prox(
+            prox_r_F * xi_F - P_F, P_N, self.dt
+        )
 
         return y2n1p - self.y1n
 
@@ -445,9 +427,18 @@ class Rattle:
         pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
         for _ in pbar:
             # only compute optimized prox-parameters once per time step
+            if self._constant_mass_matrix:
+                if self._M_lu is None:
+                    self._M_lu = splu(csc_array(self.Mn))
+                M_lu = self._M_lu
+            else:
+                M_lu = splu(csc_array(self.Mn))
             self.prox_r_N, self.prox_r_F = np.array_split(
                 estimate_prox_parameter(
-                    self.options.prox_scaling, bmat([[self.W_Nn, self.W_Fn]]), self.Mn
+                    self.options.prox_scaling,
+                    bmat([[self.W_Nn, self.W_Fn]]),
+                    self.Mn,
+                    M_lu=M_lu,
                 ),
                 [self.nla_N],
             )

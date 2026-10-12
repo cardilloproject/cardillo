@@ -1,6 +1,6 @@
 import numpy as np
 from cachetools import cachedmethod, LRUCache
-from cachetools.keys import hashkey
+from cardillo.utility.cache import fast_key
 
 
 from cardillo.math import (
@@ -349,9 +349,36 @@ def make_CosseratRod_Quat(mixed=True, constraints=None):
             )
 
     class CosseratRod_Quat(CosseratRodBase):
+        def _interpolation_matrices(self, N, N_xi):
+            """Constant matrices that map the element coordinates qe to
+            r_OP, r_OP_xi, p and p_xi for given shape functions."""
+            key = (N.tobytes(), N_xi.tobytes())
+            cache = self.__dict__.setdefault("_interpolation_matrices_cache", {})
+            matrices = cache.get(key)
+            if matrices is None:
+                nq = self.nq_element
+                r_OP_qe = np.zeros((3, nq), dtype=float)
+                r_OP_xi_qe = np.zeros((3, nq), dtype=float)
+                p_qe = np.zeros((4, nq), dtype=float)
+                p_xi_qe = np.zeros((4, nq), dtype=float)
+                for node in range(self.nnodes_element_r):
+                    nodalDOF_r = self.nodalDOF_element_r[node]
+                    r_OP_qe[:, nodalDOF_r] += N[node] * np.eye(3, dtype=float)
+                    r_OP_xi_qe[:, nodalDOF_r] += N_xi[node] * np.eye(3, dtype=float)
+
+                    nodalDOF_p = self.nodalDOF_element_p[node]
+                    p_qe[:, nodalDOF_p] += N[node] * np.eye(4, dtype=float)
+                    p_xi_qe[:, nodalDOF_p] += N_xi[node] * np.eye(4, dtype=float)
+                # evaluations at arbitrary xi (e.g. contacts) must not let the
+                # cache grow without bounds
+                if len(cache) > 1000:
+                    cache.clear()
+                matrices = cache[key] = (r_OP_qe, r_OP_xi_qe, p_qe, p_xi_qe)
+            return matrices
+
         @cachedmethod(
             lambda self: self._eval_cache,
-            key=lambda self, qe, xi, N, N_xi: hashkey(*qe, xi),
+            key=lambda self, qe, xi, N, N_xi: fast_key(qe, xi),
         )
         def _eval(self, qe, xi, N, N_xi):
             # evaluate shape functions
@@ -384,41 +411,18 @@ def make_CosseratRod_Quat(mixed=True, constraints=None):
 
         @cachedmethod(
             lambda self: self._deval_cache,
-            key=lambda self, qe, xi, N, N_xi: hashkey(*qe, xi),
+            key=lambda self, qe, xi, N, N_xi: fast_key(qe, xi),
         )
         def _deval(self, qe, xi, N, N_xi):
-            # evaluate shape functions
-            # N, N_xi = self.basis_functions_r(xi)
-
-            # interpolate
-            r_OP = np.zeros(3, dtype=qe.dtype)
-            r_OP_qe = np.zeros((3, self.nq_element), dtype=qe.dtype)
-            r_OP_xi = np.zeros(3, dtype=qe.dtype)
-            r_OP_xi_qe = np.zeros((3, self.nq_element), dtype=qe.dtype)
-
-            p = np.zeros(4, dtype=float)
-            p_qe = np.zeros((4, self.nq_element), dtype=qe.dtype)
-            p_xi = np.zeros(4, dtype=float)
-            p_xi_qe = np.zeros((4, self.nq_element), dtype=qe.dtype)
-
-            for node in range(self.nnodes_element_r):
-                nodalDOF_r = self.nodalDOF_element_r[node]
-                r_OP_node = qe[nodalDOF_r]
-
-                r_OP += N[node] * r_OP_node
-                r_OP_qe[:, nodalDOF_r] += N[node] * np.eye(3, dtype=float)
-
-                r_OP_xi += N_xi[node] * r_OP_node
-                r_OP_xi_qe[:, nodalDOF_r] += N_xi[node] * np.eye(3, dtype=float)
-
-                nodalDOF_p = self.nodalDOF_element_p[node]
-                p_node = qe[nodalDOF_p]
-
-                p += N[node] * p_node
-                p_qe[:, nodalDOF_p] += N[node] * np.eye(4, dtype=float)
-
-                p_xi += N_xi[node] * p_node
-                p_xi_qe[:, nodalDOF_p] += N_xi[node] * np.eye(4, dtype=float)
+            # interpolate, the interpolation matrices only depend on the
+            # shape functions but not on the generalized coordinates
+            r_OP_qe, r_OP_xi_qe, p_qe, p_xi_qe = self._interpolation_matrices(N, N_xi)
+            r_OP = r_OP_qe @ qe
+            r_OP_xi = r_OP_xi_qe @ qe
+            p = p_qe @ qe
+            p_xi = p_xi_qe @ qe
+            # the cached constant matrix must never be handed out directly
+            r_OP_qe = r_OP_qe.astype(qe.dtype)
 
             # transformation matrix
             A_IB = Exp_SO3_quat(p, normalize=True)
@@ -498,7 +502,7 @@ def make_CosseratRod_SE3(mixed=True, constraints=None):
     class CosseratRod_SE3(CosseratRodBase):
         @cachedmethod(
             lambda self: self._eval_cache,
-            key=lambda self, qe, xi, N, N_xi: hashkey(*qe, xi),
+            key=lambda self, qe, xi, N, N_xi: fast_key(qe, xi),
         )
         def _eval(self, qe, xi, N, N_xi):
             # nodal unknowns
@@ -550,7 +554,7 @@ def make_CosseratRod_SE3(mixed=True, constraints=None):
 
         @cachedmethod(
             lambda self: self._deval_cache,
-            key=lambda self, qe, xi, N, N_xi: hashkey(*qe, xi),
+            key=lambda self, qe, xi, N, N_xi: fast_key(qe, xi),
         )
         def _deval(self, qe, xi, N, N_xi):
             # extract nodal screws
@@ -691,7 +695,7 @@ def make_CosseratRod_R12(mixed=True, constraints=None):
         # returns interpolated positions, orientations and strains at xi in [0,1]
         @cachedmethod(
             lambda self: self._eval_cache,
-            key=lambda self, qe, xi, N, N_xi: hashkey(*qe, xi),
+            key=lambda self, qe, xi, N, N_xi: fast_key(qe, xi),
         )
         def _eval(self, qe, xi, N, N_xi):
             # evaluate shape functions
@@ -731,7 +735,7 @@ def make_CosseratRod_R12(mixed=True, constraints=None):
 
         @cachedmethod(
             lambda self: self._deval_cache,
-            key=lambda self, qe, xi, N, N_xi: hashkey(*qe, xi),
+            key=lambda self, qe, xi, N, N_xi: fast_key(qe, xi),
         )
         def _deval(self, qe, xi, N, N_xi):
             # evaluate shape functions
