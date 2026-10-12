@@ -5,12 +5,17 @@ import numpy as np
 from cardillo import System
 from cardillo.constraints import RigidConnection, Spherical
 from cardillo.contacts import Sphere2Plane, Sphere2Sphere
-from cardillo.contacts.collision import CollisionWorld, PlaneShape, SphereShape
+from cardillo.contacts.collision import (
+    CapsuleShape,
+    CollisionWorld,
+    PlaneShape,
+    SphereShape,
+)
 from cardillo.discrete import Box, Frame, PointMass, RigidBody, Sphere
 from cardillo.force_laws import KelvinVoigtElement
 from cardillo.forces import B_Moment, Force
 from cardillo.interactions import TwoPointInteraction
-from cardillo.math import A_IB_basic, e2, e3
+from cardillo.math import A_IB_basic, Exp_SO3, e2, e3
 from cardillo.rods import (
     CircularCrossSection,
     CrossSectionInertias,
@@ -117,6 +122,41 @@ def case_balls_200():
 
 def case_balls_world_200():
     return case_balls(t1=0.35, nx=5, ny=5, nz=8, world=True)
+
+
+def case_capsules(t1=0.4, n=5, seed=0):
+    """A pile of n x n x 2 randomly oriented capsules falling on a plane,
+    CollisionWorld, Moreau."""
+    rng = np.random.default_rng(seed)
+    rho, h, mass, mu = 0.03, 0.08, 0.1, 0.3
+    Theta = np.diag([mass * (3 * rho**2 + (2 * h) ** 2) / 12] * 2 + [mass * rho**2 / 2])
+    system = System()
+    floor = Frame(name="floor")
+    system.add(floor)
+    shapes = [PlaneShape(floor)]
+    for i in range(n):
+        for j in range(n):
+            for k in range(2):
+                r = np.array(
+                    [0.3 * i, 0.3 * j, 0.15 + 0.3 * k]
+                ) + 0.01 * rng.standard_normal(3)
+                body = RigidBody(
+                    mass,
+                    Theta,
+                    RigidBody.pose2q(r, Exp_SO3(rng.standard_normal(3))),
+                    np.zeros(6),
+                )
+                system.add(body, Force(np.array([0, 0, -9.81 * mass]), body))
+                shapes.append(CapsuleShape(body, rho, h))
+    system.add(CollisionWorld(shapes, mu=mu, e_N=0, e_F=0))
+    system.assemble()
+    solver = Moreau(
+        system,
+        t1,
+        1e-3,
+        options=SolverOptions(fixed_point_max_iter=int(1e4), prox_scaling=0.5),
+    )
+    return solver.solve()
 
 
 def case_balls_world():
@@ -296,6 +336,7 @@ def case_pendulum_backward_euler(**kw):
 
 CASES = {
     "balls": case_balls,
+    "capsules_world": case_capsules,
     "balls_world": case_balls_world,
     "balls_200": case_balls_200,
     "balls_world_200": case_balls_world_200,

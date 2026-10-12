@@ -534,15 +534,25 @@ blocks** of fixed shape. These cases stay on the current path:
   (vectorized Coulomb projection used by BackwardEuler, Rattle and
   DualStormerVerlet), `System.active_friction_laws` (vectorized `compute_I_F`).
 * **Phase 2 done**: `cardillo/contacts/collision/` with `SphereShape`,
-  `PlaneShape` and `CollisionWorld` (sphere-sphere and plane-sphere, fixed
-  slots, `cKDTree` broad phase with rebuild on displacement, Moreau and
-  DualStormerVerlet). It reproduces the `Sphere2Sphere`/`Sphere2Plane` results
-  bitwise on the `balls` benchmarks; with 200 spheres (20100 pairs) it is 2.8x
-  faster than the per-pair classes (5.0 s vs 14.0 s).
-* Known limits of phase 2: shape kinematics are evaluated by a python loop over
-  the shapes, velocity- and force-direction quantities by a loop over the active
-  slots, and the tangent bases of all sphere-sphere slots are transported every
-  step (O(N^2) memory and work, as with fixed slots in general).
+  `PlaneShape` and `CollisionWorld` (fixed slots, `cKDTree` broad phase with rebuild
+  on displacement, Moreau and DualStormerVerlet). It reproduces the
+  `Sphere2Sphere`/`Sphere2Plane` results on the `balls` benchmarks; with 200 spheres
+  (20100 pairs) it is about 2.5x faster than the per-pair classes (5.5 s vs 14 s).
+* **Phase 3 done**: generic pair interface (gap, normal, contact point offsets;
+  velocities, force directions and tangents are derived generically), `CapsuleShape`,
+  plane-capsule (two end point slots), sphere-capsule and capsule-capsule kernels
+  (closest points of segments), bounding sphere broad phase, finite difference
+  acceleration level quantities. Tested against brute-force closest points, finite
+  differences of the gap along the motion, and physical scenarios (capsule resting on
+  a plane, sphere on a capsule, crossed capsules). See
+  `cardillo/contacts/collision/THEORY.md`.
+* Known limits: shape kinematics are evaluated by a python loop over the shapes and
+  force directions by a loop over the active slots; the tangent bases of all pair
+  slots are transported every step, which costs one pair kernel evaluation per slot
+  and step (O(N^2) with fixed slots); parallel capsule axes are represented by a
+  single contact point; second derivatives (BackwardEuler, Rattle, statics) are not
+  implemented. The inherited sphere-sphere `g_N_ddot` omits the rotation of the
+  normal (only affects consistent initial conditions).
 
 ### Goal
 

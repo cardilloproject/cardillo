@@ -53,3 +53,22 @@ class PlaneShape(Shape):
     e_y-axes are the friction directions."""
 
     kind = "plane"
+
+
+class CapsuleShape(Shape):
+    """Capsule: all points within the distance ``radius`` of a line segment.
+
+    The segment is centered at the origin of the shape frame and points along
+    the e_z-axis of the shape frame, i.e., its end points are
+    ``r_OS +- half_length * A_IS[:, 2]``. Use `SphereShape` for
+    ``half_length = 0``.
+    """
+
+    kind = "capsule"
+
+    def __init__(self, subsystem, radius, half_length, **kwargs):
+        super().__init__(subsystem, **kwargs)
+        assert radius >= 0, "radius must be non-negative"
+        assert half_length > 0, "half_length must be positive, use SphereShape"
+        self.radius = float(radius)
+        self.half_length = float(half_length)
