@@ -156,33 +156,39 @@ class Rattle:
         ########################
         # euations of motion (1)
         ########################
-        R[self.split_x1[0] : self.split_x1[1]] = (
-            self.Mn @ (un12 - un)
-            - 0.5
-            * dt
-            * (
-                self.system.h(tn, qn, un12)
-                + self.W_taun @ self.system.la_tau(tn, qn, un12)
-                + self.W_cn @ la_c1
-            )
-            - (
-                self.W_gn @ P_g1
-                + self.W_gamman @ P_gamma1
-                + self.W_Nn @ P_N1
-                + self.W_Fn @ P_F1
-            )
-        )
+        # terms with a vanishing dimension are skipped, they would only add zeros
+        system = self.system
+        h = system.h(tn, qn, un12)
+        if system.nla_tau > 0:
+            h = h + self.W_taun @ system.la_tau(tn, qn, un12)
+        if system.nla_c > 0:
+            h = h + self.W_cn @ la_c1
+        R_u = self.Mn @ (un12 - un) - 0.5 * dt * h
+        # the bilateral and contact percussions are subtracted together
+        P = 0
+        if system.nla_g > 0:
+            P = P + self.W_gn @ P_g1
+        if system.nla_gamma > 0:
+            P = P + self.W_gamman @ P_gamma1
+        if system.nla_N > 0:
+            P = P + self.W_Nn @ P_N1
+        if system.nla_F > 0:
+            P = P + self.W_Fn @ P_F1
+        R[self.split_x1[0] : self.split_x1[1]] = R_u - P
 
         ############
         # compliance
         ############
-        R[self.split_x1[1] : self.split_x1[2]] = self.system.c(tn, qn, un12, la_c1)
+        if system.nla_c > 0:
+            R[self.split_x1[1] : self.split_x1[2]] = system.c(tn, qn, un12, la_c1)
 
         #######################
         # bilateral constraints
         #######################
-        R[self.split_x1[2] : self.split_x1[3]] = self.system.g(tn1, qn1)
-        R[self.split_x1[3] :] = self.system.gamma(tn1, qn1, un12)
+        if system.nla_g > 0:
+            R[self.split_x1[2] : self.split_x1[3]] = system.g(tn1, qn1)
+        if system.nla_gamma > 0:
+            R[self.split_x1[3] :] = system.gamma(tn1, qn1, un12)
 
         return R
 
@@ -196,48 +202,45 @@ class Rattle:
 
         qn1, un12, la_c1, _, _ = np.array_split(x1n1, self.split_x1)
 
+        system = self.system
         ####################
         # kinematic equation
         ####################
-        J_qq = eye(self.nq) - 0.5 * dt * self.system.q_dot_q(tn1, qn1, un12)
-        J_qu = -0.5 * dt * (self.Bn + self.system.q_dot_u(tn1, qn1))
+        J_qq = eye(self.nq) - 0.5 * dt * system.q_dot_q(tn1, qn1, un12)
+        J_qu = -0.5 * dt * (self.Bn + system.q_dot_u(tn1, qn1))
 
+        # Blocks with a vanishing dimension (no constraints of this kind) are
+        # skipped, they would only add zeros.
         ########################
         # euations of motion (1)
         ########################
-        J_uu = self.Mn - 0.5 * dt * (
-            self.system.h_u(tn, qn, un12)
-            + self.system.Wla_tau_u(self.tn, self.qn, un12)
-        )
-        J_u_la_c = -0.5 * dt * self.W_cn
-        J_u_P_g = -self.W_gn
-        J_u_P_gamma = -self.W_gamman
+        h_u = system.h_u(tn, qn, un12)
+        if system.nla_tau > 0:
+            h_u = h_u + system.Wla_tau_u(self.tn, self.qn, un12)
+        J_uu = self.Mn - 0.5 * dt * h_u
 
-        ############
-        # compliance
-        ############
-        J_cu = self.system.c_u(tn, qn, un12, la_c1)
-        J_c_la_c = self.system.c_la_c()
-
-        #######################
-        # bilateral constraints
-        #######################
-        J_gq = self.system.g_q(tn1, qn1)
-        J_gamma_q = self.system.gamma_q(tn1, qn1, un12)
-        J_gamma_u = self.system.gamma_u(tn1, qn1)
-
-        # fmt: off
-        return bmat(
-            [
-                [J_qq,      J_qu,        None,     None,        None],
-                [None,      J_uu,        J_u_la_c, J_u_P_g,     J_u_P_gamma],
-                [None,      J_cu,        J_c_la_c, None,        None],
-                [J_gq,      None,        None,     None,        None],
-                [J_gamma_q, J_gamma_u,   None,     None,        None],
-            ],
-            format="csc",
-        )
-        # fmt: on
+        # block matrix of the Jacobian, rows and columns: q, u, la_c, P_g, P_gamma
+        blocks = {(0, 0): J_qq, (0, 1): J_qu, (1, 1): J_uu}
+        if self.system.nla_c > 0:
+            blocks[1, 2] = -0.5 * dt * self.W_cn
+            blocks[2, 1] = system.c_u(tn, qn, un12, la_c1)
+            blocks[2, 2] = system.c_la_c()
+        if self.system.nla_g > 0:
+            blocks[1, 3] = -self.W_gn
+            blocks[3, 0] = system.g_q(tn1, qn1)
+        if self.system.nla_gamma > 0:
+            blocks[1, 4] = -self.W_gamman
+            blocks[4, 0] = system.gamma_q(tn1, qn1, un12)
+            blocks[4, 1] = system.gamma_u(tn1, qn1)
+        dims = [
+            self.nq,
+            self.nu,
+            self.system.nla_c,
+            self.system.nla_g,
+            self.system.nla_gamma,
+        ]
+        keep = [i for i, n in enumerate(dims) if n > 0]
+        return bmat([[blocks.get((i, j)) for j in keep] for i in keep], format="csc")
 
         # J_x1_num = csc_array(
         #     approx_fprime(x1n1, lambda x: self.R_x1(x, y1n1), method="cs")

@@ -538,11 +538,17 @@ def Exp_SO3_quat(P, normalize=True):
     Nuetzi2016: https://www.research-collection.ethz.ch/handle/20.500.11850/117165 \\
     Rucker2018: https://ieeexplore.ieee.org/document/8392463
     """
-    p0, p = P[0], P[1:]
-    matrix = 2.0 * (p0 * ax2skew(p) + ax2skew_squared(p))
-    if normalize:
-        matrix /= P @ P
-    return eye3 + matrix
+    # explicit formula with python scalars, equivalent to
+    # eye3 + 2 * (p0 * ax2skew(p) + ax2skew_squared(p)) [/ (P @ P)]
+    p0, a1, a2, a3 = P.tolist()
+    k = 2.0 / (p0 * p0 + a1 * a1 + a2 * a2 + a3 * a3) if normalize else 2.0
+    # fmt: off
+    return np.array([
+        [1.0 + k * (-a2 * a2 - a3 * a3), k * (a1 * a2 - p0 * a3),         k * (a1 * a3 + p0 * a2)],
+        [k * (a1 * a2 + p0 * a3),        1.0 + k * (-a1 * a1 - a3 * a3),  k * (a2 * a3 - p0 * a1)],
+        [k * (a1 * a3 - p0 * a2),        k * (a2 * a3 + p0 * a1),         1.0 + k * (-a1 * a1 - a2 * a2)],
+    ])
+    # fmt: on
 
 
 def Exp_SO3_quat_P(P, normalize=True):
@@ -592,8 +598,15 @@ def T_SO3_inv_quat(P, normalize=True):
     Nuetzi2016: https://www.research-collection.ethz.ch/handle/20.500.11850/117165 \\
     Rucker2018: https://ieeexplore.ieee.org/document/8392463
     """
-    p0, p = P[0], P[1:]
-    return np.vstack((-p, p0 * eye3 + ax2skew(p))) / 2
+    p0, a1, a2, a3 = P.tolist()
+    # fmt: off
+    return np.array([
+        [-a1, -a2, -a3],
+        [ p0, -a3,  a2],
+        [ a3,  p0, -a1],
+        [-a2,  a1,  p0],
+    ]) / 2
+    # fmt: on
 
 
 def T_SO3_quat_P(P, normalize=True):

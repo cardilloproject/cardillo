@@ -179,10 +179,6 @@ class RigidBody:
     def r_OP(self, t, q, xi=None, B_r_CP=_B_r_CP0):
         if _is_zero_offset(B_r_CP):
             return q[:3] + 0.0
-        return self._r_OP(t, q, B_r_CP)
-
-    @cached_last(key=lambda self, t, q, B_r_CP: fast_key(t, q, B_r_CP))
-    def _r_OP(self, t, q, B_r_CP):
         return q[:3] + self.A_IB(t, q) @ B_r_CP
 
     def r_OP_q(self, t, q, xi=None, B_r_CP=np.zeros(3, dtype=float)):
@@ -194,10 +190,6 @@ class RigidBody:
     def v_P(self, t, q, u, xi=None, B_r_CP=_B_r_CP0):
         if _is_zero_offset(B_r_CP):
             return u[:3] + 0.0
-        return self._v_P(t, q, u, B_r_CP)
-
-    @cached_last(key=lambda self, t, q, u, B_r_CP: fast_key(t, q, u, B_r_CP))
-    def _v_P(self, t, q, u, B_r_CP):
         return u[:3] + self.A_IB(t, q) @ cross3(u[3:], B_r_CP)
 
     def v_P_q(self, t, q, u, xi=None, B_r_CP=np.zeros(3, dtype=float)):
