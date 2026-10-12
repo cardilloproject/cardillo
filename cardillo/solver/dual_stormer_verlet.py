@@ -335,12 +335,7 @@ class DualStormerVerlet:
             # Normal forces vanish for inactive contacts and so does friction
             # bounded by them. Hence, only the force directions and prox
             # parameters of these contacts are required.
-            gamma_F_contrs = self.system.gamma_F_contributions(I_N_idx)
-            I_F_idx = (
-                np.concatenate([contr.la_FDOF for contr in gamma_F_contrs])
-                if len(gamma_F_contrs) > 0
-                else np.array([], dtype=int)
-            )
+            I_F_idx = self.system.friction_indices(I_N_idx)
             W_N = self.system.W_N(tm, qm, format="csr", I_N=I_N_idx)
             W_F = self.system.W_F(tm, qm, format="csr", I_F=I_F_idx)
 
@@ -400,23 +395,9 @@ class DualStormerVerlet:
                 # (or without normal force dependence) can be non-zero
                 # TODO: Decompose evaluation of xi_F = e_F * gamma_Fn + gamma_Fn1
                 xi_F = self.system.xi_F(tm, tm, qm, qm, un, un1, I_N=I_N_idx)
-                Pi_Fn1_new = np.zeros_like(Pi_Fn1)
-                for contr in gamma_F_contrs:
-                    la_FDOF = contr.la_FDOF
-                    gamma_F_contr = xi_F[la_FDOF]
-                    Pi_Nn1_contr = Pi_Fn1[la_FDOF]
-                    prox_r_F_contr = self.prox_r_F[la_FDOF]
-                    for i_N, i_F, force_recervoir in contr.friction_laws:
-                        if len(i_N) > 0:
-                            dP_Nn1i = Pi_Nn1[contr.la_NDOF[i_N]]
-                        else:
-                            dP_Nn1i = self.dt
-
-                        Pi_Fn1_new[la_FDOF[i_F]] = -force_recervoir.prox(
-                            prox_r_F_contr[i_F] * gamma_F_contr[i_F]
-                            - Pi_Nn1_contr[i_F],
-                            dP_Nn1i,
-                        )
+                Pi_Fn1_new = self.system.friction_prox(
+                    self.prox_r_F * xi_F - Pi_Fn1, Pi_Nn1, self.dt
+                )
 
                 return Pi_Nn1, Pi_Fn1_new
 

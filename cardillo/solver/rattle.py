@@ -280,23 +280,13 @@ class Rattle:
         #############################
         # fixed-point update friction
         #############################
-        # the friction radius is zero without normal force: only contributions
-        # with a positive normal percussion can have non-zero friction
-        for contr in self.system.gamma_F_contributions(np.nonzero(P_N1 > 0)[0]):
-            gamma_F_contr = contr.gamma_F(tn1, qn1[contr.qDOF], un12[contr.uDOF])
-            la_FDOF = contr.la_FDOF
-            P_Fn1_contr = P_F1[la_FDOF]
-            prox_r_F_contr = prox_r_F[la_FDOF]
-            for i_N, i_F, force_recervoir in contr.friction_laws:
-                if len(i_N) > 0:
-                    P_Nn1i = P_N1[contr.la_NDOF[i_N]]
-                else:
-                    P_Nn1i = self.dt
-
-                y1n1p[self.split_y[0] + la_FDOF[i_F]] = -force_recervoir.prox(
-                    prox_r_F_contr[i_F] * gamma_F_contr[i_F] - P_Fn1_contr[i_F],
-                    P_Nn1i,
-                )
+        # the friction radius is zero without normal force: only friction forces
+        # of contacts with a positive normal percussion can be non-zero
+        I_F = self.system.friction_indices(np.nonzero(P_N1 > 0)[0])
+        gamma_F = self.system.gamma_F(tn1, qn1, un12, I_F=I_F)
+        y1n1p[self.split_y[0] :] = self.system.friction_prox(
+            prox_r_F * gamma_F - P_F1, P_N1, self.dt
+        )
 
         return y1n1p
 
@@ -335,21 +325,9 @@ class Rattle:
         # with a positive normal percussion can have non-zero friction
         active_N = np.nonzero(self.I_N | (P_N > 0))[0]
         xi_F = self.system.xi_F(tn, tn1, qn, qn1, un, un1, I_N=active_N)
-        for contr in self.system.gamma_F_contributions(active_N):
-            la_FDOF = contr.la_FDOF
-            xi_F_contr = xi_F[la_FDOF]
-            P_F_contr = P_F[la_FDOF]
-            prox_r_F_contr = prox_r_F[la_FDOF]
-            for i_N, i_F, force_recervoir in contr.friction_laws:
-                if len(i_N) > 0:
-                    P_Ni = P_N[contr.la_NDOF[i_N]]
-                else:
-                    P_Ni = self.dt
-
-                y2n1p[self.split_y[0] + la_FDOF[i_F]] = -force_recervoir.prox(
-                    prox_r_F_contr[i_F] * xi_F_contr[i_F] - P_F_contr[i_F],
-                    P_Ni,
-                )
+        y2n1p[self.split_y[0] :] = self.system.friction_prox(
+            prox_r_F * xi_F - P_F, P_N, self.dt
+        )
 
         return y2n1p - self.y1n
 

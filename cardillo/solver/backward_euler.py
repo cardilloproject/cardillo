@@ -334,23 +334,13 @@ class BackwardEuler:
         #############################
         # fixed-point update friction
         #############################
-        # the friction radius is zero without normal force: only contributions
-        # with a positive normal percussion can have non-zero friction
-        for contr in self.system.gamma_F_contributions(np.nonzero(dP_Nn1 > 0)[0]):
-            gamma_F_contr = contr.gamma_F(tn1, qn1[contr.qDOF], un1[contr.uDOF])
-            la_FDOF = contr.la_FDOF
-            dP_Fn1_contr = dP_Fn1[la_FDOF]
-            prox_r_F_contr = prox_r_F[la_FDOF]
-            for i_N, i_F, force_recervoir in contr.friction_laws:
-                if len(i_N) > 0:
-                    dP_Nn1i = dP_Nn1[contr.la_NDOF[i_N]]
-                else:
-                    dP_Nn1i = self.dt
-
-                y1[self.split_y[0] + la_FDOF[i_F]] = -force_recervoir.prox(
-                    prox_r_F_contr[i_F] * gamma_F_contr[i_F] - dP_Fn1_contr[i_F],
-                    dP_Nn1i,
-                )
+        # the friction radius is zero without normal force: only friction forces
+        # of contacts with a positive normal percussion can be non-zero
+        I_F = self.system.friction_indices(np.nonzero(dP_Nn1 > 0)[0])
+        gamma_F = self.system.gamma_F(tn1, qn1, un1, I_F=I_F)
+        y1[self.split_y[0] :] = self.system.friction_prox(
+            prox_r_F * gamma_F - dP_Fn1, dP_Nn1, self.dt
+        )
 
         return y1
 

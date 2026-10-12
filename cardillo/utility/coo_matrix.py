@@ -2,6 +2,7 @@ import warnings
 from scipy.sparse import csc_array, csr_array, coo_array
 from scipy.sparse._sputils import isshape, check_shape
 from scipy.sparse import spmatrix, sparray
+import numpy as np
 from numpy import (
     repeat,
     tile,
@@ -154,6 +155,19 @@ class CooMatrix:
                 self.__data.append(value.flatten(order="C"))
                 self.__row.append(repeat(rows, len(cols)))
                 self.__col.append(tile(cols, len(rows)))
+
+    def add_entries(self, row, col, data):
+        """Append entries given as flat arrays of row indices, column indices
+        and values (all copied). Duplicate entries are summed on conversion.
+        This is the cheap way to add many entries at once, e.g., all blocks of
+        a batch of contributions."""
+        row = np.array(row, dtype=int).ravel()
+        col = np.array(col, dtype=int).ravel()
+        data = np.array(data).ravel()
+        assert len(row) == len(col) == len(data), "inconsistent entries"
+        self.__data.append(data)
+        self.__row.append(row)
+        self.__col.append(col)
 
     def extend(self, matrix, DOF):
         warnings.warn(

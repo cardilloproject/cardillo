@@ -8,6 +8,8 @@ from scipy.sparse import coo_array
 from cardillo import System
 from cardillo.contacts import Sphere2Sphere
 from cardillo.discrete import PointMass, RigidBody, Sphere
+from cardillo.forces import Force
+from cardillo.math.prox import Sphere as Sphere_prox
 from cardillo.math import Spurrier
 from cardillo.solver import (
     BackwardEuler,
@@ -290,3 +292,141 @@ def test_sphere2sphere_cache_follows_reference_basis():
     ).T  # t1, t2 rotated by 90 degrees
     second = contr.t1t2(0.0, q)
     assert not np.allclose(first[0], second[0])
+
+
+def test_coo_matrix_add_entries():
+    coo = CooMatrix((3, 4))
+    coo.add_entries([0, 2, 2], [1, 3, 3], [1.0, 2.0, 0.5])  # duplicates are summed
+    coo[np.array([1]), np.array([0])] = np.array([[4.0]])
+    ref = np.zeros((3, 4))
+    ref[0, 1], ref[2, 3], ref[1, 0] = 1.0, 2.5, 4.0
+    for fmt in ("coo", "csr", "csc"):
+        assert np.allclose(coo.asformat(fmt).toarray(), ref)
+    data = np.array([1.0])
+    coo.add_entries([0], [0], data)
+    data[0] = 99.0  # entries are copied
+    assert coo.toarray()[0, 0] == 1.0
+    with pytest.raises(AssertionError):
+        coo.add_entries([0, 1], [0], [1.0, 2.0])
+
+
+class _MultiFloor:
+    """Test double: a point mass in contact with several floors at different
+    heights, i.e., one contribution with several normal contacts."""
+
+    supports_active_set = True
+
+    def __init__(self, subsystem, heights, name="multi_floor"):
+        self.subsystem = subsystem
+        self.heights = np.asarray(heights, dtype=float)
+        self.nla_N = len(heights)
+        self.e_N = np.zeros(self.nla_N)
+        self.name = name
+        self.received = []
+
+    def assembler_callback(self):
+        self.qDOF = self.subsystem.qDOF
+        self.uDOF = self.subsystem.uDOF
+
+    def _active(self, I_N):
+        self.received.append(None if I_N is None else np.array(I_N))
+        return np.arange(self.nla_N) if I_N is None else I_N
+
+    def g_N(self, t, q):
+        return q[2] - self.heights
+
+    def g_N_q(self, t, q):
+        g_N_q = np.zeros((self.nla_N, 3))
+        g_N_q[:, 2] = 1
+        return g_N_q
+
+    def W_N(self, t, q, I_N=None):
+        W_N = np.zeros((3, self.nla_N))
+        W_N[2, self._active(I_N)] = 1
+        return W_N
+
+    def g_N_dot(self, t, q, u, I_N=None):
+        g_N_dot = np.zeros(self.nla_N)
+        g_N_dot[self._active(I_N)] = u[2]
+        return g_N_dot
+
+    def g_N_ddot(self, t, q, u, u_dot):
+        return np.full(self.nla_N, u_dot[2])
+
+    def Wla_N_q(self, t, q, la_N, I_N=None):
+        return np.zeros((3, 3))
+
+
+def _multi_floor_system(supports_active_set):
+    system = System()
+    falling = PointMass(1.0, q0=np.array([0.0, 0.0, 0.05]), u0=np.zeros(3))
+    resting = PointMass(1.0, q0=np.array([1.0, 0.0, 0.5]), u0=np.zeros(3))
+    system.add(falling, resting)
+    for body in (falling, resting):
+        system.add(Force(np.array([0.0, 0.0, -10.0]), body))
+    # a contribution without active set support first, so that the global and
+    # local contact indices of the second one differ
+    plain = _MultiFloor(resting, [0.0, -1.0], name="plain")
+    plain.supports_active_set = False
+    floors = _MultiFloor(falling, [0.03, -1.0, 0.0], name="floors")
+    floors.supports_active_set = supports_active_set
+    system.add(plain, floors)
+    system.assemble()
+    return system, plain, floors
+
+
+def test_local_active_sets_are_passed_to_contributions():
+    system, plain, floors = _multi_floor_system(True)
+    t, q = system.t0, system.q0
+    I_N = floors.la_NDOF[[0, 2]]  # global indices of the first and third floor
+    plain.received.clear()
+    floors.received.clear()
+    W_N = system.W_N(t, q, format="csc", I_N=I_N).toarray()
+    assert np.array_equal(floors.received[-1], [0, 2])  # local indices
+    assert len(plain.received) == 0  # contribution without active contacts
+    W_N_full = system.W_N(t, q, format="csc").toarray()
+    assert np.allclose(W_N[:, I_N], W_N_full[:, I_N])
+    assert np.all(W_N[:, floors.la_NDOF[1]] == 0)  # inactive contact is skipped
+    # a mixed active set reaches both contributions; plain gets no kwargs
+    plain.received.clear()
+    system.g_N_dot(t, q, system.u0, I_N=np.array([plain.la_NDOF[0], I_N[0]]))
+    assert plain.received[-1] is None
+    assert np.array_equal(floors.received[-1], [0])
+
+
+def test_local_active_sets_in_solvers():
+    def solve(supports):
+        system, _, floors = _multi_floor_system(supports)
+        sol = Moreau(system, 0.15, 1e-3).solve()
+        return sol, floors
+
+    sol, floors = solve(True)
+    assert np.abs(sol.la_N).max() > 0  # the falling mass hits the 0.03 floor
+    assert any(r is not None for r in floors.received)
+    ref, _ = solve(False)
+    for name in ("q", "u", "la_N"):
+        assert np.allclose(getattr(sol, name), getattr(ref, name), rtol=1e-12), name
+
+
+def test_friction_prox_vectorized_matches_per_law():
+    class SphereSubclass(Sphere_prox):
+        """Same law, but not recognized by the vectorized path."""
+
+    system = _sphere_system()
+    system_ref = _sphere_system()
+    for contr in system_ref.get_contribution_list("gamma_F"):
+        contr.friction_laws = [
+            (i_N, i_F, SphereSubclass(force.r))
+            for i_N, i_F, force in contr.friction_laws
+        ]
+    system_ref.assemble()
+    rng = np.random.default_rng(0)
+    for _ in range(20):
+        arg = rng.standard_normal(system.nla_F)
+        P_N = rng.standard_normal(system.nla_N)  # includes non-positive values
+        a = system.friction_prox(arg, P_N, 0.01)
+        b = system_ref.friction_prox(arg, P_N, 0.01)
+        assert np.allclose(a, b, rtol=1e-14, atol=0)
+    # friction indices: no normal force, no friction (Sphere laws only)
+    assert len(system.friction_indices(np.array([], dtype=int))) == 0
+    assert len(system_ref.friction_indices(np.array([], dtype=int))) == system.nla_F

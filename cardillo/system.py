@@ -10,6 +10,9 @@ from cardillo.solver import consistent_initial_conditions
 from cardillo.math.prox import Sphere
 from cardillo.visualization import Export
 
+# shared empty keyword arguments (never modified)
+_NO_KWARGS = {}
+
 properties = []
 
 properties.extend(["E_kin", "E_pot"])
@@ -384,6 +387,41 @@ class System:
             else:
                 always.append(k)
         self.__always_F = np.array(always, dtype=int)
+
+        # position of each contact/friction coordinate inside its contribution,
+        # passed to contributions that evaluate only parts of their contacts
+        self.__la_N_local = np.zeros(self.nla_N, dtype=int)
+        for contr in self.__g_N_contr:
+            self.__la_N_local[contr.la_NDOF] = np.arange(len(contr.la_NDOF))
+        self.__la_F_local = np.zeros(self.nla_F, dtype=int)
+        for contr in self.__gamma_F_contr:
+            self.__la_F_local[contr.la_FDOF] = np.arange(len(contr.la_FDOF))
+
+        # table of all friction laws (global indices). Coulomb laws (Sphere) with
+        # one normal force and two friction forces are projected all at once,
+        # all other laws one by one.
+        sph_iN, sph_iF, sph_mu, rest = [], [], [], []
+        for contr in self.__gamma_F_contr:
+            for i_N, i_F, force in contr.friction_laws:
+                i_F_global = contr.la_FDOF[i_F]
+                i_N_global = (
+                    contr.la_NDOF[i_N] if len(i_N) > 0 else np.empty(0, dtype=int)
+                )
+                if type(force) is Sphere and len(i_N) == 1 and len(i_F) == 2:
+                    sph_iN.append(i_N_global[0])
+                    sph_iF.append(i_F_global)
+                    sph_mu.append(force.r)
+                else:
+                    rest.append((i_N_global, i_F_global, force))
+        self.__sph_iN = np.array(sph_iN, dtype=int)
+        self.__sph_iF = np.array(sph_iF, dtype=int).reshape(-1, 2)
+        self.__sph_mu = np.array(sph_mu, dtype=float)
+        self.__rest_friction_laws = rest
+        self.__rest_F = (
+            np.concatenate([i_F for _, i_F, _ in rest])
+            if rest
+            else np.empty(0, dtype=int)
+        )
         self.__g_N_single = [c for c in self.__g_N_contr if id(c) not in batched]
         self.__step_callback_single = [
             c for c in self.__step_callback_contr if id(c) not in batched
@@ -737,11 +775,63 @@ class System:
             coo[contr.la_NDOF, contr.qDOF] = contr.g_N_q(t, q[contr.qDOF])
         return coo.asformat(format)
 
-    def _contributions_with(self, contrs, owner, active):
-        """Contributions that own at least one of the active coordinates."""
+    def _contributions_with(self, contrs, owner, local, active, name):
+        """Pairs (contribution, kwargs) of the contributions that own at least
+        one of the active coordinates. Contributions with
+        ``supports_active_set = True`` receive their local active indices as
+        keyword argument ``name`` and may skip all other contacts."""
         if active is None:
-            return contrs
-        return [contrs[k] for k in np.unique(owner[active])]
+            return [(contr, _NO_KWARGS) for contr in contrs]
+        active = np.asarray(active, dtype=int)
+        ks = owner[active]
+        order = np.argsort(ks, kind="stable")
+        ks, active = ks[order], active[order]
+        uniq, starts = np.unique(ks, return_index=True)
+        ends = np.append(starts[1:], len(ks))
+        pairs = []
+        for k, start, end in zip(uniq, starts, ends):
+            contr = contrs[k]
+            if getattr(contr, "supports_active_set", False):
+                pairs.append((contr, {name: local[active[start:end]]}))
+            else:
+                pairs.append((contr, _NO_KWARGS))
+        return pairs
+
+    def friction_indices(self, I_N):
+        """Global friction coordinates that can be non-zero if only the normal
+        contacts I_N carry a normal force: friction forces of Coulomb laws whose
+        normal contact is in I_N and all friction forces of other laws."""
+        active = np.zeros(self.nla_N, dtype=bool)
+        active[I_N] = True
+        return np.unique(
+            np.concatenate(
+                (self.__sph_iF[active[self.__sph_iN]].ravel(), self.__rest_F)
+            )
+        )
+
+    def friction_prox(self, arg, P_N, P_N_default):
+        """Projected friction percussions ``-prox_C(arg)`` of all friction laws,
+        where the set C is bounded by the normal percussion ``P_N`` of the law
+        (or by ``P_N_default`` for laws without normal force dependence).
+
+        This is the vectorized version of the loop
+        ``P_F[i_F] = -force.prox(arg[i_F], P_N[i_N])`` over all friction laws.
+        Laws with zero normal percussion yield zero friction."""
+        P_F = np.zeros_like(arg)
+        if len(self.__sph_iN) > 0:
+            iF = self.__sph_iF
+            x = arg[iF]
+            radius = np.maximum(0, self.__sph_mu * P_N[self.__sph_iN])
+            norm_x = np.sqrt(np.einsum("ki,ki->k", x, x))
+            inside = norm_x <= radius
+            safe_norm_x = np.where(inside, 1.0, norm_x)
+            P_F[iF] = -np.where(
+                inside[:, None], x, radius[:, None] * x / safe_norm_x[:, None]
+            )
+        for i_N, i_F, force in self.__rest_friction_laws:
+            P_Ni = P_N[i_N] if len(i_N) > 0 else P_N_default
+            P_F[i_F] = -force.prox(arg[i_F], P_Ni)
+        return P_F
 
     def gamma_F_contributions(self, I_N=None):
         """Friction contributions that can have non-zero friction forces if only
@@ -759,16 +849,22 @@ class System:
         set I_N is given, only contributions with active contacts are evaluated,
         i.e., all columns that are not in I_N are zero."""
         coo = CooMatrix((self.nu, self.nla_N))
-        for contr in self._contributions_with(self.__g_N_contr, self.__la_N_owner, I_N):
-            coo[contr.uDOF, contr.la_NDOF] = contr.W_N(t, q[contr.qDOF])
+        for contr, kw in self._contributions_with(
+            self.__g_N_contr, self.__la_N_owner, self.__la_N_local, I_N, "I_N"
+        ):
+            coo[contr.uDOF, contr.la_NDOF] = contr.W_N(t, q[contr.qDOF], **kw)
         return coo.asformat(format)
 
     def g_N_dot(self, t, q, u, I_N=None):
         """Normal relative velocities. If the active set I_N is given, only
         the entries in I_N are computed, the others are zero."""
         g_N_dot = np.zeros(self.nla_N, dtype=np.common_type(q, u))
-        for contr in self._contributions_with(self.__g_N_contr, self.__la_N_owner, I_N):
-            g_N_dot[contr.la_NDOF] = contr.g_N_dot(t, q[contr.qDOF], u[contr.uDOF])
+        for contr, kw in self._contributions_with(
+            self.__g_N_contr, self.__la_N_owner, self.__la_N_local, I_N, "I_N"
+        ):
+            g_N_dot[contr.la_NDOF] = contr.g_N_dot(
+                t, q[contr.qDOF], u[contr.uDOF], **kw
+            )
         return g_N_dot
 
     def g_N_ddot(self, t, q, u, u_dot):
@@ -783,10 +879,14 @@ class System:
         """If the active set I_N is given, only the entries in I_N are
         computed, the others are zero."""
         xi_N = np.zeros(self.nla_N, dtype=np.common_type(q_post, u_post))
-        for contr in self._contributions_with(self.__g_N_contr, self.__la_N_owner, I_N):
+        for contr, kw in self._contributions_with(
+            self.__g_N_contr, self.__la_N_owner, self.__la_N_local, I_N, "I_N"
+        ):
             xi_N[contr.la_NDOF] = contr.g_N_dot(
-                t_post, q_post[contr.qDOF], u_post[contr.uDOF]
-            ) + contr.e_N * contr.g_N_dot(t_pre, q_pre[contr.qDOF], u_pre[contr.uDOF])
+                t_post, q_post[contr.qDOF], u_post[contr.uDOF], **kw
+            ) + contr.e_N * contr.g_N_dot(
+                t_pre, q_pre[contr.qDOF], u_pre[contr.uDOF], **kw
+            )
         return xi_N
 
     def xi_N_q(self, t_post, q_post, u_post, format="coo"):
@@ -814,9 +914,11 @@ class System:
         """If I_N is given, only contributions with these contacts are
         evaluated. This is exact if la_N is zero for all other contacts."""
         coo = CooMatrix((self.nu, self.nq))
-        for contr in self._contributions_with(self.__g_N_contr, self.__la_N_owner, I_N):
+        for contr, kw in self._contributions_with(
+            self.__g_N_contr, self.__la_N_owner, self.__la_N_local, I_N, "I_N"
+        ):
             coo[contr.uDOF, contr.qDOF] = contr.Wla_N_q(
-                t, q[contr.qDOF], la_N[contr.la_NDOF]
+                t, q[contr.qDOF], la_N[contr.la_NDOF], **kw
             )
         return coo.asformat(format)
 
@@ -827,10 +929,12 @@ class System:
         """Tangential relative velocities. If the active set I_F is given, only
         the entries in I_F are computed, the others are zero."""
         gamma_F = np.zeros(self.nla_F, dtype=np.common_type(q, u))
-        for contr in self._contributions_with(
-            self.__gamma_F_contr, self.__la_F_owner, I_F
+        for contr, kw in self._contributions_with(
+            self.__gamma_F_contr, self.__la_F_owner, self.__la_F_local, I_F, "I_F"
         ):
-            gamma_F[contr.la_FDOF] = contr.gamma_F(t, q[contr.qDOF], u[contr.uDOF])
+            gamma_F[contr.la_FDOF] = contr.gamma_F(
+                t, q[contr.qDOF], u[contr.uDOF], **kw
+            )
         return gamma_F
 
     def gamma_F_dot(self, t, q, u, u_dot):
@@ -843,13 +947,18 @@ class System:
 
     def xi_F(self, t_pre, t_post, q_pre, q_post, u_pre, u_post, I_N=None):
         """If the normal contacts I_N with a normal force are given, only the
-        friction of contributions that can be non-zero is computed, see
-        `gamma_F_contributions`. The others are zero."""
+        friction forces that can be non-zero are computed, see
+        `friction_indices`. The others are zero."""
         xi_F = np.zeros(self.nla_F, dtype=np.common_type(q_post, u_post))
-        for contr in self.gamma_F_contributions(I_N):
+        I_F = None if I_N is None else self.friction_indices(I_N)
+        for contr, kw in self._contributions_with(
+            self.__gamma_F_contr, self.__la_F_owner, self.__la_F_local, I_F, "I_F"
+        ):
             xi_F[contr.la_FDOF] = contr.gamma_F(
-                t_post, q_post[contr.qDOF], u_post[contr.uDOF]
-            ) + contr.e_F * contr.gamma_F(t_pre, q_pre[contr.qDOF], u_pre[contr.uDOF])
+                t_post, q_post[contr.qDOF], u_post[contr.uDOF], **kw
+            ) + contr.e_F * contr.gamma_F(
+                t_pre, q_pre[contr.qDOF], u_pre[contr.uDOF], **kw
+            )
         return xi_F
 
     def xi_F_q(self, t_post, q_post, u_post, format="coo"):
@@ -882,20 +991,20 @@ class System:
         set I_F is given, only contributions with active friction forces are
         evaluated, i.e., all columns that are not in I_F are zero."""
         coo = CooMatrix((self.nu, self.nla_F))
-        for contr in self._contributions_with(
-            self.__gamma_F_contr, self.__la_F_owner, I_F
+        for contr, kw in self._contributions_with(
+            self.__gamma_F_contr, self.__la_F_owner, self.__la_F_local, I_F, "I_F"
         ):
-            coo[contr.uDOF, contr.la_FDOF] = contr.W_F(t, q[contr.qDOF])
+            coo[contr.uDOF, contr.la_FDOF] = contr.W_F(t, q[contr.qDOF], **kw)
         return coo.asformat(format)
 
     def Wla_F_q(self, t, q, la_F, format="coo", I_F=None):
         """If I_F is given, only contributions with these friction forces are
         evaluated. This is exact if la_F is zero for all other forces."""
         coo = CooMatrix((self.nu, self.nq))
-        for contr in self._contributions_with(
-            self.__gamma_F_contr, self.__la_F_owner, I_F
+        for contr, kw in self._contributions_with(
+            self.__gamma_F_contr, self.__la_F_owner, self.__la_F_local, I_F, "I_F"
         ):
             coo[contr.uDOF, contr.qDOF] = contr.Wla_F_q(
-                t, q[contr.qDOF], la_F[contr.la_FDOF]
+                t, q[contr.qDOF], la_F[contr.la_FDOF], **kw
             )
         return coo.asformat(format)
