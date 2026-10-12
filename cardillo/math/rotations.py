@@ -8,6 +8,12 @@ angle_singular = 0.0
 
 eye3 = np.eye(3, dtype=float)
 
+# constant Levi-Civita tensor, used to replace explicit python loops
+_levi_civita3 = np.array(
+    [[[LeviCivita3(i, j, k) for k in range(3)] for j in range(3)] for i in range(3)],
+    dtype=float,
+)
+
 
 def Exp_SO3(psi: np.ndarray) -> np.ndarray:
     """SO(3) exponential function, see Crisfield1999 above (4.1) and 
@@ -64,27 +70,15 @@ def Exp_SO3_psi(psi: np.ndarray) -> np.ndarray:
         #############################
         # alpha * psi_tilde (part II)
         #############################
-        for i in range(3):
-            for j in range(3):
-                for k in range(3):
-                    A_psi[i, j, k] += psi_tilde[i, j] * psi[k] * alpha_psik
+        A_psi += np.multiply.outer(psi_tilde, psi) * alpha_psik
 
         ###############################
         # beta2 * psi_tilde @ psi_tilde
         ###############################
-        for i in range(3):
-            for j in range(3):
-                for k in range(3):
-                    A_psi[i, j, k] += psi_tilde2[i, j] * psi[k] * beta2_psik
-                    for l in range(3):
-                        A_psi[i, j, k] += (
-                            0.5
-                            * beta
-                            * (
-                                LeviCivita3(k, l, i) * psi_tilde[l, j]
-                                + psi_tilde[l, i] * LeviCivita3(k, l, j)
-                            )
-                        )
+        A_psi += np.multiply.outer(psi_tilde2, psi) * beta2_psik + 0.5 * beta * (
+            np.einsum("kli,lj->ijk", _levi_civita3, psi_tilde)
+            + np.einsum("li,klj->ijk", psi_tilde, _levi_civita3)
+        )
     else:
         ###################
         # alpha * psi_tilde
@@ -191,23 +185,15 @@ def T_SO3_psi(psi: np.ndarray) -> np.ndarray:
         ####################
         T_SO3_psi[0, 1, 2] = T_SO3_psi[1, 2, 0] = T_SO3_psi[2, 0, 1] = beta2
         T_SO3_psi[0, 2, 1] = T_SO3_psi[1, 0, 2] = T_SO3_psi[2, 1, 0] = -beta2
-        for i in range(3):
-            for j in range(3):
-                for k in range(3):
-                    T_SO3_psi[i, j, k] += psi_tilde[i, j] * psi[k] * beta2_psik
+        T_SO3_psi += np.multiply.outer(psi_tilde, psi) * beta2_psik
 
         ##################################################
         # ((1.0 - alpha) / angle2) * psi_tilde @ psi_tilde
         ##################################################
-        for i in range(3):
-            for j in range(3):
-                for k in range(3):
-                    T_SO3_psi[i, j, k] += psi_tilde2[i, j] * psi[k] * c_psik
-                    for l in range(3):
-                        T_SO3_psi[i, j, k] += c * (
-                            LeviCivita3(k, l, i) * psi_tilde[l, j]
-                            + psi_tilde[l, i] * LeviCivita3(k, l, j)
-                        )
+        T_SO3_psi += np.multiply.outer(psi_tilde2, psi) * c_psik + c * (
+            np.einsum("kli,lj->ijk", _levi_civita3, psi_tilde)
+            + np.einsum("li,klj->ijk", psi_tilde, _levi_civita3)
+        )
     else:
         ####################
         # -beta2 * psi_tilde
@@ -285,15 +271,10 @@ def T_SO3_inv_psi(psi: np.ndarray) -> np.ndarray:
         ###########################################################
         # ((1.0 - gamma) / (angle * angle)) * psi_tilde @ psi_tilde
         ###########################################################
-        for i in range(3):
-            for j in range(3):
-                for k in range(3):
-                    T_SO3_inv_psi[i, j, k] += psi_tilde2[i, j] * psi[k] * c_psi_k
-                    for l in range(3):
-                        T_SO3_inv_psi[i, j, k] += c * (
-                            LeviCivita3(i, k, l) * psi_tilde[l, j]
-                            + psi_tilde[i, l] * LeviCivita3(l, k, j)
-                        )
+        T_SO3_inv_psi += np.multiply.outer(psi_tilde2, psi) * c_psi_k + c * (
+            np.einsum("ikl,lj->ijk", _levi_civita3, psi_tilde)
+            + np.einsum("il,lkj->ijk", psi_tilde, _levi_civita3)
+        )
 
     return T_SO3_inv_psi
 

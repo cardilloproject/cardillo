@@ -281,14 +281,19 @@ class DualStormerVerlet:
             # fmt: on
         else:  # self.linear_solver == "MINRES (matrix free)"
 
+            # A single sparse matrix-vector product with the assembled block
+            # matrix is much cheaper than four small products per iteration
+            # (scipy's per-call overhead dominates for these small matrices).
+            A_block = bmat(
+                [
+                    [M, W],
+                    [W.T, -C * 2 / dt**2],
+                ],
+                format="csr",
+            )
+
             def mv(p):
-                p1, p2 = p[:nu], p[nu:]
-                return np.concatenate(
-                    [
-                        M @ p1 + W @ p2,
-                        W.T @ p1 - C @ p2 * 2 / dt**2,
-                    ]
-                )
+                return A_block @ p
 
             A = LinearOperator((nx, nx), matvec=mv, dtype=float)
 
@@ -324,8 +329,6 @@ class DualStormerVerlet:
         # - generalized force directions for constraint forces are only
         #   required if we have contacts
         if self.nla_N + self.nla_F > 0:
-            W_N = self.system.W_N(tm, qm, format="csr")
-            W_F = self.system.W_F(tm, qm, format="csr")
             alpha = self.options.prox_scaling
             M_diag_inv = diags_array(1 / M.diagonal())
             self.prox_r_N = alpha / (W_N.T @ M_diag_inv @ W_N).diagonal()

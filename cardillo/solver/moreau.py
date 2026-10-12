@@ -1,12 +1,12 @@
 import warnings
 import numpy as np
-from scipy.sparse import bmat
+from scipy.sparse import bmat, csc_array
 from scipy.sparse.linalg import splu
 from tqdm import tqdm
 
 from cardillo.definitions import IS_CLOSE_ATOL
 from cardillo.solver import SolverOptions, SolverSummary, Solution, compute_I_F
-from cardillo.math.prox import estimate_prox_parameter, NegativeOrthant
+from cardillo.math.prox import estimate_prox_parameter, NegativeOrthant, Sphere
 
 
 class Moreau:
@@ -68,14 +68,56 @@ class Moreau:
         )
         self.x0 = self.x.copy()
 
+        # a constant mass matrix is factorized only once for the estimation of
+        # the prox parameters
+        I_M = getattr(self.system, "I_M", None)
+        self._constant_mass_matrix = I_M is not None and not np.any(I_M)
+        self._M_lu = None
+
+    def _setup_friction_prox(self):
+        """Collect all active Coulomb friction laws `Sphere` with one normal
+        force and two friction forces. Their projection is evaluated for all
+        contacts at once, the remaining laws are projected one by one."""
+        iF, iN, mu, rest = [], [], [], []
+        for law in self.global_active_friction_laws:
+            i_N, i_F, force_reservoir = law
+            if type(force_reservoir) is Sphere and len(i_N) == 1 and len(i_F) == 2:
+                iF.append(i_F)
+                iN.append(i_N[0])
+                mu.append(force_reservoir.r)
+            else:
+                rest.append(law)
+        self._friction_rest = rest
+        if len(iF) > 0:
+            self._friction_iF = np.array(iF)
+            self._friction_iN = np.array(iN)
+            self._friction_mu = np.array(mu, dtype=float)
+            # relaxation parameter of each contact is the minimum of its two entries
+            self._friction_rho = np.minimum(
+                self.prox_r_F[self._friction_iF[:, 0]],
+                self.prox_r_F[self._friction_iF[:, 1]],
+            )
+        else:
+            self._friction_iF = None
+
     def prox(self, un1, P_N, P_F):
         # projection for contacts
-        xi_N = self.W_N.T @ un1 + self.xi_N0
+        xi_N = self.W_N_T @ un1 + self.xi_N0
         P_N = -NegativeOrthant.prox(self.prox_r_N * xi_N - P_N)
 
         # friction projection
-        xi_F = self.W_F.T @ un1 + self.xi_F0
-        for i_N, i_F, force_recervoir in self.global_active_friction_laws:
+        xi_F = self.W_F_T @ un1 + self.xi_F0
+        if self._friction_iF is not None:
+            iF = self._friction_iF
+            x = self._friction_rho[:, None] * xi_F[iF] - P_F[iF]
+            radius = np.maximum(0, self._friction_mu * P_N[self._friction_iN])
+            norm_x = np.sqrt(np.einsum("ki,ki->k", x, x))
+            inside = norm_x <= radius
+            safe_norm_x = np.where(inside, 1.0, norm_x)
+            P_F[iF] = -np.where(
+                inside[:, None], x, radius[:, None] * x / safe_norm_x[:, None]
+            )
+        for i_N, i_F, force_recervoir in self._friction_rest:
             if len(i_N) > 0:
                 P_Ni = P_N[i_N]
             else:
@@ -164,24 +206,46 @@ class Moreau:
 
             # note: we use csc_array for efficient column slicing,
             # see https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csc_array.html#scipy.sparse.csc_array
-            self.W_N = self.system.W_N(tn12, qn12, format="csc")[:, self.I_N]
-            self.W_F = self.system.W_F(tn12, qn12, format="csc")[:, self.I_F]
+            self.W_N = self.system.W_N(tn12, qn12, format="csc", I_N=self.I_N)[
+                :, self.I_N
+            ]
+            self.W_F = self.system.W_F(tn12, qn12, format="csc", I_F=self.I_F)[
+                :, self.I_F
+            ]
+
+            # transposes are only evaluated once, they are used in each iteration
+            self.W_N_T = self.W_N.T
+            self.W_F_T = self.W_F.T
 
             # evaluate constant xi_N and xi_F parts
             e_N = self.system.e_N[self.I_N]
             e_F = self.system.e_F[self.I_F]
-            chi_N = self.system.g_N_dot(tn12, qn12, np.zeros_like(un))[self.I_N]
-            chi_F = self.system.gamma_F(tn12, qn12, np.zeros_like(un))[self.I_F]
+            chi_N = self.system.g_N_dot(tn12, qn12, np.zeros_like(un), I_N=self.I_N)[
+                self.I_N
+            ]
+            chi_F = self.system.gamma_F(tn12, qn12, np.zeros_like(un), I_F=self.I_F)[
+                self.I_F
+            ]
             self.xi_N0 = e_N * (self.W_N.T @ un) + (1 + e_N) * chi_N
             self.xi_F0 = e_F * (self.W_F.T @ un) + (1 + e_F) * chi_F
 
             # compute new estimates for prox parameters and get friction coefficient
+            if self._constant_mass_matrix:
+                if self._M_lu is None:
+                    self._M_lu = splu(csc_array(M))
+                M_lu = self._M_lu
+            else:
+                M_lu = splu(csc_array(M))
             self.prox_r_N, self.prox_r_F = np.array_split(
                 estimate_prox_parameter(
-                    self.options.prox_scaling, bmat([[self.W_N, self.W_F]]), M
+                    self.options.prox_scaling,
+                    bmat([[self.W_N, self.W_F]]),
+                    M,
+                    M_lu=M_lu,
                 ),
                 [len(self.I_N)],
             )
+            self._setup_friction_prox()
 
             # warm start
             P_N = self.P_Nn.copy()[self.I_N]

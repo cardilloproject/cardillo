@@ -1,6 +1,5 @@
 import numpy as np
-from cachetools import LRUCache, cachedmethod
-from cachetools.keys import hashkey
+from cardillo.utility.cache import cached_last, fast_key
 
 from cardillo.math import ax2skew, ax2skew_a, cross3, norm, smallest_rotation
 from cardillo.math.prox import Sphere
@@ -68,11 +67,6 @@ class Sphere2Sphere:
                 ([0], [0, 1], Sphere(mu)), # Coulomb
             ]
             # fmt: on
-
-        self.n_cache = LRUCache(maxsize=1)
-        self.n_q1_q2_cache = LRUCache(maxsize=1)
-        self.t1t2_cache = LRUCache(maxsize=1)
-        self.t1t2_q1_q2_cache = LRUCache(maxsize=1)
 
     def assembler_callback(self):
         qDOF1 = self.subsystem1.local_qDOF_P(self.xi1)
@@ -268,17 +262,15 @@ class Sphere2Sphere:
         ).T
         return q, u
 
-    @cachedmethod(
-        lambda self: self.n_cache,
-        key=lambda self, t, q: hashkey(t, *q),
+    @cached_last(
+        key=lambda self, t, q: fast_key(t, q),
     )
     def n(self, t, q):
         r_C1C2 = self.r_OC2(t, q) - self.r_OC1(t, q)
         return r_C1C2 / norm(r_C1C2)
 
-    @cachedmethod(
-        lambda self: self.n_q1_q2_cache,
-        key=lambda self, t, q: hashkey(t, *q),
+    @cached_last(
+        key=lambda self, t, q: fast_key(t, q),
     )
     def n_q1_q2(self, t, q):
         n = self.n(t, q)
@@ -288,9 +280,8 @@ class Sphere2Sphere:
         n_q2 = tmp @ self.r_OC2_q2(t, q)
         return n_q1, n_q2
 
-    @cachedmethod(
-        lambda self: self.t1t2_cache,
-        key=lambda self, t, q: hashkey(t, *q),
+    @cached_last(
+        key=lambda self, t, q: fast_key(t, q),
     )
     def t1t2(self, t, q):
         n = self.n(t, q)
@@ -302,9 +293,8 @@ class Sphere2Sphere:
         t2 = w / norm(w)
         return t1, t2
 
-    @cachedmethod(
-        lambda self: self.t1t2_q1_q2_cache,
-        key=lambda self, t, q: hashkey(t, *q),
+    @cached_last(
+        key=lambda self, t, q: fast_key(t, q),
     )
     def t1t2_q1_q2(self, t, q):
         n = self.n(t, q)
@@ -513,3 +503,84 @@ class Sphere2Sphere:
             la_F[0] * t1_q2 + la_F[1] * t2_q2
         ) + np.einsum("ijk, i->jk", J_P2_q2, la_F[0] * t1 + la_F[1] * t2)
         return Wla_F_q
+
+
+class _Sphere2SphereBatch:
+    """Evaluates quantities of many Sphere2Sphere contacts at once.
+
+    Calling ``g_N`` and ``step_callback`` for every single contact is dominated
+    by python overhead if there are many contacts (n spheres give n * (n - 1) / 2
+    pairs). Both only depend on the centers of the two spheres. Hence, they can
+    be evaluated for all contacts with array operations if the subsystems are
+    point-like, i.e., if their position is given by the first three coordinates.
+    """
+
+    @staticmethod
+    def _has_center_position(subsystem):
+        # import here to avoid circular imports
+        from cardillo.discrete.rigid_body import RigidBody
+        from cardillo.discrete.point_mass import PointMass
+
+        if type(subsystem).r_OP is RigidBody.r_OP:
+            return True
+        return type(subsystem).r_OP is PointMass.r_OP and subsystem.nq == 3
+
+    @classmethod
+    def create(cls, contrs):
+        """Returns a batch for all eligible contacts in contrs and the list of
+        contributions which are not part of the batch."""
+        eligible, rest = [], []
+        for contr in contrs:
+            if (
+                type(contr) is Sphere2Sphere
+                and contr.xi1 is None
+                and contr.xi2 is None
+                and cls._has_center_position(contr.subsystem1)
+                and cls._has_center_position(contr.subsystem2)
+            ):
+                eligible.append(contr)
+            else:
+                rest.append(contr)
+        if len(eligible) < 2:
+            return None, contrs
+        return cls(eligible), rest
+
+    def __init__(self, contrs):
+        self.contrs = contrs
+        # global indices of the sphere centers
+        self.idx1 = np.array([c.subsystem1.qDOF[:3] for c in contrs])
+        self.idx2 = np.array([c.subsystem2.qDOF[:3] for c in contrs])
+        self.radius1 = np.array([c.radius1 for c in contrs], dtype=float)
+        self.radius2 = np.array([c.radius2 for c in contrs], dtype=float)
+        self.la_NDOF = np.array([c.la_NDOF[0] for c in contrs])
+
+    def _distance_vectors(self, q):
+        return q[self.idx2] - q[self.idx1]
+
+    def g_N(self, t, q, g_N):
+        d = self._distance_vectors(q)
+        g_N[self.la_NDOF] = (
+            np.sqrt(np.einsum("ki,ki->k", d, d)) - self.radius1 - self.radius2
+        )
+
+    def step_callback(self, t, q):
+        # update reference contact basis using smallest rotation, see Crisfield1997 (16.107)
+        d = self._distance_vectors(q)
+        n = d / np.sqrt(np.einsum("ki,ki->k", d, d))[:, None]
+        # columns of the reference bases are t1, t2 and n
+        B = np.array([c.reference_contact_basis for c in self.contrs])
+        b = np.einsum("kji,kj->ki", B, n)  # B^T @ n for each contact
+        factor = (B[:, :, 2] + n) / (1 + b[:, 2])[:, None]
+        new = np.stack(
+            (
+                B[:, :, 0] - b[:, 0, None] * factor,
+                B[:, :, 1] - b[:, 1, None] * factor,
+                n,
+            ),
+            axis=1,
+        )
+        for contr, basis in zip(self.contrs, new):
+            contr.reference_contact_basis = basis.T
+
+
+Sphere2Sphere.batch_class = _Sphere2SphereBatch

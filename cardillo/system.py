@@ -290,6 +290,9 @@ class System:
         # call assembler callback: call methods that require first an assembly of the system
         self.assembler_callback()
 
+        # group contributions that evaluate some quantities for many instances at once
+        self._setup_batches()
+
         # compute consisten initial conditions
         self.q0 = np.array(q0)
         self.u0 = np.array(u0)
@@ -339,6 +342,37 @@ class System:
         for contr in self.__assembler_callback_contr:
             contr.assembler_callback()
 
+    def _setup_batches(self):
+        """Contribution classes can define a ``batch_class`` with a ``create``
+        classmethod that takes all contributions of this class and returns a
+        batch object together with the contributions that are not handled by
+        the batch. Batches provide ``g_N(t, q, g_N)`` and
+        ``step_callback(t, q)``, which replace the per contribution calls."""
+        batched = set()
+        self.__batches = []
+        contrs_by_class = {}
+        for contr in self.contributions:
+            batch_class = getattr(type(contr), "batch_class", None)
+            if batch_class is not None:
+                contrs_by_class.setdefault(type(contr), []).append(contr)
+        for contr_class, contrs in contrs_by_class.items():
+            batch, rest = contr_class.batch_class.create(contrs)
+            if batch is not None:
+                self.__batches.append(batch)
+                batched.update(id(c) for c in contrs if c not in rest)
+        # map from contact/friction coordinates to their contribution, this allows
+        # to evaluate only those contributions that have active contacts
+        self.__la_N_owner = np.full(self.nla_N, -1, dtype=int)
+        for k, contr in enumerate(self.__g_N_contr):
+            self.__la_N_owner[contr.la_NDOF] = k
+        self.__la_F_owner = np.full(self.nla_F, -1, dtype=int)
+        for k, contr in enumerate(self.__gamma_F_contr):
+            self.__la_F_owner[contr.la_FDOF] = k
+        self.__g_N_single = [c for c in self.__g_N_contr if id(c) not in batched]
+        self.__step_callback_single = [
+            c for c in self.__step_callback_contr if id(c) not in batched
+        ]
+
     #####################
     # kinematic equations
     #####################
@@ -363,10 +397,14 @@ class System:
         return coo.asformat(format)
 
     def step_callback(self, t, q, u):
-        for contr in self.__step_callback_contr:
+        for contr in self.__step_callback_single:
             q[contr.qDOF], u[contr.uDOF] = contr.step_callback(
                 t, q[contr.qDOF], u[contr.uDOF]
             )
+        # batched contributions only read positions, which are not changed by
+        # any of the other step callbacks
+        for batch in self.__batches:
+            batch.step_callback(t, q)
         return q, u
 
     ################
@@ -671,7 +709,9 @@ class System:
     #################
     def g_N(self, t, q):
         g_N = np.zeros(self.nla_N, dtype=q.dtype)
-        for contr in self.__g_N_contr:
+        for batch in self.__batches:
+            batch.g_N(t, q, g_N)
+        for contr in self.__g_N_single:
             g_N[contr.la_NDOF] = contr.g_N(t, q[contr.qDOF])
         return g_N
 
@@ -681,15 +721,26 @@ class System:
             coo[contr.la_NDOF, contr.qDOF] = contr.g_N_q(t, q[contr.qDOF])
         return coo.asformat(format)
 
-    def W_N(self, t, q, format="coo"):
+    def _contributions_with(self, contrs, owner, active):
+        """Contributions that own at least one of the active coordinates."""
+        if active is None:
+            return contrs
+        return [contrs[k] for k in np.unique(owner[active])]
+
+    def W_N(self, t, q, format="coo", I_N=None):
+        """Generalized force directions of the normal contacts. If the active
+        set I_N is given, only contributions with active contacts are evaluated,
+        i.e., all columns that are not in I_N are zero."""
         coo = CooMatrix((self.nu, self.nla_N))
-        for contr in self.__g_N_contr:
+        for contr in self._contributions_with(self.__g_N_contr, self.__la_N_owner, I_N):
             coo[contr.uDOF, contr.la_NDOF] = contr.W_N(t, q[contr.qDOF])
         return coo.asformat(format)
 
-    def g_N_dot(self, t, q, u):
+    def g_N_dot(self, t, q, u, I_N=None):
+        """Normal relative velocities. If the active set I_N is given, only
+        the entries in I_N are computed, the others are zero."""
         g_N_dot = np.zeros(self.nla_N, dtype=np.common_type(q, u))
-        for contr in self.__g_N_contr:
+        for contr in self._contributions_with(self.__g_N_contr, self.__la_N_owner, I_N):
             g_N_dot[contr.la_NDOF] = contr.g_N_dot(t, q[contr.qDOF], u[contr.uDOF])
         return g_N_dot
 
@@ -741,9 +792,13 @@ class System:
     #################
     # friction
     #################
-    def gamma_F(self, t, q, u):
+    def gamma_F(self, t, q, u, I_F=None):
+        """Tangential relative velocities. If the active set I_F is given, only
+        the entries in I_F are computed, the others are zero."""
         gamma_F = np.zeros(self.nla_F, dtype=np.common_type(q, u))
-        for contr in self.__gamma_F_contr:
+        for contr in self._contributions_with(
+            self.__gamma_F_contr, self.__la_F_owner, I_F
+        ):
             gamma_F[contr.la_FDOF] = contr.gamma_F(t, q[contr.qDOF], u[contr.uDOF])
         return gamma_F
 
@@ -788,9 +843,14 @@ class System:
             coo[contr.la_FDOF, contr.uDOF] = contr.gamma_F_u(t, q[contr.qDOF])
         return coo.asformat(format)
 
-    def W_F(self, t, q, format="coo"):
+    def W_F(self, t, q, format="coo", I_F=None):
+        """Generalized force directions of the friction forces. If the active
+        set I_F is given, only contributions with active friction forces are
+        evaluated, i.e., all columns that are not in I_F are zero."""
         coo = CooMatrix((self.nu, self.nla_F))
-        for contr in self.__gamma_F_contr:
+        for contr in self._contributions_with(
+            self.__gamma_F_contr, self.__la_F_owner, I_F
+        ):
             coo[contr.uDOF, contr.la_FDOF] = contr.W_F(t, q[contr.qDOF])
         return coo.asformat(format)
 

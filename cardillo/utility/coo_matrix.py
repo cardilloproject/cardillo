@@ -2,8 +2,18 @@ import warnings
 from scipy.sparse import csc_array, csr_array, coo_array
 from scipy.sparse._sputils import isshape, check_shape
 from scipy.sparse import spmatrix, sparray
-from numpy import repeat, tile, atleast_1d, atleast_2d, arange
-from array import array
+from numpy import (
+    repeat,
+    tile,
+    atleast_1d,
+    atleast_2d,
+    arange,
+    asarray,
+    concatenate,
+    empty,
+    int32,
+    ndarray,
+)
 
 
 class CooMatrix:
@@ -22,6 +32,20 @@ class CooMatrix:
 
     def __init__(self, shape):
         # check shape input
+        if (
+            type(shape) is tuple
+            and len(shape) == 2
+            and type(shape[0]) is int
+            and type(shape[1]) is int
+            and shape[0] >= 0
+            and shape[1] >= 0
+        ):
+            # fast path for the common case of a tuple of two non-negative ints
+            self.shape = shape
+            self.__data = []
+            self.__row = []
+            self.__col = []
+            return
         if isinstance(shape, tuple):
             pass
         else:
@@ -42,35 +66,45 @@ class CooMatrix:
                 "input argument shape cannot be interpreted as correct shape"
             )
 
-        # python array as efficient container for numerical data,
-        # see https://docs.python.org/3/library/array.html
-        self.__data = array("d", [])  # double
-        self.__row = array("I", [])  # unsigned int
-        self.__col = array("I", [])  # unsigned int
+        # Entries are stored as lists of numpy chunks (one per assigned block)
+        # that are concatenated lazily. This is much cheaper than extending
+        # python arrays element by element for many small blocks.
+        self.__data = []
+        self.__row = []
+        self.__col = []
+
+    @staticmethod
+    def _consolidate(chunks, dtype=None):
+        if len(chunks) == 0:
+            return empty(0, dtype=dtype if dtype is not None else float)
+        if len(chunks) == 1:
+            return chunks[0]
+        chunks[:] = [concatenate(chunks)]
+        return chunks[0]
 
     @property
     def data(self):
-        return self.__data
+        return self._consolidate(self.__data)
 
     @data.setter
     def data(self, value):
-        self.__data = value
+        self.__data = [asarray(value)]
 
     @property
     def row(self):
-        return self.__row
+        return self._consolidate(self.__row, int32)
 
     @row.setter
     def row(self, value):
-        self.__row = value
+        self.__row = [asarray(value)]
 
     @property
     def col(self):
-        return self.__col
+        return self._consolidate(self.__col, int32)
 
     @col.setter
     def col(self, value):
-        self.__col = value
+        self.__col = [asarray(value)]
 
     def __setitem__(self, key, value):
         # None is returned by every function that does not return. Hence, we
@@ -85,41 +119,41 @@ class CooMatrix:
             rows = atleast_1d(rows)
             cols = atleast_1d(cols)
 
-            if isinstance(value, CooMatrix):
+            if isinstance(value, ndarray):
+                if value.ndim != 2:
+                    value = atleast_2d(value)
                 assert value.shape == (len(rows), len(cols)), "inconsistent assignment"
 
-                # extend arrays from given CooMatrix
-                self.data.extend(value.data)
-                self.row.extend(rows[value.row])
-                self.col.extend(cols[value.col])
-                # TODO: benchmark
-                # self.data.fromlist(value.data.tolist())
-                # self.row.fromlist(rows[value.row].tolist())
-                # self.col.fromlist(cols[value.col].tolist())
+                # 2D array, flatten() always returns a copy
+                self.__data.append(value.flatten(order="C"))
+                self.__row.append(repeat(rows, len(cols)))
+                self.__col.append(tile(cols, len(rows)))
+            elif isinstance(value, CooMatrix):
+                assert value.shape == (len(rows), len(cols)), "inconsistent assignment"
+
+                # append chunks from given CooMatrix
+                self.__data.append(value.data.copy())
+                self.__row.append(rows[value.row])
+                self.__col.append(cols[value.col])
             elif isinstance(value, sparray):
                 assert value.shape == (len(rows), len(cols)), "inconsistent assignment"
 
                 # all scipy sparse matrices are converted to coo_array, their
                 # data, row and column lists are subsequently appended
                 coo = value.tocoo()
-                self.data.extend(coo.data)
-                self.row.extend(rows[coo.row])
-                self.col.extend(cols[coo.col])
-                # TODO: benchmark
-                # self.data.fromlist(coo.data.tolist())
-                # self.row.fromlist(rows[coo.row].tolist())
-                # self.col.fromlist(cols[coo.col].tolist())
+                self.__data.append(coo.data.copy())
+                self.__row.append(rows[coo.row])
+                self.__col.append(cols[coo.col])
             elif isinstance(value, spmatrix):
                 raise RuntimeError("Do not use sparse matrices, move to sparse array.")
             else:
-                # convert everything als to 2D numpy arrays
+                # convert everything else (scalars, lists, ...) to 2D numpy arrays
                 value = atleast_2d(value)
                 assert value.shape == (len(rows), len(cols)), "inconsistent assignment"
 
-                # 2D array
-                self.data.extend(value.ravel(order="C"))
-                self.row.extend(repeat(rows, len(cols)))
-                self.col.extend(tile(cols, len(rows)))
+                self.__data.append(value.flatten(order="C"))
+                self.__row.append(repeat(rows, len(cols)))
+                self.__col.append(tile(cols, len(rows)))
 
     def extend(self, matrix, DOF):
         warnings.warn(
@@ -161,6 +195,9 @@ class CooMatrix:
         scipy_matrix: scipy.sparse.spmatrix
             scipy sparse matrix format that should be returned
         """
+        if not any(len(chunk) for chunk in self.__data):
+            # constructing an empty matrix from its shape is much cheaper
+            return scipy_matrix(self.shape, dtype=float)
         return scipy_matrix(
             (self.data, (self.row, self.col)), shape=self.shape, copy=copy
         )
@@ -236,9 +273,9 @@ if __name__ == "__main__":
         for i in range(nlocal):
             dense = random(local_size, local_size, density=density)
             dense_coo = CooMatrix((local_size, local_size))
-            dense_coo.data = array("d", dense.data)
-            dense_coo.row = array("I", dense.row)
-            dense_coo.col = array("I", dense.col)
+            dense_coo.data = dense.data
+            dense_coo.row = dense.row
+            dense_coo.col = dense.col
             idx = np.arange(i * local_size, (i + 1) * local_size)
             coo[idx, idx] = dense_coo
 

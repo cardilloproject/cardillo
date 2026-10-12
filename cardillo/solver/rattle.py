@@ -1,6 +1,6 @@
 import warnings
 import numpy as np
-from scipy.sparse import lil_array, eye, bmat
+from scipy.sparse import eye, bmat
 from scipy.sparse.linalg import splu
 from tqdm import tqdm
 
@@ -190,59 +190,48 @@ class Rattle:
 
         qn1, un12, la_c1, _, _ = np.array_split(x1n1, self.split_x1)
 
-        J_x1 = lil_array((self.nx1, self.nx1))
-
         ####################
         # kinematic equation
         ####################
-        J_x1[: self.split_x1[0], : self.split_x1[0]] = eye(
-            self.nq
-        ) - 0.5 * dt * self.system.q_dot_q(tn1, qn1, un12)
-        J_x1[: self.split_x1[0], self.split_x1[0] : self.split_x1[1]] = (
-            -0.5 * dt * (self.Bn + self.system.q_dot_u(tn1, qn1))
-        )
+        J_qq = eye(self.nq) - 0.5 * dt * self.system.q_dot_q(tn1, qn1, un12)
+        J_qu = -0.5 * dt * (self.Bn + self.system.q_dot_u(tn1, qn1))
 
         ########################
         # euations of motion (1)
         ########################
-        J_x1[
-            self.split_x1[0] : self.split_x1[1], self.split_x1[0] : self.split_x1[1]
-        ] = self.Mn - 0.5 * dt * (
+        J_uu = self.Mn - 0.5 * dt * (
             self.system.h_u(tn, qn, un12)
             + self.system.Wla_tau_u(self.tn, self.qn, un12)
         )
-        J_x1[
-            self.split_x1[0] : self.split_x1[1], self.split_x1[1] : self.split_x1[2]
-        ] = (-0.5 * dt * self.W_cn)
-        J_x1[
-            self.split_x1[0] : self.split_x1[1], self.split_x1[2] : self.split_x1[3]
-        ] = -self.W_gn
-        J_x1[self.split_x1[0] : self.split_x1[1], self.split_x1[3] :] = -self.W_gamman
+        J_u_la_c = -0.5 * dt * self.W_cn
+        J_u_P_g = -self.W_gn
+        J_u_P_gamma = -self.W_gamman
 
         ############
         # compliance
         ############
-        J_x1[
-            self.split_x1[1] : self.split_x1[2], self.split_x1[0] : self.split_x1[1]
-        ] = self.system.c_u(tn, qn, un12, la_c1)
-        J_x1[
-            self.split_x1[1] : self.split_x1[2], self.split_x1[1] : self.split_x1[2]
-        ] = self.system.c_la_c()
+        J_cu = self.system.c_u(tn, qn, un12, la_c1)
+        J_c_la_c = self.system.c_la_c()
 
         #######################
         # bilateral constraints
         #######################
-        J_x1[self.split_x1[2] : self.split_x1[3], : self.split_x1[0]] = self.system.g_q(
-            tn1, qn1
-        )
-        J_x1[self.split_x1[3] :, : self.split_x1[0]] = self.system.gamma_q(
-            tn1, qn1, un12
-        )
-        J_x1[self.split_x1[3] :, self.split_x1[0] : self.split_x1[1]] = (
-            self.system.gamma_u(tn1, qn1)
-        )
+        J_gq = self.system.g_q(tn1, qn1)
+        J_gamma_q = self.system.gamma_q(tn1, qn1, un12)
+        J_gamma_u = self.system.gamma_u(tn1, qn1)
 
-        return J_x1.tocsc()
+        # fmt: off
+        return bmat(
+            [
+                [J_qq,      J_qu,        None,     None,        None],
+                [None,      J_uu,        J_u_la_c, J_u_P_g,     J_u_P_gamma],
+                [None,      J_cu,        J_c_la_c, None,        None],
+                [J_gq,      None,        None,     None,        None],
+                [J_gamma_q, J_gamma_u,   None,     None,        None],
+            ],
+            format="csc",
+        )
+        # fmt: on
 
         # J_x1_num = csc_array(
         #     approx_fprime(x1n1, lambda x: self.R_x1(x, y1n1), method="cs")

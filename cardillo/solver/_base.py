@@ -242,6 +242,12 @@ def compute_I_F(I_N, system, slice=True):
     """Compute set of active friction contacts based on active normal contacts
     and NF-connectivity list."""
 
+    # lookup table from global to local index of the active normal contacts, -1
+    # for inactive contacts (I_N is sorted and unique)
+    I_N = np.asarray(I_N, dtype=int)
+    local_N = np.full(system.nla_N, -1, dtype=int)
+    local_N[I_N] = np.arange(len(I_N))
+
     # compute set of active friction contacts and local connectivity
     I_F = []
     global_active_friction_laws = []
@@ -256,9 +262,14 @@ def compute_I_F(I_N, system, slice=True):
                 i_N_global = contr.la_NDOF[i_N][0]  # scalar normal force
 
                 # only add friction if normal force is active
-                if not slice or (i_N_global in I_N):
+                i_N_local_index = local_N[i_N_global]
+                if not slice or i_N_local_index >= 0:
                     nla_F_local += n_F
-                    i_N_local = np.where(i_N_global == I_N)[0]
+                    i_N_local = (
+                        np.array([i_N_local_index])
+                        if i_N_local_index >= 0
+                        else np.empty(0, dtype=int)
+                    )
                     I_F.extend(i_F_global)
                     global_active_friction_laws.append(
                         (i_N_local, i_F_local, force_reservoir)

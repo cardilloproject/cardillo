@@ -1485,6 +1485,11 @@ class CosseratRodMixed(CosseratRod_PetrovGalerkin):
                 qe, qpi, N=self.N_r[el, i], N_xi=self.N_r_xi[el, i]
             )
 
+            # terms that do not depend on the nodes
+            B_Kappa_bar_tilde = ax2skew(B_Kappa_bar)
+            B_Gamma_bar_tilde_g = ax2skew(B_Gamma_bar)[:, self.mixed_n]
+            A_IB_g = A_IB[:, self.mixed_n]
+
             ############################
             # virtual work contributions
             ############################
@@ -1494,10 +1499,7 @@ class CosseratRodMixed(CosseratRod_PetrovGalerkin):
                 for node_la_c in range(self.nnodes_element_la_c):
                     nodalDOF_la_c = self.nodalDOF_element_la_c[node_la_c]
                     W_c_el[nodalDOF_r[:, None], nodalDOF_la_c[: self.nmixed_n]] -= (
-                        N_r_xi
-                        * A_IB[:, self.mixed_n]
-                        * self.N_la_c[el, i, node_la_c]
-                        * qwi
+                        N_r_xi * A_IB_g * self.N_la_c[el, i, node_la_c] * qwi
                     )
 
             for node_p in range(self.nnodes_element_p):
@@ -1508,16 +1510,13 @@ class CosseratRodMixed(CosseratRod_PetrovGalerkin):
                 for node_la_c in range(self.nnodes_element_la_c):
                     nodalDOF_la_c = self.nodalDOF_element_la_c[node_la_c]
                     W_c_el[nodalDOF_p[:, None], nodalDOF_la_c[self.nmixed_n :]] -= (
-                        (N_p_xi * eye3 - N_p * ax2skew(B_Kappa_bar))[:, self.mixed_m]
+                        (N_p_xi * eye3 - N_p * B_Kappa_bar_tilde)[:, self.mixed_m]
                         * self.N_la_c[el, i, node_la_c]
                         * qwi
                     )
 
                     W_c_el[nodalDOF_p[:, None], nodalDOF_la_c[: self.nmixed_n]] += (
-                        N_p
-                        * ax2skew(B_Gamma_bar)[:, self.mixed_n]
-                        * self.N_la_c[el, i, node_la_c]
-                        * qwi
+                        N_p * B_Gamma_bar_tilde_g * self.N_la_c[el, i, node_la_c] * qwi
                     )
 
         return W_c_el
@@ -1564,18 +1563,18 @@ class CosseratRodMixed(CosseratRod_PetrovGalerkin):
             B_n[self.mixed_n] = la_c[: self.nmixed_n]
             B_m[self.mixed_m] = la_c[self.nmixed_n :]
 
+            # terms that do not depend on the node
+            tmp_r = np.einsum("ikj,k->ij", A_IB_qe, B_n)
+            tmp_p = -ax2skew(B_n) @ B_Gamma_bar_qe - ax2skew(B_m) @ B_Kappa_bar_qe
+
             for node in range(self.nnodes_element_r):
                 Wla_c_el_qe[self.nodalDOF_element_r_u[node], :] -= (
-                    self.N_r_xi[el, i, node]
-                    * qwi
-                    * (np.einsum("ikj,k->ij", A_IB_qe, B_n))
+                    self.N_r_xi[el, i, node] * qwi * tmp_r
                 )
 
             for node in range(self.nnodes_element_p):
                 Wla_c_el_qe[self.nodalDOF_element_p_u[node], :] += (
-                    self.N_p[el, i, node]
-                    * qwi
-                    * (-ax2skew(B_n) @ B_Gamma_bar_qe - ax2skew(B_m) @ B_Kappa_bar_qe)
+                    self.N_p[el, i, node] * qwi * tmp_p
                 )
 
         return Wla_c_el_qe
@@ -1867,6 +1866,11 @@ def make_CosseratRodConstrained(mixed, constraints):
                     qe, qpi, N=self.N_r[el, i], N_xi=self.N_r_xi[el, i]
                 )
 
+                # terms that do not depend on the nodes
+                B_Kappa_bar_tilde = ax2skew(B_Kappa_bar)
+                B_Gamma_bar_tilde_g = ax2skew(B_Gamma_bar)[:, self.constraints_gamma]
+                A_IB_g = A_IB[:, self.constraints_gamma]
+
                 ############################
                 # virtual work contributions
                 ############################
@@ -1879,10 +1883,7 @@ def make_CosseratRodConstrained(mixed, constraints):
                             nodalDOF_r[:, None],
                             nodalDOF_la_g[: self.nconstraints_gamma],
                         ] -= (
-                            N_r_xi
-                            * A_IB[:, self.constraints_gamma]
-                            * self.N_la_g[el, i, node_la_g]
-                            * qwi
+                            N_r_xi * A_IB_g * self.N_la_g[el, i, node_la_g] * qwi
                         )
 
                 for node_p in range(self.nnodes_element_p):
@@ -1896,7 +1897,7 @@ def make_CosseratRodConstrained(mixed, constraints):
                             nodalDOF_p[:, None],
                             nodalDOF_la_g[self.nconstraints_gamma :],
                         ] -= (
-                            (N_p_xi * eye3 - N_p * ax2skew(B_Kappa_bar))[
+                            (N_p_xi * eye3 - N_p * B_Kappa_bar_tilde)[
                                 :, self.constraints_kappa
                             ]
                             * self.N_la_g[el, i, node_la_g]
@@ -1908,7 +1909,7 @@ def make_CosseratRodConstrained(mixed, constraints):
                             nodalDOF_la_g[: self.nconstraints_gamma],
                         ] += (
                             N_p
-                            * ax2skew(B_Gamma_bar)[:, self.constraints_gamma]
+                            * B_Gamma_bar_tilde_g
                             * self.N_la_g[el, i, node_la_g]
                             * qwi
                         )
@@ -1957,21 +1958,18 @@ def make_CosseratRodConstrained(mixed, constraints):
                 B_n[self.constraints_gamma] = la_g[: self.nconstraints_gamma]
                 B_m[self.constraints_kappa] = la_g[self.nconstraints_gamma :]
 
+                # terms that do not depend on the node
+                tmp_r = np.einsum("ikj,k->ij", A_IB_qe, B_n)
+                tmp_p = -ax2skew(B_n) @ B_Gamma_bar_qe - ax2skew(B_m) @ B_Kappa_bar_qe
+
                 for node in range(self.nnodes_element_r):
                     Wla_g_q_el[self.nodalDOF_element_r_u[node], :] -= (
-                        self.N_r_xi[el, i, node]
-                        * qwi
-                        * (np.einsum("ikj,k->ij", A_IB_qe, B_n))
+                        self.N_r_xi[el, i, node] * qwi * tmp_r
                     )
 
                 for node in range(self.nnodes_element_p):
                     Wla_g_q_el[self.nodalDOF_element_p_u[node], :] += (
-                        self.N_p[el, i, node]
-                        * qwi
-                        * (
-                            -ax2skew(B_n) @ B_Gamma_bar_qe
-                            - ax2skew(B_m) @ B_Kappa_bar_qe
-                        )
+                        self.N_p[el, i, node] * qwi * tmp_p
                     )
 
             return Wla_g_q_el
